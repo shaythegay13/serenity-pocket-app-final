@@ -1,0 +1,35 @@
+{
+  "name": "Serenity Pocket",
+  "short_name": "Serenity",
+  "description": "Mindful trading psychology app to manage cognitive and emotional biases",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fcfffe",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "health"],
+  "shortcuts": [
+    {
+      "name": "Daily Check-In",
+      "short_name": "Check-In",
+      "description": "Log your daily emotion",
+      "url": "/?tab=dashboard",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Journal Entry",
+      "short_name": "Journal",
+      "description": "Record a trade decision",
+      "url": "/?tab=journal",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}

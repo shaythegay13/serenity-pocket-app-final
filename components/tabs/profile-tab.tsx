@@ -102,19 +102,8 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
         if (!awarded) {
           // Award XP and tokens for completing profile
           await updateUserData({ xp: userData.xp + xpRewards.completeLesson, serenityTokens: userData.serenityTokens + tokenRewards.completeLesson })
-          
-          // Unlock all achievements when profile is completed
-          const achievements = await storage.getAchievements()
-          const unlockedAchievements = achievements.map((a: Achievement) => ({
-            ...a,
-            unlocked: true,
-            unlockedAt: new Date()
-          }))
-          await storage.setAchievements(unlockedAchievements)
-          
           localStorage.setItem("serenity_profile_completed_awarded", "true")
-          toast.success("All achievements achieved!")
-          forceRefresh() // Trigger achievements tab to reload
+          toast.success("Profile bonus awarded: +100 XP and +10 Serenity Tokens!")
         }
       }
     } catch (e: any) {

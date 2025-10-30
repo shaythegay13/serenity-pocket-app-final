@@ -21,7 +21,7 @@ export function AchievementUnlockDialog({ open, onOpenChange, achievement }: Ach
           <div className="flex justify-center mb-4">
             <div className="text-6xl animate-bounce">{achievement.icon}</div>
           </div>
-          <DialogTitle className="text-center text-2xl">Achievement Unlocked!</DialogTitle>
+          <DialogTitle className="text-center text-2xl">Achievement Achieved!</DialogTitle>
           <DialogDescription className="text-center text-lg font-semibold text-foreground">
             {achievement.name}
           </DialogDescription>

@@ -113,7 +113,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
           await storage.setAchievements(unlockedAchievements)
           
           localStorage.setItem("serenity_profile_completed_awarded", "true")
-          toast.success("All achievements unlocked!")
+          toast.success("All achievements achieved!")
           forceRefresh() // Trigger achievements tab to reload
         }
       }

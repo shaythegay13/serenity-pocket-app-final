@@ -57,11 +57,14 @@ export function AchievementsTab({ userData, updateUserData }: AchievementsTabPro
               <p className="text-xs text-muted-foreground">
                 {achievement.progress} / {achievement.maxProgress}
               </p>
+              <p className="text-xs text-muted-foreground font-medium">
+                Not Achieved Yet
+              </p>
             </div>
           )}
           {achievement.unlocked && achievement.unlockedAt && (
             <p className="text-xs text-primary font-medium">
-              Unlocked {new Date(achievement.unlockedAt).toLocaleDateString()}
+              Achieved {new Date(achievement.unlockedAt).toLocaleDateString()}
             </p>
           )}
         </div>

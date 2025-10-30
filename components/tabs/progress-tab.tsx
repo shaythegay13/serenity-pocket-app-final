@@ -7,25 +7,44 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmotionChart } from "@/components/emotion-chart"
 import { TradePerformanceChart } from "@/components/trade-performance-chart"
 import { ProgressBar } from "@/components/progress-bar"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData } from "@/lib/types"
 import { BarChart3, TrendingUp, Wind, Lock } from "lucide-react"
 
 interface ProgressTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
-  refreshKey?: number
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
+  refreshKey: number
 }
 
 export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTabProps) {
-  const [achievements, setAchievements] = useState(storage.getAchievements())
-  const emotionLogs = storage.getEmotionLogs()
-  const trades = storage.getTrades()
+  const [achievements, setAchievements] = useState<any[]>([])
+  const [emotionLogs, setEmotionLogs] = useState<any[]>([])
+  const [trades, setTrades] = useState<any[]>([])
 
-  // Refresh achievements when refreshKey changes
   useEffect(() => {
-    setAchievements(storage.getAchievements())
+    const fetchAchievements = async () => {
+      const achievements = await storage.getAchievements()
+      setAchievements(achievements)
+    }
+    fetchAchievements()
   }, [refreshKey])
+
+  useEffect(() => {
+    const fetchEmotionLogs = async () => {
+      const emotionLogs = await storage.getEmotionLogs()
+      setEmotionLogs(emotionLogs)
+    }
+    fetchEmotionLogs()
+  }, [])
+
+  useEffect(() => {
+    const fetchTrades = async () => {
+      const trades = await storage.getTrades()
+      setTrades(trades)
+    }
+    fetchTrades()
+  }, [])
 
   const streakBadges = achievements.filter((a) => a.category === "streak")
   const biasBusterBadges = achievements.filter((a) => a.category === "bias-buster")

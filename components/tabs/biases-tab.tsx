@@ -1,26 +1,41 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { BiasQuiz } from "@/components/bias-quiz"
 import { BiasProfileChart } from "@/components/bias-profile-chart"
 import { BiasEducation } from "@/components/bias-education"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, BiasProfile } from "@/lib/types"
 import { Brain, BookOpen, BarChart3, Trophy } from "lucide-react"
 
 interface BiasesTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
 export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
   const [view, setView] = useState<"overview" | "quiz" | "education">("overview")
-  const [biasProfile, setBiasProfile] = useState<BiasProfile>(storage.getBiasProfile())
+  const [biasProfile, setBiasProfile] = useState<BiasProfile>({
+    confirmationBias: 50,
+    lossAversion: 50,
+    anchoringBias: 50,
+    recencyBias: 50,
+    overconfidenceBias: 50,
+    herdMentality: 50,
+  })
   const [hasCompletedQuiz, setHasCompletedQuiz] = useState(false)
 
-  const handleQuizComplete = (results: Record<string, number>) => {
+  useEffect(() => {
+    const loadBiasProfile = async () => {
+      const profile = await storage.getBiasProfile()
+      setBiasProfile(profile)
+    }
+    loadBiasProfile()
+  }, [])
+
+  const handleQuizComplete = async (results: Record<string, number>) => {
     const newProfile: BiasProfile = {
       confirmationBias: results.confirmationBias || 50,
       lossAversion: results.lossAversion || 50,
@@ -30,7 +45,7 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
       herdMentality: results.herdMentality || 50,
     }
 
-    storage.setBiasProfile(newProfile)
+    await storage.setBiasProfile(newProfile)
     setBiasProfile(newProfile)
     setHasCompletedQuiz(true)
 

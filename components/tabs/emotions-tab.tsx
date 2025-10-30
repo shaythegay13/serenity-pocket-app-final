@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -9,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmotionWheel } from "@/components/emotion-wheel"
 import { EmotionHistory } from "@/components/emotion-history"
 import { EmotionInsights } from "@/components/emotion-insights"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, EmotionLog } from "@/lib/types"
 import { Plus, History, Lightbulb } from "lucide-react"
 
 interface EmotionsTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
 export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
@@ -24,13 +24,21 @@ export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
   const [intensity, setIntensity] = useState<number>(3)
   const [context, setContext] = useState<string>("")
   const [phase, setPhase] = useState<"before" | "during" | "after">("before")
-  const [logs, setLogs] = useState<EmotionLog[]>(storage.getEmotionLogs())
+  const [logs, setLogs] = useState<EmotionLog[]>([])
+
+  useEffect(() => {
+    const loadLogs = async () => {
+      const emotionLogs = await storage.getEmotionLogs()
+      setLogs(emotionLogs)
+    }
+    loadLogs()
+  }, [])
 
   const handleEmotionSelect = (emotion: string) => {
     setSelectedEmotion(emotion)
   }
 
-  const handleLogEmotion = () => {
+  const handleLogEmotion = async () => {
     if (!selectedEmotion) return
 
     const newLog: EmotionLog = {
@@ -42,8 +50,9 @@ export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
       phase,
     }
 
-    storage.addEmotionLog(newLog)
-    setLogs(storage.getEmotionLogs())
+    await storage.addEmotionLog(newLog)
+    const updatedLogs = await storage.getEmotionLogs()
+    setLogs(updatedLogs)
 
     // Award XP, increment total emotions logged, and update daily ring
     const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 10, 100)

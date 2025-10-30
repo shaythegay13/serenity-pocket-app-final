@@ -2,29 +2,38 @@
 
 import { Badge } from "@/components/ui/badge"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PreTradeForm } from "@/components/pre-trade-form"
 import { PostTradeForm } from "@/components/post-trade-form"
 import { TradeHistory } from "@/components/trade-history"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, Trade } from "@/lib/types"
 import { Plus, History, FileText } from "lucide-react"
 import { format } from "date-fns"
 
 interface JournalTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
 export function JournalTab({ userData, updateUserData }: JournalTabProps) {
   const [view, setView] = useState<"history" | "pre-trade" | "post-trade" | "detail">("history")
-  const [trades, setTrades] = useState<Trade[]>(storage.getTrades())
+  const [trades, setTrades] = useState<Trade[]>([])
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
 
-  const handlePreTradeComplete = (trade: Trade) => {
-    setTrades(storage.getTrades())
+  useEffect(() => {
+    const loadTrades = async () => {
+      const tradesData = await storage.getTrades()
+      setTrades(tradesData)
+    }
+    loadTrades()
+  }, [])
+
+  const handlePreTradeComplete = async (trade: Trade) => {
+    const tradesData = await storage.getTrades()
+    setTrades(tradesData)
     const biasCount = trade.biasesIdentified.length
     const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
     
@@ -40,8 +49,9 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
     setView("history")
   }
 
-  const handlePostTradeComplete = () => {
-    setTrades(storage.getTrades())
+  const handlePostTradeComplete = async () => {
+    const tradesData = await storage.getTrades()
+    setTrades(tradesData)
     const mindfulTrade = selectedTrade && selectedTrade.biasesIdentified.length > 0
     const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
     

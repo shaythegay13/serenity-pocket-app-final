@@ -4,21 +4,25 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { UserData } from "@/lib/types"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { Lock } from "lucide-react"
 import { ProgressBar } from "@/components/progress-bar"
 
 interface AchievementsTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
 export function AchievementsTab({ userData, updateUserData }: AchievementsTabProps) {
-  const [achievements, setAchievements] = useState(storage.getAchievements())
+  const [achievements, setAchievements] = useState<any[]>([])
 
   // Refresh achievements when component mounts or becomes visible
   useEffect(() => {
-    setAchievements(storage.getAchievements())
+    const loadAchievements = async () => {
+      const achievementsData = await storage.getAchievements()
+      setAchievements(achievementsData)
+    }
+    loadAchievements()
   }, [])
 
   const streakBadges = achievements.filter((a) => a.category === "streak")

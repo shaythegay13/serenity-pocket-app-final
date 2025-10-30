@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
 interface EmotionCheckInDialogProps {
   open: boolean
@@ -30,10 +30,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: Emotion
   const [intensity, setIntensity] = useState([5])
   const [context, setContext] = useState("")
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedEmotion) return
 
-    storage.addEmotionLog({
+    await storage.addEmotionLog({
       id: Date.now().toString(),
       timestamp: new Date(),
       emotion: selectedEmotion,

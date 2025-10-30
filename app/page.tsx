@@ -31,6 +31,25 @@ export default function Home() {
   useEffect(() => {
     const init = async () => {
       try {
+        // Try to restore session from cookies first
+        const accessToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('sb-access-token='))
+          ?.split('=')[1]
+        
+        const refreshToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('sb-refresh-token='))
+          ?.split('=')[1]
+        
+        if (accessToken && refreshToken) {
+          console.log('Found session cookies, setting session')
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+        }
+        
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Auth timeout')), 10000)
@@ -42,9 +61,12 @@ export default function Home() {
         setAuthed(!!user)
         
         if (user) {
+          console.log('User authenticated:', user.email)
           // Load user data from database
           const data = await storage.getUserData()
           setUserData(data)
+        } else {
+          console.log('No user authenticated')
         }
       } catch (error) {
         console.error('Auth initialization error:', error)
@@ -55,6 +77,7 @@ export default function Home() {
     init()
     
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('Auth state changed:', _event, !!session?.user)
       setAuthed(!!session?.user)
       if (session?.user) {
         try {

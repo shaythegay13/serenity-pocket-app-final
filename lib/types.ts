@@ -21,6 +21,7 @@ export interface UserData {
   totalBiasesIdentified: number
   totalJournalsCompleted: number
   totalModulesCompleted: number
+  totalBreathingExercises: number
   mostProductiveDay: number
 }
 

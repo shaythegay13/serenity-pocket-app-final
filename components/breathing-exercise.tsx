@@ -1,15 +1,40 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, RotateCcw } from "lucide-react"
+import type { UserData } from "@/lib/types"
 
-export function BreathingExercise() {
+interface BreathingExerciseProps {
+  userData?: UserData
+  updateUserData?: (updates: Partial<UserData>) => void
+}
+
+export function BreathingExercise({ userData, updateUserData }: BreathingExerciseProps = {}) {
   const [isActive, setIsActive] = useState(false)
   const [phase, setPhase] = useState<"inhale" | "hold" | "exhale">("inhale")
   const [count, setCount] = useState(4)
   const [cycles, setCycles] = useState(0)
+  const hasCompleted = useRef(false)
+  const phaseRef = useRef(phase)
+  const isIncrementingCycle = useRef(false)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
+
+  // Award completion when 3 cycles are reached
+  useEffect(() => {
+    if (cycles >= 3 && !hasCompleted.current && userData && updateUserData) {
+      hasCompleted.current = true
+      updateUserData({
+        totalBreathingExercises: userData.totalBreathingExercises + 1,
+        xp: userData.xp + 5,
+      })
+    }
+  }, [cycles, userData, updateUserData])
 
   useEffect(() => {
     if (!isActive) return
@@ -18,29 +43,38 @@ export function BreathingExercise() {
       setCount((prev) => {
         if (prev > 1) return prev - 1
 
-        // Move to next phase
-        if (phase === "inhale") {
+        // Move to next phase using ref to avoid re-creating interval
+        const currentPhase = phaseRef.current
+        if (currentPhase === "inhale") {
           setPhase("hold")
+          isIncrementingCycle.current = false
           return 4
-        } else if (phase === "hold") {
+        } else if (currentPhase === "hold") {
           setPhase("exhale")
           return 6
         } else {
+          // Exhale complete, starting new cycle
           setPhase("inhale")
-          setCycles((c) => c + 1)
+          // Only increment if we haven't already incremented for this cycle
+          if (!isIncrementingCycle.current) {
+            isIncrementingCycle.current = true
+            setCycles((c) => c + 1)
+          }
           return 4
         }
       })
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isActive, phase])
+  }, [isActive])
 
   const handleReset = () => {
     setIsActive(false)
     setPhase("inhale")
     setCount(4)
     setCycles(0)
+    hasCompleted.current = false
+    isIncrementingCycle.current = false
   }
 
   const phaseColors = {

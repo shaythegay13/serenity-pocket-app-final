@@ -10,11 +10,25 @@ interface TradePerformanceChartProps {
 
 export function TradePerformanceChart({ trades }: TradePerformanceChartProps) {
   const completedTrades = trades.filter((t) => t.outcome)
+  const openTrades = trades.filter((t) => !t.outcome)
 
   if (completedTrades.length === 0) {
     return (
       <Card className="p-6">
-        <p className="text-center text-muted-foreground">Complete some trades to see performance data</p>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Trade Journal Activity</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center p-4 rounded-lg bg-primary/5 border border-primary/20">
+            <p className="text-3xl font-bold text-primary">{trades.length}</p>
+            <p className="text-sm text-muted-foreground">Total Entries</p>
+          </div>
+          <div className="text-center p-4 rounded-lg bg-blue/5 border border-blue/20">
+            <p className="text-3xl font-bold text-blue">{openTrades.length}</p>
+            <p className="text-sm text-muted-foreground">Open Trades</p>
+          </div>
+        </div>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          Complete post-trade reflections to see outcome performance data
+        </p>
       </Card>
     )
   }

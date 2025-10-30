@@ -39,6 +39,7 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
     updateUserData({
       biasRecognitionScore: Math.round(100 - avgScore), // Lower bias = higher recognition
       xp: userData.xp + 50,
+      totalModulesCompleted: userData.totalModulesCompleted + 1,
     })
 
     setView("overview")

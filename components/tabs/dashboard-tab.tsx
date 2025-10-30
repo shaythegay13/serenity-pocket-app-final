@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { ActivityRing } from "@/components/activity-ring"
 import { StatCard } from "@/components/stat-card"
 import { ProgressBar } from "@/components/progress-bar"
-import { Heart, Brain, TrendingUp, Sparkles, Trophy, Flame } from "lucide-react"
+import { BreathingExercise } from "@/components/breathing-exercise"
+import { MindfulnessTimer } from "@/components/mindfulness-timer"
+import { Heart, Brain, TrendingUp, Sparkles, Trophy, Flame, Wind, Timer, FileText } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { storage } from "@/lib/storage"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
@@ -22,6 +24,10 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
   const [showCheckIn, setShowCheckIn] = useState(false)
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false)
   const [showPerfectDay, setShowPerfectDay] = useState(false)
+  const [showBreathing, setShowBreathing] = useState(false)
+  const [showMeditation, setShowMeditation] = useState(false)
+  const trades = storage.getTrades()
+  const pendingTrades = trades.filter(t => !t.outcome)
 
   useEffect(() => {
     const lastCheckIn = storage.getLastCheckIn()
@@ -120,6 +126,80 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
           </div>
         </Card>
       )}
+
+      {/* Pending Trade Reflections Reminder */}
+      {pendingTrades.length > 0 && (
+        <Card className="p-6 bg-gradient-to-br from-amber/10 to-orange/10 border-amber/30">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-amber/20">
+                <FileText className="h-8 w-8 text-amber" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-foreground">Complete Your Trade Reflections</h3>
+                <p className="text-sm text-muted-foreground">
+                  You have {pendingTrades.length} pending {pendingTrades.length === 1 ? 'entry' : 'entries'} waiting for post-trade reflection
+                </p>
+              </div>
+            </div>
+            <div className="text-center md:text-right">
+              <p className="text-sm font-semibold text-amber mb-1">+{pendingTrades.length * 20} XP Available</p>
+              <p className="text-xs text-muted-foreground">Go to Journal tab to complete</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Breathing and Meditation Exercises */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-full bg-teal/10">
+              <Wind className="h-6 w-6 text-teal" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Breathing Exercise</h3>
+              <p className="text-xs text-muted-foreground">Box breathing to calm your mind</p>
+            </div>
+          </div>
+          {!showBreathing ? (
+            <Button onClick={() => setShowBreathing(true)} className="w-full">
+              Start Breathing Exercise
+            </Button>
+          ) : (
+            <div className="space-y-4">
+              <BreathingExercise userData={userData} updateUserData={updateUserData} />
+              <Button onClick={() => setShowBreathing(false)} variant="outline" className="w-full">
+                Close
+              </Button>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-full bg-amber/10">
+              <Timer className="h-6 w-6 text-amber" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Meditation</h3>
+              <p className="text-xs text-muted-foreground">Mindfulness timer for focus</p>
+            </div>
+          </div>
+          {!showMeditation ? (
+            <Button onClick={() => setShowMeditation(true)} className="w-full">
+              Start Meditation
+            </Button>
+          ) : (
+            <div className="space-y-4">
+              <MindfulnessTimer />
+              <Button onClick={() => setShowMeditation(false)} variant="outline" className="w-full">
+                Close
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">

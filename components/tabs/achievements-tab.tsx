@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { UserData } from "@/lib/types"
@@ -13,7 +14,12 @@ interface AchievementsTabProps {
 }
 
 export function AchievementsTab({ userData, updateUserData }: AchievementsTabProps) {
-  const achievements = storage.getAchievements()
+  const [achievements, setAchievements] = useState(storage.getAchievements())
+
+  // Refresh achievements when component mounts or becomes visible
+  useEffect(() => {
+    setAchievements(storage.getAchievements())
+  }, [])
 
   const streakBadges = achievements.filter((a) => a.category === "streak")
   const biasBusterBadges = achievements.filter((a) => a.category === "bias-buster")

@@ -45,8 +45,16 @@ export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
     storage.addEmotionLog(newLog)
     setLogs(storage.getEmotionLogs())
 
-    // Award XP
-    updateUserData({ xp: userData.xp + 5 })
+    // Award XP, increment total emotions logged, and update daily ring
+    const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 10, 100)
+    updateUserData({ 
+      xp: userData.xp + 5,
+      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
+      dailyRings: {
+        ...userData.dailyRings,
+        emotionalAwareness: newRingProgress,
+      },
+    })
 
     // Reset form
     setSelectedEmotion("")

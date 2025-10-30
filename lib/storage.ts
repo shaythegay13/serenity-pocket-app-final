@@ -127,6 +127,7 @@ function getDefaultUserData(): UserData {
     totalBiasesIdentified: 0,
     totalJournalsCompleted: 0,
     totalModulesCompleted: 0,
+    totalBreathingExercises: 0,
     mostProductiveDay: 0,
   }
 }

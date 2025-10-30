@@ -130,7 +130,7 @@ export function checkAchievements(
         newProgress = userData.mindfulTrades
         break
       case "cool-head":
-        newProgress = achievement.progress
+        newProgress = userData.totalBreathingExercises
         break
 
       // Learning Badges

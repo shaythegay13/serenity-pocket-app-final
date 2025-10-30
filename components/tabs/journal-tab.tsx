@@ -25,9 +25,17 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
 
   const handlePreTradeComplete = (trade: Trade) => {
     setTrades(storage.getTrades())
+    const biasCount = trade.biasesIdentified.length
+    const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
+    
     updateUserData({
       xp: userData.xp + 15,
       totalTrades: userData.totalTrades + 1,
+      totalBiasesIdentified: userData.totalBiasesIdentified + biasCount,
+      dailyRings: {
+        ...userData.dailyRings,
+        biasRecognition: newBiasRingProgress,
+      },
     })
     setView("history")
   }
@@ -35,15 +43,20 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
   const handlePostTradeComplete = () => {
     setTrades(storage.getTrades())
     const mindfulTrade = selectedTrade && selectedTrade.biasesIdentified.length > 0
+    const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
+    
     updateUserData({
       xp: userData.xp + 20,
       mindfulTrades: mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades,
       mindfulDecisionPercentage: Math.round(
-        ((mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades) / userData.totalTrades) * 100,
+        ((mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades) / (userData.totalTrades + 1)) * 100,
       ),
+      dailyRings: {
+        ...userData.dailyRings,
+        mindfulness: newMindfulnessProgress,
+      },
     })
-    setView("history")
-    setSelectedTrade(null)
+    setView("detail")
   }
 
   const handleSelectTrade = (trade: Trade) => {
@@ -82,6 +95,49 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
       {/* History View */}
       {view === "history" && (
         <div className="space-y-6">
+          {/* Pending Trades Section */}
+          {trades.filter(t => !t.outcome).length > 0 && (
+            <Card className="p-6 bg-gradient-to-br from-amber/10 to-orange/10 border-amber/30">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-amber/20">
+                    <FileText className="h-5 w-5 text-amber" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Pending Trade Reflections</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Complete these entries to earn XP and track your trading outcomes
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="bg-amber/10">
+                  {trades.filter(t => !t.outcome).length} pending
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                {trades.filter(t => !t.outcome).slice(0, 3).map((trade) => (
+                  <div key={trade.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground">{trade.preTradeEmotion}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(trade.timestamp), "MMM d, yyyy")}
+                      </p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedTrade(trade)
+                        setView("post-trade")
+                      }}
+                    >
+                      Complete (+20 XP)
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <Card className="p-6 bg-gradient-to-br from-primary/5 to-blue/5 border-primary/30">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-primary/20">
@@ -99,7 +155,14 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
 
           <div>
             <h3 className="text-xl font-semibold text-foreground mb-4">Your Trades</h3>
-            <TradeHistory trades={trades} onSelectTrade={handleSelectTrade} />
+            <TradeHistory 
+              trades={trades} 
+              onSelectTrade={handleSelectTrade}
+              onCompletePostTrade={(trade) => {
+                setSelectedTrade(trade)
+                setView("post-trade")
+              }}
+            />
           </div>
         </div>
       )}

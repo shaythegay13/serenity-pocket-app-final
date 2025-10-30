@@ -8,13 +8,15 @@ import { EmotionsTab } from "@/components/tabs/emotions-tab"
 import { BiasesTab } from "@/components/tabs/biases-tab"
 import { JournalTab } from "@/components/tabs/journal-tab"
 import { ProgressTab } from "@/components/tabs/progress-tab"
-import { AchievementsTab } from "@/components/tabs/achievements-tab"
+import { ProfileTab } from "@/components/tabs/profile-tab"
 import { LevelUpCelebration } from "@/components/level-up-celebration"
 import { AchievementUnlockDialog } from "@/components/achievement-unlock-dialog"
 import { storage } from "@/lib/storage"
 import { calculateLevel, calculateXPForNextLevel, checkAchievements, xpRewards } from "@/lib/gamification"
 import type { UserData, Achievement } from "@/lib/types"
 import { Toaster } from "sonner"
+import { supabase } from "@/lib/supabase"
+import { SignIn } from "@/components/auth/sign-in"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -23,10 +25,25 @@ export default function Home() {
   const [newLevel, setNewLevel] = useState(1)
   const [showAchievement, setShowAchievement] = useState(false)
   const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null)
+  const [authed, setAuthed] = useState<boolean | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     setUserData(storage.getUserData())
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setAuthed(!!user)
+    }
+    init()
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthed(!!session?.user)
+    })
+    return () => {
+      listener.subscription.unsubscribe()
+    }
   }, [])
+
+  const forceRefresh = () => setRefreshKey(prev => prev + 1)
 
   const updateUserData = (updates: Partial<UserData>) => {
     if (!userData) return
@@ -54,11 +71,13 @@ export default function Home() {
 
     const updatedAchievements = checkAchievements(newData, achievements, emotionLogs.length, biasesCount, trades.length)
 
+    // Always save updated achievements (even if just progress changed)
+    storage.setAchievements(updatedAchievements)
+
     // Find newly unlocked achievements
     const newlyUnlocked = updatedAchievements.find((a, i) => a.unlocked && !achievements[i].unlocked)
 
     if (newlyUnlocked) {
-      storage.setAchievements(updatedAchievements)
       setUnlockedAchievement(newlyUnlocked)
       setShowAchievement(true)
       newData.xp += xpRewards.achievementUnlock
@@ -83,7 +102,11 @@ export default function Home() {
     return features[level] || []
   }
 
-  if (!userData) {
+  if (authed === false) {
+    return <SignIn />
+  }
+
+  if (!userData || authed === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -100,8 +123,8 @@ export default function Home() {
         {activeTab === "emotions" && <EmotionsTab userData={userData} updateUserData={updateUserData} />}
         {activeTab === "biases" && <BiasesTab userData={userData} updateUserData={updateUserData} />}
         {activeTab === "journal" && <JournalTab userData={userData} updateUserData={updateUserData} />}
-        {activeTab === "progress" && <ProgressTab userData={userData} />}
-        {activeTab === "achievements" && <AchievementsTab userData={userData} updateUserData={updateUserData} />}
+        {activeTab === "progress" && <ProgressTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
+        {activeTab === "profile" && <ProfileTab userData={userData} updateUserData={updateUserData} forceRefresh={forceRefresh} />}
       </main>
 
       <LevelUpCelebration

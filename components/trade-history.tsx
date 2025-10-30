@@ -4,6 +4,7 @@ import React from "react"
 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { Trade } from "@/lib/types"
 import { format } from "date-fns"
 import { TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react"
@@ -11,9 +12,10 @@ import { TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react"
 interface TradeHistoryProps {
   trades: Trade[]
   onSelectTrade: (trade: Trade) => void
+  onCompletePostTrade?: (trade: Trade) => void
 }
 
-export function TradeHistory({ trades, onSelectTrade }: TradeHistoryProps) {
+export function TradeHistory({ trades, onSelectTrade, onCompletePostTrade }: TradeHistoryProps) {
   if (trades.length === 0) {
     return (
       <Card className="p-6">
@@ -70,7 +72,20 @@ export function TradeHistory({ trades, onSelectTrade }: TradeHistoryProps) {
                   </div>
                 )}
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <div className="flex items-center gap-2">
+                {!isComplete && onCompletePostTrade && (
+                  <Button
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCompletePostTrade(trade)
+                    }}
+                  >
+                    Complete
+                  </Button>
+                )}
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
             </div>
           </Card>
         )

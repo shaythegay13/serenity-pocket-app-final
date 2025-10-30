@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Heart, Brain, BookOpen, Trophy, BarChart3 } from "lucide-react"
+import { Home, Heart, Brain, BookOpen, Trophy, BarChart3, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface NavigationProps {
@@ -14,7 +14,7 @@ const navItems = [
   { id: "biases", label: "Biases", icon: Brain },
   { id: "journal", label: "Journal", icon: BookOpen },
   { id: "progress", label: "Progress", icon: BarChart3 },
-  { id: "achievements", label: "Achievements", icon: Trophy },
+  { id: "profile", label: "Profile", icon: User },
 ]
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {

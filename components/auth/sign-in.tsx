@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,16 +11,30 @@ export function SignIn() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  useEffect(() => {
+    // Check if Supabase is properly configured
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    console.log('Supabase URL configured:', url ? 'Yes' : 'No')
+    if (!url || url.includes('placeholder')) {
+      setError('Supabase is not properly configured. Please check your .env.local file.')
+    }
+  }, [])
 
   const handleSignIn = async () => {
     setLoading(true)
     setError(null)
     try {
+      console.log('Attempting to send magic link to:', email)
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
       setSent(true)
     } catch (e: any) {
-      setError(e.message)
+      console.error('Full error:', e)
+      setError(e.message || 'Failed to send magic link. Please check your connection.')
     } finally {
       setLoading(false)
     }

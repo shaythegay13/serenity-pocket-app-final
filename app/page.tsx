@@ -30,23 +30,42 @@ export default function Home() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setAuthed(!!user)
-      
-      if (user) {
-        // Load user data from database
-        const data = await storage.getUserData()
-        setUserData(data)
+      try {
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 10000)
+        )
+        
+        const authPromise = supabase.auth.getUser()
+        
+        const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any
+        setAuthed(!!user)
+        
+        if (user) {
+          // Load user data from database
+          const data = await storage.getUserData()
+          setUserData(data)
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error)
+        // If there's an error, assume not authenticated
+        setAuthed(false)
       }
     }
     init()
+    
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setAuthed(!!session?.user)
       if (session?.user) {
-        const data = await storage.getUserData()
-        setUserData(data)
+        try {
+          const data = await storage.getUserData()
+          setUserData(data)
+        } catch (error) {
+          console.error('Error loading user data:', error)
+        }
       }
     })
+    
     return () => {
       listener.subscription.unsubscribe()
     }

@@ -31,13 +31,13 @@ export function AchievementsTab({ userData, updateUserData }: AchievementsTabPro
       key={achievement.id}
       className={`p-4 transition-all ${
         achievement.unlocked
-          ? "bg-gradient-to-br from-primary/10 to-blue/10 border-primary/30 shadow-md"
+          ? "bg-linear-to-br from-primary/10 to-blue/10 border-primary/30 shadow-md"
           : "bg-card/50 opacity-60"
       }`}
     >
       <div className="flex items-start gap-3">
         <div
-          className={`text-3xl sm:text-4xl transition-all flex-shrink-0 ${achievement.unlocked ? "scale-110" : "grayscale"}`}
+          className={`text-3xl sm:text-4xl transition-all shrink-0 ${achievement.unlocked ? "scale-110" : "grayscale"}`}
         >
           {achievement.unlocked ? achievement.icon : <Lock className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />}
         </div>

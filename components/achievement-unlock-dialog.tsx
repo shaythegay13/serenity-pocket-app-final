@@ -28,7 +28,7 @@ export function AchievementUnlockDialog({ open, onOpenChange, achievement }: Ach
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-center text-muted-foreground">{achievement.description}</p>
-          <div className="p-4 rounded-lg bg-gradient-to-br from-primary/10 to-lavender/20 border border-primary/20">
+          <div className="p-4 rounded-lg bg-linear-to-br from-primary/10 to-lavender/20 border border-primary/20">
             <div className="flex items-center justify-center gap-2 text-sm text-foreground">
               <Award className="h-4 w-4 text-primary" />
               <span className="font-semibold">+100 XP Bonus</span>

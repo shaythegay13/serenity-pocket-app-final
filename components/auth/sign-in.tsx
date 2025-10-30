@@ -26,7 +26,12 @@ export function SignIn() {
     setError(null)
     try {
       console.log('Attempting to send magic link to:', email)
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+      const { error } = await supabase.auth.signInWithOtp({ 
+        email, 
+        options: { 
+          emailRedirectTo: `${window.location.origin}/auth/callback` 
+        } 
+      })
       if (error) {
         console.error('Supabase error:', error)
         throw error

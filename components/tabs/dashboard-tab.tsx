@@ -112,7 +112,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
 
       {/* Daily Check-In CTA */}
       {!hasCheckedInToday && (
-        <Card className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
+        <Card className="p-6 bg-linear-to-br from-primary/10 to-accent/10 border-primary/30">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-primary/20">
@@ -137,7 +137,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
 
       {/* Pending Trade Reflections Reminder */}
       {pendingTrades.length > 0 && (
-        <Card className="p-6 bg-gradient-to-br from-amber/10 to-orange/10 border-amber/30">
+        <Card className="p-6 bg-linear-to-br from-amber/10 to-orange/10 border-amber/30">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-amber/20">

@@ -9,11 +9,11 @@ import type { UserData, Achievement } from "@/lib/types"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { tokenRewards, xpRewards } from "@/lib/gamification"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
 interface ProfileTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
   forceRefresh: () => void
 }
 
@@ -101,16 +101,16 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
         const awarded = localStorage.getItem("serenity_profile_completed_awarded")
         if (!awarded) {
           // Award XP and tokens for completing profile
-          updateUserData({ xp: userData.xp + xpRewards.completeLesson, serenityTokens: userData.serenityTokens + tokenRewards.completeLesson })
+          await updateUserData({ xp: userData.xp + xpRewards.completeLesson, serenityTokens: userData.serenityTokens + tokenRewards.completeLesson })
           
           // Unlock all achievements when profile is completed
-          const achievements = storage.getAchievements()
+          const achievements = await storage.getAchievements()
           const unlockedAchievements = achievements.map((a: Achievement) => ({
             ...a,
             unlocked: true,
             unlockedAt: new Date()
           }))
-          storage.setAchievements(unlockedAchievements)
+          await storage.setAchievements(unlockedAchievements)
           
           localStorage.setItem("serenity_profile_completed_awarded", "true")
           toast.success("All achievements unlocked!")

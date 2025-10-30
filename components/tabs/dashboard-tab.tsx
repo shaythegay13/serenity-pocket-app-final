@@ -10,14 +10,14 @@ import { BreathingExercise } from "@/components/breathing-exercise"
 import { MindfulnessTimer } from "@/components/mindfulness-timer"
 import { Heart, Brain, TrendingUp, Sparkles, Trophy, Flame, Wind, Timer, FileText } from "lucide-react"
 import type { UserData } from "@/lib/types"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 import { getLevelTitle, checkPerfectDay, shouldResetRings } from "@/lib/gamification"
 import { PerfectDayNotification } from "@/components/perfect-day-notification"
 
 interface DashboardTabProps {
   userData: UserData
-  updateUserData: (updates: Partial<UserData>) => void
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
 export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
@@ -26,16 +26,26 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
   const [showPerfectDay, setShowPerfectDay] = useState(false)
   const [showBreathing, setShowBreathing] = useState(false)
   const [showMeditation, setShowMeditation] = useState(false)
-  const trades = storage.getTrades()
+  const [trades, setTrades] = useState<any[]>([])
+  const [challenges, setChallenges] = useState<any[]>([])
   const pendingTrades = trades.filter(t => !t.outcome)
 
   useEffect(() => {
-    const lastCheckIn = storage.getLastCheckIn()
-    if (lastCheckIn) {
-      const today = new Date().toDateString()
-      const lastCheckInDate = new Date(lastCheckIn).toDateString()
-      setHasCheckedInToday(today === lastCheckInDate)
+    const init = async () => {
+      const lastCheckIn = await storage.getLastCheckIn()
+      if (lastCheckIn) {
+        const today = new Date().toDateString()
+        const lastCheckInDate = new Date(lastCheckIn).toDateString()
+        setHasCheckedInToday(today === lastCheckInDate)
+      }
+      
+      const tradesData = await storage.getTrades()
+      setTrades(tradesData)
+      
+      const challengesData = await storage.getChallenges()
+      setChallenges(challengesData)
     }
+    init()
 
     if (shouldResetRings(userData.lastRingReset)) {
       updateUserData({
@@ -58,15 +68,15 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
     }
   }, [userData, updateUserData])
 
-  const handleCheckInComplete = () => {
+  const handleCheckInComplete = async () => {
     setShowCheckIn(false)
     setHasCheckedInToday(true)
-    storage.setLastCheckIn(new Date())
+    await storage.setLastCheckIn(new Date())
 
     const newStreak = userData.emotionalAwarenessStreak + 1
     const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 33.33, 100)
 
-    updateUserData({
+    await updateUserData({
       emotionalAwarenessStreak: newStreak,
       longestStreak: Math.max(newStreak, userData.longestStreak),
       xp: userData.xp + 10,
@@ -275,7 +285,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Weekly Challenges</h3>
         <div className="space-y-4">
-          {storage.getChallenges().map((challenge) => (
+          {challenges.map((challenge) => (
             <div key={challenge.id} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>

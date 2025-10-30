@@ -88,11 +88,9 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
             Level {userData.level} - {getLevelTitle(userData.level)}
           </span>
         </div>
-        <h2 className="text-3xl font-bold text-foreground">Welcome back, {userData.name}</h2>
+        <h2 className="text-3xl font-bold text-foreground">Balance your mind, master your money.</h2>
         <p className="text-muted-foreground">
-          {hasCheckedInToday
-            ? "You've checked in today. Keep up the mindful practice!"
-            : "How are you feeling today? Start with your daily check-in."}
+          Welcome back, Trader. How are you feeling today?
         </p>
         {userData.emotionalAwarenessStreak > 0 && (
           <div className="flex items-center justify-center gap-2 text-sm">

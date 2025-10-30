@@ -11,7 +11,7 @@ import { ProgressTab } from "@/components/tabs/progress-tab"
 import { ProfileTab } from "@/components/tabs/profile-tab"
 import { LevelUpCelebration } from "@/components/level-up-celebration"
 import { AchievementUnlockDialog } from "@/components/achievement-unlock-dialog"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { calculateLevel, calculateXPForNextLevel, checkAchievements, xpRewards } from "@/lib/gamification"
 import type { UserData, Achievement } from "@/lib/types"
 import { Toaster } from "sonner"
@@ -29,14 +29,23 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    setUserData(storage.getUserData())
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setAuthed(!!user)
+      
+      if (user) {
+        // Load user data from database
+        const data = await storage.getUserData()
+        setUserData(data)
+      }
     }
     init()
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setAuthed(!!session?.user)
+      if (session?.user) {
+        const data = await storage.getUserData()
+        setUserData(data)
+      }
     })
     return () => {
       listener.subscription.unsubscribe()
@@ -45,7 +54,7 @@ export default function Home() {
 
   const forceRefresh = () => setRefreshKey(prev => prev + 1)
 
-  const updateUserData = (updates: Partial<UserData>) => {
+  const updateUserData = async (updates: Partial<UserData>) => {
     if (!userData) return
 
     const newData = { ...userData, ...updates }
@@ -64,15 +73,15 @@ export default function Home() {
     }
 
     // Check for achievement unlocks
-    const achievements = storage.getAchievements()
-    const emotionLogs = storage.getEmotionLogs()
-    const trades = storage.getTrades()
+    const achievements = await storage.getAchievements()
+    const emotionLogs = await storage.getEmotionLogs()
+    const trades = await storage.getTrades()
     const biasesCount = trades.reduce((acc, t) => acc + t.biasesIdentified.length, 0)
 
     const updatedAchievements = checkAchievements(newData, achievements, emotionLogs.length, biasesCount, trades.length)
 
     // Always save updated achievements (even if just progress changed)
-    storage.setAchievements(updatedAchievements)
+    await storage.setAchievements(updatedAchievements)
 
     // Find newly unlocked achievements
     const newlyUnlocked = updatedAchievements.find((a, i) => a.unlocked && !achievements[i].unlocked)
@@ -84,7 +93,7 @@ export default function Home() {
     }
 
     setUserData(newData)
-    storage.setUserData(newData)
+    await storage.setUserData(newData)
   }
 
   const getUnlockedFeatures = (level: number): string[] => {

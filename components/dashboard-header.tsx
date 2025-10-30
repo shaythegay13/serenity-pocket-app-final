@@ -22,7 +22,6 @@ export function DashboardHeader({ userData }: DashboardHeaderProps) {
             <Image src="/logo.png" alt="Serenity Pocket" width={60} height={60} />
             <div>
               <h1 className="text-xl font-bold text-foreground">Serenity Pocket</h1>
-              <p className="text-xs text-muted-foreground">Balance your mind, master your money.</p>
             </div>
           </div>
 

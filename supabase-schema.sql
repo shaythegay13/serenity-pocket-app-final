@@ -94,19 +94,36 @@ CREATE TABLE IF NOT EXISTS trades (
 
 -- Achievements Table
 CREATE TABLE IF NOT EXISTS achievements (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   icon TEXT NOT NULL,
-  unlocked BOOLEAN DEFAULT false,
   progress INTEGER DEFAULT 0,
   max_progress INTEGER NOT NULL,
   category TEXT NOT NULL,
+  unlocked BOOLEAN DEFAULT FALSE,
   unlocked_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, id)
+  PRIMARY KEY(user_id, id)
 );
+
+-- Fix existing achievements table if it has wrong primary key
+DO $$ 
+BEGIN
+  -- Check if achievements table exists with old schema
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE table_name = 'achievements' 
+    AND constraint_type = 'PRIMARY KEY' 
+    AND constraint_name = 'achievements_pkey'
+  ) THEN
+    -- Drop old constraint and recreate with composite key
+    ALTER TABLE achievements DROP CONSTRAINT IF EXISTS achievements_pkey;
+    ALTER TABLE achievements DROP CONSTRAINT IF EXISTS achievements_user_id_id_key;
+    ALTER TABLE achievements ADD PRIMARY KEY (user_id, id);
+  END IF;
+END $$;
 
 -- Bias Profiles Table
 CREATE TABLE IF NOT EXISTS bias_profiles (

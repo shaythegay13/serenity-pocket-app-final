@@ -1,15 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 
+// Auth callback route - primarily for OAuth flows or email verification
+// Password authentication is handled directly in the sign-in component
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const error = requestUrl.searchParams.get('error')
   const error_description = requestUrl.searchParams.get('error_description')
-
-  // Log for debugging
-  console.log('Auth callback - code:', !!code, 'error:', error)
 
   if (error) {
     console.error('Auth error from Supabase:', error, error_description)
@@ -31,29 +29,8 @@ export async function GET(request: NextRequest) {
       }
 
       if (data.session) {
-        console.log('Session created successfully, setting cookies')
-        
-        // Create response with redirect
-        const response = NextResponse.redirect(new URL('/', requestUrl.origin))
-        
-        // Set session cookies manually
-        response.cookies.set('sb-access-token', data.session.access_token, {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7, // 7 days
-          httpOnly: false, // Must be false for client-side access
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production'
-        })
-        
-        response.cookies.set('sb-refresh-token', data.session.refresh_token, {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7, // 7 days
-          httpOnly: false,
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production'
-        })
-        
-        return response
+        // Redirect to home page - session will be picked up by client
+        return NextResponse.redirect(new URL('/', requestUrl.origin))
       }
     } catch (err) {
       console.error('Unexpected error in callback:', err)
@@ -61,6 +38,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  console.log('No code provided, redirecting to home')
+  // No code provided, redirect to home
   return NextResponse.redirect(new URL('/', requestUrl.origin))
 }

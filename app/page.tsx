@@ -17,6 +17,10 @@ import type { UserData, Achievement } from "@/lib/types"
 import { Toaster } from "sonner"
 import { supabase } from "@/lib/supabase"
 import { SignIn } from "@/components/auth/sign-in"
+import { SignUp } from "@/components/auth/sign-up"
+import { ForgotPassword } from "@/components/auth/forgot-password"
+import { ResendConfirmation } from "@/components/auth/resend-confirmation"
+import { initializeUserData } from "@/lib/init-user"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -27,6 +31,9 @@ export default function Home() {
   const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showSignUp, setShowSignUp] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -50,21 +57,56 @@ export default function Home() {
           })
         }
         
-        // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout')), 10000)
-        )
-        
-        const authPromise = supabase.auth.getUser()
-        
-        const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any
+        // Get user without timeout - initialization happens in background
+        const { data: { user } } = await supabase.auth.getUser()
         setAuthed(!!user)
         
         if (user) {
           console.log('User authenticated:', user.email)
-          // Load user data from database
-          const data = await storage.getUserData()
-          setUserData(data)
+          
+          // Try to load user data first - if it works, skip initialization
+          try {
+            console.log('Starting to load user data...')
+            const data = await Promise.race([
+              storage.getUserData(),
+              new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout loading user data')), 3000)
+              )
+            ])
+            console.log('User data loaded successfully:', data)
+            setUserData(data)
+          } catch (loadError) {
+            console.error('Error loading user data:', loadError)
+            console.warn('Database may be slow or paused. Using default data.')
+            
+            // If database is timing out, just use default data immediately
+            setUserData({
+              name: "Trader",
+              level: 1,
+              xp: 0,
+              xpToNextLevel: 500,
+              emotionalAwarenessStreak: 0,
+              biasRecognitionScore: 0,
+              mindfulDecisionPercentage: 0,
+              totalTrades: 0,
+              mindfulTrades: 0,
+              serenityTokens: 0,
+              dailyRings: {
+                emotionalAwareness: 0,
+                biasRecognition: 0,
+                mindfulness: 0,
+              },
+              lastRingReset: new Date(),
+              perfectDays: 0,
+              longestStreak: 0,
+              totalEmotionsLogged: 0,
+              totalBiasesIdentified: 0,
+              totalJournalsCompleted: 0,
+              totalModulesCompleted: 0,
+              totalBreathingExercises: 0,
+              mostProductiveDay: 0,
+            })
+          }
         } else {
           console.log('No user authenticated')
         }
@@ -78,15 +120,8 @@ export default function Home() {
     
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('Auth state changed:', _event, !!session?.user)
-      setAuthed(!!session?.user)
-      if (session?.user) {
-        try {
-          const data = await storage.getUserData()
-          setUserData(data)
-        } catch (error) {
-          console.error('Error loading user data:', error)
-        }
-      }
+      // Don't do anything on auth state change - let the main init handle it
+      // This prevents duplicate initialization calls
     })
     
     return () => {
@@ -154,13 +189,32 @@ export default function Home() {
   }
 
   if (authed === false) {
-    return <SignIn />
+    if (showForgotPassword) {
+      return <ForgotPassword onBack={() => setShowForgotPassword(false)} />
+    }
+    if (showResendConfirmation) {
+      return <ResendConfirmation onBack={() => setShowResendConfirmation(false)} />
+    }
+    return showSignUp ? (
+      <SignUp onSwitchToSignIn={() => setShowSignUp(false)} />
+    ) : (
+      <SignIn 
+        onSwitchToSignUp={() => setShowSignUp(true)} 
+        onForgotPassword={() => setShowForgotPassword(true)}
+        onResendConfirmation={() => setShowResendConfirmation(true)}
+      />
+    )
   }
 
   if (!userData || authed === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          {authed && (
+            <p className="text-sm text-muted-foreground">Setting up your profile...</p>
+          )}
+        </div>
       </div>
     )
   }

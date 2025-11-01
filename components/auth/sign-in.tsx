@@ -5,11 +5,18 @@ import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
-export function SignIn() {
+interface SignInProps {
+  onSwitchToSignUp: () => void
+  onForgotPassword: () => void
+  onResendConfirmation: () => void
+}
+
+export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmation }: SignInProps) {
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   useEffect(() => {
@@ -25,23 +32,33 @@ export function SignIn() {
     setLoading(true)
     setError(null)
     try {
-      console.log('Attempting to send magic link to:', email)
-      const { error } = await supabase.auth.signInWithOtp({ 
+      console.log('Attempting to sign in with email:', email)
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ 
         email, 
-        options: { 
-          emailRedirectTo: `${window.location.origin}/auth/callback` 
-        } 
+        password
       })
-      if (error) {
-        console.error('Supabase error:', error)
-        throw error
+      
+      if (signInError) {
+        console.error('Supabase error:', signInError)
+        throw signInError
       }
-      setSent(true)
+      
+      if (data.user) {
+        console.log('Sign in successful')
+        // Reload page to show authenticated state
+        window.location.reload()
+      }
     } catch (e: any) {
       console.error('Full error:', e)
-      setError(e.message || 'Failed to send magic link. Please check your connection.')
+      setError(e.message || 'Failed to sign in. Please check your credentials.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && email && password) {
+      handleSignIn()
     }
   }
 
@@ -50,24 +67,76 @@ export function SignIn() {
       <Card className="w-full max-w-sm p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-bold">Sign in</h1>
-          <p className="text-sm text-muted-foreground">We'll email you a magic link to sign in.</p>
+          <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
         </div>
-        {sent ? (
-          <p className="text-sm">Check your email for a sign-in link.</p>
-        ) : (
-          <>
+        
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="email">Email</Label>
             <Input
+              id="email"
               type="email"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
             />
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button onClick={handleSignIn} disabled={!email || loading} className="w-full">
-              {loading ? "Sending..." : "Send magic link"}
-            </Button>
-          </>
-        )}
+          </div>
+          
+          <div className="space-y-1">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+            />
+          </div>
+          
+          {error && (
+            <div className="space-y-2">
+              <p className="text-sm text-red-500">{error}</p>
+              {error.toLowerCase().includes('email not confirmed') && (
+                <button
+                  onClick={onResendConfirmation}
+                  className="text-sm text-blue-600 hover:text-blue-700 underline"
+                  type="button"
+                >
+                  Resend confirmation email
+                </button>
+              )}
+            </div>
+          )}
+          
+          <Button 
+            onClick={handleSignIn} 
+            disabled={!email || !password || loading} 
+            className="w-full"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
+          
+          <div className="text-center space-y-2">
+            <button
+              onClick={onForgotPassword}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
+              disabled={loading}
+            >
+              <span className="underline">Forgot password?</span>
+            </button>
+            <button
+              onClick={onSwitchToSignUp}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
+              disabled={loading}
+            >
+              Don't have an account? <span className="underline">Sign up</span>
+            </button>
+          </div>
+        </div>
       </Card>
     </div>
   )

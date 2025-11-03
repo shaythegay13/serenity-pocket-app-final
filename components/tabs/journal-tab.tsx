@@ -22,6 +22,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
   const [view, setView] = useState<"history" | "pre-trade" | "post-trade" | "detail">("history")
   const [trades, setTrades] = useState<Trade[]>([])
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
+  const [challenges, setChallenges] = useState<any[]>([])
 
   useEffect(() => {
     const loadTrades = async () => {
@@ -29,6 +30,14 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
       setTrades(tradesData)
     }
     loadTrades()
+  }, [])
+  
+  useEffect(() => {
+    const loadChallenges = async () => {
+      const challengesData = await storage.getChallenges()
+      setChallenges(challengesData)
+    }
+    loadChallenges()
   }, [])
 
   const handlePreTradeComplete = async (trade: Trade) => {
@@ -46,6 +55,19 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
         biasRecognition: newBiasRingProgress,
       },
     })
+    
+    // Update pause challenge (pre-trade entry = paused before trading)
+    const updatedChallenges = challenges.map(c => {
+      if (c.id === "pause-challenge" && c.progress < c.maxProgress) {
+        return { ...c, progress: c.progress + 1 }
+      }
+      return c
+    })
+    if (JSON.stringify(updatedChallenges) !== JSON.stringify(challenges)) {
+      await storage.setChallenges(updatedChallenges)
+      setChallenges(updatedChallenges)
+    }
+    
     setView("history")
   }
 
@@ -61,6 +83,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
       mindfulDecisionPercentage: Math.round(
         ((mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades) / (userData.totalTrades + 1)) * 100,
       ),
+      totalJournalsCompleted: userData.totalJournalsCompleted + 1,
       dailyRings: {
         ...userData.dailyRings,
         mindfulness: newMindfulnessProgress,
@@ -107,7 +130,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
         <div className="space-y-6">
           {/* Pending Trades Section */}
           {trades.filter(t => !t.outcome).length > 0 && (
-            <Card className="p-6 bg-gradient-to-br from-amber/10 to-orange/10 border-amber/30">
+            <Card className="p-6 bg-linear-to-br from-amber/10 to-orange/10 border-amber/30">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-full bg-amber/20">
@@ -148,7 +171,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
             </Card>
           )}
 
-          <Card className="p-6 bg-gradient-to-br from-primary/5 to-blue/5 border-primary/30">
+          <Card className="p-6 bg-linear-to-br from-primary/5 to-blue/5 border-primary/30">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-primary/20">
                 <FileText className="h-6 w-6 text-primary" />
@@ -278,7 +301,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 rounded-lg bg-gradient-to-br from-primary/5 to-blue/5 border border-primary/30">
+                <div className="p-6 rounded-lg bg-linear-to-br from-primary/5 to-blue/5 border border-primary/30">
                   <p className="text-center text-muted-foreground mb-4">This trade hasn't been closed yet</p>
                   <Button onClick={() => setView("post-trade")} className="w-full" size="lg">
                     Complete Post-Trade Entry (+20 XP)

@@ -4,8 +4,14 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, RotateCcw } from "lucide-react"
+import type { UserData } from "@/lib/types"
 
-export function MindfulnessTimer() {
+interface MindfulnessTimerProps {
+  userData?: UserData
+  updateUserData?: (updates: Partial<UserData>) => Promise<void>
+}
+
+export function MindfulnessTimer({ userData, updateUserData }: MindfulnessTimerProps = {}) {
   const [duration, setDuration] = useState(5)
   const [timeLeft, setTimeLeft] = useState(duration * 60)
   const [isActive, setIsActive] = useState(false)
@@ -21,6 +27,17 @@ export function MindfulnessTimer() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           setIsActive(false)
+          // Award XP and update mindfulness ring when timer completes
+          if (userData && updateUserData) {
+            const newRingProgress = Math.min(userData.dailyRings.mindfulness + 25, 100)
+            updateUserData({
+              xp: userData.xp + 10,
+              dailyRings: {
+                ...userData.dailyRings,
+                mindfulness: newRingProgress,
+              },
+            })
+          }
           return 0
         }
         return prev - 1
@@ -28,7 +45,7 @@ export function MindfulnessTimer() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isActive, timeLeft])
+  }, [isActive, timeLeft, userData, updateUserData])
 
   const handleReset = () => {
     setIsActive(false)

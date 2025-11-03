@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.serenity.pocketapp',
+  appId: 'com.shaythegay13.serenitypocket',
   appName: 'Serenity Pocket',
   webDir: 'out',
   server: {

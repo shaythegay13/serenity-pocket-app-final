@@ -29,9 +29,14 @@ export function BreathingExercise({ userData, updateUserData }: BreathingExercis
   useEffect(() => {
     if (cycles >= 3 && !hasCompleted.current && userData && updateUserData) {
       hasCompleted.current = true
+      const newRingProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
       updateUserData({
         totalBreathingExercises: userData.totalBreathingExercises + 1,
         xp: userData.xp + 5,
+        dailyRings: {
+          ...userData.dailyRings,
+          mindfulness: newRingProgress,
+        },
       })
     }
   }, [cycles, userData, updateUserData])
@@ -90,11 +95,11 @@ export function BreathingExercise({ userData, updateUserData }: BreathingExercis
   }
 
   return (
-    <Card className={`p-8 bg-gradient-to-br ${phaseColors[phase]} border-2 transition-all duration-1000`}>
+    <Card className={`p-8 bg-linear-to-br ${phaseColors[phase]} border-2 transition-all duration-1000`}>
       <div className="flex flex-col items-center space-y-6">
         <div className="relative w-48 h-48 flex items-center justify-center">
           <div
-            className={`absolute inset-0 rounded-full bg-gradient-to-br ${
+            className={`absolute inset-0 rounded-full bg-linear-to-br ${
               phase === "inhale"
                 ? "from-blue-500/30 to-teal-500/30"
                 : phase === "hold"

@@ -87,6 +87,18 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
         emotionalAwareness: newRingProgress,
       },
     })
+    
+    // Update emotion log challenge
+    const updatedChallenges = challenges.map(c => {
+      if (c.id === "emotion-log-challenge" && c.progress < c.maxProgress) {
+        return { ...c, progress: c.progress + 1 }
+      }
+      return c
+    })
+    if (JSON.stringify(updatedChallenges) !== JSON.stringify(challenges)) {
+      await storage.setChallenges(updatedChallenges)
+      setChallenges(updatedChallenges)
+    }
   }
 
   return (
@@ -200,7 +212,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
             </Button>
           ) : (
             <div className="space-y-4">
-              <MindfulnessTimer />
+              <MindfulnessTimer userData={userData} updateUserData={updateUserData} />
               <Button onClick={() => setShowMeditation(false)} variant="outline" className="w-full">
                 Close
               </Button>

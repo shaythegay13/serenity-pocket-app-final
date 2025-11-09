@@ -106,6 +106,9 @@ export async function initializeUserData(userId: string, username?: string) {
         totalModulesCompleted: 0,
         totalBreathingExercises: 0,
         mostProductiveDay: 0,
+        onboardingComplete: false,
+        biographyComplete: false,
+        emotionTrackComplete: false,
       })
       console.log("User_profiles created successfully")
     } else {

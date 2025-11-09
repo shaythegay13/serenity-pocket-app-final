@@ -8,29 +8,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import Image from "next/image"
-
-export interface SurveyData {
-  name: string
-  email: string
-  userType: "sports-bettor" | "day-trader" | "both"
-  experience: "beginner" | "intermediate" | "advanced"
-  primaryGoal: string
-  emotionalChallenges: string[]
-  weeklyActivity: string
-  // New fields
-  motivation: string
-  triggerSituations: string[]
-  triggerOther?: string
-  trackingMethod: string
-  preferredSupport: string[]
-  monthlyBudget: string
-  referralSource: string
-  referralOther?: string
-  // Optional demographics
-  ageRange?: string
-  region?: string
-  occupation?: string
-}
+import type { SurveyData } from "@/lib/types"
 
 interface SerenitySurveyProps {
   onComplete: (data: SurveyData) => void
@@ -45,28 +23,10 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
     userType: "day-trader",
     experience: "beginner",
     primaryGoal: "",
-    emotionalChallenges: [],
     weeklyActivity: "",
-    // New fields
-    motivation: "",
-    triggerSituations: [],
-    trackingMethod: "",
-    preferredSupport: [],
-    monthlyBudget: "",
     referralSource: "",
   })
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-
-  const emotionalChallengeOptions = [
-    "Fear of missing out (FOMO)",
-    "Revenge trading after losses",
-    "Overconfidence after wins",
-    "Analysis paralysis",
-    "Emotional attachment to positions",
-    "Difficulty accepting losses",
-    "Impulsive decision-making",
-    "Stress and anxiety",
-  ]
 
   const validateStep = (currentStep: number): boolean => {
     const newErrors: { [key: string]: string } = {}
@@ -82,19 +42,7 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
       if (!formData.primaryGoal.trim()) {
         newErrors.primaryGoal = "Please select a primary goal"
       }
-    } else if (currentStep === 5) {
-      if (!formData.motivation.trim()) {
-        newErrors.motivation = "Please select your motivation"
-      }
-    } else if (currentStep === 7) {
-      if (!formData.trackingMethod.trim()) {
-        newErrors.trackingMethod = "Please select a tracking method"
-      }
-    } else if (currentStep === 9) {
-      if (!formData.monthlyBudget.trim()) {
-        newErrors.monthlyBudget = "Please select your monthly budget"
-      }
-    } else if (currentStep === 10) {
+    } else if (currentStep === 4) {
       if (!formData.referralSource.trim()) {
         newErrors.referralSource = "Please tell us how you heard about us"
       }
@@ -106,10 +54,13 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
 
   const handleNext = () => {
     if (validateStep(step)) {
-      if (step < 11) {
+      if (step < 4) {
         setStep(step + 1)
       } else {
-        onComplete(formData)
+        onComplete({
+          ...formData,
+          completedAt: new Date().toISOString()
+        })
       }
     }
   }
@@ -120,32 +71,6 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
     }
   }
 
-  const toggleChallenge = (challenge: string) => {
-    setFormData({
-      ...formData,
-      emotionalChallenges: formData.emotionalChallenges.includes(challenge)
-        ? formData.emotionalChallenges.filter((c) => c !== challenge)
-        : [...formData.emotionalChallenges, challenge],
-    })
-  }
-
-  const toggleTrigger = (trigger: string) => {
-    setFormData({
-      ...formData,
-      triggerSituations: formData.triggerSituations.includes(trigger)
-        ? formData.triggerSituations.filter((t) => t !== trigger)
-        : [...formData.triggerSituations, trigger],
-    })
-  }
-
-  const toggleSupport = (support: string) => {
-    setFormData({
-      ...formData,
-      preferredSupport: formData.preferredSupport.includes(support)
-        ? formData.preferredSupport.filter((s) => s !== support)
-        : [...formData.preferredSupport, support],
-    })
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-linear-to-br from-background via-background to-primary/5">
@@ -163,10 +88,10 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
 
         {/* Progress Indicator */}
         <div className="flex justify-center gap-2">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
-              className={`h-2 w-8 rounded-full transition-colors ${
+              className={`h-2 w-16 rounded-full transition-colors ${
                 s <= step ? "bg-primary" : "bg-muted"
               }`}
             />
@@ -360,374 +285,125 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
           </div>
         )}
 
-        {/* Step 4: Emotional Challenges */}
+        {/* Step 4: Referral & Demographics */}
         {step === 4 && (
           <div className="space-y-6">
             <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">Emotional challenges</h2>
+              <h2 className="text-xl font-semibold mb-2">Almost done!</h2>
               <p className="text-sm text-muted-foreground">
-                Select all that apply to you (optional)
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {emotionalChallengeOptions.map((challenge) => (
-                <div
-                  key={challenge}
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
-                  onClick={() => toggleChallenge(challenge)}
-                >
-                  <Checkbox
-                    checked={formData.emotionalChallenges.includes(challenge)}
-                    onCheckedChange={() => toggleChallenge(challenge)}
-                  />
-                  <Label className="cursor-pointer flex-1">{challenge}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 5: Account Creation Motivation */}
-        {step === 5 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">What brought you here?</h2>
-              <p className="text-sm text-muted-foreground">
-                What motivated you to seek a tool like Serenity Pocket?
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <RadioGroup
-                value={formData.motivation}
-                onValueChange={(value) => setFormData({ ...formData, motivation: value })}
-              >
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="struggling-losses" id="struggling-losses" />
-                  <Label htmlFor="struggling-losses" className="cursor-pointer flex-1">
-                    Struggling with losses
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="need-discipline" id="need-discipline" />
-                  <Label htmlFor="need-discipline" className="cursor-pointer flex-1">
-                    Need more discipline
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="peers-recommended" id="peers-recommended" />
-                  <Label htmlFor="peers-recommended" className="cursor-pointer flex-1">
-                    Peers recommended
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="saw-online" id="saw-online" />
-                  <Label htmlFor="saw-online" className="cursor-pointer flex-1">
-                    Saw online
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="general-curiosity" id="general-curiosity" />
-                  <Label htmlFor="general-curiosity" className="cursor-pointer flex-1">
-                    General curiosity
-                  </Label>
-                </div>
-              </RadioGroup>
-              {errors.motivation && <p className="text-sm text-red-500">{errors.motivation}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Step 6: Biggest Trigger Situations */}
-        {step === 6 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">Your triggers</h2>
-              <p className="text-sm text-muted-foreground">
-                Which situations most often lead you to make unplanned or emotional trades/bets?
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {["Losing streak", "Big win", "Social influence", "Deadline pressure"].map((trigger) => (
-                <div
-                  key={trigger}
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
-                  onClick={() => toggleTrigger(trigger)}
-                >
-                  <Checkbox
-                    checked={formData.triggerSituations.includes(trigger)}
-                    onCheckedChange={() => toggleTrigger(trigger)}
-                  />
-                  <Label className="cursor-pointer flex-1">{trigger}</Label>
-                </div>
-              ))}
-              <div className="space-y-2">
-                <div
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
-                  onClick={() => toggleTrigger("Other")}
-                >
-                  <Checkbox
-                    checked={formData.triggerSituations.includes("Other")}
-                    onCheckedChange={() => toggleTrigger("Other")}
-                  />
-                  <Label className="cursor-pointer flex-1">Other</Label>
-                </div>
-                {formData.triggerSituations.includes("Other") && (
-                  <Input
-                    placeholder="Please specify..."
-                    value={formData.triggerOther || ""}
-                    onChange={(e) => setFormData({ ...formData, triggerOther: e.target.value })}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 7: Tracking Methods */}
-        {step === 7 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">Current tracking habits</h2>
-              <p className="text-sm text-muted-foreground">
-                Do you currently track your bets or trades and emotional state in any way?
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <RadioGroup
-                value={formData.trackingMethod}
-                onValueChange={(value) => setFormData({ ...formData, trackingMethod: value })}
-              >
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="journal-app" id="journal-app" />
-                  <Label htmlFor="journal-app" className="cursor-pointer flex-1">
-                    Yes, with a journal or app
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="mentally" id="mentally" />
-                  <Label htmlFor="mentally" className="cursor-pointer flex-1">
-                    Yes, but only mentally
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="no-tracking" id="no-tracking" />
-                  <Label htmlFor="no-tracking" className="cursor-pointer flex-1">
-                    No, I don't track
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="other" id="tracking-other" />
-                  <Label htmlFor="tracking-other" className="cursor-pointer flex-1">
-                    Other
-                  </Label>
-                </div>
-              </RadioGroup>
-              {errors.trackingMethod && <p className="text-sm text-red-500">{errors.trackingMethod}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Step 8: Preferred Support Methods */}
-        {step === 8 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">Support preferences</h2>
-              <p className="text-sm text-muted-foreground">
-                Which support methods are you most interested in? (Select all that apply)
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {[
-                "Personalized analytics",
-                "Peer support groups",
-                "Educational content",
-                "AI chat/bot support",
-                "1-on-1 coaching"
-              ].map((support) => (
-                <div
-                  key={support}
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
-                  onClick={() => toggleSupport(support)}
-                >
-                  <Checkbox
-                    checked={formData.preferredSupport.includes(support)}
-                    onCheckedChange={() => toggleSupport(support)}
-                  />
-                  <Label className="cursor-pointer flex-1">{support}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 9: Budget/Scale Insight */}
-        {step === 9 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">Activity scale</h2>
-              <p className="text-sm text-muted-foreground">
-                What is your typical monthly budget or volume for betting/trading?
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <RadioGroup
-                value={formData.monthlyBudget}
-                onValueChange={(value) => setFormData({ ...formData, monthlyBudget: value })}
-              >
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="under-100" id="under-100" />
-                  <Label htmlFor="under-100" className="cursor-pointer flex-1">
-                    Under $100
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="100-500" id="100-500" />
-                  <Label htmlFor="100-500" className="cursor-pointer flex-1">
-                    $100 - $500
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="500-2000" id="500-2000" />
-                  <Label htmlFor="500-2000" className="cursor-pointer flex-1">
-                    $500 - $2,000
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="2000-plus" id="2000-plus" />
-                  <Label htmlFor="2000-plus" className="cursor-pointer flex-1">
-                    $2,000+
-                  </Label>
-                </div>
-              </RadioGroup>
-              {errors.monthlyBudget && <p className="text-sm text-red-500">{errors.monthlyBudget}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Step 10: Platform Referral */}
-        {step === 10 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">How did you find us?</h2>
-              <p className="text-sm text-muted-foreground">
-                How did you hear about Serenity Pocket?
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <RadioGroup
-                value={formData.referralSource}
-                onValueChange={(value) => setFormData({ ...formData, referralSource: value })}
-              >
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="friend" id="friend" />
-                  <Label htmlFor="friend" className="cursor-pointer flex-1">
-                    Friend
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="online-ad" id="online-ad" />
-                  <Label htmlFor="online-ad" className="cursor-pointer flex-1">
-                    Online ad
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="social-media" id="social-media" />
-                  <Label htmlFor="social-media" className="cursor-pointer flex-1">
-                    Social media
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="community-forum" id="community-forum" />
-                  <Label htmlFor="community-forum" className="cursor-pointer flex-1">
-                    Community/forum
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                  <RadioGroupItem value="referral-other" id="referral-other" />
-                  <Label htmlFor="referral-other" className="cursor-pointer flex-1">
-                    Other
-                  </Label>
-                </div>
-              </RadioGroup>
-              {formData.referralSource === "referral-other" && (
-                <Input
-                  placeholder="Please specify..."
-                  value={formData.referralOther || ""}
-                  onChange={(e) => setFormData({ ...formData, referralOther: e.target.value })}
-                />
-              )}
-              {errors.referralSource && <p className="text-sm text-red-500">{errors.referralSource}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Step 11: Optional Demographics */}
-        {step === 11 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold mb-2">A little more about you</h2>
-              <p className="text-sm text-muted-foreground">
-                Optional: Help us tailor content for you (all fields optional)
+                Help us understand how you found us
               </p>
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="ageRange">Age Range (Optional)</Label>
+              <div className="space-y-3">
+                <Label>How did you hear about Serenity Pocket?</Label>
                 <RadioGroup
-                  value={formData.ageRange || ""}
-                  onValueChange={(value) => setFormData({ ...formData, ageRange: value })}
+                  value={formData.referralSource}
+                  onValueChange={(value) => setFormData({ ...formData, referralSource: value })}
                 >
-                  <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                    <RadioGroupItem value="18-24" id="18-24" />
-                    <Label htmlFor="18-24" className="cursor-pointer flex-1">18-24</Label>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="friend" id="friend" />
+                    <Label htmlFor="friend" className="cursor-pointer flex-1">
+                      Friend or colleague
+                    </Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                    <RadioGroupItem value="25-34" id="25-34" />
-                    <Label htmlFor="25-34" className="cursor-pointer flex-1">25-34</Label>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="online-ad" id="online-ad" />
+                    <Label htmlFor="online-ad" className="cursor-pointer flex-1">
+                      Online advertisement
+                    </Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                    <RadioGroupItem value="35-44" id="35-44" />
-                    <Label htmlFor="35-44" className="cursor-pointer flex-1">35-44</Label>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="social-media" id="social-media" />
+                    <Label htmlFor="social-media" className="cursor-pointer flex-1">
+                      Social media
+                    </Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                    <RadioGroupItem value="45-54" id="45-54" />
-                    <Label htmlFor="45-54" className="cursor-pointer flex-1">45-54</Label>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="community-forum" id="community-forum" />
+                    <Label htmlFor="community-forum" className="cursor-pointer flex-1">
+                      Community/forum
+                    </Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                    <RadioGroupItem value="55-plus" id="55-plus" />
-                    <Label htmlFor="55-plus" className="cursor-pointer flex-1">55+</Label>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="search-engine" id="search-engine" />
+                    <Label htmlFor="search-engine" className="cursor-pointer flex-1">
+                      Search engine
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                    <RadioGroupItem value="referral-other" id="referral-other" />
+                    <Label htmlFor="referral-other" className="cursor-pointer flex-1">
+                      Other
+                    </Label>
                   </div>
                 </RadioGroup>
+                {formData.referralSource === "referral-other" && (
+                  <Input
+                    placeholder="Please specify..."
+                    value={formData.referralOther || ""}
+                    onChange={(e) => setFormData({ ...formData, referralOther: e.target.value })}
+                  />
+                )}
+                {errors.referralSource && <p className="text-sm text-red-500">{errors.referralSource}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="region">Region/Time Zone (Optional)</Label>
-                <Input
-                  id="region"
-                  type="text"
-                  placeholder="e.g., Eastern US, Europe, Asia Pacific"
-                  value={formData.region || ""}
-                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                />
-              </div>
+              <div className="border-t pt-4 mt-4">
+                <p className="text-sm font-medium mb-3">Optional: Demographics (for investor insights)</p>
+                
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="ageRange">Age Range</Label>
+                    <RadioGroup
+                      value={formData.ageRange || ""}
+                      onValueChange={(value) => setFormData({ ...formData, ageRange: value })}
+                    >
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value="18-24" id="18-24" />
+                        <Label htmlFor="18-24" className="cursor-pointer flex-1">18-24</Label>
+                      </div>
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value="25-34" id="25-34" />
+                        <Label htmlFor="25-34" className="cursor-pointer flex-1">25-34</Label>
+                      </div>
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value="35-44" id="35-44" />
+                        <Label htmlFor="35-44" className="cursor-pointer flex-1">35-44</Label>
+                      </div>
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value="45-54" id="45-54" />
+                        <Label htmlFor="45-54" className="cursor-pointer flex-1">45-54</Label>
+                      </div>
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
+                        <RadioGroupItem value="55-plus" id="55-plus" />
+                        <Label htmlFor="55-plus" className="cursor-pointer flex-1">55+</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="occupation">General Occupation (Optional)</Label>
-                <Input
-                  id="occupation"
-                  type="text"
-                  placeholder="e.g., Student, Professional, Retired"
-                  value={formData.occupation || ""}
-                  onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-                />
+                  <div className="space-y-2">
+                    <Label htmlFor="region">Region/Time Zone</Label>
+                    <Input
+                      id="region"
+                      type="text"
+                      placeholder="e.g., Eastern US, Europe, Asia Pacific"
+                      value={formData.region || ""}
+                      onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="occupation">General Occupation</Label>
+                    <Input
+                      id="occupation"
+                      type="text"
+                      placeholder="e.g., Student, Professional, Retired"
+                      value={formData.occupation || ""}
+                      onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -741,7 +417,7 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
             </Button>
           )}
           <Button onClick={handleNext} className="flex-1">
-            {step < 11 ? "Continue" : "Complete Survey"}
+            {step < 4 ? "Continue" : "Complete Survey"}
           </Button>
         </div>
 

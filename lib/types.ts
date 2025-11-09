@@ -4,22 +4,14 @@ export interface SurveyData {
   userType: "sports-bettor" | "day-trader" | "both"
   experience: "beginner" | "intermediate" | "advanced"
   primaryGoal: string
-  emotionalChallenges: string[]
   weeklyActivity: string
-  // New fields
-  motivation: string
-  triggerSituations: string[]
-  triggerOther?: string
-  trackingMethod: string
-  preferredSupport: string[]
-  monthlyBudget: string
   referralSource: string
   referralOther?: string
   // Optional demographics
   ageRange?: string
   region?: string
   occupation?: string
-  completedAt?: Date
+  completedAt?: string
 }
 
 export interface SubscriptionTier {
@@ -57,6 +49,11 @@ export interface UserData {
   surveyData?: SurveyData
   subscriptionTier?: "free" | "pro" | "elite" | "master"
   lastEmotionCheckIn?: Date
+  // Onboarding tracking
+  onboardingComplete?: boolean
+  biographyComplete?: boolean
+  emotionTrackComplete?: boolean
+  biography?: string
 }
 
 export interface EmotionLog {

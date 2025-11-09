@@ -25,6 +25,7 @@ import { ForgotPassword } from "@/components/auth/forgot-password"
 import { ResendConfirmation } from "@/components/auth/resend-confirmation"
 import { SerenitySurvey } from "@/components/serenity-survey"
 import { TermsAgreement } from "@/components/terms-agreement"
+import { OnboardingGate } from "@/components/onboarding-gate"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { initializeUserData } from "@/lib/init-user"
 
@@ -138,6 +139,9 @@ export default function Home() {
               mostProductiveDay: 0,
               surveyData: parsedSurveyData,
               subscriptionTier: "free",
+              onboardingComplete: false,
+              biographyComplete: false,
+              emotionTrackComplete: false,
             })
             
             // Check if user needs emotion check-in (will show for default data too)
@@ -343,6 +347,23 @@ export default function Home() {
           )}
         </div>
       </div>
+    )
+  }
+
+  // Show onboarding gate if user hasn't completed it
+  if (!userData.onboardingComplete) {
+    return (
+      <>
+        <OnboardingGate
+          userData={userData}
+          updateUserData={updateUserData}
+          onComplete={() => {
+            // Force a refresh to show the full dashboard
+            setRefreshKey(prev => prev + 1)
+          }}
+        />
+        <Toaster position="top-right" />
+      </>
     )
   }
 

@@ -54,6 +54,7 @@ export interface UserData {
   biographyComplete?: boolean
   emotionTrackComplete?: boolean
   biography?: string
+  pendingEmotionTradeId?: string // Trade ID waiting for post-bet emotion
 }
 
 export interface EmotionLog {

@@ -10,11 +10,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
+import type { UserData } from "@/lib/types"
 
 interface EmotionCheckInDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onComplete: () => void
+  userData?: UserData
+  updateUserData?: (updates: Partial<UserData>) => Promise<void>
 }
 
 // Core emotions with 10 sub-emotions each
@@ -57,7 +60,7 @@ const coreEmotions = [
   }
 ]
 
-export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: EmotionCheckInDialogProps) {
+export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData, updateUserData }: EmotionCheckInDialogProps) {
   const [step, setStep] = useState<"core" | "sub" | "details">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState("")
@@ -69,6 +72,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: Emotion
   const handleSubmit = async () => {
     if (!selectedEmotion) return
 
+    // Check if this completes a pending emotion track
+    const isCompletingPendingTrack = 
+      phase === "after" && 
+      userData?.pendingEmotionTradeId && 
+      updateUserData
+
     await storage.addEmotionLog({
       id: Date.now().toString(),
       timestamp: new Date(),
@@ -76,11 +85,25 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: Emotion
       intensity: intensity[0],
       context,
       phase: phase,
+      tradeId: isCompletingPendingTrack ? userData.pendingEmotionTradeId : undefined
     })
 
-    toast.success("Emotion check-in completed! +10 XP earned", {
-      description: "Your emotional awareness is improving. Keep it up!"
-    })
+    // If completing pending track, award bonus XP and clear pending ID
+    if (isCompletingPendingTrack && userData && updateUserData) {
+      await updateUserData({
+        pendingEmotionTradeId: undefined,
+        xp: userData.xp + 35, // +10 base + 25 bonus for completing the track
+        totalEmotionsLogged: userData.totalEmotionsLogged + 1
+      })
+      
+      toast.success("Full emotion track completed! +35 XP earned", {
+        description: "Great job completing your pre and post-bet emotions!"
+      })
+    } else {
+      toast.success("Emotion check-in completed! +10 XP earned", {
+        description: "Your emotional awareness is improving. Keep it up!"
+      })
+    }
 
     onComplete()
     handleReset()

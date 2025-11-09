@@ -18,6 +18,7 @@ import { calculateLevel, calculateXPForNextLevel, xpRewards } from "@/lib/gamifi
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { calculateMindfulDecisionPercentage, calculateBiasRecognitionScore, getTotalBiasesIdentified } from "@/lib/bias-calculations"
 import { Toaster } from "sonner"
+import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
 import { SignIn } from "@/components/auth/sign-in"
 import { SignUp } from "@/components/auth/sign-up"
@@ -371,6 +372,37 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <DashboardHeader userData={userData} />
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      
+      {/* Pending Emotion Completion Banner */}
+      {userData.pendingEmotionTradeId && (
+        <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20">
+          <div className="container mx-auto px-3 sm:px-4 py-3 max-w-7xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500 text-white rounded-full p-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Complete Your Emotion Track</p>
+                  <p className="text-xs text-muted-foreground">
+                    You logged your pre-bet emotion. How are you feeling after your bet? Earn +25 XP!
+                  </p>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={() => setShowEmotionCheckIn(true)}
+                className="shrink-0"
+              >
+                Log Post-Bet Emotion
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
         {activeTab === "dashboard" && <DashboardTab userData={userData} updateUserData={updateUserData} onNavigateToEmotions={() => setActiveTab("emotions")} />}
         {activeTab === "emotions" && <EmotionsTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
@@ -385,6 +417,8 @@ export default function Home() {
         open={showEmotionCheckIn}
         onOpenChange={setShowEmotionCheckIn}
         onComplete={handleEmotionCheckInComplete}
+        userData={userData}
+        updateUserData={updateUserData}
       />
       
       <LevelUpCelebration

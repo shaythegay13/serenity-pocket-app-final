@@ -61,7 +61,7 @@ const coreEmotions = [
 ]
 
 export function OnboardingGate({ userData, updateUserData, onComplete }: OnboardingGateProps) {
-  const [activeStep, setActiveStep] = useState<"biography" | "emotion-pre" | "emotion-post">("biography")
+  const [activeStep, setActiveStep] = useState<"biography" | "emotion-pre">("biography")
   
   // Biography state
   const [biography, setBiography] = useState(userData.biography || "")
@@ -69,17 +69,11 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
   const [region, setRegion] = useState(userData.surveyData?.region || "")
   const [occupation, setOccupation] = useState(userData.surveyData?.occupation || "")
   
-  // Emotion tracking state
+  // Emotion tracking state - only pre-bet during onboarding
   const [preSelectedCore, setPreSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [preEmotion, setPreEmotion] = useState("")
   const [preIntensity, setPreIntensity] = useState([5])
   const [preContext, setPreContext] = useState("")
-  const [preTradeId, setPreTradeId] = useState("")
-  
-  const [postSelectedCore, setPostSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
-  const [postEmotion, setPostEmotion] = useState("")
-  const [postIntensity, setPostIntensity] = useState([5])
-  const [postContext, setPostContext] = useState("")
 
   const biographyComplete = userData.biographyComplete || false
   const emotionTrackComplete = userData.emotionTrackComplete || false
@@ -127,9 +121,8 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
       return
     }
 
-    // Generate a unique trade ID for tracking
+    // Generate a unique trade ID for tracking - user will complete post-bet later
     const tradeId = `trade-${Date.now()}`
-    setPreTradeId(tradeId)
 
     await storage.addEmotionLog({
       id: `${Date.now()}-pre`,
@@ -141,35 +134,17 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
       tradeId: tradeId
     })
 
-    toast.success("Pre-bet emotion logged! Now log your post-bet emotion.")
-    setActiveStep("emotion-post")
-  }
-
-  const handlePostEmotionSubmit = async () => {
-    if (!postEmotion) {
-      toast.error("Please select an emotion")
-      return
-    }
-
-    await storage.addEmotionLog({
-      id: `${Date.now()}-post`,
-      timestamp: new Date(),
-      emotion: postEmotion,
-      intensity: postIntensity[0],
-      context: postContext,
-      phase: "after",
-      tradeId: preTradeId
-    })
-
+    // Store the pending trade ID so user can complete it later
     await updateUserData({
       emotionTrackComplete: true,
       onboardingComplete: true,
-      xp: userData.xp + 50,
-      totalEmotionsLogged: userData.totalEmotionsLogged + 2
+      xp: userData.xp + 25, // Half XP now, rest when they complete post-bet
+      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
+      pendingEmotionTradeId: tradeId // Store for later completion
     })
 
-    toast.success("Onboarding complete! +50 XP. Full access unlocked!", {
-      description: "You've proven you're a real user. Welcome to Serenity Pocket!"
+    toast.success("Pre-bet emotion logged! +25 XP", {
+      description: "Complete your post-bet emotion later to earn +25 more XP!"
     })
 
     onComplete()
@@ -292,9 +267,9 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
         {activeStep === "emotion-pre" && (
           <div className="space-y-4">
             <div className="text-center mb-4">
-              <h2 className="text-xl font-semibold mb-2">Log a Pre-Bet Emotion</h2>
+              <h2 className="text-xl font-semibold mb-2">Log Your Pre-Bet Emotion</h2>
               <p className="text-sm text-muted-foreground">
-                How are you feeling BEFORE making a trade or bet?
+                How are you feeling right now BEFORE placing your bet? You'll log your post-bet emotion on the dashboard later.
               </p>
             </div>
 
@@ -362,86 +337,6 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
 
                 <Button onClick={handlePreEmotionSubmit} className="w-full" disabled={!preEmotion}>
                   Log Pre-Bet Emotion
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Post-Bet Emotion Step */}
-        {activeStep === "emotion-post" && (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h2 className="text-xl font-semibold mb-2">Log a Post-Bet Emotion</h2>
-              <p className="text-sm text-muted-foreground">
-                How are you feeling AFTER the trade/bet concluded?
-              </p>
-            </div>
-
-            {!postSelectedCore ? (
-              <div className="grid grid-cols-2 gap-3">
-                {coreEmotions.map((emotion) => (
-                  <button
-                    key={emotion.id}
-                    onClick={() => setPostSelectedCore(emotion)}
-                    className="p-4 rounded-lg border-2 border-border hover:border-primary transition-all hover:scale-105"
-                    style={{ borderColor: emotion.color + "40" }}
-                  >
-                    <div className="text-center">
-                      <div className="text-2xl mb-2">
-                        <span style={{ color: emotion.color }}>●</span>
-                      </div>
-                      <span className="font-semibold" style={{ color: emotion.color }}>
-                        {emotion.label}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Button variant="outline" size="sm" onClick={() => setPostSelectedCore(null)}>
-                  ← Back to emotions
-                </Button>
-                
-                <div className="space-y-3">
-                  <Label>Specific Emotion</Label>
-                  <RadioGroup value={postEmotion} onValueChange={setPostEmotion}>
-                    <div className="grid grid-cols-2 gap-2">
-                      {postSelectedCore.subEmotions.map((emotion) => (
-                        <div key={emotion} className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
-                          <RadioGroupItem value={emotion} id={`post-${emotion}`} />
-                          <Label htmlFor={`post-${emotion}`} className="cursor-pointer flex-1">{emotion}</Label>
-                        </div>
-                      ))}
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Intensity: {postIntensity[0]}/10</Label>
-                  <Slider
-                    value={postIntensity}
-                    onValueChange={setPostIntensity}
-                    min={1}
-                    max={10}
-                    step={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="post-context">Context (Optional)</Label>
-                  <Textarea
-                    id="post-context"
-                    placeholder="How did the trade/bet go? How do you feel now?"
-                    value={postContext}
-                    onChange={(e) => setPostContext(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <Button onClick={handlePostEmotionSubmit} className="w-full" disabled={!postEmotion}>
-                  Complete Onboarding
                 </Button>
               </div>
             )}

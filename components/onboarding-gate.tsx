@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, Circle, Lock } from "lucide-react"
+import { CheckCircle2, Circle, Lock, LogOut } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
 
 interface OnboardingGateProps {
   userData: UserData
@@ -150,11 +151,29 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
     onComplete()
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.reload()
+  }
+
   const progressPercentage = biographyComplete && emotionTrackComplete ? 100 : biographyComplete ? 50 : 0
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-2xl p-8 space-y-6">
+        {/* Sign Out Option */}
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
+
         <div className="text-center space-y-3">
           <h1 className="text-2xl font-bold">Complete Your Onboarding</h1>
           <p className="text-sm text-muted-foreground">

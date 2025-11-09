@@ -268,6 +268,9 @@ export default function Home() {
     
     await updateUserData(updatedData)
     setShowEmotionCheckIn(false)
+    
+    // Trigger refresh of emotion charts and progress tab
+    setRefreshKey(prev => prev + 1)
   }
 
   if (authed === false) {
@@ -349,7 +352,7 @@ export default function Home() {
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
         {activeTab === "dashboard" && <DashboardTab userData={userData} updateUserData={updateUserData} onNavigateToEmotions={() => setActiveTab("emotions")} />}
-        {activeTab === "emotions" && <EmotionsTab userData={userData} updateUserData={updateUserData} />}
+        {activeTab === "emotions" && <EmotionsTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
         {activeTab === "biases" && <BiasesTab userData={userData} updateUserData={updateUserData} />}
         {activeTab === "progress" && <ProgressTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
         {activeTab === "rewards" && <RewardsTab userData={userData} updateUserData={updateUserData} />}

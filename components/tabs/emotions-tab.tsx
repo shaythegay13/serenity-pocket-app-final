@@ -20,6 +20,7 @@ import { format } from "date-fns"
 interface EmotionsTabProps {
   userData: UserData
   updateUserData: (updates: Partial<UserData>) => Promise<void>
+  refreshKey?: number
 }
 
 // Core emotions with 10 sub-emotions each
@@ -71,7 +72,7 @@ const commonBiases = [
   { id: "herd", label: "Herd Mentality" },
 ]
 
-export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
+export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: EmotionsTabProps) {
   const [view, setView] = useState<"log" | "history" | "insights">("log")
   const [step, setStep] = useState<"core" | "sub" | "details" | "biases">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
@@ -102,7 +103,7 @@ export function EmotionsTab({ userData, updateUserData }: EmotionsTabProps) {
     loadLogs()
     loadTrades()
     loadChallenges()
-  }, [])
+  }, [refreshKey])
 
   const handleCoreSelect = (emotion: typeof coreEmotions[0]) => {
     setSelectedCore(emotion)

@@ -341,18 +341,14 @@ export default function Home() {
   if (!userData || authed === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          {authed && (
-            <p className="text-sm text-muted-foreground">Setting up your profile...</p>
-          )}
-        </div>
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
-  // Show onboarding gate if user hasn't completed it
-  if (!userData.onboardingComplete) {
+  // Show onboarding gate ONLY for NEW users who haven't completed it yet
+  // Once completed, they go straight to dashboard on future logins
+  if (userData.onboardingComplete === false) {
     return (
       <>
         <OnboardingGate

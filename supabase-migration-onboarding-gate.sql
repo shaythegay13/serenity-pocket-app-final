@@ -17,12 +17,20 @@ ADD COLUMN IF NOT EXISTS emotion_track_complete BOOLEAN DEFAULT FALSE;
 
 -- GRANDFATHER EXISTING USERS: Mark all existing users as having completed onboarding
 -- This ensures current users aren't forced through the new onboarding gate
+-- Only update users who existed BEFORE this migration (have activity or created before now)
 UPDATE user_profiles
 SET 
   onboarding_complete = TRUE,
   biography_complete = TRUE,
   emotion_track_complete = TRUE
-WHERE onboarding_complete IS NULL OR onboarding_complete = FALSE;
+WHERE 
+  (onboarding_complete IS NULL OR onboarding_complete = FALSE)
+  AND created_at < NOW(); -- Only existing users, not new signups
+
+-- Alternative: If you don't have created_at, use this to grandfather users with any activity:
+-- UPDATE user_profiles
+-- SET onboarding_complete = TRUE, biography_complete = TRUE, emotion_track_complete = TRUE
+-- WHERE (onboarding_complete IS NULL) AND (xp > 0 OR level > 1 OR total_emotions_logged > 0);
 
 -- Add comment explaining the fields
 COMMENT ON COLUMN user_profiles.biography IS 'User self-written biography (min 50 chars required during onboarding)';

@@ -92,7 +92,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     if (isCompletingPendingTrack && userData && updateUserData) {
       await updateUserData({
         pendingEmotionTradeId: undefined,
-        xp: userData.xp + 35, // +10 base + 25 bonus for completing the track
+        xp: (userData.xp || 0) + 35, // +10 base + 25 bonus for completing the track
         totalEmotionsLogged: (userData.totalEmotionsLogged || 0) + 1
       })
       

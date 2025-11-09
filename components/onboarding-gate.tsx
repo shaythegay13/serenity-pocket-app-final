@@ -64,10 +64,10 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
   const [activeStep, setActiveStep] = useState<"biography" | "emotion-pre">("biography")
   
   // Biography state
-  const [biography, setBiography] = useState(userData.biography || "")
-  const [ageRange, setAgeRange] = useState(userData.surveyData?.ageRange || "")
-  const [region, setRegion] = useState(userData.surveyData?.region || "")
-  const [occupation, setOccupation] = useState(userData.surveyData?.occupation || "")
+  const [biography, setBiography] = useState(userData?.biography || "")
+  const [ageRange, setAgeRange] = useState(userData?.surveyData?.ageRange || "")
+  const [region, setRegion] = useState(userData?.surveyData?.region || "")
+  const [occupation, setOccupation] = useState(userData?.surveyData?.occupation || "")
   
   // Emotion tracking state - only pre-bet during onboarding
   const [preSelectedCore, setPreSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
@@ -75,8 +75,8 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
   const [preIntensity, setPreIntensity] = useState([5])
   const [preContext, setPreContext] = useState("")
 
-  const biographyComplete = userData.biographyComplete || false
-  const emotionTrackComplete = userData.emotionTrackComplete || false
+  const biographyComplete = userData?.biographyComplete || false
+  const emotionTrackComplete = userData?.emotionTrackComplete || false
 
   useEffect(() => {
     if (!biographyComplete) {
@@ -102,13 +102,13 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
     await updateUserData({
       biography: biography.trim(),
       biographyComplete: true,
-      surveyData: {
-        ...userData.surveyData!,
-        ageRange: ageRange || userData.surveyData?.ageRange,
-        region: region || userData.surveyData?.region,
-        occupation: occupation || userData.surveyData?.occupation,
-      },
-      xp: userData.xp + xpBonus
+      surveyData: userData?.surveyData ? {
+        ...userData.surveyData,
+        ageRange: ageRange || userData.surveyData.ageRange,
+        region: region || userData.surveyData.region,
+        occupation: occupation || userData.surveyData.occupation,
+      } : undefined,
+      xp: (userData?.xp || 0) + xpBonus
     })
 
     toast.success(`Biography saved!${xpBonus > 0 ? ` +${xpBonus} XP for completing demographics!` : ""}`)
@@ -138,8 +138,8 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
     await updateUserData({
       emotionTrackComplete: true,
       onboardingComplete: true,
-      xp: userData.xp + 25, // Half XP now, rest when they complete post-bet
-      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
+      xp: (userData?.xp || 0) + 25, // Half XP now, rest when they complete post-bet
+      totalEmotionsLogged: (userData?.totalEmotionsLogged || 0) + 1,
       pendingEmotionTradeId: tradeId // Store for later completion
     })
 

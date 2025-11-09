@@ -31,6 +31,12 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   const [occupation, setOccupation] = useState("")
   const [experienceYears, setExperienceYears] = useState<number | "">("")
   const [errors, setErrors] = useState<{ age?: string; experienceYears?: string }>(() => ({}))
+  
+  // Demographics fields (from survey)
+  const [ageRange, setAgeRange] = useState(userData?.surveyData?.ageRange || "")
+  const [region, setRegion] = useState(userData?.surveyData?.region || "")
+  const [demographicOccupation, setDemographicOccupation] = useState(userData?.surveyData?.occupation || "")
+  const [savingDemographics, setSavingDemographics] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -116,6 +122,54 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   const signOut = async () => {
     await supabase.auth.signOut()
     window.location.reload()
+  }
+
+  const saveDemographics = async () => {
+    setSavingDemographics(true)
+    try {
+      // Check if all three demographics fields are filled
+      const hasAllDemographics = ageRange && region && demographicOccupation
+      
+      if (!hasAllDemographics) {
+        toast.error("Please fill out all demographic fields to earn the bonus XP")
+        setSavingDemographics(false)
+        return
+      }
+
+      // Check if user already received demographics bonus
+      if (userData?.demographicsComplete) {
+        toast.info("You've already received the demographics bonus!")
+        setSavingDemographics(false)
+        return
+      }
+
+      // Update surveyData with demographics
+      await updateUserData({
+        surveyData: {
+          ...userData?.surveyData,
+          name: userData?.surveyData?.name || "",
+          email: userData?.surveyData?.email || "",
+          userType: userData?.surveyData?.userType || "day-trader",
+          experience: userData?.surveyData?.experience || "beginner",
+          primaryGoal: userData?.surveyData?.primaryGoal || "",
+          weeklyActivity: userData?.surveyData?.weeklyActivity || "",
+          referralSource: userData?.surveyData?.referralSource || "",
+          ageRange,
+          region,
+          occupation: demographicOccupation,
+        },
+        demographicsComplete: true,
+        xp: (userData?.xp || 0) + 200,
+      })
+
+      toast.success("Demographics saved! +200 XP earned! 🎉", {
+        description: "Thank you for helping us understand our users better!"
+      })
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save demographics")
+    } finally {
+      setSavingDemographics(false)
+    }
   }
 
   const uploadAvatar = async () => {
@@ -247,6 +301,67 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
           <Button variant="outline" onClick={signOut}>Sign out</Button>
         </div>
         {status && <p className="text-sm text-muted-foreground">{status}</p>}
+      </Card>
+
+      {/* Demographics Section */}
+      <Card className="p-6 space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold">Demographics</h2>
+          <p className="text-sm text-muted-foreground">
+            Complete all fields to earn +200 XP bonus! {userData?.demographicsComplete && "✅ Completed"}
+          </p>
+        </div>
+        
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Age Range</label>
+            <Select value={ageRange} onValueChange={setAgeRange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select age range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="18-24">18-24</SelectItem>
+                <SelectItem value="25-34">25-34</SelectItem>
+                <SelectItem value="35-44">35-44</SelectItem>
+                <SelectItem value="45-54">45-54</SelectItem>
+                <SelectItem value="55+">55+</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Region/Time Zone</label>
+            <Input
+              type="text"
+              placeholder="e.g., Eastern US, Europe, Asia Pacific"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">General Occupation</label>
+            <Input
+              type="text"
+              placeholder="e.g., Student, Professional, Retired"
+              value={demographicOccupation}
+              onChange={(e) => setDemographicOccupation(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <Button 
+          onClick={saveDemographics} 
+          disabled={savingDemographics || userData?.demographicsComplete || !ageRange || !region || !demographicOccupation}
+        >
+          {savingDemographics ? "Saving..." : userData?.demographicsComplete ? "Already Completed ✅" : "Save & Earn 200 XP"}
+        </Button>
+
+        {!userData?.demographicsComplete && (
+          <p className="text-xs text-muted-foreground">
+            💡 Fill out all three fields above to earn your bonus XP!
+          </p>
+        )}
       </Card>
     </div>
   )

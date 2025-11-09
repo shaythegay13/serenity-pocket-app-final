@@ -93,7 +93,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       await updateUserData({
         pendingEmotionTradeId: undefined,
         xp: userData.xp + 35, // +10 base + 25 bonus for completing the track
-        totalEmotionsLogged: userData.totalEmotionsLogged + 1
+        totalEmotionsLogged: (userData.totalEmotionsLogged || 0) + 1
       })
       
       toast.success("Full emotion track completed! +35 XP earned", {

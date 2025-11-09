@@ -374,7 +374,7 @@ export default function Home() {
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
       
       {/* Pending Emotion Completion Banner */}
-      {userData.pendingEmotionTradeId && (
+      {userData?.pendingEmotionTradeId && (
         <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20">
           <div className="container mx-auto px-3 sm:px-4 py-3 max-w-7xl">
             <div className="flex items-center justify-between gap-4">

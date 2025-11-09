@@ -121,7 +121,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: Emotion
       if (!open) handleReset()
       onOpenChange(open)
     }}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[95vw] w-[1340px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[90vw] sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             {step !== "core" && (
@@ -140,21 +140,21 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete }: Emotion
           </div>
         </DialogHeader>
 
-        <div className="py-6">
+        <div className="py-3">
           {/* Step 1: Core Emotion Selection */}
           {step === "core" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-12 px-8">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-4">
                 {coreEmotions.map((emotion) => (
                   <button
                     key={emotion.id}
                     onClick={() => handleCoreSelect(emotion)}
-                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-xl min-h-[180px] min-w-[180px] md:min-h-[200px] md:min-w-[200px]"
+                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-xl min-h-[100px] min-w-[100px] md:min-h-[110px] md:min-w-[110px]"
                     style={{ backgroundColor: emotion.color }}
                   >
                     {/* Inner white circle border */}
                     <div className="absolute inset-2 rounded-full border-50 border-white/40 pointer-events-none" />
-                    <span className="text-lg md:text-xl lg:text-2xl font-bold text-white drop-shadow-lg relative z-10 px-4">
+                    <span className="text-sm md:text-base lg:text-lg font-bold text-white drop-shadow-lg relative z-10 px-2">
                       {emotion.label}
                     </span>
                   </button>

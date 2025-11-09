@@ -106,18 +106,6 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
               <p className="text-sm text-muted-foreground">
                 Tell us a bit about yourself
               </p>
-              {onSwitchToSignIn && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    onSwitchToSignIn()
-                  }}
-                  className="mt-3 text-sm text-primary hover:underline cursor-pointer"
-                >
-                  Already Have an Account?
-                </button>
-              )}
             </div>
             
             <div className="space-y-1">
@@ -425,6 +413,24 @@ export function SerenitySurvey({ onComplete, onSwitchToSignIn }: SerenitySurveyP
         <p className="text-xs text-center text-muted-foreground">
           Your information is secure and will only be used to personalize your experience
         </p>
+
+        {/* Sign In Option for Returning Users */}
+        {onSwitchToSignIn && (
+          <div className="pt-4 border-t">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                Already have an account?
+              </p>
+              <Button
+                variant="ghost"
+                onClick={onSwitchToSignIn}
+                className="text-primary hover:text-primary hover:underline"
+              >
+                Sign In Instead
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )

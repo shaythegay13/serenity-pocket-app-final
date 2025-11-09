@@ -1,6 +1,6 @@
-# Serenity Pocket app
+# Serenity Pocket
 
-*Trading Psychology & Emotional Intelligence Platform*
+*Decision Psychology Platform for Sports Bettors & Day Traders*
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/saved-by-the-plates-projects/v0-serenity-pocket-app)
 [![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/BiWkTzA027R)
@@ -8,7 +8,23 @@
 
 ## Overview
 
-Serenity Pocket is a comprehensive trading psychology and emotional intelligence application designed to help traders develop better habits, track emotions, and make more informed decisions.
+Serenity Pocket helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
+
+### Who Is This For?
+
+- **Sports Bettors**: Manage tilt, avoid revenge betting, and make disciplined wagers
+- **Day Traders**: Control FOMO, reduce impulsive trades, and build consistent strategies
+- **Both**: Anyone making fast-paced financial decisions under pressure
+
+### Key Features
+
+- **Serenity Survey**: Personalized onboarding to understand your goals and challenges
+- **Daily Emotion Check-Ins**: Track emotional states before making decisions
+- **Cognitive Bias Detection**: Identify patterns like confirmation bias, loss aversion, and overconfidence
+- **Decision Journal**: Pre and post-decision reflection tools
+- **Mindfulness Exercises**: Breathing techniques and meditation timers
+- **Progress Analytics**: Visualize emotional patterns and their correlation with outcomes
+- **Gamification**: Level up, earn achievements, and build streaks for consistent practice
 
 ### Platform Support
 
@@ -28,6 +44,14 @@ Your project is live at:
 Continue building your app on:
 
 **[https://v0.app/chat/projects/BiWkTzA027R](https://v0.app/chat/projects/BiWkTzA027R)**
+
+## User Flow
+
+1. **Serenity Survey**: Complete a brief questionnaire about your betting/trading habits and emotional challenges
+2. **Account Creation**: Set up your secure account with email and password
+3. **Terms Agreement**: Review and accept platform terms and privacy policy
+4. **Dashboard Access**: Start using the free tier immediately with all essential features
+5. **Upgrade Later**: Access premium tiers when they launch (Q2 2025)
 
 ## How It Works
 

@@ -1,3 +1,34 @@
+export interface SurveyData {
+  name: string
+  email: string
+  userType: "sports-bettor" | "day-trader" | "both"
+  experience: "beginner" | "intermediate" | "advanced"
+  primaryGoal: string
+  emotionalChallenges: string[]
+  weeklyActivity: string
+  // New fields
+  motivation: string
+  triggerSituations: string[]
+  triggerOther?: string
+  trackingMethod: string
+  preferredSupport: string[]
+  monthlyBudget: string
+  referralSource: string
+  referralOther?: string
+  // Optional demographics
+  ageRange?: string
+  region?: string
+  occupation?: string
+  completedAt?: Date
+}
+
+export interface SubscriptionTier {
+  name: string
+  price: number
+  interval: "month" | "year"
+  features: string[]
+}
+
 export interface UserData {
   name: string
   level: number
@@ -23,6 +54,9 @@ export interface UserData {
   totalModulesCompleted: number
   totalBreathingExercises: number
   mostProductiveDay: number
+  surveyData?: SurveyData
+  subscriptionTier?: "free" | "pro" | "elite" | "master"
+  lastEmotionCheckIn?: Date
 }
 
 export interface EmotionLog {
@@ -57,6 +91,13 @@ export interface BiasProfile {
   recencyBias: number
   overconfidenceBias: number
   herdMentality: number
+}
+
+export interface BiasQuizHistory {
+  id: string
+  timestamp: Date
+  profile: BiasProfile
+  averageScore: number // Average across all biases
 }
 
 export interface Achievement {

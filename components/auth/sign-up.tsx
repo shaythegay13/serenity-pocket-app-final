@@ -7,14 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff } from "lucide-react"
+import type { SurveyData } from "@/lib/types"
 
 interface SignUpProps {
   onSwitchToSignIn: () => void
+  surveyData?: SurveyData
+  onAccountCreated?: () => void
 }
 
-export function SignUp({ onSwitchToSignIn }: SignUpProps) {
+export function SignUp({ onSwitchToSignIn, surveyData, onAccountCreated }: SignUpProps) {
   const [username, setUsername] = useState("")
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(surveyData?.email || "")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -91,12 +94,34 @@ export function SignUp({ onSwitchToSignIn }: SignUpProps) {
         const { error: profileError } = await supabase.from("profiles").insert({
           id: data.user.id,
           username: username,
-          name: username, // Set initial name to username
+          name: surveyData?.name || username, // Use survey name if available
         })
 
         if (profileError) {
           console.error("Profile creation error:", profileError)
           // Continue even if profile creation fails - user can update it later
+        }
+
+        // If we have an onAccountCreated callback (for terms flow), call it
+        if (onAccountCreated) {
+          // Store survey data temporarily in sessionStorage
+          if (surveyData) {
+            sessionStorage.setItem('pendingSurveyData', JSON.stringify({
+              ...surveyData,
+              completedAt: new Date().toISOString()
+            }))
+          }
+          
+          // Try to auto sign in after successful sign up
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+
+          if (!signInError) {
+            onAccountCreated()
+            return
+          }
         }
 
         // Try to auto sign in after successful sign up
@@ -129,7 +154,7 @@ export function SignUp({ onSwitchToSignIn }: SignUpProps) {
         <div>
           <h1 className="text-2xl font-bold">Create Account</h1>
           <p className="text-sm text-muted-foreground">
-            Sign up to start your trading journey
+            {surveyData ? `Welcome, ${surveyData.name}! Let's set up your account.` : "Sign up to start your journey to smarter decisions"}
           </p>
         </div>
 
@@ -154,8 +179,11 @@ export function SignUp({ onSwitchToSignIn }: SignUpProps) {
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
+              disabled={loading || !!surveyData}
             />
+            {surveyData && (
+              <p className="text-xs text-muted-foreground">Email from survey</p>
+            )}
           </div>
 
           <div className="space-y-1">

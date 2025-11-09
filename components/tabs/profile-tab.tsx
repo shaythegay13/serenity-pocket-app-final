@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { tokenRewards, xpRewards } from "@/lib/gamification"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-
 interface ProfileTabProps {
   userData: UserData
   updateUserData: (updates: Partial<UserData>) => Promise<void>
@@ -222,7 +221,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
               <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm">Years of Trading Experience</label>
+              <label className="text-sm">Years of Trading/Betting Experience</label>
               <Input
                 type="number"
                 value={experienceYears}

@@ -6,21 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmotionChart } from "@/components/emotion-chart"
 import { TradePerformanceChart } from "@/components/trade-performance-chart"
+import { BiasHistoryChart } from "@/components/bias-history-chart"
 import { ProgressBar } from "@/components/progress-bar"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import type { UserData } from "@/lib/types"
+import type { UserData, BiasQuizHistory } from "@/lib/types"
 import { BarChart3, TrendingUp, Wind, Lock } from "lucide-react"
 
 interface ProgressTabProps {
   userData: UserData
   updateUserData: (updates: Partial<UserData>) => Promise<void>
-  refreshKey: number
+  refreshKey?: number
 }
 
-export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTabProps) {
+export function ProgressTab({ userData, updateUserData, refreshKey = 0 }: ProgressTabProps) {
   const [achievements, setAchievements] = useState<any[]>([])
   const [emotionLogs, setEmotionLogs] = useState<any[]>([])
   const [trades, setTrades] = useState<any[]>([])
+  const [biasHistory, setBiasHistory] = useState<BiasQuizHistory[]>([])
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -36,7 +38,7 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
       setEmotionLogs(emotionLogs)
     }
     fetchEmotionLogs()
-  }, [])
+  }, [refreshKey])
 
   useEffect(() => {
     const fetchTrades = async () => {
@@ -44,7 +46,15 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
       setTrades(trades)
     }
     fetchTrades()
-  }, [])
+  }, [refreshKey])
+
+  useEffect(() => {
+    const fetchBiasHistory = async () => {
+      const history = await storage.getBiasQuizHistory()
+      setBiasHistory(history)
+    }
+    fetchBiasHistory()
+  }, [refreshKey])
 
   const streakBadges = achievements.filter((a) => a.category === "streak")
   const biasBusterBadges = achievements.filter((a) => a.category === "bias-buster")
@@ -159,7 +169,7 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
                   <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-amber" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground">Trades</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Bets</p>
                   <p className="text-lg sm:text-2xl font-bold text-foreground truncate">{trades.length}</p>
                 </div>
               </div>
@@ -172,6 +182,9 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
             <TradePerformanceChart trades={trades} />
           </div>
 
+          {/* Bias Awareness Progress */}
+          <BiasHistoryChart history={biasHistory} />
+
           {/* Insights */}
           <Card className="p-4 sm:p-6">
             <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-3 sm:mb-4">Your Progress Insights</h3>
@@ -180,13 +193,13 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
                 <h4 className="font-semibold text-foreground mb-2">Emotional Awareness</h4>
                 <p className="text-sm text-muted-foreground">
                   You've logged {emotionLogs.length} emotions. Keep tracking to identify patterns that affect your
-                  trading decisions.
+                  betting decisions.
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-blue/5 border border-blue/20">
-                <h4 className="font-semibold text-foreground mb-2">Mindful Trading</h4>
+                <h4 className="font-semibold text-foreground mb-2">Mindful Betting</h4>
                 <p className="text-sm text-muted-foreground">
-                  {userData.mindfulDecisionPercentage}% of your trades include bias awareness. Aim for consistent
+                  {userData.mindfulDecisionPercentage}% of your bets include bias awareness. Aim for consistent
                   mindfulness in every decision.
                 </p>
               </div>
@@ -212,7 +225,7 @@ export function ProgressTab({ userData, updateUserData, refreshKey }: ProgressTa
           <Card className="p-4 sm:p-6">
             <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Achievements</h3>
             <p className="text-sm text-muted-foreground mb-4 sm:mb-6">
-              Unlock badges by building mindful trading habits and mastering behavioral finance
+              Unlock badges by building mindful betting habits and mastering behavioral finance
             </p>
 
             <Tabs defaultValue="all" className="w-full">

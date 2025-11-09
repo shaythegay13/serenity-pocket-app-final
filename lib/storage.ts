@@ -323,8 +323,8 @@ function getDefaultChallenges(): Challenge[] {
   return [
     {
       id: "pause-challenge",
-      title: "Pause Before Trading",
-      description: "Take a 3-second pause before 5 trades this week",
+      title: "Pause Before Betting",
+      description: "Take a 3-second pause before 5 bets this week",
       progress: 0,
       maxProgress: 5,
       xpReward: 50,

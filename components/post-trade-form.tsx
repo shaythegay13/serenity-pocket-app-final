@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { EmotionWheel } from "@/components/emotion-wheel"
 import type { Trade } from "@/lib/types"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
 interface PostTradeFormProps {
   trade: Trade
@@ -27,14 +27,29 @@ export function PostTradeForm({ trade, onComplete }: PostTradeFormProps) {
     setEmotion(selectedEmotion)
   }
 
-  const handleSubmit = () => {
-    storage.updateTrade(trade.id, {
+  const handleSubmit = async () => {
+    // Update the trade with outcome and reflection
+    await storage.updateTrade(trade.id, {
       outcome,
       postTradeEmotion: emotion,
       postTradeIntensity: intensity,
       reflection,
       emotionalImpact,
     })
+
+    // Log the post-bet emotion so it shows in the "After Bet" chart
+    if (emotion) {
+      await storage.addEmotionLog({
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        emotion: emotion,
+        intensity: intensity,
+        context: `Post-trade: ${outcome} - ${reflection.substring(0, 100)}`,
+        phase: "after",
+        tradeId: trade.id,
+      })
+    }
+
     onComplete()
   }
 

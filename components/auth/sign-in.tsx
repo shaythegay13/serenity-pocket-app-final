@@ -68,8 +68,8 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-sm p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold">Sign in</h1>
-          <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+          <h1 className="text-2xl font-bold">Welcome Back</h1>
+          <p className="text-sm text-muted-foreground">Sign in to continue mastering your decision psychology</p>
         </div>
         
         <div className="space-y-3">

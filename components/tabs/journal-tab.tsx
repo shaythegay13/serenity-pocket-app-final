@@ -103,7 +103,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Decision Journal</h2>
-          <p className="text-muted-foreground">Track your trading decisions and learn from outcomes</p>
+          <p className="text-muted-foreground">Track your trades and bets to learn from outcomes</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -120,7 +120,7 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
-            New Trade
+            New Entry
           </Button>
         </div>
       </div>
@@ -137,9 +137,9 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
                     <FileText className="h-5 w-5 text-amber" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Pending Trade Reflections</h3>
+                    <h3 className="font-semibold text-foreground">Pending Decision Reflections</h3>
                     <p className="text-xs text-muted-foreground">
-                      Complete these entries to earn XP and track your trading outcomes
+                      Complete these entries to earn XP and track your outcomes
                     </p>
                   </div>
                 </div>
@@ -177,17 +177,17 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Why Keep a Trading Journal?</h3>
+                <h3 className="font-semibold text-foreground">Why Keep a Decision Journal?</h3>
                 <p className="text-sm text-muted-foreground">
-                  Document emotions and biases before trades, then reflect afterward to identify patterns and improve
-                  decision-making.
+                  Document emotions and biases before making decisions, then reflect afterward to identify patterns and improve
+                  your judgment over time.
                 </p>
               </div>
             </div>
           </Card>
 
           <div>
-            <h3 className="text-xl font-semibold text-foreground mb-4">Your Trades</h3>
+            <h3 className="text-xl font-semibold text-foreground mb-4">Your Decisions</h3>
             <TradeHistory 
               trades={trades} 
               onSelectTrade={handleSelectTrade}

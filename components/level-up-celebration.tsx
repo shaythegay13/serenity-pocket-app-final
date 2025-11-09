@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Trophy } from "lucide-react"
 import { getLevelTitle } from "@/lib/gamification"
@@ -54,11 +54,12 @@ export function LevelUpCelebration({ open, onClose, newLevel, unlockedFeatures }
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
+        <DialogTitle className="sr-only">Level Up - Level {newLevel}</DialogTitle>
         <div
           className={`text-center space-y-6 py-6 transition-all duration-500 ${showContent ? "scale-100 opacity-100" : "scale-50 opacity-0"}`}
         >
           <div className="flex justify-center">
-            <div className="p-6 rounded-full bg-gradient-to-br from-primary/20 to-blue/20 animate-pulse">
+            <div className="p-6 rounded-full bg-linear-to-br from-primary/20 to-blue/20 animate-pulse">
               <Trophy className="h-16 w-16 text-primary" />
             </div>
           </div>

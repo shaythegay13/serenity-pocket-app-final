@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import type { UserData, EmotionLog, Trade, BiasProfile, Achievement, Challenge } from "./types"
+import type { UserData, Achievement, EmotionLog, Trade, BiasProfile, BiasQuizHistory, Challenge } from "./types"
 
 // Database service layer for Supabase operations
 export const database = {
@@ -132,6 +132,7 @@ export const database = {
         emotion: log.emotion,
         intensity: log.intensity,
         notes: log.context || "",
+        phase: log.phase,
         timestamp: log.timestamp,
       })
 
@@ -168,13 +169,18 @@ export const database = {
         type: "long",
         entry_price: 0,
         position_size: 0,
+        // Pre-betting emotion data
         pre_trade_emotion: trade.preTradeEmotion || "",
+        pre_trade_intensity: trade.preTradeIntensity || 3,
         pre_trade_confidence: trade.confidenceLevel || 0,
         pre_trade_notes: trade.reasoning || "",
         biases_identified: trade.biasesIdentified || [],
+        // Post-betting emotion data (if available)
         outcome: trade.outcome,
         post_trade_emotion: trade.postTradeEmotion,
+        post_trade_intensity: trade.postTradeIntensity,
         post_trade_notes: trade.reflection,
+        emotional_impact: trade.emotionalImpact,
         timestamp: trade.timestamp,
       })
 
@@ -189,19 +195,32 @@ export const database = {
     try {
       const dbUpdates: any = {}
       
+      // Post-betting emotion updates
       if (updates.outcome !== undefined) dbUpdates.outcome = updates.outcome
       if (updates.postTradeEmotion !== undefined) dbUpdates.post_trade_emotion = updates.postTradeEmotion
       if (updates.postTradeIntensity !== undefined) dbUpdates.post_trade_intensity = updates.postTradeIntensity
       if (updates.reflection !== undefined) dbUpdates.post_trade_notes = updates.reflection
       if (updates.emotionalImpact !== undefined) dbUpdates.emotional_impact = updates.emotionalImpact
+      
+      // Pre-betting emotion updates (in case needed)
+      if (updates.preTradeIntensity !== undefined) dbUpdates.pre_trade_intensity = updates.preTradeIntensity
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("trades")
         .update(dbUpdates)
         .eq("id", tradeId)
         .eq("user_id", userId)
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error updating trade:", error)
+        throw new Error(`Failed to update trade: ${error.message}`)
+      }
+      
+      // Check if any rows were actually updated
+      if (!data || data.length === 0) {
+        throw new Error(`Trade ${tradeId} not found in database`)
+      }
     } catch (error) {
       console.error("Error updating trade:", error)
       throw error
@@ -272,19 +291,86 @@ export const database = {
     }
   },
 
-  async upsertBiasProfile(userId: string, profile: BiasProfile): Promise<void> {
+  async addBiasQuizHistory(userId: string, profile: BiasProfile): Promise<void> {
     try {
-      const { error } = await supabase.from("bias_profiles").upsert({
-        user_id: userId,
-        confirmation_bias: profile.confirmationBias,
-        loss_aversion: profile.lossAversion,
-        anchoring_bias: profile.anchoringBias,
-        recency_bias: profile.recencyBias,
-        overconfidence_bias: profile.overconfidenceBias,
-        herd_mentality: profile.herdMentality,
-      })
+      const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / 6
+      
+      const { error } = await supabase
+        .from("bias_quiz_history")
+        .insert({
+          user_id: userId,
+          confirmation_bias: Math.round(profile.confirmationBias),
+          loss_aversion: Math.round(profile.lossAversion),
+          anchoring_bias: Math.round(profile.anchoringBias),
+          recency_bias: Math.round(profile.recencyBias),
+          overconfidence_bias: Math.round(profile.overconfidenceBias),
+          herd_mentality: Math.round(profile.herdMentality),
+          average_score: Math.round(avgScore),
+        })
+
+      if (error) {
+        console.error("Supabase error adding bias history:", error)
+        throw new Error(`Failed to save bias history: ${error.message || JSON.stringify(error)}`)
+      }
+    } catch (error) {
+      console.error("Error adding bias history:", error)
+      throw error
+    }
+  },
+
+  async getBiasQuizHistory(userId: string): Promise<BiasQuizHistory[]> {
+    try {
+      const { data, error } = await supabase
+        .from("bias_quiz_history")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+        .limit(20)
 
       if (error) throw error
+
+      return data ? data.map((item) => ({
+        id: item.id,
+        timestamp: new Date(item.timestamp),
+        profile: {
+          confirmationBias: item.confirmation_bias,
+          lossAversion: item.loss_aversion,
+          anchoringBias: item.anchoring_bias,
+          recencyBias: item.recency_bias,
+          overconfidenceBias: item.overconfidence_bias,
+          herdMentality: item.herd_mentality,
+        },
+        averageScore: item.average_score,
+      })) : []
+    } catch (error) {
+      console.error("Error fetching bias history:", error)
+      return []
+    }
+  },
+
+  async upsertBiasProfile(userId: string, profile: BiasProfile): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from("bias_profiles")
+        .upsert(
+          {
+            user_id: userId,
+            confirmation_bias: Math.round(profile.confirmationBias),
+            loss_aversion: Math.round(profile.lossAversion),
+            anchoring_bias: Math.round(profile.anchoringBias),
+            recency_bias: Math.round(profile.recencyBias),
+            overconfidence_bias: Math.round(profile.overconfidenceBias),
+            herd_mentality: Math.round(profile.herdMentality),
+          },
+          {
+            onConflict: "user_id", // Specify the column for conflict resolution
+          }
+        )
+
+      if (error) {
+        console.error("Supabase error upserting bias profile:", error)
+        throw new Error(`Failed to save bias profile: ${error.message || JSON.stringify(error)}`)
+      }
     } catch (error) {
       console.error("Error upserting bias profile:", error)
       throw error
@@ -365,7 +451,7 @@ function mapDbToEmotionLog(dbData: any): EmotionLog {
     emotion: dbData.emotion,
     intensity: dbData.intensity,
     context: dbData.notes || "",
-    phase: "before" as const,
+    phase: (dbData.phase || "before") as "before" | "during" | "after",
     timestamp: new Date(dbData.timestamp),
   }
 }
@@ -374,11 +460,13 @@ function mapDbToTrade(dbData: any): Trade {
   return {
     id: dbData.id,
     timestamp: new Date(dbData.timestamp),
+    // Pre-betting emotion data
     preTradeEmotion: dbData.pre_trade_emotion || "",
-    preTradeIntensity: dbData.pre_trade_intensity || 0,
+    preTradeIntensity: dbData.pre_trade_intensity || 3,
     biasesIdentified: dbData.biases_identified || [],
     confidenceLevel: dbData.pre_trade_confidence || 0,
     reasoning: dbData.pre_trade_notes || "",
+    // Post-betting emotion data
     outcome: dbData.outcome,
     postTradeEmotion: dbData.post_trade_emotion,
     postTradeIntensity: dbData.post_trade_intensity,

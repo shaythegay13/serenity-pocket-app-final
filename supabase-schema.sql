@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS emotion_logs (
   emotion TEXT NOT NULL,
   intensity INTEGER NOT NULL,
   notes TEXT,
+  phase TEXT NOT NULL CHECK (phase IN ('before', 'during', 'after')),
   timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -77,20 +78,32 @@ CREATE TABLE IF NOT EXISTS trades (
   type TEXT NOT NULL,
   entry_price NUMERIC NOT NULL,
   position_size NUMERIC NOT NULL,
+  -- Pre-betting emotion tracking
   pre_trade_emotion TEXT,
+  pre_trade_intensity INTEGER DEFAULT 3 CHECK (pre_trade_intensity >= 1 AND pre_trade_intensity <= 5),
   pre_trade_confidence INTEGER,
   pre_trade_notes TEXT,
   biases_identified TEXT[] DEFAULT ARRAY[]::TEXT[],
+  -- During-betting emotion tracking (optional)
+  during_trade_emotion TEXT,
+  during_trade_intensity INTEGER CHECK (during_trade_intensity >= 1 AND during_trade_intensity <= 5),
+  -- Post-betting emotion tracking
   outcome TEXT,
   exit_price NUMERIC,
   pnl NUMERIC,
   post_trade_emotion TEXT,
+  post_trade_intensity INTEGER CHECK (post_trade_intensity >= 1 AND post_trade_intensity <= 5),
   post_trade_notes TEXT,
+  emotional_impact INTEGER CHECK (emotional_impact >= 1 AND emotional_impact <= 5),
   mindful_decision BOOLEAN DEFAULT false,
   timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   closed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_trades_user_timestamp ON trades(user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_trades_pending ON trades(user_id, outcome) WHERE outcome IS NULL;
 
 -- Achievements Table
 CREATE TABLE IF NOT EXISTS achievements (
@@ -172,6 +185,7 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username);
 CREATE INDEX IF NOT EXISTS idx_emotion_logs_user_id ON emotion_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_emotion_logs_timestamp ON emotion_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_emotion_logs_phase ON emotion_logs(phase);
 CREATE INDEX IF NOT EXISTS idx_trades_user_id ON trades(user_id);
 CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_achievements_user_id ON achievements(user_id);

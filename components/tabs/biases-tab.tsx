@@ -8,6 +8,7 @@ import { BiasProfileChart } from "@/components/bias-profile-chart"
 import { BiasEducation } from "@/components/bias-education"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, BiasProfile } from "@/lib/types"
+import { calculateBiasRecognitionScore, getTotalBiasesIdentified } from "@/lib/bias-calculations"
 import { Brain, BookOpen, BarChart3, Trophy } from "lucide-react"
 
 interface BiasesTabProps {
@@ -49,10 +50,13 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
     setBiasProfile(newProfile)
     setHasCompletedQuiz(true)
 
-    // Calculate average bias score for userData
-    const avgScore = Object.values(newProfile).reduce((a, b) => a + b, 0) / 6
+    // Calculate bias recognition score using assessment + practical identification
+    const trades = await storage.getTrades()
+    const totalBiasesIdentified = getTotalBiasesIdentified(trades)
+    const biasRecognitionScore = calculateBiasRecognitionScore(newProfile, totalBiasesIdentified, trades.length)
+    
     updateUserData({
-      biasRecognitionScore: Math.round(100 - avgScore), // Lower bias = higher recognition
+      biasRecognitionScore,
       xp: userData.xp + 50,
       totalModulesCompleted: userData.totalModulesCompleted + 1,
     })
@@ -68,7 +72,7 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Bias Detection</h2>
-          <p className="text-muted-foreground">Identify and overcome cognitive biases in trading</p>
+          <p className="text-muted-foreground">Identify and overcome cognitive biases in your decision-making</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -98,7 +102,7 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
       {view === "overview" && (
         <div className="space-y-6">
           {!hasCompletedQuiz && averageBiasScore === 50 ? (
-            <Card className="p-6 bg-gradient-to-br from-primary/5 to-blue/5 border-primary/30">
+            <Card className="p-6 bg-linear-to-br from-primary/5 to-blue/5 border-primary/30">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="p-3 rounded-full bg-primary/20">
@@ -111,8 +115,8 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
                     </p>
                   </div>
                 </div>
-                <Button size="lg" onClick={() => setView("quiz")} className="gap-2">
-                  <Trophy className="h-4 w-4" />
+                <Button size="lg" onClick={() => setView("quiz")} className="gap-2 px-6 py-6 text-base">
+                  <Trophy className="h-5 w-5" />
                   Start Quiz (+50 XP)
                 </Button>
               </div>
@@ -126,7 +130,7 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
                     Overall Bias Score: {Math.round(averageBiasScore)} / 100
                   </p>
                 </div>
-                <Button variant="outline" onClick={() => setView("quiz")}>
+                <Button variant="outline" onClick={() => setView("quiz")} size="lg" className="px-6">
                   Retake Quiz
                 </Button>
               </div>
@@ -140,14 +144,14 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <h4 className="font-semibold text-foreground mb-2">Better Decisions</h4>
                 <p className="text-sm text-muted-foreground">
-                  Recognizing biases helps you make more rational, objective trading decisions based on data rather than
+                  Recognizing biases helps you make more rational, objective betting decisions based on data rather than
                   emotions.
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-blue/5 border border-blue/20">
                 <h4 className="font-semibold text-foreground mb-2">Improved Performance</h4>
                 <p className="text-sm text-muted-foreground">
-                  Traders who actively work on bias awareness show significantly better long-term performance and risk
+                  Sports bettors who actively work on bias awareness show significantly better long-term performance and risk
                   management.
                 </p>
               </div>

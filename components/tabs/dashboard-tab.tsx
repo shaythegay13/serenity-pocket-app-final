@@ -14,13 +14,15 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 import { getLevelTitle, checkPerfectDay, shouldResetRings } from "@/lib/gamification"
 import { PerfectDayNotification } from "@/components/perfect-day-notification"
+import { SurveyResultsCard } from "@/components/survey-results-card"
 
 interface DashboardTabProps {
   userData: UserData
   updateUserData: (updates: Partial<UserData>) => Promise<void>
+  onNavigateToEmotions?: () => void
 }
 
-export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
+export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }: DashboardTabProps) {
   const [showCheckIn, setShowCheckIn] = useState(false)
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false)
   const [showPerfectDay, setShowPerfectDay] = useState(false)
@@ -110,9 +112,9 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
             Level {userData.level} - {getLevelTitle(userData.level)}
           </span>
         </div>
-        <h2 className="text-3xl font-bold text-foreground">Balance your mind, master your money.</h2>
+        <h2 className="text-3xl font-bold text-foreground">Master the mental game of high-stakes decisions.</h2>
         <p className="text-muted-foreground">
-          Welcome back, Trader. How are you feeling today?
+          Welcome back, {userData.name}. How are you feeling today?
         </p>
         {userData.emotionalAwarenessStreak > 0 && (
           <div className="flex items-center justify-center gap-2 text-sm">
@@ -121,6 +123,11 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
           </div>
         )}
       </div>
+
+      {/* Survey Results */}
+      {userData.surveyData && (
+        <SurveyResultsCard surveyData={userData.surveyData} />
+      )}
 
       {/* Daily Check-In CTA */}
       {!hasCheckedInToday && (
@@ -132,7 +139,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-foreground">Daily Emotion Check-In</h3>
-                <p className="text-sm text-muted-foreground">Take a moment to reflect on your emotional state</p>
+                <p className="text-sm text-muted-foreground">Track your emotional state before making decisions</p>
               </div>
             </div>
             <Button
@@ -156,15 +163,21 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
                 <FileText className="h-8 w-8 text-amber" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-foreground">Complete Your Trade Reflections</h3>
+                <h3 className="text-xl font-semibold text-foreground">Complete Your Decision Reflections</h3>
                 <p className="text-sm text-muted-foreground">
-                  You have {pendingTrades.length} pending {pendingTrades.length === 1 ? 'entry' : 'entries'} waiting for post-trade reflection
+                  You have {pendingTrades.length} pending {pendingTrades.length === 1 ? 'entry' : 'entries'} waiting for post-decision reflection
                 </p>
               </div>
             </div>
-            <div className="text-center md:text-right">
-              <p className="text-sm font-semibold text-amber mb-1">+{pendingTrades.length * 20} XP Available</p>
-              <p className="text-xs text-muted-foreground">Go to Journal tab to complete</p>
+            <div className="text-center md:text-right flex flex-col gap-2">
+              <p className="text-sm font-semibold text-amber">+{pendingTrades.length * 20} XP Available</p>
+              <Button 
+                onClick={onNavigateToEmotions}
+                size="sm"
+                className="bg-amber hover:bg-amber/90 text-white"
+              >
+                Complete Now
+              </Button>
             </div>
           </div>
         </Card>
@@ -272,7 +285,7 @@ export function DashboardTab({ userData, updateUserData }: DashboardTabProps) {
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          label="Mindful Trades"
+          label="Mindful Decisions"
           value={`${userData.mindfulTrades}/${userData.totalTrades}`}
         />
       </div>

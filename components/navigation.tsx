@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Heart, Brain, BookOpen, Trophy, BarChart3, User } from "lucide-react"
+import { Home, Heart, Brain, BookOpen, Trophy, BarChart3, User, Crown, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface NavigationProps {
@@ -12,14 +12,15 @@ const navItems = [
   { id: "dashboard", label: "Dashboard", icon: Home },
   { id: "emotions", label: "Emotions", icon: Heart },
   { id: "biases", label: "Biases", icon: Brain },
-  { id: "journal", label: "Journal", icon: BookOpen },
   { id: "progress", label: "Progress", icon: BarChart3 },
+  { id: "rewards", label: "Rewards", icon: Sparkles },
+  { id: "premium", label: "Premium", icon: Crown },
   { id: "profile", label: "Profile", icon: User },
 ]
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {
   return (
-    <nav className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <nav className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80">
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
         <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
           {navItems.map((item) => {

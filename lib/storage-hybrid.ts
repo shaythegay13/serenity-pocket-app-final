@@ -1,12 +1,14 @@
 import { supabase } from "./supabase"
 import { database } from "./database"
-import type { UserData, EmotionLog, Trade, BiasProfile, Achievement, Challenge } from "./types"
+import type { UserData, EmotionLog, Trade, Achievement, BiasProfile, BiasQuizHistory, Challenge } from "./types"
+import { migrateChallengeTerminology } from "./migrate-challenges"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
   EMOTION_LOGS: "serenity_emotion_logs",
   TRADES: "serenity_trades",
   BIAS_PROFILE: "serenity_bias_profile",
+  BIAS_HISTORY: "serenity_bias_history",
   ACHIEVEMENTS: "serenity_achievements",
   CHALLENGES: "serenity_challenges",
   LAST_CHECK_IN: "serenity_last_check_in",
@@ -120,11 +122,17 @@ export const storageHybrid = {
   async updateTrade(tradeId: string, updates: Partial<Trade>): Promise<void> {
     const userId = await this.getCurrentUserId()
     
+    // Try to update in database if user is logged in
     if (userId) {
-      await database.updateTrade(userId, tradeId, updates)
+      try {
+        await database.updateTrade(userId, tradeId, updates)
+      } catch (error) {
+        // If database update fails (e.g., trade not synced yet), continue with localStorage
+        console.warn("Database update failed, updating localStorage only:", error)
+      }
     }
     
-    // Also update localStorage
+    // Always update localStorage
     if (typeof window !== "undefined") {
       const trades = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADES) || "[]")
       const index = trades.findIndex((t: Trade) => t.id === tradeId)
@@ -157,13 +165,66 @@ export const storageHybrid = {
   async setBiasProfile(profile: BiasProfile): Promise<void> {
     const userId = await this.getCurrentUserId()
     
+    // Try to save to database if user is logged in
     if (userId) {
-      await database.upsertBiasProfile(userId, profile)
+      try {
+        await database.upsertBiasProfile(userId, profile)
+      } catch (error) {
+        // If database save fails, continue with localStorage
+        console.warn("Database save failed, using localStorage only:", error)
+      }
     }
     
-    // Also save to localStorage
+    // Always save to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.BIAS_PROFILE, JSON.stringify(profile))
+    }
+    
+    // Save to history
+    await this.addBiasQuizHistory(profile)
+  },
+
+  async getBiasQuizHistory(): Promise<BiasQuizHistory[]> {
+    const userId = await this.getCurrentUserId()
+    
+    if (userId) {
+      return await database.getBiasQuizHistory(userId)
+    }
+    
+    // Fallback to localStorage for non-authenticated users
+    if (typeof window === "undefined") return []
+    const data = localStorage.getItem(STORAGE_KEYS.BIAS_HISTORY)
+    return data ? JSON.parse(data) : []
+  },
+
+  async addBiasQuizHistory(profile: BiasProfile): Promise<void> {
+    const userId = await this.getCurrentUserId()
+    
+    // Save to database if user is logged in
+    if (userId) {
+      try {
+        await database.addBiasQuizHistory(userId, profile)
+      } catch (error) {
+        console.warn("Failed to save bias history to database:", error)
+        // Continue to save locally as fallback
+      }
+    }
+    
+    // Also save to localStorage as backup
+    if (typeof window !== "undefined") {
+      const history = await this.getBiasQuizHistory()
+      const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / 6
+      
+      const newEntry: BiasQuizHistory = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        profile,
+        averageScore: Math.round(avgScore)
+      }
+      
+      history.push(newEntry)
+      const trimmedHistory = history.slice(-20)
+      localStorage.setItem(STORAGE_KEYS.BIAS_HISTORY, JSON.stringify(trimmedHistory))
     }
   },
 
@@ -205,19 +266,26 @@ export const storageHybrid = {
     const userId = await this.getCurrentUserId()
     
     if (userId) {
-      const challenges = await database.getChallenges(userId)
+      let challenges = await database.getChallenges(userId)
       if (challenges.length === 0) {
         const defaultChallenges = getDefaultChallenges()
         await database.upsertChallenges(userId, defaultChallenges)
         return defaultChallenges
       }
+      // Migrate existing challenges to update terminology
+      challenges = migrateChallengeTerminology(challenges)
+      await database.upsertChallenges(userId, challenges)
       return challenges
     }
     
     // Fallback to localStorage
     if (typeof window === "undefined") return getDefaultChallenges()
     const data = localStorage.getItem(STORAGE_KEYS.CHALLENGES)
-    return data ? JSON.parse(data) : getDefaultChallenges()
+    let challenges = data ? JSON.parse(data) : getDefaultChallenges()
+    // Migrate existing challenges
+    challenges = migrateChallengeTerminology(challenges)
+    localStorage.setItem(STORAGE_KEYS.CHALLENGES, JSON.stringify(challenges))
+    return challenges
   },
 
   async setChallenges(challenges: Challenge[]): Promise<void> {
@@ -483,8 +551,8 @@ function getDefaultChallenges(): Challenge[] {
   return [
     {
       id: "pause-challenge",
-      title: "Pause Before Trading",
-      description: "Take a 3-second pause before 5 trades this week",
+      title: "Pause Before Betting",
+      description: "Take a 3-second pause before 5 bets this week",
       progress: 0,
       maxProgress: 5,
       xpReward: 50,

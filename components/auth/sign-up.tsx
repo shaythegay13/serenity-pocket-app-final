@@ -104,12 +104,16 @@ export function SignUp({ onSwitchToSignIn, surveyData, onAccountCreated }: SignU
 
         // If we have an onAccountCreated callback (for terms flow), call it
         if (onAccountCreated) {
-          // Store survey data temporarily in sessionStorage
-          if (surveyData) {
-            sessionStorage.setItem('pendingSurveyData', JSON.stringify({
-              ...surveyData,
-              completedAt: new Date().toISOString()
-            }))
+          // Store survey data temporarily in sessionStorage (only in browser)
+          if (surveyData && typeof window !== 'undefined') {
+            try {
+              sessionStorage.setItem('pendingSurveyData', JSON.stringify({
+                ...surveyData,
+                completedAt: new Date().toISOString()
+              }))
+            } catch (e) {
+              console.error('Failed to store survey data:', e)
+            }
           }
           
           // Try to auto sign in after successful sign up

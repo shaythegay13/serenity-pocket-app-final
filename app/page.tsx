@@ -83,13 +83,19 @@ export default function Home() {
             ])
             console.log('User data loaded successfully:', data)
             
-            // Check for pending survey data
-            const pendingSurveyData = sessionStorage.getItem('pendingSurveyData')
-            if (pendingSurveyData && !data.surveyData) {
-              const parsedSurveyData = JSON.parse(pendingSurveyData)
-              data.surveyData = parsedSurveyData
-              await storage.setUserData(data)
-              sessionStorage.removeItem('pendingSurveyData')
+            // Check for pending survey data (only in browser)
+            if (typeof window !== 'undefined') {
+              try {
+                const pendingSurveyData = sessionStorage.getItem('pendingSurveyData')
+                if (pendingSurveyData && !data.surveyData) {
+                  const parsedSurveyData = JSON.parse(pendingSurveyData)
+                  data.surveyData = parsedSurveyData
+                  await storage.setUserData(data)
+                  sessionStorage.removeItem('pendingSurveyData')
+                }
+              } catch (e) {
+                console.error('Error accessing sessionStorage:', e)
+              }
             }
             
             setUserData(data)
@@ -104,12 +110,18 @@ export default function Home() {
             console.error('Error loading user data:', loadError)
             console.warn('Database may be slow or paused. Using default data.')
             
-            // Check for pending survey data
-            const pendingSurveyData = sessionStorage.getItem('pendingSurveyData')
+            // Check for pending survey data (only in browser)
             let parsedSurveyData = null
-            if (pendingSurveyData) {
-              parsedSurveyData = JSON.parse(pendingSurveyData)
-              sessionStorage.removeItem('pendingSurveyData')
+            if (typeof window !== 'undefined') {
+              try {
+                const pendingSurveyData = sessionStorage.getItem('pendingSurveyData')
+                if (pendingSurveyData) {
+                  parsedSurveyData = JSON.parse(pendingSurveyData)
+                  sessionStorage.removeItem('pendingSurveyData')
+                }
+              } catch (e) {
+                console.error('Error accessing sessionStorage:', e)
+              }
             }
             
             // If database is timing out, just use default data immediately

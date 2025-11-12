@@ -28,6 +28,13 @@ export async function submitAnonymousSurvey(
   // Calculate score
   const score = calculateSurveyScore(responses);
 
+  console.log('Submitting survey to database:', {
+    email,
+    score,
+    responseCount: responses.length,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+  });
+
   // Insert into database using server client (bypasses RLS)
   const { data, error } = await supabaseServer
     .from('anonymous_survey_submissions')
@@ -41,9 +48,20 @@ export async function submitAnonymousSurvey(
     .single();
 
   if (error) {
+    console.error('Database insert error:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     throw new Error(`Failed to submit survey: ${error.message} (${error.code})`);
   }
 
+  if (!data) {
+    throw new Error('No data returned from insert operation');
+  }
+
+  console.log('Survey inserted successfully:', data.id);
   return { surveyId: data.id, score };
 }
 

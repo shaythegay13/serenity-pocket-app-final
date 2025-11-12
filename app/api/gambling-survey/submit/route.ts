@@ -91,6 +91,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Submit anonymous survey
+    console.log('Attempting to submit survey for email:', email);
+    console.log('Number of responses:', responses.length);
+    
     const result = await submitAnonymousSurvey(
       email,
       responses,

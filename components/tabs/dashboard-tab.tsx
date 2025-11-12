@@ -14,7 +14,6 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 import { getLevelTitle, checkPerfectDay, shouldResetRings } from "@/lib/gamification"
 import { PerfectDayNotification } from "@/components/perfect-day-notification"
-import { SurveyResultsCard } from "@/components/survey-results-card"
 
 interface DashboardTabProps {
   userData: UserData
@@ -112,9 +111,9 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
             Level {userData.level} - {getLevelTitle(userData.level)}
           </span>
         </div>
-        <h2 className="text-3xl font-bold text-foreground">Master the mental game of high-stakes decisions.</h2>
+        <h2 className="text-3xl font-bold text-foreground">The Odds Don't Just Affect Your Wallet—They Shape Your Life.</h2>
         <p className="text-muted-foreground">
-          Welcome back, {userData.name}. How are you feeling today?
+          Hi {userData.name}, ready to explore the true impact of your bets?
         </p>
         {userData.emotionalAwarenessStreak > 0 && (
           <div className="flex items-center justify-center gap-2 text-sm">
@@ -124,10 +123,6 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
         )}
       </div>
 
-      {/* Survey Results */}
-      {userData.surveyData && (
-        <SurveyResultsCard surveyData={userData.surveyData} />
-      )}
 
       {/* Daily Check-In CTA */}
       {!hasCheckedInToday && (

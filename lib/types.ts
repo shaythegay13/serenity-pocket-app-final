@@ -1,17 +1,27 @@
 export interface SurveyData {
-  name: string
-  email: string
-  userType: "sports-bettor" | "day-trader" | "both"
-  experience: "beginner" | "intermediate" | "advanced"
-  primaryGoal: string
-  weeklyActivity: string
-  referralSource: string
-  referralOther?: string
-  // Optional demographics
+  score?: number
+  level?: string
+  answers?: Record<string, string>
+  completedAt?: string
+  // Demographic fields from onboarding
   ageRange?: string
   region?: string
   occupation?: string
-  completedAt?: string
+  educationLevel?: string
+  incomeRange?: string
+  employmentStatus?: string
+  maritalStatus?: string
+  ethnicity?: string
+  bettingFrequency?: string
+  typicalBetAmount?: string
+  // Profile fields
+  name?: string
+  email?: string
+  userType?: string
+  experience?: string
+  primaryGoal?: string
+  weeklyActivity?: string
+  referralSource?: string
 }
 
 export interface SubscriptionTier {

@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@supabase/auth-helpers-nextjs/tsconfig/base.json": [
+        "./node_modules/@supabase/auth-helpers-nextjs/tsconfig.json"
       ]
     }
   },
@@ -37,7 +40,5 @@
     ".next\\dev/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": []
 }

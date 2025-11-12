@@ -1,7 +1,5 @@
 import { supabase } from "./supabase"
-import { database } from "./database"
 import type { UserData, EmotionLog, Trade, Achievement, BiasProfile, BiasQuizHistory, Challenge } from "./types"
-import { migrateChallengeTerminology } from "./migrate-challenges"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
@@ -27,21 +25,76 @@ export const storageHybrid = {
   // User Data Operations
   async getUserData(): Promise<UserData> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
       // Try to fetch from database
-      let userData = await database.getUserProfile(userId)
-      
-      if (!userData) {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
+      if (error || !data) {
         // Create new profile if doesn't exist
         const defaultData = getDefaultUserData()
-        await database.createUserProfile(userId, defaultData)
-        userData = defaultData
+        const { error: insertError } = await supabase
+          .from("user_profiles")
+          .insert({
+            id: userId,
+            name: defaultData.name,
+            level: defaultData.level,
+            xp: defaultData.xp,
+            xp_to_next_level: defaultData.xpToNextLevel,
+            emotional_awareness_streak: defaultData.emotionalAwarenessStreak,
+            bias_recognition_score: defaultData.biasRecognitionScore,
+            mindful_decision_percentage: defaultData.mindfulDecisionPercentage,
+            total_trades: defaultData.totalTrades,
+            mindful_trades: defaultData.mindfulTrades,
+            serenity_tokens: defaultData.serenityTokens,
+            daily_rings: defaultData.dailyRings,
+            last_ring_reset: defaultData.lastRingReset.toISOString(),
+            perfect_days: defaultData.perfectDays,
+            longest_streak: defaultData.longestStreak,
+            total_emotions_logged: defaultData.totalEmotionsLogged,
+            total_biases_identified: defaultData.totalBiasesIdentified,
+            total_journals_completed: defaultData.totalJournalsCompleted,
+            total_modules_completed: defaultData.totalModulesCompleted,
+            total_breathing_exercises: defaultData.totalBreathingExercises,
+            most_productive_day: defaultData.mostProductiveDay,
+          })
+
+        if (insertError) {
+          console.error("Error creating user profile:", insertError)
+        }
+
+        return defaultData
       }
-      
-      return userData
+
+      // Convert snake_case DB fields to camelCase
+      return {
+        name: data.name,
+        level: data.level,
+        xp: data.xp,
+        xpToNextLevel: data.xp_to_next_level,
+        emotionalAwarenessStreak: data.emotional_awareness_streak,
+        biasRecognitionScore: data.bias_recognition_score,
+        mindfulDecisionPercentage: data.mindful_decision_percentage,
+        totalTrades: data.total_trades,
+        mindfulTrades: data.mindful_trades,
+        serenityTokens: data.serenity_tokens,
+        dailyRings: data.daily_rings,
+        lastRingReset: new Date(data.last_ring_reset),
+        perfectDays: data.perfect_days,
+        longestStreak: data.longest_streak,
+        totalEmotionsLogged: data.total_emotions_logged,
+        totalBiasesIdentified: data.total_biases_identified,
+        totalJournalsCompleted: data.total_journals_completed,
+        totalModulesCompleted: data.total_modules_completed,
+        totalBreathingExercises: data.total_breathing_exercises,
+        mostProductiveDay: data.most_productive_day,
+      }
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return getDefaultUserData()
     const data = localStorage.getItem(STORAGE_KEYS.USER_DATA)
@@ -50,11 +103,39 @@ export const storageHybrid = {
 
   async setUserData(data: UserData): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.updateUserProfile(userId, data)
+      const { error } = await supabase
+        .from("user_profiles")
+        .upsert({
+          id: userId,
+          name: data.name,
+          level: data.level,
+          xp: data.xp,
+          xp_to_next_level: data.xpToNextLevel,
+          emotional_awareness_streak: data.emotionalAwarenessStreak,
+          bias_recognition_score: data.biasRecognitionScore,
+          mindful_decision_percentage: data.mindfulDecisionPercentage,
+          total_trades: data.totalTrades,
+          mindful_trades: data.mindfulTrades,
+          serenity_tokens: data.serenityTokens,
+          daily_rings: data.dailyRings,
+          last_ring_reset: data.lastRingReset.toISOString(),
+          perfect_days: data.perfectDays,
+          longest_streak: data.longestStreak,
+          total_emotions_logged: data.totalEmotionsLogged,
+          total_biases_identified: data.totalBiasesIdentified,
+          total_journals_completed: data.totalJournalsCompleted,
+          total_modules_completed: data.totalModulesCompleted,
+          total_breathing_exercises: data.totalBreathingExercises,
+          most_productive_day: data.mostProductiveDay,
+        })
+
+      if (error) {
+        console.error("Error updating user profile:", error)
+      }
     }
-    
+
     // Also save to localStorage as cache
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data))
@@ -64,11 +145,31 @@ export const storageHybrid = {
   // Emotion Logs Operations
   async getEmotionLogs(): Promise<EmotionLog[]> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      return await database.getEmotionLogs(userId)
+      const { data, error } = await supabase
+        .from("emotion_logs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching emotion logs:", error)
+        return []
+      }
+
+      // Convert DB format to app format
+      return (data || []).map(log => ({
+        id: log.id,
+        timestamp: new Date(log.timestamp),
+        emotion: log.emotion,
+        intensity: log.intensity,
+        context: log.notes || "",
+        phase: log.phase,
+        tradeId: undefined, // Not stored in current schema
+      }))
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return []
     const data = localStorage.getItem(STORAGE_KEYS.EMOTION_LOGS)
@@ -77,11 +178,24 @@ export const storageHybrid = {
 
   async addEmotionLog(log: EmotionLog): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.addEmotionLog(userId, log)
+      const { error } = await supabase
+        .from("emotion_logs")
+        .insert({
+          user_id: userId,
+          emotion: log.emotion,
+          intensity: log.intensity,
+          notes: log.context,
+          phase: log.phase,
+          timestamp: log.timestamp.toISOString(),
+        })
+
+      if (error) {
+        console.error("Error adding emotion log:", error)
+      }
     }
-    
+
     // Also save to localStorage
     if (typeof window !== "undefined") {
       const logs = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMOTION_LOGS) || "[]")
@@ -93,11 +207,36 @@ export const storageHybrid = {
   // Trades Operations
   async getTrades(): Promise<Trade[]> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      return await database.getTrades(userId)
+      const { data, error } = await supabase
+        .from("trades")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching trades:", error)
+        return []
+      }
+
+      // Convert DB format to app format
+      return (data || []).map(trade => ({
+        id: trade.id,
+        timestamp: new Date(trade.timestamp),
+        preTradeEmotion: trade.pre_trade_emotion || "",
+        preTradeIntensity: trade.pre_trade_intensity || 3,
+        biasesIdentified: trade.biases_identified || [],
+        confidenceLevel: trade.pre_trade_confidence || 50,
+        reasoning: trade.pre_trade_notes || "",
+        outcome: trade.outcome,
+        postTradeEmotion: trade.post_trade_emotion,
+        postTradeIntensity: trade.post_trade_intensity,
+        reflection: trade.post_trade_notes,
+        emotionalImpact: trade.emotional_impact,
+      }))
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return []
     const data = localStorage.getItem(STORAGE_KEYS.TRADES)
@@ -106,11 +245,35 @@ export const storageHybrid = {
 
   async addTrade(trade: Trade): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.addTrade(userId, trade)
+      const { error } = await supabase
+        .from("trades")
+        .insert({
+          id: trade.id,
+          user_id: userId,
+          asset: "Unknown", // Not in Trade type but required by schema
+          type: "Unknown", // Not in Trade type but required by schema
+          entry_price: 0, // Not in Trade type but required by schema
+          position_size: 0, // Not in Trade type but required by schema
+          pre_trade_emotion: trade.preTradeEmotion,
+          pre_trade_intensity: trade.preTradeIntensity,
+          pre_trade_confidence: trade.confidenceLevel,
+          pre_trade_notes: trade.reasoning,
+          biases_identified: trade.biasesIdentified,
+          outcome: trade.outcome,
+          post_trade_emotion: trade.postTradeEmotion,
+          post_trade_intensity: trade.postTradeIntensity,
+          post_trade_notes: trade.reflection,
+          emotional_impact: trade.emotionalImpact,
+          timestamp: trade.timestamp.toISOString(),
+        })
+
+      if (error) {
+        console.error("Error adding trade:", error)
+      }
     }
-    
+
     // Also save to localStorage
     if (typeof window !== "undefined") {
       const trades = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADES) || "[]")
@@ -121,17 +284,38 @@ export const storageHybrid = {
 
   async updateTrade(tradeId: string, updates: Partial<Trade>): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     // Try to update in database if user is logged in
     if (userId) {
       try {
-        await database.updateTrade(userId, tradeId, updates)
+        const dbUpdates: any = {}
+
+        if (updates.preTradeEmotion !== undefined) dbUpdates.pre_trade_emotion = updates.preTradeEmotion
+        if (updates.preTradeIntensity !== undefined) dbUpdates.pre_trade_intensity = updates.preTradeIntensity
+        if (updates.biasesIdentified !== undefined) dbUpdates.biases_identified = updates.biasesIdentified
+        if (updates.confidenceLevel !== undefined) dbUpdates.pre_trade_confidence = updates.confidenceLevel
+        if (updates.reasoning !== undefined) dbUpdates.pre_trade_notes = updates.reasoning
+        if (updates.outcome !== undefined) dbUpdates.outcome = updates.outcome
+        if (updates.postTradeEmotion !== undefined) dbUpdates.post_trade_emotion = updates.postTradeEmotion
+        if (updates.postTradeIntensity !== undefined) dbUpdates.post_trade_intensity = updates.postTradeIntensity
+        if (updates.reflection !== undefined) dbUpdates.post_trade_notes = updates.reflection
+        if (updates.emotionalImpact !== undefined) dbUpdates.emotional_impact = updates.emotionalImpact
+
+        const { error } = await supabase
+          .from("trades")
+          .update(dbUpdates)
+          .eq("id", tradeId)
+          .eq("user_id", userId)
+
+        if (error) {
+          console.warn("Database update failed, updating localStorage only:", error)
+        }
       } catch (error) {
         // If database update fails (e.g., trade not synced yet), continue with localStorage
         console.warn("Database update failed, updating localStorage only:", error)
       }
     }
-    
+
     // Always update localStorage
     if (typeof window !== "undefined") {
       const trades = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADES) || "[]")
@@ -146,16 +330,49 @@ export const storageHybrid = {
   // Bias Profile Operations
   async getBiasProfile(): Promise<BiasProfile> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      let profile = await database.getBiasProfile(userId)
-      if (!profile) {
-        profile = getDefaultBiasProfile()
-        await database.upsertBiasProfile(userId, profile)
+      const { data, error } = await supabase
+        .from("bias_profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle()
+
+      // If we found a profile, return it
+      if (data) {
+        return {
+          confirmationBias: data.confirmation_bias,
+          lossAversion: data.loss_aversion,
+          anchoringBias: data.anchoring_bias,
+          recencyBias: data.recency_bias,
+          overconfidenceBias: data.overconfidence_bias,
+          herdMentality: data.herd_mentality,
+        }
       }
-      return profile
+
+      // If no profile exists, create one using upsert (handles duplicates gracefully)
+      const defaultProfile = getDefaultBiasProfile()
+      const { error: upsertError } = await supabase
+        .from("bias_profiles")
+        .upsert({
+          user_id: userId,
+          confirmation_bias: defaultProfile.confirmationBias,
+          loss_aversion: defaultProfile.lossAversion,
+          anchoring_bias: defaultProfile.anchoringBias,
+          recency_bias: defaultProfile.recencyBias,
+          overconfidence_bias: defaultProfile.overconfidenceBias,
+          herd_mentality: defaultProfile.herdMentality,
+        }, {
+          onConflict: 'user_id'
+        })
+
+      if (upsertError) {
+        console.error("Error creating bias profile:", upsertError)
+      }
+
+      return defaultProfile
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return getDefaultBiasProfile()
     const data = localStorage.getItem(STORAGE_KEYS.BIAS_PROFILE)
@@ -164,33 +381,71 @@ export const storageHybrid = {
 
   async setBiasProfile(profile: BiasProfile): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     // Try to save to database if user is logged in
     if (userId) {
       try {
-        await database.upsertBiasProfile(userId, profile)
+        const { error } = await supabase
+          .from("bias_profiles")
+          .upsert({
+            user_id: userId,
+            confirmation_bias: profile.confirmationBias,
+            loss_aversion: profile.lossAversion,
+            anchoring_bias: profile.anchoringBias,
+            recency_bias: profile.recencyBias,
+            overconfidence_bias: profile.overconfidenceBias,
+            herd_mentality: profile.herdMentality,
+          })
+
+        if (error) {
+          console.warn("Database save failed, using localStorage only:", error)
+        }
       } catch (error) {
         // If database save fails, continue with localStorage
         console.warn("Database save failed, using localStorage only:", error)
       }
     }
-    
+
     // Always save to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.BIAS_PROFILE, JSON.stringify(profile))
     }
-    
+
     // Save to history
     await this.addBiasQuizHistory(profile)
   },
 
   async getBiasQuizHistory(): Promise<BiasQuizHistory[]> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      return await database.getBiasQuizHistory(userId)
+      const { data, error } = await supabase
+        .from("bias_quiz_history")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+        .limit(20)
+
+      if (error) {
+        console.error("Error fetching bias quiz history:", error)
+        return []
+      }
+
+      return (data || []).map(entry => ({
+        id: entry.id,
+        timestamp: new Date(entry.timestamp),
+        profile: {
+          confirmationBias: entry.confirmation_bias,
+          lossAversion: entry.loss_aversion,
+          anchoringBias: entry.anchoring_bias,
+          recencyBias: entry.recency_bias,
+          overconfidenceBias: entry.overconfidence_bias,
+          herdMentality: entry.herd_mentality,
+        },
+        averageScore: entry.average_score,
+      }))
     }
-    
+
     // Fallback to localStorage for non-authenticated users
     if (typeof window === "undefined") return []
     const data = localStorage.getItem(STORAGE_KEYS.BIAS_HISTORY)
@@ -199,29 +454,46 @@ export const storageHybrid = {
 
   async addBiasQuizHistory(profile: BiasProfile): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+    const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / 6
+
     // Save to database if user is logged in
     if (userId) {
       try {
-        await database.addBiasQuizHistory(userId, profile)
+        const { error } = await supabase
+          .from("bias_quiz_history")
+          .insert({
+            user_id: userId,
+            timestamp: new Date().toISOString(),
+            confirmation_bias: profile.confirmationBias,
+            loss_aversion: profile.lossAversion,
+            anchoring_bias: profile.anchoringBias,
+            recency_bias: profile.recencyBias,
+            overconfidence_bias: profile.overconfidenceBias,
+            herd_mentality: profile.herdMentality,
+            average_score: Math.round(avgScore),
+          })
+
+        if (error) {
+          console.warn("Failed to save bias history to database:", error)
+          // Continue to save locally as fallback
+        }
       } catch (error) {
         console.warn("Failed to save bias history to database:", error)
         // Continue to save locally as fallback
       }
     }
-    
+
     // Also save to localStorage as backup
     if (typeof window !== "undefined") {
       const history = await this.getBiasQuizHistory()
-      const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / 6
-      
+
       const newEntry: BiasQuizHistory = {
         id: Date.now().toString(),
         timestamp: new Date(),
         profile,
         averageScore: Math.round(avgScore)
       }
-      
+
       history.push(newEntry)
       const trimmedHistory = history.slice(-20)
       localStorage.setItem(STORAGE_KEYS.BIAS_HISTORY, JSON.stringify(trimmedHistory))
@@ -231,17 +503,83 @@ export const storageHybrid = {
   // Achievements Operations
   async getAchievements(): Promise<Achievement[]> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      const achievements = await database.getAchievements(userId)
-      if (achievements.length === 0) {
+      const { data, error } = await supabase
+        .from("achievements")
+        .select("*")
+        .eq("user_id", userId)
+
+      if (error) {
+        console.error("Error fetching achievements:", error)
         const defaultAchievements = getDefaultAchievements()
-        await database.upsertAchievements(userId, defaultAchievements)
+
+        // Try to create default achievements
+        const { error: insertError } = await supabase
+          .from("achievements")
+          .insert(
+            defaultAchievements.map(achievement => ({
+              id: achievement.id,
+              user_id: userId,
+              name: achievement.name,
+              description: achievement.description,
+              icon: achievement.icon,
+              progress: achievement.progress,
+              max_progress: achievement.maxProgress,
+              category: achievement.category,
+              unlocked: achievement.unlocked,
+              unlocked_at: achievement.unlockedAt?.toISOString(),
+            }))
+          )
+
+        if (insertError) {
+          console.error("Error creating achievements:", insertError)
+        }
+
         return defaultAchievements
       }
-      return achievements
+
+      if (!data || data.length === 0) {
+        const defaultAchievements = getDefaultAchievements()
+
+        // Create default achievements
+        const { error: insertError } = await supabase
+          .from("achievements")
+          .insert(
+            defaultAchievements.map(achievement => ({
+              id: achievement.id,
+              user_id: userId,
+              name: achievement.name,
+              description: achievement.description,
+              icon: achievement.icon,
+              progress: achievement.progress,
+              max_progress: achievement.maxProgress,
+              category: achievement.category,
+              unlocked: achievement.unlocked,
+              unlocked_at: achievement.unlockedAt?.toISOString(),
+            }))
+          )
+
+        if (insertError) {
+          console.error("Error creating achievements:", insertError)
+        }
+
+        return defaultAchievements
+      }
+
+      return data.map(achievement => ({
+        id: achievement.id,
+        name: achievement.name,
+        description: achievement.description,
+        icon: achievement.icon,
+        unlocked: achievement.unlocked,
+        unlockedAt: achievement.unlocked_at ? new Date(achievement.unlocked_at) : undefined,
+        progress: achievement.progress,
+        maxProgress: achievement.max_progress,
+        category: achievement.category,
+      }))
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return getDefaultAchievements()
     const data = localStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS)
@@ -250,11 +588,30 @@ export const storageHybrid = {
 
   async setAchievements(achievements: Achievement[]): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.upsertAchievements(userId, achievements)
+      const { error } = await supabase
+        .from("achievements")
+        .upsert(
+          achievements.map(achievement => ({
+            id: achievement.id,
+            user_id: userId,
+            name: achievement.name,
+            description: achievement.description,
+            icon: achievement.icon,
+            progress: achievement.progress,
+            max_progress: achievement.maxProgress,
+            category: achievement.category,
+            unlocked: achievement.unlocked,
+            unlocked_at: achievement.unlockedAt?.toISOString(),
+          }))
+        )
+
+      if (error) {
+        console.error("Error updating achievements:", error)
+      }
     }
-    
+
     // Also save to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(achievements))
@@ -264,37 +621,114 @@ export const storageHybrid = {
   // Challenges Operations
   async getChallenges(): Promise<Challenge[]> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      let challenges = await database.getChallenges(userId)
-      if (challenges.length === 0) {
+      const { data, error } = await supabase
+        .from("challenges")
+        .select("*")
+        .eq("user_id", userId)
+
+      if (error) {
+        console.error("Error fetching challenges:", error)
         const defaultChallenges = getDefaultChallenges()
-        await database.upsertChallenges(userId, defaultChallenges)
+
+        // Try to create default challenges
+        const { error: insertError } = await supabase
+          .from("challenges")
+          .insert(
+            defaultChallenges.map(challenge => ({
+              id: challenge.id,
+              user_id: userId,
+              title: challenge.title,
+              description: challenge.description,
+              progress: challenge.progress,
+              max_progress: challenge.maxProgress,
+              xp_reward: challenge.xpReward,
+              expires_at: challenge.expiresAt.toISOString(),
+            }))
+          )
+
+        if (insertError) {
+          console.error("Error creating challenges:", insertError)
+        }
+
         return defaultChallenges
       }
-      // Migrate existing challenges to update terminology
-      challenges = migrateChallengeTerminology(challenges)
-      await database.upsertChallenges(userId, challenges)
+
+      if (!data || data.length === 0) {
+        const defaultChallenges = getDefaultChallenges()
+
+        // Create default challenges
+        const { error: insertError } = await supabase
+          .from("challenges")
+          .insert(
+            defaultChallenges.map(challenge => ({
+              id: challenge.id,
+              user_id: userId,
+              title: challenge.title,
+              description: challenge.description,
+              progress: challenge.progress,
+              max_progress: challenge.maxProgress,
+              xp_reward: challenge.xpReward,
+              expires_at: challenge.expiresAt.toISOString(),
+            }))
+          )
+
+        if (insertError) {
+          console.error("Error creating challenges:", insertError)
+        }
+
+        return defaultChallenges
+      }
+
+      // Note: Migration logic for challenge terminology has been applied.
+      // If you need to re-apply migrations, add the logic here.
+      const challenges = data.map(challenge => ({
+        id: challenge.id,
+        title: challenge.title,
+        description: challenge.description,
+        progress: challenge.progress,
+        maxProgress: challenge.max_progress,
+        xpReward: challenge.xp_reward,
+        expiresAt: new Date(challenge.expires_at),
+      }))
+
       return challenges
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return getDefaultChallenges()
     const data = localStorage.getItem(STORAGE_KEYS.CHALLENGES)
-    let challenges = data ? JSON.parse(data) : getDefaultChallenges()
-    // Migrate existing challenges
-    challenges = migrateChallengeTerminology(challenges)
-    localStorage.setItem(STORAGE_KEYS.CHALLENGES, JSON.stringify(challenges))
+    const challenges = data ? JSON.parse(data) : getDefaultChallenges()
+    // Note: Migration logic for challenge terminology has been applied.
+    // If you need to re-apply migrations to localStorage, add the logic here.
     return challenges
   },
 
   async setChallenges(challenges: Challenge[]): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.upsertChallenges(userId, challenges)
+      const { error } = await supabase
+        .from("challenges")
+        .upsert(
+          challenges.map(challenge => ({
+            id: challenge.id,
+            user_id: userId,
+            title: challenge.title,
+            description: challenge.description,
+            progress: challenge.progress,
+            max_progress: challenge.maxProgress,
+            xp_reward: challenge.xpReward,
+            expires_at: challenge.expiresAt.toISOString(),
+          }))
+        )
+
+      if (error) {
+        console.error("Error updating challenges:", error)
+      }
     }
-    
+
     // Also save to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.CHALLENGES, JSON.stringify(challenges))
@@ -304,12 +738,21 @@ export const storageHybrid = {
   // Last Check-in Operations
   async getLastCheckIn(): Promise<Date | null> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      const userData = await database.getUserProfile(userId)
-      return userData?.lastRingReset || null
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("last_ring_reset")
+        .eq("id", userId)
+        .single()
+
+      if (error || !data) {
+        return null
+      }
+
+      return data.last_ring_reset ? new Date(data.last_ring_reset) : null
     }
-    
+
     // Fallback to localStorage
     if (typeof window === "undefined") return null
     const data = localStorage.getItem(STORAGE_KEYS.LAST_CHECK_IN)
@@ -318,11 +761,18 @@ export const storageHybrid = {
 
   async setLastCheckIn(date: Date): Promise<void> {
     const userId = await this.getCurrentUserId()
-    
+
     if (userId) {
-      await database.setLastCheckIn(userId, date)
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({ last_ring_reset: date.toISOString() })
+        .eq("id", userId)
+
+      if (error) {
+        console.error("Error updating last check-in:", error)
+      }
     }
-    
+
     // Also save to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, date.toISOString())

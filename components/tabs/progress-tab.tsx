@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmotionChart } from "@/components/emotion-chart"
 import { TradePerformanceChart } from "@/components/trade-performance-chart"
 import { BiasHistoryChart } from "@/components/bias-history-chart"
+import { SurveyScoreChart } from "@/components/survey-score-chart"
 import { ProgressBar } from "@/components/progress-bar"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, BiasQuizHistory } from "@/lib/types"
@@ -23,6 +24,7 @@ export function ProgressTab({ userData, updateUserData, refreshKey = 0 }: Progre
   const [emotionLogs, setEmotionLogs] = useState<any[]>([])
   const [trades, setTrades] = useState<any[]>([])
   const [biasHistory, setBiasHistory] = useState<BiasQuizHistory[]>([])
+  const [surveyHistory, setSurveyHistory] = useState<Array<{ date: string; score: number }>>([])
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -54,6 +56,21 @@ export function ProgressTab({ userData, updateUserData, refreshKey = 0 }: Progre
       setBiasHistory(history)
     }
     fetchBiasHistory()
+  }, [refreshKey])
+
+  useEffect(() => {
+    const fetchSurveyHistory = async () => {
+      try {
+        const response = await fetch('/api/survey/history')
+        if (response.ok) {
+          const history = await response.json()
+          setSurveyHistory(history)
+        }
+      } catch (error) {
+        console.error('Failed to fetch survey history:', error)
+      }
+    }
+    fetchSurveyHistory()
   }, [refreshKey])
 
   const streakBadges = achievements.filter((a) => a.category === "streak")
@@ -181,6 +198,9 @@ export function ProgressTab({ userData, updateUserData, refreshKey = 0 }: Progre
             <EmotionChart logs={emotionLogs} />
             <TradePerformanceChart trades={trades} />
           </div>
+
+          {/* Survey Score History */}
+          <SurveyScoreChart history={surveyHistory} />
 
           {/* Bias Awareness Progress */}
           <BiasHistoryChart history={biasHistory} />

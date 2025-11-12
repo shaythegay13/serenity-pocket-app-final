@@ -36,6 +36,13 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   const [ageRange, setAgeRange] = useState(userData?.surveyData?.ageRange || "")
   const [region, setRegion] = useState(userData?.surveyData?.region || "")
   const [demographicOccupation, setDemographicOccupation] = useState(userData?.surveyData?.occupation || "")
+  const [educationLevel, setEducationLevel] = useState(userData?.surveyData?.educationLevel || "")
+  const [incomeRange, setIncomeRange] = useState(userData?.surveyData?.incomeRange || "")
+  const [employmentStatus, setEmploymentStatus] = useState(userData?.surveyData?.employmentStatus || "")
+  const [maritalStatus, setMaritalStatus] = useState(userData?.surveyData?.maritalStatus || "")
+  const [ethnicity, setEthnicity] = useState(userData?.surveyData?.ethnicity || "")
+  const [bettingFrequency, setBettingFrequency] = useState(userData?.surveyData?.bettingFrequency || "")
+  const [typicalBetAmount, setTypicalBetAmount] = useState(userData?.surveyData?.typicalBetAmount || "")
   const [savingDemographics, setSavingDemographics] = useState(false)
 
   useEffect(() => {
@@ -127,9 +134,10 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   const saveDemographics = async () => {
     setSavingDemographics(true)
     try {
-      // Check if all three demographics fields are filled
-      const hasAllDemographics = ageRange && region && demographicOccupation
-      
+      // Check if all demographics fields are filled
+      const hasAllDemographics = ageRange && region && demographicOccupation && educationLevel &&
+        incomeRange && employmentStatus && maritalStatus && ethnicity && bettingFrequency && typicalBetAmount
+
       if (!hasAllDemographics) {
         toast.error("Please fill out all demographic fields to earn the bonus XP")
         setSavingDemographics(false)
@@ -157,6 +165,13 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
           ageRange,
           region,
           occupation: demographicOccupation,
+          educationLevel,
+          incomeRange,
+          employmentStatus,
+          maritalStatus,
+          ethnicity,
+          bettingFrequency,
+          typicalBetAmount,
         },
         demographicsComplete: true,
         xp: (userData?.xp || 0) + 200,
@@ -312,7 +327,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
           </p>
         </div>
         
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">Age Range</label>
             <Select value={ageRange} onValueChange={setAgeRange}>
@@ -324,7 +339,8 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
                 <SelectItem value="25-34">25-34</SelectItem>
                 <SelectItem value="35-44">35-44</SelectItem>
                 <SelectItem value="45-54">45-54</SelectItem>
-                <SelectItem value="55+">55+</SelectItem>
+                <SelectItem value="55-64">55-64</SelectItem>
+                <SelectItem value="65+">65+</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -348,18 +364,150 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
               onChange={(e) => setDemographicOccupation(e.target.value)}
             />
           </div>
+
+          <div>
+            <label className="text-sm font-medium">Education Level</label>
+            <Select value={educationLevel} onValueChange={setEducationLevel}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select education level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high-school">High School or Less</SelectItem>
+                <SelectItem value="some-college">Some College</SelectItem>
+                <SelectItem value="associates">Associate's Degree</SelectItem>
+                <SelectItem value="bachelors">Bachelor's Degree</SelectItem>
+                <SelectItem value="masters">Master's Degree</SelectItem>
+                <SelectItem value="doctorate">Doctorate or Professional Degree</SelectItem>
+                <SelectItem value="prefer-not">Prefer not to say</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Annual Income Range</label>
+            <Select value={incomeRange} onValueChange={setIncomeRange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select income range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="under-25k">Under $25,000</SelectItem>
+                <SelectItem value="25k-50k">$25,000 - $50,000</SelectItem>
+                <SelectItem value="50k-75k">$50,000 - $75,000</SelectItem>
+                <SelectItem value="75k-100k">$75,000 - $100,000</SelectItem>
+                <SelectItem value="100k-150k">$100,000 - $150,000</SelectItem>
+                <SelectItem value="150k-200k">$150,000 - $200,000</SelectItem>
+                <SelectItem value="over-200k">Over $200,000</SelectItem>
+                <SelectItem value="prefer-not">Prefer not to say</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Employment Status</label>
+            <Select value={employmentStatus} onValueChange={setEmploymentStatus}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select employment status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employed-full">Employed Full-Time</SelectItem>
+                <SelectItem value="employed-part">Employed Part-Time</SelectItem>
+                <SelectItem value="self-employed">Self-Employed</SelectItem>
+                <SelectItem value="unemployed">Unemployed</SelectItem>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="retired">Retired</SelectItem>
+                <SelectItem value="unable">Unable to Work</SelectItem>
+                <SelectItem value="prefer-not">Prefer not to say</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Marital Status</label>
+            <Select value={maritalStatus} onValueChange={setMaritalStatus}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select marital status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Single</SelectItem>
+                <SelectItem value="married">Married</SelectItem>
+                <SelectItem value="partnered">In a Relationship/Partnered</SelectItem>
+                <SelectItem value="divorced">Divorced</SelectItem>
+                <SelectItem value="widowed">Widowed</SelectItem>
+                <SelectItem value="prefer-not">Prefer not to say</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Ethnicity/Race</label>
+            <Select value={ethnicity} onValueChange={setEthnicity}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select ethnicity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="white">White/Caucasian</SelectItem>
+                <SelectItem value="black">Black/African American</SelectItem>
+                <SelectItem value="hispanic">Hispanic/Latino</SelectItem>
+                <SelectItem value="asian">Asian</SelectItem>
+                <SelectItem value="native-american">Native American/Alaska Native</SelectItem>
+                <SelectItem value="pacific-islander">Pacific Islander</SelectItem>
+                <SelectItem value="middle-eastern">Middle Eastern/North African</SelectItem>
+                <SelectItem value="mixed">Two or More Races</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="prefer-not">Prefer not to say</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Betting Frequency</label>
+            <Select value={bettingFrequency} onValueChange={setBettingFrequency}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="How often do you bet?" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="several-times-week">Several times a week</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="few-times-month">Few times a month</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="occasionally">Occasionally</SelectItem>
+                <SelectItem value="rarely">Rarely</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Typical Bet Amount</label>
+            <Select value={typicalBetAmount} onValueChange={setTypicalBetAmount}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Average bet size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="under-10">Under $10</SelectItem>
+                <SelectItem value="10-25">$10 - $25</SelectItem>
+                <SelectItem value="25-50">$25 - $50</SelectItem>
+                <SelectItem value="50-100">$50 - $100</SelectItem>
+                <SelectItem value="100-250">$100 - $250</SelectItem>
+                <SelectItem value="250-500">$250 - $500</SelectItem>
+                <SelectItem value="500-1000">$500 - $1,000</SelectItem>
+                <SelectItem value="over-1000">Over $1,000</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Button 
-          onClick={saveDemographics} 
-          disabled={savingDemographics || userData?.demographicsComplete || !ageRange || !region || !demographicOccupation}
+        <Button
+          onClick={saveDemographics}
+          disabled={savingDemographics || userData?.demographicsComplete || !ageRange || !region || !demographicOccupation ||
+            !educationLevel || !incomeRange || !employmentStatus || !maritalStatus || !ethnicity || !bettingFrequency || !typicalBetAmount}
         >
           {savingDemographics ? "Saving..." : userData?.demographicsComplete ? "Already Completed ✅" : "Save & Earn 200 XP"}
         </Button>
 
         {!userData?.demographicsComplete && (
           <p className="text-xs text-muted-foreground">
-            💡 Fill out all three fields above to earn your bonus XP!
+            💡 Fill out all fields above to earn your bonus XP!
           </p>
         )}
       </Card>

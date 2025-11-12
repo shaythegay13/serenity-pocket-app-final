@@ -27,7 +27,13 @@ export function DashboardHeader({ userData }: DashboardHeaderProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            {userData && <SerenityTokenDisplay tokens={userData.serenityTokens} />}
+            {userData && (
+              <SerenityTokenDisplay 
+                tokens={userData.serenityTokens} 
+                surveyScore={userData.surveyData?.score}
+                surveyLevel={userData.surveyData?.level}
+              />
+            )}
 
             <Button
               variant="ghost"

@@ -1,6 +1,4 @@
 import { supabase } from "./supabase"
-import { database } from "./database"
-import { storageHybrid } from "./storage-hybrid"
 
 // Track initialization to prevent duplicates
 const initializingUsers = new Set<string>()
@@ -81,36 +79,44 @@ export async function initializeUserData(userId: string, username?: string) {
     
     if (!existingUserProfile) {
       console.log("Creating user_profiles entry...")
-      await database.createUserProfile(userId, {
-        name: finalUsername,
-        level: 1,
-        xp: 0,
-        xpToNextLevel: 500,
-        emotionalAwarenessStreak: 0,
-        biasRecognitionScore: 0,
-        mindfulDecisionPercentage: 0,
-        totalTrades: 0,
-        mindfulTrades: 0,
-        serenityTokens: 0,
-        dailyRings: {
-          emotionalAwareness: 0,
-          biasRecognition: 0,
-          mindfulness: 0,
-        },
-        lastRingReset: new Date(),
-        perfectDays: 0,
-        longestStreak: 0,
-        totalEmotionsLogged: 0,
-        totalBiasesIdentified: 0,
-        totalJournalsCompleted: 0,
-        totalModulesCompleted: 0,
-        totalBreathingExercises: 0,
-        mostProductiveDay: 0,
-        onboardingComplete: false,
-        biographyComplete: false,
-        emotionTrackComplete: false,
-      })
-      console.log("User_profiles created successfully")
+      const { error: userProfileInsertError } = await supabase
+        .from("user_profiles")
+        .insert({
+          id: userId,
+          name: finalUsername,
+          level: 1,
+          xp: 0,
+          xp_to_next_level: 500,
+          emotional_awareness_streak: 0,
+          bias_recognition_score: 0,
+          mindful_decision_percentage: 0,
+          total_trades: 0,
+          mindful_trades: 0,
+          serenity_tokens: 0,
+          daily_rings: {
+            emotionalAwareness: 0,
+            biasRecognition: 0,
+            mindfulness: 0,
+          },
+          last_ring_reset: new Date().toISOString(),
+          perfect_days: 0,
+          longest_streak: 0,
+          total_emotions_logged: 0,
+          total_biases_identified: 0,
+          total_journals_completed: 0,
+          total_modules_completed: 0,
+          total_breathing_exercises: 0,
+          most_productive_day: 0,
+          onboarding_complete: false,
+          biography_complete: false,
+          emotion_track_complete: false,
+        })
+
+      if (userProfileInsertError) {
+        console.error("Error creating user_profiles:", userProfileInsertError)
+      } else {
+        console.log("User_profiles created successfully")
+      }
     } else {
       console.log("User_profiles already exists")
     }

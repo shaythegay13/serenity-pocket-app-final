@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { EmotionWheel } from "@/components/emotion-wheel"
 import type { Trade } from "@/lib/types"
-import { storage } from "@/lib/storage"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
 interface PreTradeFormProps {
   onComplete: (trade: Trade) => void

@@ -21,10 +21,9 @@ import { Toaster } from "sonner"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
 import { SignIn } from "@/components/auth/sign-in"
-import { SignUp } from "@/components/auth/sign-up"
 import { ForgotPassword } from "@/components/auth/forgot-password"
 import { ResendConfirmation } from "@/components/auth/resend-confirmation"
-import { SerenitySurvey } from "@/components/serenity-survey"
+import { IntegratedSurveyWrapper } from "@/components/integrated-survey-flow/IntegratedSurveyWrapper"
 import { TermsAgreement } from "@/components/terms-agreement"
 import { OnboardingGate } from "@/components/onboarding-gate"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
@@ -98,6 +97,27 @@ export default function Home() {
               }
             }
             
+            // Fetch survey results from database if not already loaded
+            if (!data.surveyData) {
+              try {
+                const surveyResponse = await fetch('/api/survey/results')
+                if (surveyResponse.ok) {
+                  const surveyData = await surveyResponse.json()
+                  if (surveyData && surveyData.score !== undefined) {
+                    data.surveyData = {
+                      score: surveyData.score,
+                      level: surveyData.risk_level,
+                      answers: surveyData.answers,
+                      completedAt: surveyData.completed_at
+                    }
+                    console.log('Survey results loaded from database:', data.surveyData)
+                  }
+                }
+              } catch (error) {
+                console.error('Error fetching survey results:', error)
+              }
+            }
+            
             setUserData(data)
             
             // Check if user needs to do emotion check-in today
@@ -125,7 +145,7 @@ export default function Home() {
             }
             
             // If database is timing out, just use default data immediately
-            setUserData({
+            const defaultUserData: UserData = {
               name: parsedSurveyData?.name || "Trader",
               level: 1,
               xp: 0,
@@ -155,7 +175,28 @@ export default function Home() {
               onboardingComplete: false,
               biographyComplete: false,
               emotionTrackComplete: false,
-            })
+            }
+            
+            // Try to fetch survey results even when database is slow
+            try {
+              const surveyResponse = await fetch('/api/survey/results')
+              if (surveyResponse.ok) {
+                const surveyData = await surveyResponse.json()
+                if (surveyData && surveyData.score !== undefined) {
+                  defaultUserData.surveyData = {
+                    score: surveyData.score,
+                    level: surveyData.risk_level,
+                    answers: surveyData.answers,
+                    completedAt: surveyData.completed_at
+                  }
+                  console.log('Survey results loaded from database (fallback):', defaultUserData.surveyData)
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching survey results (fallback):', error)
+            }
+            
+            setUserData(defaultUserData)
             
             // Check if user needs emotion check-in (will show for default data too)
             setTimeout(() => setShowEmotionCheckIn(true), 500)
@@ -294,23 +335,19 @@ export default function Home() {
     // Survey Flow
     if (authFlow === "survey") {
       return (
-        <SerenitySurvey
-          onComplete={(data) => {
-            setSurveyData(data)
+        <IntegratedSurveyWrapper
+          onComplete={(score: number, level: string, email: string) => {
+            // Store survey results for later account creation
+            const data = {
+              score,
+              level,
+              email,
+              completedAt: new Date().toISOString()
+            }
+            setSurveyData(data as any)
             setAuthFlow("signup")
           }}
-          onSwitchToSignIn={() => setAuthFlow("signin")}
-        />
-      )
-    }
-
-    // Sign Up with Survey Data
-    if (authFlow === "signup") {
-      return (
-        <SignUp
-          onSwitchToSignIn={() => setAuthFlow("signin")}
-          surveyData={surveyData || undefined}
-          onAccountCreated={() => setAuthFlow("terms")}
+          onSwitchToLogin={() => setAuthFlow("signin")}
         />
       )
     }

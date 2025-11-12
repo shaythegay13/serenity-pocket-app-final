@@ -120,9 +120,9 @@ export default function Home() {
             
             setUserData(data)
             
-            // Check if user needs to do emotion check-in today
-            const needsCheckIn = checkIfNeedsEmotionCheckIn(data.lastEmotionCheckIn)
-            if (needsCheckIn) {
+            // Only show emotion check-in on first login (when lastEmotionCheckIn is undefined)
+            // After that, user can manually trigger it from the dashboard
+            if (!data.lastEmotionCheckIn) {
               // Delay showing the dialog slightly for better UX
               setTimeout(() => setShowEmotionCheckIn(true), 500)
             }

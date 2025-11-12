@@ -224,9 +224,22 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   return (
     <div className="space-y-6 fade-in">
       <Card className="p-6 space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold">Your Profile</h2>
-          <p className="text-sm text-muted-foreground">Update your display info.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Your Profile</h2>
+            <p className="text-sm text-muted-foreground">Update your display info.</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => window.location.href = '/gambling-survey'}
+            className="flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+            Retake Survey
+          </Button>
         </div>
         <div className="space-y-3">
           <div>

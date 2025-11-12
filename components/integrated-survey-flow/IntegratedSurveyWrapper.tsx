@@ -125,29 +125,29 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin }: Integra
         
         {/* Welcome Screen */}
         {currentFlow === SurveyFlow.WELCOME && (
-          <div className="flex flex-col items-center justify-center space-y-7 p-12 bg-white">
-            <div className="flex flex-col items-center space-y-4">
+          <div className="flex flex-col items-center justify-center space-y-5 p-8 bg-white">
+            <div className="flex flex-col items-center space-y-3">
               <div className="flex items-center space-x-3">
                 <Image 
                   src="/logo.png" 
                   alt="Serenity Pocket Logo" 
-                  width={64} 
-                  height={64} 
+                  width={56} 
+                  height={56} 
                   className="object-contain"
                 />
-                <span className="text-xl font-semibold text-gray-800">Take our Serenity Survey</span>
+                <span className="text-lg font-semibold text-gray-800">Take our Serenity Survey</span>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 text-center max-w-2xl">
+              <h1 className="text-2xl font-bold text-gray-900 text-center max-w-2xl">
                 Sports Betting: Joyful or Stressful?
               </h1>
             </div>
 
-            <p className="text-lg text-gray-700 max-w-lg text-center">
+            <p className="text-base text-gray-700 max-w-lg text-center">
               Understand the real impact of your habits. Take our quick, confidential quiz to support your emotional health.
             </p>
 
-            <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-6 max-w-lg">
-              <ul className="text-left space-y-2 text-gray-700">
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-4 max-w-lg">
+              <ul className="text-left space-y-1.5 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>
                   <span>8 research-backed questions</span>
@@ -169,15 +169,21 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin }: Integra
 
             <Button 
               onClick={handleStartSurvey}
-              className="w-full md:w-auto px-8 py-4 text-lg bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+              className="w-full md:w-auto px-8 py-3 text-base bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
             >
               Take the Serenity Survey
             </Button>
+
+            <div className="max-w-2xl text-center space-y-2 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-800">Serenity Pocket</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools. Subscribers unlock even more features.
+              </p>
+            </div>
             
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-blue-500 hover:underline mt-4 text-base"
+              className="text-blue-500 hover:underline text-sm"
             >
               I already have an account. Take me to login page.
             </button>

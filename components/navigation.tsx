@@ -1,7 +1,8 @@
 "use client"
 
-import { Home, Heart, Brain, BookOpen, Trophy, BarChart3, User, Crown, Sparkles } from "lucide-react"
+import { Home, Heart, Brain, BookOpen, Trophy, BarChart3, User, Crown, Sparkles, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 
 interface NavigationProps {
   activeTab: string
@@ -19,6 +20,8 @@ const navItems = [
 ]
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {
+  const router = useRouter()
+  
   return (
     <nav className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80">
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
@@ -40,6 +43,19 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
               </button>
             )
           })}
+          
+          {/* Retake Survey Button */}
+          <button
+            onClick={() => router.push('/gambling-survey')}
+            className={cn(
+              "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[60px] sm:min-w-0",
+              "hover:text-foreground active:scale-95 text-muted-foreground",
+            )}
+            title="Retake Survey"
+          >
+            <RefreshCw className="h-4 w-4 sm:h-4 sm:w-4" />
+            <span className="text-[10px] sm:text-sm">Retake</span>
+          </button>
         </div>
       </div>
     </nav>

@@ -52,14 +52,14 @@ export const SURVEY_QUESTIONS: readonly SurveyQuestion[] = [
   },
   {
     id: 'q2',
-    text: 'Have you noticed yourself needing to bet larger amounts to feel the same excitement?',
-    options: ['No, I keep consistent limits', 'Sometimes I increase my bets', 'Yes, I often need bigger stakes', 'Always chasing bigger wins'],
+    text: 'How much time do you spend betting?',
+    options: ['Less than 30 minutes per day', '30 minutes to 1 hour per day', '1-3 hours per day', 'More than 3 hours per day'],
     weight: [0, 6, 12, 18]
   },
   {
     id: 'q3',
-    text: 'When you start a gambling session, how easy is it for you to stop?',
-    options: ['I can stop anytime easily', 'Usually can stop when planned', 'Often play longer than intended', 'Very hard to stop once I start'],
+    text: 'When you start placing bets on a given day, how easy is it for you to stop?',
+    options: ['I can stop anytime easily', 'Usually can stop when planned', 'Often place more bets than intended', 'Very hard to stop once I start'],
     weight: [0, 6, 15, 21]
   },
   {
@@ -76,8 +76,8 @@ export const SURVEY_QUESTIONS: readonly SurveyQuestion[] = [
   },
   {
     id: 'q6',
-    text: 'After losing money gambling, what do you typically do?',
-    options: ['Accept the loss and move on', 'Wait before playing again', 'Sometimes try to win it back', 'Usually go back to recover losses'],
+    text: 'After losing money on bets, what do you typically do?',
+    options: ['Accept the loss and move on', 'Wait a day or more before betting again', 'Sometimes place more bets to win it back', 'Usually keep betting to recover losses'],
     weight: [0, 6, 12, 18]
   },
   {

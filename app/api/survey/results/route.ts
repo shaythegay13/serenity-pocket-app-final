@@ -4,21 +4,32 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function GET() {
-  // Create server-side Supabase client with cookies
-  const cookieStore = await cookies()
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-
-  // Get the user from the current session
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user?.id) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    )
-  }
-
   try {
+    // Create server-side Supabase client with cookies
+    const cookieStore = await cookies()
+    // @ts-ignore - Next.js 16 cookies() returns Promise but auth helpers expect sync
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+
+    // Get the user from the current session
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError) {
+      console.error("Auth error:", authError)
+      return NextResponse.json(
+        { error: "Authentication failed", details: authError.message },
+        { status: 401 }
+      )
+    }
+
+    if (!user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    console.log("Fetching survey results for user:", user.id)
+
     // Fetch survey history directly with the authenticated client
     // Only select the columns we need to avoid permission issues with foreign key joins
     const { data, error } = await supabase

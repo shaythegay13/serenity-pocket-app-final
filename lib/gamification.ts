@@ -48,6 +48,8 @@ export function getLevelTitle(level: number): string {
 
 export const xpRewards = {
   emotionLog: 10,
+  emotionTrackComplete: 25, // Complete both pre-bet and post-bet emotion
+  breathingExercise: 15,
   mindfulnessCheck: 25,
   identifyBias: 75,
   completeLesson: 100,
@@ -58,6 +60,8 @@ export const xpRewards = {
 
 export const tokenRewards = {
   emotionLog: 1,
+  emotionTrackComplete: 2, // Complete both pre-bet and post-bet emotion
+  breathingExercise: 1,
   identifyBias: 5,
   completeLesson: 10,
 }

@@ -105,11 +105,12 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
         experience_years: experienceYears === "" ? null : experienceYears,
       })
       if (error) throw error
+
+      // Update userData with the new name - this will update user_profiles table too
+      await updateUserData({ name })
+
       setStatus("Saved")
       toast.success("Profile saved")
-
-      // Update userData with the new name
-      await updateUserData({ name })
 
       const isComplete = !!name || !!(age !== "" || genderMode || location || occupation || experienceYears !== "")
       if (isComplete && typeof window !== "undefined") {

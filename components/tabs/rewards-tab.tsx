@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Crown, Lock, Sparkles, Palette, BarChart3, Video, Users, Check } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Crown, Lock, Sparkles, Palette, BarChart3, Video, Users, Check, Trophy } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { TOKEN_MILESTONES } from "@/lib/gamification"
 import { toast } from "sonner"
@@ -22,8 +23,10 @@ interface UnlockedReward {
 }
 
 export function RewardsTab({ userData, updateUserData }: RewardsTabProps) {
-  // TODO: Store unlocked rewards in user data - for now using local state
-  const [unlockedRewards, setUnlockedRewards] = useState<string[]>([])
+  const [showBadgeFrames, setShowBadgeFrames] = useState(false)
+  const [showThemeColors, setShowThemeColors] = useState(false)
+  
+  const unlockedRewards = userData.unlockedRewards || []
 
   const rewards = [
     {
@@ -81,7 +84,7 @@ export function RewardsTab({ userData, updateUserData }: RewardsTabProps) {
     },
   ]
 
-  const handleUnlock = (reward: typeof rewards[0]) => {
+  const handleUnlock = async (reward: typeof rewards[0]) => {
     if (!reward.available) {
       toast.info("This reward will be available soon with premium subscriptions!")
       return
@@ -98,12 +101,19 @@ export function RewardsTab({ userData, updateUserData }: RewardsTabProps) {
     }
 
     // Deduct tokens and unlock reward
-    updateUserData({
+    await updateUserData({
       serenityTokens: userData.serenityTokens - reward.cost,
+      unlockedRewards: [...unlockedRewards, reward.id]
     })
 
-    setUnlockedRewards([...unlockedRewards, reward.id])
     toast.success(`🎉 ${reward.name} unlocked!`)
+    
+    // Open customization modal for badge frames or theme colors
+    if (reward.id === 'badge-frames') {
+      setShowBadgeFrames(true)
+    } else if (reward.id === 'theme-colors') {
+      setShowThemeColors(true)
+    }
   }
 
   const canAfford = (cost: number) => userData.serenityTokens >= cost
@@ -221,16 +231,30 @@ export function RewardsTab({ userData, updateUserData }: RewardsTabProps) {
 
                 {/* Unlock Button */}
                 <Button
-                  onClick={() => handleUnlock(reward)}
-                  disabled={!affordable || unlocked || !reward.available}
+                  onClick={() => {
+                    if (unlocked && (reward.id === 'badge-frames' || reward.id === 'theme-colors')) {
+                      if (reward.id === 'badge-frames') setShowBadgeFrames(true)
+                      if (reward.id === 'theme-colors') setShowThemeColors(true)
+                    } else {
+                      handleUnlock(reward)
+                    }
+                  }}
+                  disabled={(!affordable && !unlocked) || !reward.available}
                   className="w-full"
                   variant={unlocked ? "outline" : "default"}
                 >
                   {unlocked ? (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      Unlocked
-                    </>
+                    reward.id === 'badge-frames' || reward.id === 'theme-colors' ? (
+                      <>
+                        <Palette className="h-4 w-4 mr-2" />
+                        Customize
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Unlocked
+                      </>
+                    )
                   ) : reward.comingSoon ? (
                     <>
                       <Lock className="h-4 w-4 mr-2" />
@@ -257,6 +281,90 @@ export function RewardsTab({ userData, updateUserData }: RewardsTabProps) {
           💡 <strong>Pro Tip:</strong> Complete daily activities to earn more tokens. Premium features coming soon with subscription plans!
         </p>
       </Card>
+
+      {/* Badge Frame Customization Modal */}
+      <Dialog open={showBadgeFrames} onOpenChange={setShowBadgeFrames}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Customize Badge Frames</DialogTitle>
+            <DialogDescription>
+              Choose a frame style for your achievement badges
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4">
+            {[
+              { id: 'default', name: 'Default', color: 'border-gray-400' },
+              { id: 'gold', name: 'Gold', color: 'border-yellow-500' },
+              { id: 'silver', name: 'Silver', color: 'border-gray-300' },
+              { id: 'bronze', name: 'Bronze', color: 'border-orange-600' },
+              { id: 'platinum', name: 'Platinum', color: 'border-blue-400' },
+              { id: 'rainbow', name: 'Rainbow', color: 'border-purple-500' },
+            ].map((frame) => (
+              <button
+                key={frame.id}
+                onClick={async () => {
+                  await updateUserData({ selectedBadgeFrame: frame.id })
+                  toast.success(`Badge frame changed to ${frame.name}!`)
+                }}
+                className={`p-4 rounded-lg border-4 ${frame.color} ${
+                  userData.selectedBadgeFrame === frame.id ? 'bg-primary/10 ring-2 ring-primary' : 'bg-card hover:bg-accent'
+                } transition-all`}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-16 h-16 rounded-full border-4 ${frame.color} flex items-center justify-center bg-background`}>
+                    <Trophy className="h-8 w-8" />
+                  </div>
+                  <span className="font-semibold text-sm">{frame.name}</span>
+                  {userData.selectedBadgeFrame === frame.id && (
+                    <Badge variant="default" className="text-xs">Selected</Badge>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Theme Color Customization Modal */}
+      <Dialog open={showThemeColors} onOpenChange={setShowThemeColors}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Customize Profile Theme</DialogTitle>
+            <DialogDescription>
+              Choose a color theme for your dashboard
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4">
+            {[
+              { id: 'default', name: 'Default Blue', gradient: 'from-blue-500 to-cyan-500' },
+              { id: 'purple', name: 'Purple Dream', gradient: 'from-purple-500 to-pink-500' },
+              { id: 'green', name: 'Forest Green', gradient: 'from-green-500 to-emerald-500' },
+              { id: 'orange', name: 'Sunset Orange', gradient: 'from-orange-500 to-red-500' },
+              { id: 'teal', name: 'Ocean Teal', gradient: 'from-teal-500 to-blue-500' },
+              { id: 'rose', name: 'Rose Gold', gradient: 'from-rose-500 to-amber-500' },
+            ].map((theme) => (
+              <button
+                key={theme.id}
+                onClick={async () => {
+                  await updateUserData({ selectedThemeColor: theme.id })
+                  toast.success(`Theme changed to ${theme.name}!`)
+                }}
+                className={`p-4 rounded-lg border-2 ${
+                  userData.selectedThemeColor === theme.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/50'
+                } transition-all`}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-full h-20 rounded-lg bg-gradient-to-r ${theme.gradient}`} />
+                  <span className="font-semibold text-sm">{theme.name}</span>
+                  {userData.selectedThemeColor === theme.id && (
+                    <Badge variant="default" className="text-xs">Selected</Badge>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

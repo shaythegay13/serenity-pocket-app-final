@@ -49,7 +49,6 @@ export function getLevelTitle(level: number): string {
 export const xpRewards = {
   emotionLog: 10,
   mindfulnessCheck: 25,
-  journalEntry: 50,
   identifyBias: 75,
   completeLesson: 100,
   weekStreak: 150,
@@ -59,7 +58,6 @@ export const xpRewards = {
 
 export const tokenRewards = {
   emotionLog: 1,
-  journalEntry: 3,
   identifyBias: 5,
   completeLesson: 10,
 }
@@ -122,9 +120,6 @@ export function checkAchievements(
       // Behavior Change Badges
       case "pause-champion":
         newProgress = userData.mindfulTrades
-        break
-      case "reflection-master":
-        newProgress = userData.totalJournalsCompleted
         break
       case "pattern-breaker":
         newProgress = userData.mindfulTrades

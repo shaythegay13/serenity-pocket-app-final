@@ -66,6 +66,9 @@ export interface UserData {
   biography?: string
   pendingEmotionTradeId?: string // Trade ID waiting for post-bet emotion
   demographicsComplete?: boolean // Track if user completed demographics for XP bonus
+  unlockedRewards?: string[] // IDs of rewards unlocked with tokens
+  selectedBadgeFrame?: string // Currently selected badge frame
+  selectedThemeColor?: string // Currently selected theme color
 }
 
 export interface EmotionLog {

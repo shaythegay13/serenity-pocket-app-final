@@ -929,16 +929,6 @@ function getDefaultAchievements(): Achievement[] {
       category: "behavior-change",
     },
     {
-      id: "reflection-master",
-      name: "Reflection Master",
-      description: "Complete 25 detailed decision journals",
-      icon: "📝",
-      unlocked: false,
-      progress: 0,
-      maxProgress: 25,
-      category: "behavior-change",
-    },
-    {
       id: "pattern-breaker",
       name: "Pattern Breaker",
       description: "Avoid emotional trading 5 times",

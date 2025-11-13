@@ -94,12 +94,85 @@ export const SURVEY_QUESTIONS: readonly SurveyQuestion[] = [
   }
 ] as const;
 
+// Survey B - Alternative 10-question assessment
+export const SURVEY_B_QUESTIONS: readonly SurveyQuestion[] = [
+  {
+    id: 'qb1',
+    text: 'Frequency of Betting (in the past 12 months):',
+    options: ['Less than once a month', 'Weekly', '1–4 times per week', 'Daily or nearly daily'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb2',
+    text: 'Increasing Bet Size for Excitement:',
+    options: ['Never', 'Occasionally', 'Frequently', 'Almost always'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb3',
+    text: 'Difficulty Stopping Once You Begin:',
+    options: ['Very easy', 'Usually easy', 'Often difficult', 'Very difficult'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb4',
+    text: 'Emotional/Relationship Impact:',
+    options: ['No impact', 'Minor/occasional stress', 'Noticeable conflicts or anxiety', 'Significant emotional or relational problems'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb5',
+    text: 'Attempts to Control or Reduce Gambling:',
+    options: ["No, I haven't felt the need", "I've thought about reducing", "I've tried reducing with some success", "I've tried, but it's very difficult to maintain"],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb6',
+    text: 'Response to Losses (Chasing Losses):',
+    options: ['I usually accept my losses and stop', 'I sometimes take a break before betting again', 'I sometimes try to win back my losses', 'I frequently try to win back my losses immediately'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb7',
+    text: 'Setting and Sticking to Financial Limits:',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [15, 10, 5, 0]  // Reversed scoring - "Often" is best
+  },
+  {
+    id: 'qb8',
+    text: 'Interference With Responsibilities (e.g., work, school, family):',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb9',
+    text: 'Impulsive Betting or Gambling:',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 5, 10, 15]
+  },
+  {
+    id: 'qb10',
+    text: 'Emotional Triggers (using gambling to cope with negative emotions):',
+    options: ['Very unlikely', 'Unlikely', 'Somewhat likely', 'Very likely'],
+    weight: [0, 5, 10, 15]
+  }
+] as const;
+
 // Score interpretation helper (matching original system)
 export function getScoreInterpretation(score: number): string {
   if (score >= 1 && score <= 17) return 'Low risk';
   if (score >= 18 && score <= 34) return 'Medium risk';
   if (score >= 35 && score <= 50) return 'High risk';
   return 'Low risk'; // Default for score of 0
+}
+
+// Score interpretation for Survey B (max score: 150)
+export function getScoreInterpretationB(score: number): string {
+  if (score >= 0 && score <= 37) return 'Low risk';
+  if (score >= 38 && score <= 75) return 'Medium risk';
+  if (score >= 76 && score <= 112) return 'High risk';
+  if (score >= 113) return 'Very High risk';
+  return 'Low risk'; // Default
 }
 
 // Type guards

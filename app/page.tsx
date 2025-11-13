@@ -23,7 +23,7 @@ import { supabase } from "@/lib/supabase"
 import { SignIn } from "@/components/auth/sign-in"
 import { ForgotPassword } from "@/components/auth/forgot-password"
 import { ResendConfirmation } from "@/components/auth/resend-confirmation"
-import { IntegratedSurveyWrapper } from "@/components/integrated-survey-flow/IntegratedSurveyWrapper"
+import { ABTestSurveyWrapper } from "@/components/integrated-survey-flow/ABTestSurveyWrapper"
 import { TermsAgreement } from "@/components/terms-agreement"
 import { OnboardingGate } from "@/components/onboarding-gate"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
@@ -332,16 +332,17 @@ export default function Home() {
   }
 
   if (authed === false) {
-    // Survey Flow
+    // Survey Flow (A/B Testing between Survey A and Survey B)
     if (authFlow === "survey") {
       return (
-        <IntegratedSurveyWrapper
-          onComplete={(score: number, level: string, email: string) => {
+        <ABTestSurveyWrapper
+          onComplete={(score: number, level: string, email: string, variant: 'A' | 'B') => {
             // Store survey results for later account creation
             const data = {
               score,
               level,
               email,
+              variant, // Track which survey variant was used
               completedAt: new Date().toISOString()
             }
             setSurveyData(data as any)

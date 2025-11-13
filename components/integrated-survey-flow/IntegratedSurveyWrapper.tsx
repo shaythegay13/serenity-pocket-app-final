@@ -92,16 +92,11 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
         surveyId: data.surveyId,
         score: data.score,
       });
-      
+
       setCurrentFlow(SurveyFlow.COMPLETE);
-      
-      // Call the parent's onComplete callback
-      if (onComplete && surveyResult) {
-        const level = data.score >= 1 && data.score <= 17 ? 'Low' : 
-                     data.score >= 18 && data.score <= 34 ? 'Medium' : 
-                     data.score >= 35 && data.score <= 50 ? 'High' : 'Low';
-        onComplete(data.score, level, email);
-      }
+
+      // Don't call onComplete here - let the user see the completion screen first
+      // onComplete will be called when they click "Create Account"
     } catch (error) {
       console.error('Survey submission error:', error);
       setEmailError('An error occurred while submitting your survey. Please try again.');

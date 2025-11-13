@@ -33,6 +33,7 @@ export async function submitAnonymousSurveyB(
     .insert({
       email,
       score,
+      responses, // Include responses for compatibility with table schema
       submitted_from_ip: submittedFromIp,
     })
     .select('id')

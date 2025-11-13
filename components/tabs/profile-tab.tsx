@@ -108,6 +108,9 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
       setStatus("Saved")
       toast.success("Profile saved")
 
+      // Update userData with the new name
+      await updateUserData({ name })
+
       const isComplete = !!name || !!(age !== "" || genderMode || location || occupation || experienceYears !== "")
       if (isComplete && typeof window !== "undefined") {
         const awarded = localStorage.getItem("serenity_profile_completed_awarded")

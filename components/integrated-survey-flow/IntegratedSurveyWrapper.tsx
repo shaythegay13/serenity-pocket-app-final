@@ -20,9 +20,10 @@ export enum SurveyFlow {
 interface IntegratedSurveyWrapperProps {
   onComplete?: (score: number, level: string, email: string) => void;
   onSwitchToLogin: () => void;
+  onEmailCapture?: (email: string) => void;
 }
 
-export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin }: IntegratedSurveyWrapperProps) {
+export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCapture }: IntegratedSurveyWrapperProps) {
   const router = useRouter();
   const [currentFlow, setCurrentFlow] = useState<SurveyFlow>(SurveyFlow.WELCOME);
   const [email, setEmail] = useState('');
@@ -50,6 +51,11 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin }: Integra
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address');
       return;
+    }
+
+    // Notify parent of email capture for A/B test assignment
+    if (onEmailCapture) {
+      onEmailCapture(email);
     }
 
     setCurrentFlow(SurveyFlow.QUESTIONS);
@@ -150,7 +156,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin }: Integra
               <ul className="text-left space-y-1.5 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  <span>8 research-backed questions</span>
+                  <span>Research-backed questions</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>

@@ -21,9 +21,10 @@ export enum SurveyFlow {
 interface IntegratedSurveyWrapperBProps {
   onComplete?: (score: number, level: string, email: string) => void;
   onSwitchToLogin: () => void;
+  onEmailCapture?: (email: string) => void;
 }
 
-export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin }: IntegratedSurveyWrapperBProps) {
+export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailCapture }: IntegratedSurveyWrapperBProps) {
   const router = useRouter();
   const [currentFlow, setCurrentFlow] = useState<SurveyFlow>(SurveyFlow.WELCOME);
   const [email, setEmail] = useState('');
@@ -51,6 +52,11 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin }: Integr
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address');
       return;
+    }
+
+    // Notify parent of email capture for A/B test assignment
+    if (onEmailCapture) {
+      onEmailCapture(email);
     }
 
     setCurrentFlow(SurveyFlow.QUESTIONS);
@@ -135,7 +141,7 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin }: Integr
                   height={56} 
                   className="object-contain"
                 />
-                <span className="text-lg font-semibold text-gray-800">Take our Serenity Survey B</span>
+                <span className="text-lg font-semibold text-gray-800">Take our Serenity Survey</span>
               </div>
               <h1 className="text-2xl font-bold text-gray-900 text-center max-w-2xl">
                 Sports Betting: Joyful or Stressful?
@@ -150,7 +156,7 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin }: Integr
               <ul className="text-left space-y-1.5 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  <span>10 research-backed questions</span>
+                  <span>Research-backed questions</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>
@@ -171,7 +177,7 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin }: Integr
               onClick={handleStartSurvey}
               className="w-full md:w-auto px-8 py-3 text-base bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
             >
-              Take the Serenity Survey B
+              Take the Serenity Survey
             </Button>
 
             <div className="max-w-2xl text-center space-y-2 pt-3 border-t border-gray-200">

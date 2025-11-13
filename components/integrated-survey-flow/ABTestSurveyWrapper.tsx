@@ -75,6 +75,7 @@ export function ABTestSurveyWrapper({
       <IntegratedSurveyWrapperB
         onComplete={handleComplete}
         onSwitchToLogin={onSwitchToLogin}
+        onEmailCapture={handleEmailCapture}
       />
     );
   }
@@ -83,6 +84,7 @@ export function ABTestSurveyWrapper({
     <IntegratedSurveyWrapper
       onComplete={handleComplete}
       onSwitchToLogin={onSwitchToLogin}
+      onEmailCapture={handleEmailCapture}
     />
   );
 }

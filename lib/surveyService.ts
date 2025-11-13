@@ -28,41 +28,61 @@ export async function submitAnonymousSurvey(
   // Calculate score
   const score = calculateSurveyScore(responses);
 
-  console.log('Submitting survey to database:', {
+  console.log('Submitting Survey A to database:', {
     email,
     score,
     responseCount: responses.length,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
   });
 
-  // Insert into database using server client (bypasses RLS)
-  const { data, error } = await supabaseServer
+  // Insert submission record first
+  const { data: submissionData, error: submissionError } = await supabaseServer
     .from('anonymous_survey_submissions')
     .insert({
       email,
-      responses,
       score,
       submitted_from_ip: submittedFromIp,
     })
     .select('id')
     .single();
 
-  if (error) {
+  if (submissionError) {
     console.error('Database insert error:', {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint
+      message: submissionError.message,
+      code: submissionError.code,
+      details: submissionError.details,
+      hint: submissionError.hint
     });
-    throw new Error(`Failed to submit survey: ${error.message} (${error.code})`);
+    throw new Error(`Failed to submit survey: ${submissionError.message} (${submissionError.code})`);
   }
 
-  if (!data) {
+  if (!submissionData) {
     throw new Error('No data returned from insert operation');
   }
 
-  console.log('Survey inserted successfully:', data.id);
-  return { surveyId: data.id, score };
+  // Insert individual answers
+  const answerRecords = responses.map(response => ({
+    submission_id: submissionData.id,
+    question_id: response.questionId,
+    selected_option: response.selectedOption,
+  }));
+
+  const { error: answersError } = await supabaseServer
+    .from('anonymous_survey_a_answers')
+    .insert(answerRecords);
+
+  if (answersError) {
+    console.error('Error inserting answers:', answersError);
+    // Try to clean up the submission if answers failed
+    await supabaseServer
+      .from('anonymous_survey_submissions')
+      .delete()
+      .eq('id', submissionData.id);
+    throw new Error(`Failed to insert answers: ${answersError.message}`);
+  }
+
+  console.log('Survey A inserted successfully:', submissionData.id);
+  return { surveyId: submissionData.id, score };
 }
 
 // Check if anonymous survey exists for email

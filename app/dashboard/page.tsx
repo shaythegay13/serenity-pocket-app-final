@@ -61,8 +61,8 @@ export default function DashboardPage() {
         console.error('Error checking pending survey:', error);
       } finally {
         setIsCheckingPendingSurvey(false);
-        // Redirect to the survey history page
-        router.push('/dashboard/survey-history');
+        // Redirect to the home page (main dashboard)
+        router.push('/');
       }
     };
 

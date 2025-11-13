@@ -38,8 +38,8 @@ export default function SurveyLinkingConfirmation({
     try {
       await onConfirm();
       setIsOpen(false);
-      // Navigate to dashboard after successful linking
-      router.push('/dashboard/survey-history');
+      // Navigate to home page (main dashboard) after successful linking
+      router.push('/');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to link survey';
       setLinkingError(errorMessage);

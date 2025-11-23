@@ -161,8 +161,8 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         console.error('Survey linking error:', linkError);
       }
 
-      // Navigate to onboarding intro to show snapshot results and continue profile
-      router.push('/onboarding/intro');
+      // Navigate to complete the remaining survey questions
+      router.push('/onboarding/complete-survey');
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Account creation error:', err);

@@ -68,7 +68,7 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailC
       const data = await response.json();
 
       if (data.accountExists) {
-        setEmailError('You already have an account with this email. Please use the login button below.');
+        setEmailError('You already have an account with this email.');
         setIsSubmitting(false);
         return;
       }
@@ -245,9 +245,20 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailC
                   className="border-gray-300 focus:border-blue-500"
                 />
                 {emailError && (
-                  <div className="flex items-center gap-2 text-sm text-red-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{emailError}</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-red-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{emailError}</span>
+                    </div>
+                    {emailError.includes('already have an account') && (
+                      <button
+                        type="button"
+                        onClick={onSwitchToLogin}
+                        className="text-blue-500 hover:underline text-sm"
+                      >
+                        Return to login screen
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

@@ -48,7 +48,7 @@ export default function Home() {
     | "terms"
     | "forgot-password"
     | "resend-confirmation"
-  >("instant-profile")
+  >("survey")
   const [surveyData, setSurveyData] = useState<SurveyData | null>(null)
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
   const [instantProfile, setInstantProfile] = useState<any | null>(null)

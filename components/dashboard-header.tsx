@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
 import Image from "next/image"
 import { SerenityTokenDisplay } from "@/components/serenity-token-display"
-import { computeArchetypeFromSnapshot } from "@/lib/archetypes"
+import { computeArchetypeFromSnapshot, computeArchetype } from "@/lib/archetypes"
 import type { SurveyAnswer } from "@/types/survey"
 import type { UserData } from "@/lib/types"
 
@@ -35,13 +35,18 @@ export function DashboardHeader({ userData }: DashboardHeaderProps) {
                 try {
                   const ans = userData.surveyData?.answers
                   if (ans && typeof ans === 'object') {
-                    const snapshotAnswers: SurveyAnswer[] = Object.entries(ans).map(([questionId, selectedOption]) => ({ questionId, selectedOption } as SurveyAnswer))
-                    const at = computeArchetypeFromSnapshot(snapshotAnswers)
+                    const allAnswers: SurveyAnswer[] = Object.entries(ans).map(([questionId, selectedOption]) => ({ questionId, selectedOption } as SurveyAnswer))
+
+                    // Use full archetype if all 12 questions answered, otherwise use snapshot (4 questions)
+                    const hasFullSurvey = allAnswers.length >= 12
+                    const at = hasFullSurvey
+                      ? computeArchetype(allAnswers)
+                      : computeArchetypeFromSnapshot(allAnswers)
                     archetypeName = at?.name
                   }
                 } catch {}
                 return (
-                  <SerenityTokenDisplay 
+                  <SerenityTokenDisplay
                     tokens={userData.serenityTokens}
                     surveyScore={userData.surveyData?.score}
                     surveyLevel={userData.surveyData?.level}

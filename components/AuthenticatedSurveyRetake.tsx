@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SurveyForm from '@/components/SurveyForm';
-import { SurveyAnswer, SURVEY_QUESTIONS, SURVEY_C_SNAPSHOT_QUESTIONS } from '@/types/survey';
+import { SurveyAnswer, SURVEY_QUESTIONS } from '@/types/survey';
 import { getScoreInterpretation } from '@/types/survey';
-import { computeArchetypeFromSnapshot, ArchetypeDef } from '@/lib/archetypes';
+import { computeArchetype, ArchetypeDef } from '@/lib/archetypes';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
@@ -15,49 +15,18 @@ export function AuthenticatedSurveyRetake() {
   const [surveyComplete, setSurveyComplete] = useState(false);
   const [surveyResult, setSurveyResult] = useState<{ score: number; level: string } | null>(null);
   const [archetype, setArchetype] = useState<ArchetypeDef | null>(null);
-  const [step, setStep] = useState<'SNAPSHOT' | 'REST' | 'COMPLETE'>('SNAPSHOT');
-  const [snapshotAnswers, setSnapshotAnswers] = useState<SurveyAnswer[] | null>(null);
-
-  useEffect(() => {
-    // If snapshot answers exist from pre-signup, load them and skip straight to the 8-question step
-    try {
-      const raw = sessionStorage.getItem('snapshotResponses');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSnapshotAnswers(parsed);
-          setStep('REST');
-        }
-      }
-    } catch {}
-  }, []);
-
-  const handleSnapshotSubmit = async (responses: SurveyAnswer[]) => {
-    // Save snapshot answers locally then move to betting questions
-    setSnapshotAnswers(responses);
-    setStep('REST');
-  };
 
   const handleSurveySubmit = async (responses: SurveyAnswer[]) => {
     setIsSubmitting(true);
 
     try {
-      if (!snapshotAnswers || snapshotAnswers.length === 0) {
-        alert('Please answer the quick snapshot first.');
-        setStep('SNAPSHOT');
-        return;
-      }
-
-      // Merge 4 snapshot + 8 betting responses into full 12 for scoring/persistence
-      const mergedResponses: SurveyAnswer[] = [...snapshotAnswers, ...responses];
-
       const response = await fetch('/api/gambling-survey/retake', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          responses: mergedResponses,
+          responses,
         }),
       });
 
@@ -68,13 +37,12 @@ export function AuthenticatedSurveyRetake() {
       }
 
       const level = getScoreInterpretation(data.score);
-      const at = computeArchetypeFromSnapshot(snapshotAnswers);
+      const at = computeArchetype(responses);
 
       setSurveyResult({ score: data.score, level });
       setArchetype(at);
-      
+
       setSurveyComplete(true);
-      setStep('COMPLETE');
     } catch (error) {
       console.error('Survey submission error:', error);
       alert('An error occurred while submitting your survey. Please try again.');
@@ -155,29 +123,15 @@ export function AuthenticatedSurveyRetake() {
         >
           <X className="h-4 w-4" />
         </button>
-        {step === 'SNAPSHOT' && (
-          <>
-            <div className="mb-6 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Quick Psychological Snapshot</h2>
-              <p className="text-sm text-gray-700">4 questions • &lt; 20 seconds</p>
-            </div>
-            <SurveyForm onSubmit={handleSnapshotSubmit} isSubmitting={isSubmitting} questions={SURVEY_C_SNAPSHOT_QUESTIONS} />
-          </>
-        )}
-
-        {step === 'REST' && (
-          <>
-            <div className="mb-6 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Complete Your Full Profile</h2>
-              <p className="text-sm text-gray-700">8 quick questions about your betting style</p>
-            </div>
-            <SurveyForm 
-              onSubmit={handleSurveySubmit} 
-              isSubmitting={isSubmitting}
-              questions={SURVEY_QUESTIONS.filter(q => q.id.startsWith('c') && parseInt(q.id.slice(1), 10) >= 5)}
-            />
-          </>
-        )}
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Retake Serenity Survey</h2>
+          <p className="text-sm text-gray-700">Complete all 12 questions to update your results</p>
+        </div>
+        <SurveyForm
+          onSubmit={handleSurveySubmit}
+          isSubmitting={isSubmitting}
+          questions={SURVEY_QUESTIONS}
+        />
       </div>
     </div>
   );

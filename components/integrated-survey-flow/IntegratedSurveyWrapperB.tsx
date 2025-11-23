@@ -41,7 +41,7 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailC
     setCurrentFlow(SurveyFlow.EMAIL_CAPTURE);
   };
 
-  const handleEmailSubmit = () => {
+  const handleEmailSubmit = async () => {
     setEmailError(null);
 
     if (!email) {
@@ -52,6 +52,31 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailC
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address');
       return;
+    }
+
+    // Check if user already has an account
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/check-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.accountExists) {
+        setEmailError('You already have an account with this email. Please use the login button below.');
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking account:', error);
+      // If check fails, continue anyway (fail open)
+    } finally {
+      setIsSubmitting(false);
     }
 
     // Notify parent of email capture for A/B test assignment
@@ -231,15 +256,17 @@ export function IntegratedSurveyWrapperB({ onComplete, onSwitchToLogin, onEmailC
                 <Button
                   variant="outline"
                   onClick={() => setCurrentFlow(SurveyFlow.WELCOME)}
+                  disabled={isSubmitting}
                   className="flex-1 text-gray-700 border-gray-300 hover:bg-gray-50"
                 >
                   Back
                 </Button>
-                <Button 
+                <Button
                   onClick={handleEmailSubmit}
+                  disabled={isSubmitting}
                   className="flex-1 bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
                 >
-                  Continue to Survey
+                  {isSubmitting ? 'Checking...' : 'Continue to Survey'}
                 </Button>
               </div>
 

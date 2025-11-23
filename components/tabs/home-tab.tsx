@@ -1,0 +1,365 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Heart, 
+  Brain, 
+  TrendingUp, 
+  AlertTriangle, 
+  Shield, 
+  Sparkles,
+  TrendingDown,
+  Activity,
+  Clock
+} from "lucide-react"
+import type { UserData, TiltAlert } from "@/lib/types"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { canAccessFeature } from "@/lib/subscription-tiers"
+import { ActivityRing } from "@/components/activity-ring"
+
+interface HomeTabProps {
+  userData: UserData
+  updateUserData: (updates: Partial<UserData>) => Promise<void>
+  onNavigateToTab: (tab: string) => void
+}
+
+export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabProps) {
+  const [tiltAlerts, setTiltAlerts] = useState<TiltAlert[]>([])
+  const [recentBets, setRecentBets] = useState<any[]>([])
+  const [emotionalScore, setEmotionalScore] = useState(75)
+  const [showCooldown, setShowCooldown] = useState(false)
+
+  useEffect(() => {
+    const init = async () => {
+      // Load recent emotion logs to calculate emotional score
+      const emotionLogs = await storage.getEmotionLogs()
+      const recentEmotions = emotionLogs.slice(-5)
+      
+      // Calculate emotional stability score (0-100)
+      // Higher intensity negative emotions = lower score
+      if (recentEmotions.length > 0) {
+        const negativeEmotions = ["anxious", "frustrated", "angry", "fearful", "stressed"]
+        const avgIntensity = recentEmotions.reduce((sum, log) => {
+          const isNegative = negativeEmotions.includes(log.emotion.toLowerCase())
+          return sum + (isNegative ? log.intensity : 100 - log.intensity)
+        }, 0) / recentEmotions.length
+        setEmotionalScore(Math.round(100 - avgIntensity))
+      }
+
+      // Check for tilt conditions
+      const trades = await storage.getTrades()
+      const recentTrades = trades.slice(-5)
+      setRecentBets(recentTrades)
+      
+      // Detect tilt patterns
+      const alerts: TiltAlert[] = []
+      const recentLosses = recentTrades.filter(t => t.outcome === "loss").length
+      
+      if (recentLosses >= 3) {
+        alerts.push({
+          id: "losing-streak",
+          timestamp: new Date(),
+          severity: "high",
+          triggers: ["3+ consecutive losses detected"],
+          recommendation: "Take a 24-hour break to reset emotionally",
+          cooldownSuggested: true
+        })
+        setShowCooldown(true)
+      }
+
+      if (emotionalScore < 40) {
+        alerts.push({
+          id: "emotional-volatility",
+          timestamp: new Date(),
+          severity: "critical",
+          triggers: ["High emotional volatility", "Recent negative emotions"],
+          recommendation: "Avoid betting until emotional state stabilizes",
+          cooldownSuggested: true
+        })
+        setShowCooldown(true)
+      }
+
+      setTiltAlerts(alerts)
+    }
+    init()
+  }, [userData, emotionalScore])
+
+  const getEmotionalScoreColor = (score: number) => {
+    if (score >= 70) return "text-green-500"
+    if (score >= 40) return "text-yellow-500"
+    return "text-red-500"
+  }
+
+  const getEmotionalScoreLabel = (score: number) => {
+    if (score >= 70) return "Stable"
+    if (score >= 40) return "Moderate"
+    return "Volatile"
+  }
+
+  const getGaugeColor = (score: number) => {
+    if (score >= 70) return "#22c55e"
+    if (score >= 40) return "#eab308"
+    return "#ef4444"
+  }
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical": return "bg-red-500/10 border-red-500/30 text-red-500"
+      case "high": return "bg-orange-500/10 border-orange-500/30 text-orange-500"
+      case "medium": return "bg-yellow-500/10 border-yellow-500/30 text-yellow-500"
+      default: return "bg-blue-500/10 border-blue-500/30 text-blue-500"
+    }
+  }
+
+  return (
+    <div className="space-y-6 fade-in">
+      {/* Welcome Section */}
+      <div className="text-center space-y-2">
+        <h2 className="text-3xl font-bold text-foreground">
+          Welcome back, {userData.name}
+        </h2>
+        <p className="text-muted-foreground">
+          Your behavioral betting companion is here to help you make smarter decisions
+        </p>
+      </div>
+
+      {/* Emotional Score Card */}
+      <Card className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-4 rounded-full bg-primary/20">
+              <Heart className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-foreground">Emotional Stability Score</h3>
+              <p className="text-sm text-muted-foreground">Based on your recent emotional check-ins</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <ActivityRing
+              progress={emotionalScore}
+              color={getGaugeColor(emotionalScore)}
+              label={getEmotionalScoreLabel(emotionalScore)}
+              value={`${emotionalScore}/100`}
+              size={120}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Cooldown Mode Alert */}
+      {showCooldown && (
+        <Card className="p-6 bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-500/30">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-full bg-red-500/20">
+              <Shield className="h-8 w-8 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Cooldown Mode Activated
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your betting patterns suggest you need a break. Taking time off helps reset emotional volatility.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setShowCooldown(false)}>
+              Dismiss
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Tilt Alerts */}
+      {tiltAlerts.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Tilt Alerts
+          </h3>
+          {tiltAlerts.map((alert) => (
+            <Card key={alert.id} className={`p-4 ${getSeverityColor(alert.severity)}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="text-xs">
+                      {alert.severity.toUpperCase()}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {alert.timestamp.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <ul className="space-y-1 mb-2">
+                    {alert.triggers.map((trigger, i) => (
+                      <li key={i} className="text-sm">• {trigger}</li>
+                    ))}
+                  </ul>
+                  <p className="text-sm font-medium">{alert.recommendation}</p>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => onNavigateToTab("behavior")}
+                >
+                  View Details
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("odds") }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-full bg-blue-500/10">
+              <TrendingUp className="h-6 w-6 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">Live Odds</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Compare real-time odds across multiple sportsbooks
+          </p>
+          {!canAccessFeature(userData.subscriptionTier || "free", "premium") && (
+            <Badge variant="secondary" className="mt-3">Premium Feature</Badge>
+          )}
+          {(showCooldown || emotionalScore < 50) && (
+            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
+          )}
+        </Card>
+
+        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("analyze") }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-full bg-purple-500/10">
+              <Brain className="h-6 w-6 text-purple-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">Analyze Bet</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Get AI-powered analysis of your bet ideas
+          </p>
+          {!canAccessFeature(userData.subscriptionTier || "free", "premium") && (
+            <Badge variant="secondary" className="mt-3">Premium Feature</Badge>
+          )}
+          {(showCooldown || emotionalScore < 50) && (
+            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
+          )}
+        </Card>
+
+        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("ai-picks") }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-full bg-amber-500/10">
+              <Sparkles className="h-6 w-6 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">AI Picks</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Personalized bet suggestions based on your psychology
+          </p>
+          {!canAccessFeature(userData.subscriptionTier || "free", "elite") && (
+            <Badge variant="secondary" className="mt-3">Elite Feature</Badge>
+          )}
+          {(showCooldown || emotionalScore < 50) && (
+            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
+          )}
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          Recent Betting Activity
+        </h3>
+        {recentBets.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No recent bets logged</p>
+            <Button 
+              className="mt-4" 
+              onClick={() => onNavigateToTab("behavior")}
+            >
+              Log Your First Bet
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentBets.slice(0, 5).map((bet) => (
+              <div key={bet.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${
+                    bet.outcome === "profit" ? "bg-green-500/10" :
+                    bet.outcome === "loss" ? "bg-red-500/10" :
+                    "bg-gray-500/10"
+                  }`}>
+                    {bet.outcome === "profit" ? (
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                    ) : bet.outcome === "loss" ? (
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {bet.preTradeEmotion} • Confidence: {bet.confidenceLevel}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(bet.timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant={
+                  bet.outcome === "profit" ? "default" :
+                  bet.outcome === "loss" ? "destructive" :
+                  "secondary"
+                }>
+                  {bet.outcome || "Pending"}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Personalized Insights */}
+      <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-purple-500" />
+          Personalized Insights
+        </h3>
+        <div className="space-y-3">
+          {userData.surveyData && (
+            <div className="p-3 rounded-lg bg-background/50">
+              <p className="text-sm font-medium text-foreground">
+                Your gambling risk level: <span className="text-purple-500">{userData.surveyData.level}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Score: {userData.surveyData.score}/100
+              </p>
+            </div>
+          )}
+          <div className="p-3 rounded-lg bg-background/50">
+            <p className="text-sm font-medium text-foreground">
+              Mindful Decision Rate: <span className="text-purple-500">{Math.round(userData.mindfulDecisionPercentage)}%</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {userData.mindfulTrades} out of {userData.totalTrades} bets made mindfully
+            </p>
+          </div>
+          <div className="p-3 rounded-lg bg-background/50">
+            <p className="text-sm font-medium text-foreground">
+              Bias Recognition: <span className="text-purple-500">{Math.round(userData.biasRecognitionScore)}%</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {userData.totalBiasesIdentified} biases identified across all bets
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}

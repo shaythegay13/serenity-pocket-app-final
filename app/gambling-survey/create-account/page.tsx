@@ -11,18 +11,6 @@ function CreateAccountContent() {
   const surveyId = searchParams.get('surveyId') || '';
   const score = parseInt(searchParams.get('score') || '0', 10);
 
-  if (!email || !surveyId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <p className="text-destructive">Invalid survey information. Please complete the survey first.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4">

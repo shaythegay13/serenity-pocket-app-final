@@ -7,38 +7,57 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
 import { AlertCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface SurveyFormProps {
   onSubmit: (responses: SurveyAnswer[]) => Promise<void>;
   isSubmitting: boolean;
+  questions?: readonly SurveyQuestion[] | SurveyQuestion[];
 }
 
-export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) {
+export default function SurveyForm({ onSubmit, isSubmitting, questions }: SurveyFormProps) {
+  const qs = (questions as readonly SurveyQuestion[]) || SURVEY_QUESTIONS;
   const [answers, setAnswers] = useState<SurveyAnswer[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  const currentQuestion = SURVEY_QUESTIONS[currentQuestionIndex];
-  const progressPercentage = ((currentQuestionIndex + 1) / SURVEY_QUESTIONS.length) * 100;
+  const currentQuestion = qs[currentQuestionIndex];
+  const progressPercentage = ((currentQuestionIndex + 1) / qs.length) * 100;
 
-  const handleAnswerSelect = useCallback((questionId: string, selectedOption: string) => {
+  const handleSingleSelect = useCallback((questionId: string, selectedOption: string) => {
     setAnswers((prev) => {
-      const existingIndex = prev.findIndex((a) => a.questionId === questionId);
+      // Remove any existing answers for this questionId
+      const filtered = prev.filter((a) => a.questionId !== questionId);
       const newAnswer: SurveyAnswer = {
         questionId,
         selectedOption,
         timestamp: new Date(),
       };
-
-      if (existingIndex !== -1) {
-        const updated = [...prev];
-        updated[existingIndex] = newAnswer;
-        return updated;
-      }
-      return [...prev, newAnswer];
+      return [...filtered, newAnswer];
     });
 
-    // Clear validation error for this question
+    setValidationErrors((prev) => {
+      const updated = { ...prev };
+      delete updated[questionId];
+      return updated;
+    });
+  }, []);
+
+  const handleMultiToggle = useCallback((questionId: string, option: string, checked: boolean) => {
+    setAnswers((prev) => {
+      const exists = prev.some((a) => a.questionId === questionId && a.selectedOption === option);
+      if (checked && !exists) {
+        return [
+          ...prev,
+          { questionId, selectedOption: option, timestamp: new Date() },
+        ];
+      }
+      if (!checked && exists) {
+        return prev.filter((a) => !(a.questionId === questionId && a.selectedOption === option));
+      }
+      return prev;
+    });
+
     setValidationErrors((prev) => {
       const updated = { ...prev };
       delete updated[questionId];
@@ -48,8 +67,9 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
 
   const handleNextQuestion = useCallback(() => {
     // Validate current question is answered
-    const currentAnswer = answers.find((a) => a.questionId === currentQuestion.id);
-    if (!currentAnswer) {
+    const countForCurrent = answers.filter((a) => a.questionId === currentQuestion.id).length;
+    const needsAtLeast = currentQuestion.multi ? 1 : 1;
+    if (countForCurrent < needsAtLeast) {
       setValidationErrors((prev) => ({
         ...prev,
         [currentQuestion.id]: 'Please select an answer before continuing',
@@ -57,10 +77,10 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
       return;
     }
 
-    if (currentQuestionIndex < SURVEY_QUESTIONS.length - 1) {
+    if (currentQuestionIndex < qs.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
     }
-  }, [answers, currentQuestion.id, currentQuestionIndex]);
+  }, [answers, currentQuestion.id, currentQuestionIndex, qs.length, currentQuestion.multi]);
 
   const handlePreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
@@ -70,9 +90,10 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
 
   const handleSubmit = useCallback(async () => {
     // Validate all questions are answered
-    const unansweredQuestions = SURVEY_QUESTIONS.filter(
-      (q) => !answers.find((a) => a.questionId === q.id)
-    );
+    const unansweredQuestions = qs.filter((q) => {
+      const count = answers.filter((a) => a.questionId === q.id).length;
+      return q.multi ? count < 1 : count !== 1;
+    });
 
     if (unansweredQuestions.length > 0) {
       const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
@@ -86,7 +107,10 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
     }
 
     await onSubmit(answers);
-  }, [answers, currentQuestion.id, onSubmit]);
+  }, [answers, currentQuestion.id, onSubmit, qs]);
+
+  const isOptionSelected = (questionId: string, option: string) =>
+    answers.some((a) => a.questionId === questionId && a.selectedOption === option);
 
   const getCurrentAnswer = () => {
     const answer = answers.find((a) => a.questionId === currentQuestion.id);
@@ -98,7 +122,7 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
       {/* Progress indicator */}
       <div className="space-y-2">
         <div className="flex justify-between text-sm text-gray-600">
-          <span>Question {currentQuestionIndex + 1} of {SURVEY_QUESTIONS.length}</span>
+          <span>Question {currentQuestionIndex + 1} of {qs.length}</span>
           <span>{Math.round(progressPercentage)}% Complete</span>
         </div>
         <Progress value={progressPercentage} className="h-2" />
@@ -119,27 +143,47 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
         </div>
 
         {/* Answer options */}
-        <RadioGroup
-          value={getCurrentAnswer()}
-          onValueChange={(value) => handleAnswerSelect(currentQuestion.id, value)}
-          className="space-y-3"
-        >
-          {currentQuestion.options.map((option, index) => (
-            <div key={index} className="flex items-center space-x-2">
-              <RadioGroupItem 
-                value={option} 
-                id={`${currentQuestion.id}-${index}`}
-                className="text-gray-700 border-gray-400"
-              />
-              <Label 
-                htmlFor={`${currentQuestion.id}-${index}`}
-                className="cursor-pointer flex-1 py-2 text-black"
-              >
-                {option}
-              </Label>
-            </div>
-          ))}
-        </RadioGroup>
+        {currentQuestion.multi ? (
+          <div className="space-y-3">
+            {currentQuestion.options.map((option, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`${currentQuestion.id}-${index}`}
+                  checked={isOptionSelected(currentQuestion.id, option)}
+                  onCheckedChange={(checked) => handleMultiToggle(currentQuestion.id, option, Boolean(checked))}
+                />
+                <Label 
+                  htmlFor={`${currentQuestion.id}-${index}`}
+                  className="cursor-pointer flex-1 py-2 text-black"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <RadioGroup
+            value={getCurrentAnswer()}
+            onValueChange={(value) => handleSingleSelect(currentQuestion.id, value)}
+            className="space-y-3"
+          >
+            {currentQuestion.options.map((option, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <RadioGroupItem 
+                  value={option} 
+                  id={`${currentQuestion.id}-${index}`}
+                  className="text-gray-700 border-gray-400"
+                />
+                <Label 
+                  htmlFor={`${currentQuestion.id}-${index}`}
+                  className="cursor-pointer flex-1 py-2 text-black"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        )}
       </div>
 
       {/* Navigation buttons */}
@@ -152,7 +196,7 @@ export default function SurveyForm({ onSubmit, isSubmitting }: SurveyFormProps) 
           Previous
         </Button>
 
-        {currentQuestionIndex === SURVEY_QUESTIONS.length - 1 ? (
+        {currentQuestionIndex === qs.length - 1 ? (
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting}

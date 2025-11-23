@@ -8,10 +8,11 @@ import { ErrorBoundary } from "@/components/error-boundary"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Serenity Pocket - Mindful Trading Psychology",
-  description: "Understand and manage cognitive and emotional biases in financial decision-making",
+  title: "Serenity Pocket - Your Behavioral Betting Companion",
+  description: "Make smarter bets with emotional awareness, real-time sports data, and AI-powered insights. The seatbelt for responsible betting.",
   manifest: "/manifest.json",
-    generator: 'v0.app'
+  generator: 'v0.app',
+  keywords: ["sports betting", "betting psychology", "responsible gambling", "odds comparison", "bet analysis", "tilt prevention"]
 }
 
 export const viewport: Viewport = {

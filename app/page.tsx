@@ -3,18 +3,17 @@
 import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
-import { DashboardTab } from "@/components/tabs/dashboard-tab"
+import { HomeTab } from "@/components/tabs/home-tab"
+import { LiveOddsTab } from "@/components/tabs/live-odds-tab"
+import { AnalyzeBetTab } from "@/components/tabs/analyze-bet-tab"
+import { BehaviorTab } from "@/components/tabs/behavior-tab"
+import { AIPicksTab } from "@/components/tabs/ai-picks-tab"
+import { HistoryTab } from "@/components/tabs/history-tab"
+import { AccountTab } from "@/components/tabs/account-tab"
+// Legacy imports (kept for reference)
 import { EmotionsTab } from "@/components/tabs/emotions-tab"
-import { BiasesTab } from "@/components/tabs/biases-tab"
-import { ProgressTab } from "@/components/tabs/progress-tab"
-import { RewardsTab } from "@/components/tabs/rewards-tab"
-import { PremiumTab } from "@/components/tabs/premium-tab"
-import { ProfileTab } from "@/components/tabs/profile-tab"
-import { LevelUpCelebration } from "@/components/level-up-celebration"
-import { AchievementUnlockDialog } from "@/components/achievement-unlock-dialog"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
-import { checkAchievements, getLevelTitle } from "@/lib/gamification"
-import { calculateLevel, calculateXPForNextLevel, xpRewards } from "@/lib/gamification"
+// Gamification imports removed - system no longer used
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { calculateMindfulDecisionPercentage, calculateBiasRecognitionScore, getTotalBiasesIdentified } from "@/lib/bias-calculations"
 import { Toaster } from "sonner"
@@ -23,24 +22,36 @@ import { supabase } from "@/lib/supabase"
 import { SignIn } from "@/components/auth/sign-in"
 import { ForgotPassword } from "@/components/auth/forgot-password"
 import { ResendConfirmation } from "@/components/auth/resend-confirmation"
-import { ABTestSurveyWrapper } from "@/components/integrated-survey-flow/ABTestSurveyWrapper"
+import { IntegratedSurveyWrapper } from "@/components/integrated-survey-flow/IntegratedSurveyWrapper"
 import { TermsAgreement } from "@/components/terms-agreement"
 import { OnboardingGate } from "@/components/onboarding-gate"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { initializeUserData } from "@/lib/init-user"
+import { InstantProfileQuiz } from "@/components/onboarding/InstantProfileQuiz"
+// Auth rate limit debug utilities (loads global debug functions)
+import "@/lib/auth-rate-limit-utils"
+import { ProfilePreview } from "@/components/onboarding/ProfilePreview"
+import { SoftGate } from "@/components/onboarding/SoftGate"
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState("home")
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [showLevelUp, setShowLevelUp] = useState(false)
-  const [newLevel, setNewLevel] = useState(1)
-  const [showAchievement, setShowAchievement] = useState(false)
-  const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [authFlow, setAuthFlow] = useState<"survey" | "signup" | "signin" | "terms" | "forgot-password" | "resend-confirmation">("survey")
+  const [authFlow, setAuthFlow] = useState<
+    | "instant-profile"
+    | "profile-preview"
+    | "soft-gate"
+    | "survey"
+    | "signup"
+    | "signin"
+    | "terms"
+    | "forgot-password"
+    | "resend-confirmation"
+  >("instant-profile")
   const [surveyData, setSurveyData] = useState<SurveyData | null>(null)
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
+  const [instantProfile, setInstantProfile] = useState<any | null>(null)
 
   useEffect(() => {
     const init = async () => {
@@ -230,26 +241,10 @@ export default function Home() {
 
     const newData = { ...userData, ...updates }
 
-    // Check for level up
-    if (updates.xp !== undefined) {
-      const oldLevel = userData.level
-      const newLevelCalc = calculateLevel(newData.xp)
-
-      if (newLevelCalc > oldLevel) {
-        newData.level = newLevelCalc
-        newData.xpToNextLevel = calculateXPForNextLevel(newLevelCalc)
-        setNewLevel(newLevelCalc)
-        setShowLevelUp(true)
-      }
-    }
-
-    // Check for achievement unlocks
-    const achievements = await storage.getAchievements()
-    const emotionLogs = await storage.getEmotionLogs()
+    // Gamification system removed - features are gated by subscription tiers only
+    // Recalculate bias metrics for analytics
     const trades = await storage.getTrades()
     const biasesCount = getTotalBiasesIdentified(trades)
-    
-    // Recalculate bias metrics
     const biasProfile = await storage.getBiasProfile()
     const mindfulDecisionPercentage = calculateMindfulDecisionPercentage(trades)
     const biasRecognitionScore = calculateBiasRecognitionScore(biasProfile, biasesCount, trades.length)
@@ -259,20 +254,6 @@ export default function Home() {
     newData.biasRecognitionScore = biasRecognitionScore
     newData.totalBiasesIdentified = biasesCount
 
-    const updatedAchievements = checkAchievements(newData, achievements, emotionLogs.length, biasesCount, trades.length)
-
-    // Always save updated achievements (even if just progress changed)
-    await storage.setAchievements(updatedAchievements)
-
-    // Find newly unlocked achievements
-    const newlyUnlocked = updatedAchievements.find((a, i) => a.unlocked && !achievements[i].unlocked)
-
-    if (newlyUnlocked) {
-      setUnlockedAchievement(newlyUnlocked)
-      setShowAchievement(true)
-      newData.xp += xpRewards.achievementUnlock
-    }
-
     setUserData(newData)
     await storage.setUserData(newData)
     
@@ -280,20 +261,8 @@ export default function Home() {
     forceRefresh()
   }
 
-  const getUnlockedFeatures = (level: number): string[] => {
-    const features: { [key: number]: string[] } = {
-      2: ["Expanded emotion wheel with 8 core emotions"],
-      3: ["Bias Profile Report showing your top 3 susceptible biases"],
-      4: ["Community Challenges - participate in weekly group goals"],
-      5: ["Advanced Analytics with correlation charts"],
-      6: ["16-emotion wheel with intensity sliders"],
-      7: ["Comprehensive Psychological Profile Report"],
-      8: ["AI-Powered Bias Alerts based on your patterns"],
-      9: ["Mentorship Status badge and community mentor features"],
-      10: ["Behavioral Finance Guru certification", "Exclusive Masterclass content", "Priority expert coaching"],
-    }
-    return features[level] || []
-  }
+  // Gamification system (XP, levels, achievements) removed
+  // Features are gated by subscription tiers only
 
   const checkIfNeedsEmotionCheckIn = (lastCheckIn?: Date): boolean => {
     if (!lastCheckIn) return true
@@ -312,10 +281,9 @@ export default function Home() {
   const handleEmotionCheckInComplete = async () => {
     if (!userData) return
     
-    // Award XP for completing emotion check-in
+    // Track emotion check-in (XP system removed)
     const updatedData = {
       ...userData,
-      xp: userData.xp + xpRewards.emotionLog,
       totalEmotionsLogged: userData.totalEmotionsLogged + 1,
       lastEmotionCheckIn: new Date(),
       dailyRings: {
@@ -332,23 +300,67 @@ export default function Home() {
   }
 
   if (authed === false) {
-    // Survey Flow (A/B Testing between Survey A and Survey B)
+    if (authFlow === "instant-profile") {
+      return (
+        <InstantProfileQuiz
+          onComplete={(profile) => {
+            setInstantProfile(profile)
+            setAuthFlow("profile-preview")
+          }}
+        />
+      )
+    }
+
+    if (authFlow === "profile-preview") {
+      return (
+        <ProfilePreview
+          profile={instantProfile}
+          onContinue={() => setAuthFlow("soft-gate")}
+          onRetake={() => setAuthFlow("instant-profile")}
+        />
+      )
+    }
+
+    if (authFlow === "soft-gate") {
+      return (
+        <SoftGate
+          onContinueToFull={() => setAuthFlow("survey")}
+          onLogin={() => setAuthFlow("signin")}
+        />
+      )
+    }
+
+    // Survey Flow (Survey C only)
     if (authFlow === "survey") {
       return (
-        <ABTestSurveyWrapper
-          onComplete={(score: number, level: string, email: string, variant: 'A' | 'B') => {
+        <IntegratedSurveyWrapper
+          onComplete={(score: number, level: string, email: string) => {
             // Store survey results for later account creation
             const data = {
               score,
               level,
               email,
-              variant, // Track which survey variant was used
               completedAt: new Date().toISOString()
             }
             setSurveyData(data as any)
             setAuthFlow("signup")
           }}
           onSwitchToLogin={() => setAuthFlow("signin")}
+          onClose={() => {
+            try {
+              const pending = sessionStorage.getItem('pendingSurveyData')
+              if (pending) {
+                const parsed = JSON.parse(pending)
+                const params = new URLSearchParams()
+                if (parsed.email) params.set('email', parsed.email)
+                if (parsed.surveyId) params.set('surveyId', parsed.surveyId)
+                if (parsed.score !== undefined) params.set('score', String(parsed.score))
+                window.location.href = `/gambling-survey/create-account${params.toString() ? `?${params.toString()}` : ''}`
+                return
+              }
+            } catch {}
+            window.location.href = '/gambling-survey/create-account'
+          }}
         />
       )
     }
@@ -450,13 +462,13 @@ export default function Home() {
       )}
       
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
-        {activeTab === "dashboard" && <DashboardTab userData={userData} updateUserData={updateUserData} onNavigateToEmotions={() => setActiveTab("emotions")} />}
-        {activeTab === "emotions" && <EmotionsTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
-        {activeTab === "biases" && <BiasesTab userData={userData} updateUserData={updateUserData} />}
-        {activeTab === "progress" && <ProgressTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
-        {activeTab === "rewards" && <RewardsTab userData={userData} updateUserData={updateUserData} />}
-        {activeTab === "premium" && <PremiumTab userData={userData} updateUserData={updateUserData} />}
-        {activeTab === "profile" && <ProfileTab userData={userData} updateUserData={updateUserData} forceRefresh={forceRefresh} />}
+        {activeTab === "home" && <HomeTab userData={userData} updateUserData={updateUserData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "odds" && <LiveOddsTab userData={userData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "analyze" && <AnalyzeBetTab userData={userData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "behavior" && <BehaviorTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
+        {activeTab === "ai-picks" && <AIPicksTab userData={userData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "history" && <HistoryTab userData={userData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "account" && <AccountTab userData={userData} updateUserData={updateUserData} />}
       </main>
 
       <EmotionCheckInDialog
@@ -467,17 +479,7 @@ export default function Home() {
         updateUserData={updateUserData}
       />
       
-      <LevelUpCelebration
-        open={showLevelUp}
-        onClose={() => setShowLevelUp(false)}
-        newLevel={newLevel}
-        unlockedFeatures={getUnlockedFeatures(newLevel)}
-      />
-      <AchievementUnlockDialog
-        open={showAchievement}
-        onOpenChange={setShowAchievement}
-        achievement={unlockedAchievement}
-      />
+      {/* Gamification system (achievements, levels, XP) removed - features gated by subscription tiers */}
 
       <Toaster position="top-right" />
     </div>

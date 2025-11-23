@@ -8,9 +8,10 @@ interface SerenityTokenDisplayProps {
   recentGain?: number
   surveyScore?: number
   surveyLevel?: string
+  archetypeName?: string
 }
 
-export function SerenityTokenDisplay({ tokens, recentGain, surveyScore, surveyLevel }: SerenityTokenDisplayProps) {
+export function SerenityTokenDisplay({ tokens, recentGain, surveyScore, surveyLevel, archetypeName }: SerenityTokenDisplayProps) {
   const [showGain, setShowGain] = useState(false)
 
   useEffect(() => {
@@ -73,23 +74,31 @@ export function SerenityTokenDisplay({ tokens, recentGain, surveyScore, surveyLe
         )}
       </div>
 
-      {surveyScore !== undefined && surveyLevel && (
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm transition-all hover:scale-105 ${getLevelBgGradient(surveyLevel)}`}>
-          {getLevelIcon(surveyLevel)}
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-foreground">Risk Level:</span>
-            <span className={`text-xs font-bold ${getLevelColor(surveyLevel)}`}>
-              {surveyScore}/50
-            </span>
-          </div>
-          <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-            surveyLevel?.toLowerCase() === 'low' ? 'bg-green-600/20 text-green-700' :
-            surveyLevel?.toLowerCase() === 'medium' ? 'bg-yellow-600/20 text-yellow-700' :
-            'bg-red-600/20 text-red-700'
-          }`}>
-            {surveyLevel}
-          </div>
+      {archetypeName ? (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm transition-all hover:scale-105 bg-gradient-to-r from-blue-500/10 to-violet-500/10 border-blue-500/30">
+          <Activity className="h-4 w-4 text-blue-600" />
+          <span className="text-xs font-medium text-foreground">Archetype:</span>
+          <span className="text-xs font-bold text-blue-700">{archetypeName}</span>
         </div>
+      ) : (
+        surveyScore !== undefined && surveyLevel && (
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm transition-all hover:scale-105 ${getLevelBgGradient(surveyLevel)}`}>
+            {getLevelIcon(surveyLevel)}
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-medium text-foreground">Risk Level:</span>
+              <span className={`text-xs font-bold ${getLevelColor(surveyLevel)}`}>
+                {surveyScore}/50
+              </span>
+            </div>
+            <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              surveyLevel?.toLowerCase() === 'low' ? 'bg-green-600/20 text-green-700' :
+              surveyLevel?.toLowerCase() === 'medium' ? 'bg-yellow-600/20 text-yellow-700' :
+              'bg-red-600/20 text-red-700'
+            }`}>
+              {surveyLevel}
+            </div>
+          </div>
+        )
       )}
     </div>
   )

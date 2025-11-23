@@ -5,6 +5,8 @@ export interface SurveyQuestion {
   text: string;
   options: string[];
   weight: number[];
+  multi?: boolean;
+  section?: string;
 }
 
 export interface SurveyAnswer {
@@ -45,52 +47,122 @@ export interface ChartDataPoint {
 // Gambling addiction assessment questions
 export const SURVEY_QUESTIONS: readonly SurveyQuestion[] = [
   {
-    id: 'q1',
-    text: 'How often do you engage in gambling or betting activities?',
-    options: ['Never or rarely', 'Once or twice a month', '1-3 times per week', '4+ times per week'],
-    weight: [0, 6, 12, 18]
+    id: 'c1',
+    text: 'How often do you end up gambling longer or more intensely than planned?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
   },
   {
-    id: 'q2',
-    text: 'How much time do you spend betting?',
-    options: ['Less than 30 minutes per day', '30 minutes to 1 hour per day', '1-3 hours per day', 'More than 3 hours per day'],
-    weight: [0, 6, 12, 18]
+    id: 'c2',
+    text: 'How likely are you to bet when stressed, bored, or trying to change your mood?',
+    options: ['Very unlikely', 'Unlikely', 'Somewhat likely', 'Very likely'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
   },
   {
-    id: 'q3',
-    text: 'When you start placing bets on a given day, how easy is it for you to stop?',
-    options: ['I can stop anytime easily', 'Usually can stop when planned', 'Often place more bets than intended', 'Very hard to stop once I start'],
-    weight: [0, 6, 15, 21]
+    id: 'c3',
+    text: 'How often do you place bets that stretch or exceed your intended budget?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
   },
   {
-    id: 'q4',
-    text: 'Has gambling affected your personal relationships or mental wellbeing?',
-    options: ['No negative impact', 'Minor stress occasionally', 'Some conflicts or anxiety', 'Significant problems'],
-    weight: [0, 6, 15, 21]
+    id: 'c4',
+    text: 'After a loss, how often do you feel the urge to win the money back right away?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
   },
   {
-    id: 'q5',
-    text: 'Have you tried to reduce or control your gambling habits?',
-    options: ["Haven't felt the need to", 'Thought about it', 'Tried with some success', "Tried but couldn't maintain"],
-    weight: [0, 6, 12, 18]
+    id: 'c5',
+    text: 'Which types of bets do you usually place? (Tap all that apply)',
+    options: ['Straight bets', 'Parlays', 'Same-game parlays', 'In-game/live bets', 'Props', 'Futures'],
+    weight: [0, 2, 3, 3, 1, 1],
+    multi: true,
+    section: 'Betting Style'
   },
   {
-    id: 'q6',
-    text: 'After losing money on bets, what do you typically do?',
-    options: ['Accept the loss and move on', 'Wait a day or more before betting again', 'Sometimes place more bets to win it back', 'Usually keep betting to recover losses'],
-    weight: [0, 6, 12, 18]
+    id: 'c6',
+    text: "What’s your usual bet size?",
+    options: ['Under $10', '$10–$25', '$25–$50', '$50–$100', 'Over $100'],
+    weight: [0, 1, 2, 3, 4],
+    section: 'Betting Style'
   },
   {
-    id: 'q7',
-    text: 'Do you gamble with money you can afford to lose?',
-    options: ['Always within my budget', 'Usually stay within limits', 'Sometimes exceed my budget', 'Often bet money I need'],
-    weight: [0, 6, 15, 18]
+    id: 'c7',
+    text: 'How often do you adjust your bet size based on confidence or excitement?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Betting Style'
   },
   {
-    id: 'q8',
-    text: 'Does gambling interfere with your daily responsibilities?',
-    options: ['Never interferes', 'Rarely affects my schedule', 'Sometimes causes issues', 'Frequently disrupts my life'],
-    weight: [0, 6, 12, 18]
+    id: 'c8',
+    text: 'How much do you rely on research before placing a bet?',
+    options: ['None', '<5 min', '5–15 min', '15+ min'],
+    weight: [3, 2, 1, 0],
+    section: 'Betting Style'
+  },
+  {
+    id: 'c9',
+    text: 'Which sports do you usually bet on? (Tap all that apply)',
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    multi: true,
+    section: 'Sport & Market Preferences'
+  },
+  {
+    id: 'c10',
+    text: 'Which sports do you feel you understand the most analytically?',
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    multi: true,
+    section: 'Sport & Market Preferences'
+  },
+  {
+    id: 'c11',
+    text: 'When do you typically bet most often?',
+    options: ['Morning', 'Afternoon', 'Evening', 'Late night', 'No consistent pattern'],
+    weight: [0, 1, 2, 3, 1],
+    section: 'Sport & Market Preferences'
+  },
+  {
+    id: 'c12',
+    text: 'Do you track your betting performance?',
+    options: ['No', 'Yes, informally', 'Yes, I track numbers', 'Yes, I use tools/platforms'],
+    weight: [3, 2, 1, 0],
+    section: 'Experience & Tracking'
+  }
+] as const;
+
+export const SURVEY_C_SNAPSHOT_QUESTIONS: readonly SurveyQuestion[] = [
+  {
+    id: 'c1',
+    text: 'How often do you end up gambling longer or more intensely than planned?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
+  },
+  {
+    id: 'c2',
+    text: 'How likely are you to bet when stressed, bored, or trying to change your mood?',
+    options: ['Very unlikely', 'Unlikely', 'Somewhat likely', 'Very likely'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
+  },
+  {
+    id: 'c3',
+    text: 'How often do you place bets that stretch or exceed your intended budget?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
+  },
+  {
+    id: 'c4',
+    text: 'After a loss, how often do you feel the urge to win the money back right away?',
+    options: ['Never', 'Rarely', 'Sometimes', 'Often'],
+    weight: [0, 1, 2, 3],
+    section: 'Psychological Snapshot'
   }
 ] as const;
 

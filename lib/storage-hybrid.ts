@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import type { UserData, EmotionLog, Trade, Achievement, BiasProfile, BiasQuizHistory, Challenge } from "./types"
+import type { UserData, EmotionLog, Trade, Achievement, BiasProfile, BiasQuizHistory, Challenge, BetAnalysis } from "./types"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   ACHIEVEMENTS: "serenity_achievements",
   CHALLENGES: "serenity_challenges",
   LAST_CHECK_IN: "serenity_last_check_in",
+  BET_ANALYSES: "serenity_bet_analyses",
 }
 
 // Hybrid storage that uses Supabase for authenticated users and localStorage as fallback
@@ -20,6 +21,32 @@ export const storageHybrid = {
       data: { user },
     } = await supabase.auth.getUser()
     return user?.id || null
+  },
+
+  // Bet Analyses Operations
+  async getBetAnalyses(): Promise<BetAnalysis[]> {
+    if (typeof window === "undefined") return []
+    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
+    return data ? JSON.parse(data) : []
+  },
+
+  async addBetAnalysis(bet: BetAnalysis): Promise<void> {
+    if (typeof window === "undefined") return
+    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
+    const list: BetAnalysis[] = data ? JSON.parse(data) : []
+    list.push(bet)
+    localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(list))
+  },
+
+  async updateBetAnalysis(updated: BetAnalysis): Promise<void> {
+    if (typeof window === "undefined") return
+    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
+    const list: BetAnalysis[] = data ? JSON.parse(data) : []
+    const idx = list.findIndex(b => b.id === updated.id)
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...updated }
+      localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(list))
+    }
   },
 
   // User Data Operations
@@ -35,32 +62,13 @@ export const storageHybrid = {
         .single()
 
       if (error || !data) {
-        // Create new profile if doesn't exist
+        // Create minimal profile if missing to avoid schema mismatches
         const defaultData = getDefaultUserData()
         const { error: insertError } = await supabase
           .from("user_profiles")
           .insert({
             id: userId,
             name: defaultData.name,
-            level: defaultData.level,
-            xp: defaultData.xp,
-            xp_to_next_level: defaultData.xpToNextLevel,
-            emotional_awareness_streak: defaultData.emotionalAwarenessStreak,
-            bias_recognition_score: defaultData.biasRecognitionScore,
-            mindful_decision_percentage: defaultData.mindfulDecisionPercentage,
-            total_trades: defaultData.totalTrades,
-            mindful_trades: defaultData.mindfulTrades,
-            serenity_tokens: defaultData.serenityTokens,
-            daily_rings: defaultData.dailyRings,
-            last_ring_reset: defaultData.lastRingReset.toISOString(),
-            perfect_days: defaultData.perfectDays,
-            longest_streak: defaultData.longestStreak,
-            total_emotions_logged: defaultData.totalEmotionsLogged,
-            total_biases_identified: defaultData.totalBiasesIdentified,
-            total_journals_completed: defaultData.totalJournalsCompleted,
-            total_modules_completed: defaultData.totalModulesCompleted,
-            total_breathing_exercises: defaultData.totalBreathingExercises,
-            most_productive_day: defaultData.mostProductiveDay,
           })
 
         if (insertError) {
@@ -71,7 +79,7 @@ export const storageHybrid = {
       }
 
       // Convert snake_case DB fields to camelCase
-      return {
+      const profile: UserData = {
         name: data.name,
         level: data.level,
         xp: data.xp,
@@ -92,7 +100,41 @@ export const storageHybrid = {
         totalModulesCompleted: data.total_modules_completed,
         totalBreathingExercises: data.total_breathing_exercises,
         mostProductiveDay: data.most_productive_day,
+        subscriptionTier: data.subscription_tier || 'free',
+        subscriptionStatus: data.subscription_status,
+        subscriptionStartedAt: data.subscription_started_at,
+        subscriptionEndsAt: data.subscription_ends_at,
+        username: data.username,
+        age: data.age,
+        gender: data.gender,
+        location: data.location,
+        bettingExperience: data.betting_experience,
+        educationLevel: data.education_level,
+        incomeRange: data.income_range,
+        employmentStatus: data.employment_status,
+        maritalStatus: data.marital_status,
+        ethnicity: data.ethnicity,
+        bettingFrequency: data.betting_frequency,
+        typicalBetAmount: data.typical_bet_amount,
       }
+
+      // Merge local cached preferences (e.g., safety settings) if present
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem("serenity_user_data")
+          if (cached) {
+            const parsed = JSON.parse(cached) as Partial<UserData>
+            if (parsed) {
+              if (parsed.cooldownEnabled !== undefined) (profile as any).cooldownEnabled = parsed.cooldownEnabled
+              if (parsed.behaviorNudgesEnabled !== undefined) (profile as any).behaviorNudgesEnabled = parsed.behaviorNudgesEnabled
+              if (parsed.dailyBetLimit !== undefined) (profile as any).dailyBetLimit = parsed.dailyBetLimit as any
+              if (parsed.maxStakeLimit !== undefined) (profile as any).maxStakeLimit = parsed.maxStakeLimit as any
+            }
+          }
+        } catch {}
+      }
+
+      return profile
     }
 
     // Fallback to localStorage
@@ -102,43 +144,100 @@ export const storageHybrid = {
   },
 
   async setUserData(data: UserData): Promise<void> {
-    const userId = await this.getCurrentUserId()
+    try {
+      const userId = await this.getCurrentUserId()
 
-    if (userId) {
-      const { error } = await supabase
+      if (!userId) {
+        console.error('❌ No user ID found, cannot update profile')
+        return
+      }
+
+      // Build a safe update payload limited to stable columns
+      const updateData: any = {
+        id: userId,
+        name: data.name,
+      }
+
+      // Add subscription fields if present
+      if (data.subscriptionTier !== undefined) {
+        updateData.subscription_tier = data.subscriptionTier
+      }
+      if (data.subscriptionStatus !== undefined) {
+        updateData.subscription_status = data.subscriptionStatus
+      }
+      if (data.subscriptionStartedAt !== undefined) {
+        updateData.subscription_started_at = data.subscriptionStartedAt
+      }
+      if (data.subscriptionEndsAt !== undefined) {
+        updateData.subscription_ends_at = data.subscriptionEndsAt
+      }
+
+      // Add profile and demographic fields if present
+      // Convert empty strings to null for optional fields
+      if (data.username !== undefined) {
+        updateData.username = data.username || null
+      }
+      if (data.age !== undefined) {
+        // Ensure age is either a valid number >= 18 or null
+        updateData.age = (data.age && data.age >= 18) ? data.age : null
+      }
+      if (data.gender !== undefined) {
+        updateData.gender = data.gender || null
+      }
+      if (data.location !== undefined) {
+        updateData.location = data.location || null
+      }
+      if (data.bettingExperience !== undefined) {
+        updateData.betting_experience = data.bettingExperience || null
+      }
+      if (data.educationLevel !== undefined) {
+        updateData.education_level = data.educationLevel || null
+      }
+      if (data.incomeRange !== undefined) {
+        updateData.income_range = data.incomeRange || null
+      }
+      if (data.employmentStatus !== undefined) {
+        updateData.employment_status = data.employmentStatus || null
+      }
+      if (data.maritalStatus !== undefined) {
+        updateData.marital_status = data.maritalStatus || null
+      }
+      if (data.ethnicity !== undefined) {
+        updateData.ethnicity = data.ethnicity || null
+      }
+      if (data.bettingFrequency !== undefined) {
+        updateData.betting_frequency = data.bettingFrequency || null
+      }
+      if (data.typicalBetAmount !== undefined) {
+        updateData.typical_bet_amount = data.typicalBetAmount || null
+      }
+
+      console.log('📝 Attempting to update user profile with data:', updateData)
+      
+      const { data: result, error } = await supabase
         .from("user_profiles")
-        .upsert({
-          id: userId,
-          name: data.name,
-          level: data.level,
-          xp: data.xp,
-          xp_to_next_level: data.xpToNextLevel,
-          emotional_awareness_streak: data.emotionalAwarenessStreak,
-          bias_recognition_score: data.biasRecognitionScore,
-          mindful_decision_percentage: data.mindfulDecisionPercentage,
-          total_trades: data.totalTrades,
-          mindful_trades: data.mindfulTrades,
-          serenity_tokens: data.serenityTokens,
-          daily_rings: data.dailyRings,
-          last_ring_reset: data.lastRingReset.toISOString(),
-          perfect_days: data.perfectDays,
-          longest_streak: data.longestStreak,
-          total_emotions_logged: data.totalEmotionsLogged,
-          total_biases_identified: data.totalBiasesIdentified,
-          total_journals_completed: data.totalJournalsCompleted,
-          total_modules_completed: data.totalModulesCompleted,
-          total_breathing_exercises: data.totalBreathingExercises,
-          most_productive_day: data.mostProductiveDay,
-        })
+        .upsert(updateData)
+        .select()
 
       if (error) {
-        console.error("Error updating user profile:", error)
+        console.error("❌ Error updating user profile:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error
+        })
+      } else {
+        console.log('✅ User profile updated successfully:', result)
       }
-    }
 
-    // Also save to localStorage as cache
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data))
+      // Also save to localStorage as cache
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data))
+      }
+    } catch (err) {
+      console.error('❌ Exception in setUserData:', err)
+      throw err
     }
   },
 
@@ -247,10 +346,11 @@ export const storageHybrid = {
     const userId = await this.getCurrentUserId()
 
     if (userId) {
+      // Generate a proper UUID for the database (don't use the timestamp-based ID)
       const { error } = await supabase
         .from("trades")
         .insert({
-          id: trade.id,
+          // Let Supabase generate the UUID automatically by not including 'id'
           user_id: userId,
           asset: "Unknown", // Not in Trade type but required by schema
           type: "Unknown", // Not in Trade type but required by schema
@@ -1008,4 +1108,129 @@ function getDefaultChallenges(): Challenge[] {
       expiresAt: weekEnd,
     },
   ]
+}
+
+// Extend storageHybrid with bet analysis methods
+// @ts-ignore - Adding methods dynamically
+storageHybrid.addBetAnalysis = async function(analysis: BetAnalysis): Promise<void> {
+  const userId = await this.getCurrentUserId()
+
+  if (userId) {
+    try {
+      const { error } = await supabase
+        .from("bet_analyses")
+        .insert({
+          user_id: userId,
+          bet_type: analysis.betType,
+          sport: analysis.sport,
+          description: analysis.description,
+          odds: analysis.odds,
+          stake: analysis.stake,
+          emotional_state: analysis.emotionalState,
+          emotional_intensity: analysis.emotionalIntensity,
+          bias_warnings: analysis.biasWarnings,
+          ai_recommendation: analysis.aiRecommendation,
+          expected_value: analysis.expectedValue,
+          probability_estimate: analysis.probabilityEstimate,
+          outcome: analysis.outcome,
+          actual_return: analysis.actualReturn,
+          timestamp: analysis.timestamp.toISOString(),
+        })
+
+      if (error) {
+        console.error("Error saving bet analysis:", error)
+      }
+    } catch (error) {
+      console.error("Error saving bet analysis:", error)
+    }
+  }
+
+  // Also save to localStorage as backup
+  if (typeof window !== "undefined") {
+    const analyses = JSON.parse(localStorage.getItem("bet_analyses") || "[]")
+    analyses.push(analysis)
+    // Keep only last 50 analyses
+    const trimmed = analyses.slice(-50)
+    localStorage.setItem("bet_analyses", JSON.stringify(trimmed))
+  }
+}
+
+// @ts-ignore - Adding methods dynamically
+storageHybrid.updateBetAnalysis = async function(analysis: BetAnalysis): Promise<void> {
+  const userId = await this.getCurrentUserId()
+
+  if (userId && analysis.id) {
+    try {
+      const { error } = await supabase
+        .from("bet_analyses")
+        .update({
+          outcome: analysis.outcome,
+          actual_return: analysis.actualReturn,
+        })
+        .eq("id", analysis.id)
+        .eq("user_id", userId)
+
+      if (error) {
+        console.error("Error updating bet analysis:", error)
+      }
+    } catch (error) {
+      console.error("Error updating bet analysis:", error)
+    }
+  }
+
+  // Also update in localStorage
+  if (typeof window !== "undefined") {
+    const analyses = JSON.parse(localStorage.getItem("bet_analyses") || "[]")
+    const index = analyses.findIndex((a: BetAnalysis) => a.id === analysis.id)
+    if (index !== -1) {
+      analyses[index] = analysis
+      localStorage.setItem("bet_analyses", JSON.stringify(analyses))
+    }
+  }
+}
+
+// @ts-ignore - Adding methods dynamically
+storageHybrid.getBetAnalyses = async function(): Promise<BetAnalysis[]> {
+  const userId = await this.getCurrentUserId()
+
+  if (userId) {
+    try {
+      const { data, error } = await supabase
+        .from("bet_analyses")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+        .limit(50)
+
+      if (data && !error) {
+        return data.map((row: any) => ({
+          id: row.id,
+          timestamp: new Date(row.timestamp),
+          betType: row.bet_type,
+          sport: row.sport,
+          description: row.description,
+          odds: row.odds,
+          stake: row.stake,
+          emotionalState: row.emotional_state,
+          emotionalIntensity: row.emotional_intensity,
+          biasWarnings: row.bias_warnings || [],
+          aiRecommendation: row.ai_recommendation,
+          expectedValue: row.expected_value,
+          probabilityEstimate: row.probability_estimate,
+          outcome: row.outcome,
+          actualReturn: row.actual_return,
+        }))
+      }
+    } catch (error) {
+      console.error("Error fetching bet analyses:", error)
+    }
+  }
+
+  // Fallback to localStorage
+  if (typeof window !== "undefined") {
+    const data = localStorage.getItem("bet_analyses")
+    return data ? JSON.parse(data) : []
+  }
+
+  return []
 }

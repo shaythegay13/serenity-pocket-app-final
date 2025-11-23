@@ -124,3 +124,47 @@ See [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) for detailed instructions.
 - [AUTH_SETUP.md](./AUTH_SETUP.md) - Authentication configuration
 - [MOBILE_DEPLOYMENT.md](./MOBILE_DEPLOYMENT.md) - Mobile app deployment
 - [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) - Quick mobile setup
+
+## Architecture & Extension
+
+### Stack
+
+- Next.js 16 (app router), React 19, TypeScript, Tailwind v4, Radix UI
+- Supabase (auth, DB), Stripe (subscriptions), Capacitor (mobile)
+
+### Frontend structure
+
+- App routes: dashboard and marketing pages under `app/`
+- Core tabs in `components/tabs/*`: home, live-odds, analyze-bet, behavior, ai-picks, history, account
+- Onboarding: `components/onboarding/*` (Instant Profile, Profile Preview, Soft Gate)
+- Survey flow with A/B: `components/integrated-survey-flow/*` and `lib/abTesting`
+
+### Tiering & Feature Gates
+
+- Tier model and helpers: `lib/subscription-tiers.ts` (`canAccessFeature`, `getUpgradeMessage`)
+- UI gate overlay: `components/feature-gate.tsx`
+- Tiers: `free`, `premium`, `premium_plus`, `elite`
+
+### Behavioral Safeguards
+
+- User settings (e.g., `cooldownEnabled`) and derived stability guard used to limit actions
+- Guards and banners applied across Live Odds, Analyze Bet, AI Picks, and Home quick actions
+
+### APIs
+
+- Live Odds: `app/api/odds/route.ts` → `lib/odds-api.ts`
+- Analyze Bet: `app/api/analyze-bet/route.ts` (uses OpenAI when configured, falls back to mock)
+- AI Picks: `app/api/ai-picks/route.ts` (uses OpenAI when configured, falls back to mock)
+- Surveys: `app/api/gambling-survey*` (A/B variants), with services under `lib/`
+
+### Environment
+
+- Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- A/B testing: `NEXT_PUBLIC_SURVEY_AB_TEST_ENABLED`, `NEXT_PUBLIC_SURVEY_B_PERCENTAGE`
+- Odds API: `NEXT_PUBLIC_ODDS_API_KEY` (The Odds API)
+- Place real keys in `.env.local`
+
+### Mobile
+
+- Capacitor build scripts in `package.json` and guides under docs
+- Run `npm run build:mobile` and sync/open with the provided commands

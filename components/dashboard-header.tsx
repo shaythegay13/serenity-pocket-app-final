@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
 import Image from "next/image"
 import { SerenityTokenDisplay } from "@/components/serenity-token-display"
+import { computeArchetypeFromSnapshot } from "@/lib/archetypes"
+import type { SurveyAnswer } from "@/types/survey"
 import type { UserData } from "@/lib/types"
 
 interface DashboardHeaderProps {
@@ -22,17 +24,31 @@ export function DashboardHeader({ userData }: DashboardHeaderProps) {
             <Image src="/logo.png" alt="Serenity Pocket" width={60} height={60} />
             <div>
               <h1 className="text-xl font-bold text-foreground">Serenity Pocket</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Decision Psychology for Traders & Bettors</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">Your Behavioral Betting Companion</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             {userData && (
-              <SerenityTokenDisplay 
-                tokens={userData.serenityTokens} 
-                surveyScore={userData.surveyData?.score}
-                surveyLevel={userData.surveyData?.level}
-              />
+              (() => {
+                let archetypeName: string | undefined = undefined
+                try {
+                  const ans = userData.surveyData?.answers
+                  if (ans && typeof ans === 'object') {
+                    const snapshotAnswers: SurveyAnswer[] = Object.entries(ans).map(([questionId, selectedOption]) => ({ questionId, selectedOption } as SurveyAnswer))
+                    const at = computeArchetypeFromSnapshot(snapshotAnswers)
+                    archetypeName = at?.name
+                  }
+                } catch {}
+                return (
+                  <SerenityTokenDisplay 
+                    tokens={userData.serenityTokens}
+                    surveyScore={userData.surveyData?.score}
+                    surveyLevel={userData.surveyData?.level}
+                    archetypeName={archetypeName}
+                  />
+                )
+              })()
             )}
 
             <Button

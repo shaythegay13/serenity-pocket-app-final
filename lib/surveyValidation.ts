@@ -48,22 +48,23 @@ export const surveySubmissionSchema = z.object({
   email: emailSchema,
   responses: z
     .array(surveyAnswerSchema)
-    .length(8, { message: 'All 8 questions must be answered' })
-    .refine(
-      (responses) => {
-        // Check all questions are answered exactly once
-        const questionIds = responses.map((r) => r.questionId);
-        const uniqueIds = new Set(questionIds);
-        return uniqueIds.size === 8;
-      },
-      { message: 'Each question must be answered exactly once' }
-    )
+    .min(12, { message: 'Please answer all required questions' })
+    .refine((responses) => {
+      // For non-multi questions: exactly one answer per question
+      const singles = SURVEY_QUESTIONS.filter((q) => !q.multi).map((q) => q.id);
+      return singles.every((id) => responses.filter((r) => r.questionId === id).length === 1);
+    }, { message: 'Each single-select question must be answered exactly once' })
+    .refine((responses) => {
+      // For multi questions: at least one answer per question
+      const multis = SURVEY_QUESTIONS.filter((q) => q.multi).map((q) => q.id);
+      return multis.every((id) => responses.filter((r) => r.questionId === id).length >= 1);
+    }, { message: 'Please select at least one option for each multi-select question' })
     .refine(
       (responses) => {
         // Validate that selected options are valid for each question
         return responses.every((response) => {
           const question = SURVEY_QUESTIONS.find((q) => q.id === response.questionId);
-          return question && question.options.includes(response.selectedOption);
+          return question != null && question.options.includes(response.selectedOption);
         });
       },
       { message: 'Invalid answer option for one or more questions' }
@@ -102,22 +103,28 @@ export function validateSurveySubmission(input: unknown): {
 // Calculate survey score based on responses
 export function calculateSurveyScore(responses: SurveyAnswer[]): number {
   let totalScore = 0;
-  
+
   for (const response of responses) {
     const question = SURVEY_QUESTIONS.find((q) => q.id === response.questionId);
     if (!question) continue;
-    
+
     const optionIndex = question.options.indexOf(response.selectedOption);
     if (optionIndex === -1) continue;
-    
+
     totalScore += question.weight[optionIndex];
   }
-  
-  // Return raw score (max possible is around 144 points)
-  // But we'll scale it to 0-50 for compatibility with original system
-  const maxPossibleScore = 144; // Sum of all maximum weights
-  const scaledScore = Math.round((totalScore / maxPossibleScore) * 50);
-  
+
+  // Scale to 0-50 dynamically based on the theoretical maximum
+  const maxPossibleScore = SURVEY_QUESTIONS.reduce((acc, q) => {
+    if (q.multi) {
+      // Sum positive weights since multi-select can choose multiple options
+      const sum = q.weight.reduce((s, w) => s + Math.max(0, w), 0);
+      return acc + sum;
+    }
+    return acc + Math.max(...q.weight);
+  }, 0);
+
+  const scaledScore = Math.round((totalScore / Math.max(1, maxPossibleScore)) * 50);
   return Math.min(50, Math.max(0, scaledScore));
 }
 

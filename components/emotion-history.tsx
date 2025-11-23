@@ -1,8 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import type { EmotionLog, Trade } from "@/lib/types"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { format } from "date-fns"
 
 interface EmotionHistoryProps {
@@ -26,6 +30,17 @@ const phaseLabels = {
 }
 
 export function EmotionHistory({ logs, trades }: EmotionHistoryProps) {
+  const [titles, setTitles] = useState<Record<string, string>>({})
+  const [editing, setEditing] = useState<string | null>(null)
+
+  useEffect(() => {
+    const map: Record<string, string> = {}
+    for (const t of trades) {
+      if (t.title) map[t.id] = t.title
+    }
+    setTitles(map)
+  }, [trades])
+
   if (trades.length === 0) {
     return (
       <Card className="p-6">
@@ -48,22 +63,51 @@ export function EmotionHistory({ logs, trades }: EmotionHistoryProps) {
         const postBetLog = logs.find(log => log.phase === 'after' && 
           new Date(log.timestamp).getTime() > new Date(trade.timestamp).getTime())
 
+        const defaultTitle = `${format(new Date(trade.timestamp), "MMM d, yyyy 'at' h:mm a")}${trade.sport ? ` — ${trade.sport}` : ''}`
+        const displayTitle = titles[trade.id] || trade.title || defaultTitle
+
         return (
           <Card key={trade.id} className="p-5 border-2">
             <div className="space-y-4">
               {/* Bet Header */}
               <div className="flex items-center justify-between pb-3 border-b">
                 <div>
-                  <h4 className="font-semibold text-foreground text-lg">Bet #{trade.id.slice(-6)}</h4>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(trade.timestamp), "MMM d, yyyy 'at' h:mm a")}
-                  </p>
+                  {editing === trade.id ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        className="h-8"
+                        value={titles[trade.id] ?? displayTitle}
+                        onChange={(e) => setTitles((prev) => ({ ...prev, [trade.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          const newTitle = titles[trade.id] || defaultTitle
+                          await storage.updateTrade(trade.id, { title: newTitle })
+                          setEditing(null)
+                        }}
+                      >
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="font-semibold text-foreground text-lg">{displayTitle}</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(trade.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                      </p>
+                    </>
+                  )}
                 </div>
-                {trade.outcome && (
-                  <Badge variant={trade.outcome === 'profit' ? 'default' : trade.outcome === 'loss' ? 'destructive' : 'secondary'}>
-                    {trade.outcome}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditing(trade.id)}>Rename</Button>
+                  {trade.outcome && (
+                    <Badge variant={trade.outcome === 'profit' ? 'default' : trade.outcome === 'loss' ? 'destructive' : 'secondary'}>
+                      {trade.outcome}
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               {/* Pre-Bet Emotion */}

@@ -11,7 +11,7 @@ interface PremiumTabProps {
 export function PremiumTab({ userData, updateUserData }: PremiumTabProps) {
   return (
     <div className="space-y-6 fade-in">
-      <SubscriptionPricing currentTier={userData.subscriptionTier || "free"} />
+      <SubscriptionPricing currentTier={userData.subscriptionTier as any || "free"} />
     </div>
   )
 }

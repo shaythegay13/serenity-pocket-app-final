@@ -11,11 +11,12 @@ import { Progress } from '@/components/ui/progress';
 
 interface AccountCreationFlowProps {
   email: string;
-  surveyId: string;
+  surveyId?: string;
 }
 
 export default function AccountCreationFlow({ email, surveyId }: AccountCreationFlowProps) {
   const router = useRouter();
+  const [emailValue, setEmailValue] = useState(email || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -63,6 +64,11 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
   const handleCreateAccount = async () => {
     setError(null);
 
+    if (!emailValue) {
+      setError('Please enter your email');
+      return;
+    }
+
     // Validation
     if (username.length < 3) {
       setError('Username must be at least 3 characters');
@@ -88,15 +94,15 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
 
     try {
       // Create account with Supabase
+      const userMetadata: Record<string, any> = { username };
+      if (surveyId) userMetadata.initial_survey_id = surveyId;
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: emailValue,
         password,
         options: {
-          data: {
-            username,
-            initial_survey_id: surveyId,
-          },
-          emailRedirectTo: `${window.location.origin}/survey-link/confirm?email=${encodeURIComponent(email)}`,
+          data: userMetadata,
+          emailRedirectTo: `${window.location.origin}/survey-link/confirm?email=${encodeURIComponent(emailValue)}`,
         },
       });
 
@@ -115,16 +121,16 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         console.log('Email confirmation required for user:', data.user.id);
 
         // Store pending survey info in localStorage for after email confirmation
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && surveyId) {
           localStorage.setItem('pending_survey_link', JSON.stringify({
-            email,
+            email: emailValue,
             surveyId,
             timestamp: Date.now(),
           }));
         }
 
         // Show success message instead of error
-        router.push(`/signup-success?email=${encodeURIComponent(email)}`);
+        router.push(`/signup-success?email=${encodeURIComponent(emailValue)}`);
         return;
       }
 
@@ -155,8 +161,8 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         console.error('Survey linking error:', linkError);
       }
 
-      // Navigate to dashboard
-      router.push('/dashboard');
+      // Navigate to onboarding intro to show snapshot results and continue profile
+      router.push('/onboarding/intro');
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Account creation error:', err);
@@ -181,9 +187,10 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
           <Input
             id="email"
             type="email"
-            value={email}
-            disabled
-            className="bg-muted"
+            value={emailValue}
+            onChange={(e) => setEmailValue(e.target.value)}
+            disabled={isCreating || !!email}
+            className={(isCreating || !!email) ? "bg-muted" : ""}
           />
         </div>
 

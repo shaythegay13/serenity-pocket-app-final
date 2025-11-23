@@ -79,7 +79,7 @@ export default function SurveyHistoryDashboard({ userId }: SurveyHistoryDashboar
   };
 
   const handleRetakeSurvey = () => {
-    window.location.href = '/survey';
+    window.location.href = '/gambling-survey';
   };
 
   if (isLoading) {

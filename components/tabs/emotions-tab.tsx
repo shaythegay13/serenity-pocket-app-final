@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { EmotionHistory } from "@/components/emotion-history"
@@ -16,6 +17,7 @@ import type { UserData, EmotionLog, Trade } from "@/lib/types"
 import { Plus, History, Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import { WeeklyStabilityReport } from "@/components/behavior/WeeklyStabilityReport"
 
 interface EmotionsTabProps {
   userData: UserData
@@ -64,12 +66,12 @@ const coreEmotions = [
 ]
 
 const commonBiases = [
-  { id: "confirmation", label: "Confirmation Bias" },
-  { id: "loss-aversion", label: "Loss Aversion" },
-  { id: "anchoring", label: "Anchoring" },
-  { id: "recency", label: "Recency Bias" },
-  { id: "overconfidence", label: "Overconfidence" },
-  { id: "herd", label: "Herd Mentality" },
+  { id: "confirmation", label: "Confirmation Bias", desc: "Seeking info that confirms your prior belief and ignoring contrary evidence." },
+  { id: "loss-aversion", label: "Loss Aversion", desc: "Feeling losses more strongly than gains, leading to risk-averse or chase behavior." },
+  { id: "anchoring", label: "Anchoring", desc: "Relying too heavily on the first number (e.g., opening line) when making decisions." },
+  { id: "recency", label: "Recency Bias", desc: "Overweighting recent results or trends, underweighting long-term data." },
+  { id: "overconfidence", label: "Overconfidence", desc: "Overestimating your edge or judgment and underestimating variance." },
+  { id: "herd", label: "Herd Mentality", desc: "Following popular picks or consensus without independent reasoning." },
 ]
 
 export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: EmotionsTabProps) {
@@ -81,6 +83,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [context, setContext] = useState<string>("")
   const [phase, setPhase] = useState<"before" | "during" | "after">("before")
   const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | "">("")
+  const [sport, setSport] = useState<string>("")
   const [selectedBiases, setSelectedBiases] = useState<string[]>([])
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
@@ -151,6 +154,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setPhase("before")
     setOutcome("")
     setSelectedBiases([])
+    setSport("")
   }
 
   const handleLogEmotion = async () => {
@@ -182,9 +186,12 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
       
       // Create new trade entry
+      const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` — ${sport}` : ''}`
       const newTrade: Trade = {
         id: Date.now().toString(),
         timestamp: new Date(),
+        title: defaultTitle,
+        sport: sport || undefined,
         preTradeEmotion: selectedEmotion,
         preTradeIntensity: intensity[0],
         biasesIdentified: selectedBiases,
@@ -509,7 +516,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   {commonBiases.map((bias) => (
                     <div
                       key={bias.id}
-                      className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                      className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
                         selectedBiases.includes(bias.id)
                           ? "border-primary bg-primary/5"
                           : "border-border hover:border-primary/50"
@@ -520,7 +527,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                         checked={selectedBiases.includes(bias.id)}
                         onCheckedChange={() => handleBiasToggle(bias.id)}
                       />
-                      <Label className="flex-1 cursor-pointer">{bias.label}</Label>
+                      <div className="flex-1">
+                        <Label className="cursor-pointer">{bias.label}</Label>
+                        <p className="text-xs text-muted-foreground mt-1">{(bias as any).desc}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -591,6 +601,17 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   </RadioGroup>
                 </div>
 
+                {/* Sport (optional) */}
+                <div className="space-y-3">
+                  <Label htmlFor="sport">Sport (optional)</Label>
+                  <Input
+                    id="sport"
+                    placeholder="e.g., NBA, NFL"
+                    value={sport}
+                    onChange={(e) => setSport(e.target.value)}
+                  />
+                </div>
+
                 {/* Outcome (only for after betting) */}
                 {phase === "after" && (
                   <div className="space-y-3">
@@ -655,6 +676,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       {view === "insights" && (
         <div className="space-y-6">
           <EmotionInsights logs={logs} />
+
+          <WeeklyStabilityReport logs={logs} />
 
           <Card className="p-6">
             <h3 className="text-xl font-semibold text-foreground mb-4">Emotional Patterns</h3>

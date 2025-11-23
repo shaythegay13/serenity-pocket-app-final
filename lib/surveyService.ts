@@ -86,22 +86,42 @@ export async function submitAnonymousSurvey(
   return { surveyId: submissionData.id, score };
 }
 
-// Check if anonymous survey exists for email
+// Check if anonymous survey exists for email AND if user has created an account
 export async function checkExistingAnonymousSurvey(
   email: string
 ): Promise<boolean> {
-  const { data, error } = await supabaseServer
+  // First check if there's an existing anonymous survey
+  const { data: surveyData, error: surveyError } = await supabaseServer
     .from('anonymous_survey_submissions')
     .select('id')
     .eq('email', email)
     .single();
 
-  if (error && error.code !== 'PGRST116') {
+  if (surveyError && surveyError.code !== 'PGRST116') {
     // PGRST116 is "no rows returned"
-    throw new Error(`Failed to check existing survey: ${error.message}`);
+    throw new Error(`Failed to check existing survey: ${surveyError.message}`);
   }
 
-  return !!data;
+  // If no survey exists, return false (allow submission)
+  if (!surveyData) {
+    return false;
+  }
+
+  // Survey exists - now check if the email has an associated user account
+  const { data: userData, error: userError } = await supabaseServer.auth.admin.listUsers();
+
+  if (userError) {
+    console.error('Error checking for user account:', userError);
+    // If we can't check user status, be conservative and block resubmission
+    return true;
+  }
+
+  // Check if any user has this email
+  const userExists = userData.users.some(user => user.email === email);
+
+  // Only block resubmission if the user has created an account
+  // If no account exists, allow them to submit again (old data is preserved)
+  return userExists;
 }
 
 // Get user survey history

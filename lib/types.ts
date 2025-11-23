@@ -25,14 +25,18 @@ export interface SurveyData {
 }
 
 export interface SubscriptionTier {
+  id: "free" | "premium" | "premium_plus" | "elite"
   name: string
+  displayName: string
   price: number
   interval: "month" | "year"
   features: string[]
+  description: string
 }
 
 export interface UserData {
   name: string
+  username?: string
   level: number
   xp: number
   xpToNextLevel: number
@@ -57,8 +61,23 @@ export interface UserData {
   totalBreathingExercises: number
   mostProductiveDay: number
   surveyData?: SurveyData
-  subscriptionTier?: "free" | "pro" | "elite" | "master"
+  subscriptionTier?: "free" | "premium" | "premium_plus" | "elite"
+  subscriptionStatus?: "active" | "inactive" | "canceled" | "past_due"
+  subscriptionStartedAt?: string
+  subscriptionEndsAt?: string
   lastEmotionCheckIn?: Date
+  // Profile & Demographics
+  age?: number
+  gender?: string
+  location?: string
+  bettingExperience?: string
+  educationLevel?: string
+  incomeRange?: string
+  employmentStatus?: string
+  maritalStatus?: string
+  ethnicity?: string
+  bettingFrequency?: string
+  typicalBetAmount?: string
   // Onboarding tracking
   onboardingComplete?: boolean
   biographyComplete?: boolean
@@ -69,6 +88,11 @@ export interface UserData {
   unlockedRewards?: string[] // IDs of rewards unlocked with tokens
   selectedBadgeFrame?: string // Currently selected badge frame
   selectedThemeColor?: string // Currently selected theme color
+  // Safety & preferences
+  cooldownEnabled?: boolean
+  behaviorNudgesEnabled?: boolean
+  dailyBetLimit?: number
+  maxStakeLimit?: number
 }
 
 export interface EmotionLog {
@@ -84,6 +108,8 @@ export interface EmotionLog {
 export interface Trade {
   id: string
   timestamp: Date
+  title?: string
+  sport?: string
   preTradeEmotion: string
   preTradeIntensity: number
   biasesIdentified: string[]
@@ -132,4 +158,48 @@ export interface Challenge {
   maxProgress: number
   xpReward: number
   expiresAt: Date
+}
+
+export interface BetAnalysis {
+  id: string
+  timestamp: Date
+  betType: "straight" | "parlay" | "prop"
+  sport: string
+  description: string
+  odds: number
+  stake: number
+  emotionalState: string
+  emotionalIntensity: number
+  biasWarnings: string[]
+  aiRecommendation?: string
+  expectedValue?: number
+  probabilityEstimate?: number
+  outcome?: "win" | "loss" | "push" | "pending"
+  actualReturn?: number
+}
+
+export interface TiltAlert {
+  id: string
+  timestamp: Date
+  severity: "low" | "medium" | "high" | "critical"
+  triggers: string[]
+  recommendation: string
+  cooldownSuggested: boolean
+}
+
+export interface OddsComparison {
+  sportsbook: string
+  odds: number
+  link?: string
+}
+
+export interface LiveOddsData {
+  id: string
+  sport: string
+  event: string
+  eventTime: Date
+  betType: string
+  comparisons: OddsComparison[]
+  bestOdds: number
+  bestSportsbook: string
 }

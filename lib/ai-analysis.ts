@@ -3,11 +3,7 @@
  * Provides probability estimation, EV calculation, and bias detection
  */
 
-import OpenAI from 'openai'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { invokeClaude } from "./aws-bedrock"
 
 export interface BetAnalysisInput {
   description: string
@@ -57,23 +53,26 @@ Focus on mathematical analysis and value betting.`
 
     const userPrompt = buildAnalysisPrompt(input)
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const rawText = await invokeClaude({
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        {
+          role: "user",
+          content: userPrompt,
+        },
       ],
-      temperature: 0.7,
       max_tokens: 1000,
-      response_format: { type: "json_object" }
+      temperature: 0.7,
     })
 
-    const response = completion.choices[0].message.content
-    if (!response) {
-      throw new Error('No response from AI')
+    let jsonText = rawText.trim()
+    if (jsonText.startsWith("```json")) {
+      jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "")
+    } else if (jsonText.startsWith("```")) {
+      jsonText = jsonText.replace(/```\n?/g, "")
     }
 
-    const result = JSON.parse(response)
+    const result = JSON.parse(jsonText)
     
     // Validate and format the response
     return {
@@ -248,66 +247,29 @@ RESPOND IN JSON FORMAT:
 }
 `
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const rawText = await invokeClaude({
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        {
+          role: "user",
+          content: userPrompt,
+        },
       ],
-      temperature: 0.8,
       max_tokens: 1500,
-      response_format: { type: "json_object" }
+      temperature: 0.8,
     })
 
-    const response = completion.choices[0].message.content
-    if (!response) {
-      throw new Error('No response from AI')
+    let jsonText = rawText.trim()
+    if (jsonText.startsWith("```json")) {
+      jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "")
+    } else if (jsonText.startsWith("```")) {
+      jsonText = jsonText.replace(/```\n?/g, "")
     }
 
-    const result = JSON.parse(response)
+    const result = JSON.parse(jsonText)
     return result.picks || []
   } catch (error) {
     console.error('Error generating AI picks:', error)
     throw new Error('Failed to generate AI picks. Please try again.')
-  }
-}
-
-/**
- * Mock analysis for development/testing
- */
-export function getMockAnalysis(input: BetAnalysisInput): BetAnalysisResult {
-  const impliedProb = calculateImpliedProbability(input.odds)
-  const estimatedProb = impliedProb + (Math.random() * 10 - 5) // Add some variance
-  const potentialWin = input.odds > 0 
-    ? (input.stake * input.odds / 100)
-    : (input.stake * 100 / Math.abs(input.odds))
-  const ev = (estimatedProb / 100 * potentialWin) - ((1 - estimatedProb / 100) * input.stake)
-
-  let recommendation: BetAnalysisResult['recommendation'] = 'MODERATE_BET'
-  if (ev > input.stake * 0.1) recommendation = 'STRONG_BET'
-  else if (ev < 0) recommendation = 'AVOID'
-  else if (ev < input.stake * 0.05) recommendation = 'WEAK_BET'
-
-  const biasWarnings: string[] = []
-  if (input.includeBiasDetection) {
-    if (input.emotionalIntensity && input.emotionalIntensity > 7) {
-      biasWarnings.push('High emotional intensity detected - consider waiting before betting')
-    }
-    if (input.emotionalState === 'frustrated' || input.emotionalState === 'angry') {
-      biasWarnings.push('Negative emotions may lead to revenge betting or loss chasing')
-    }
-    if (input.stake > 100) {
-      biasWarnings.push('Large stake size - ensure this aligns with your bankroll management')
-    }
-  }
-
-  return {
-    recommendation,
-    probability: Math.round(estimatedProb),
-    expectedValue: Math.round(ev * 100) / 100,
-    reasoning: `Based on the odds and market analysis, this bet has an estimated ${Math.round(estimatedProb)}% chance of winning with an expected value of $${ev.toFixed(2)}.`,
-    biasWarnings,
-    confidenceScore: 75,
-    riskLevel: input.stake > 100 ? 'HIGH' : input.stake > 50 ? 'MEDIUM' : 'LOW'
   }
 }

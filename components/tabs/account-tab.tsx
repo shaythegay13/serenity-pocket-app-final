@@ -148,9 +148,11 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('success') === 'true') {
-        toast.success('Subscription successful! Your account will be updated shortly.')
+        toast.success('Subscription successful! Your account has been upgraded.')
         // Clear the query params
         window.history.replaceState({}, '', window.location.pathname)
+        // Sync subscription to refresh the data
+        handleSyncSubscription()
       } else if (params.get('canceled') === 'true') {
         toast.info('Subscription canceled. You can upgrade anytime!')
         // Clear the query params

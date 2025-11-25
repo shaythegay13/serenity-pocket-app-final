@@ -21,6 +21,7 @@
     "mobile:build:android": "npm run build:mobile && npx cap sync android && npx cap open android"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.938.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",

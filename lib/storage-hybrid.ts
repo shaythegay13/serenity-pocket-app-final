@@ -81,6 +81,7 @@ export const storageHybrid = {
       // Convert snake_case DB fields to camelCase
       const profile: UserData = {
         name: data.name,
+        email: data.email,
         level: data.level,
         xp: data.xp,
         xpToNextLevel: data.xp_to_next_level,
@@ -156,6 +157,11 @@ export const storageHybrid = {
       const updateData: any = {
         id: userId,
         name: data.name,
+      }
+
+      // Add email if present
+      if (data.email !== undefined) {
+        updateData.email = data.email || null
       }
 
       // Add subscription fields if present

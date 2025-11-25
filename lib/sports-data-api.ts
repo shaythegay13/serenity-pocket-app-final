@@ -7,6 +7,27 @@
 
 import { fetchPlayerStatsByTeam } from './espn-api'
 
+const THESPORTSDB_BASE_URL = process.env.NEXT_PUBLIC_THESPORTSDB_BASE_URL || 'https://www.thesportsdb.com/api/v2/json'
+const THESPORTSDB_API_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || ''
+
+function isTheSportsDBConfigured(): boolean {
+  if (!THESPORTSDB_BASE_URL) return false
+  // Some deployments may rely on the default keyless path; treat empty key as "not configured" to avoid noisy 400s
+  if (!THESPORTSDB_API_KEY) {
+    console.warn('[TheSportsDB] API key not configured; skipping team form/roster lookups')
+    return false
+  }
+  return true
+}
+
+function buildTheSportsDBUrl(pathEnv: string | undefined, defaultPath: string, suffix: string): string {
+  const base = THESPORTSDB_BASE_URL.replace(/\/$/, '')
+  const keySegment = THESPORTSDB_API_KEY ? `/${THESPORTSDB_API_KEY}` : ''
+  const rawPath = (pathEnv || defaultPath).replace(/number$/, '')
+  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+  return `${base}${keySegment}${path}${suffix}`
+}
+
 export interface Player {
   id: string
   name: string
@@ -118,13 +139,32 @@ interface TheSportsDBResponse {
   players?: TheSportsDBPlayer[]
 }
 
+interface TheSportsDBEvent {
+  idEvent?: string
+  strHomeTeam?: string
+  strAwayTeam?: string
+  intHomeScore?: string | number | null
+  intAwayScore?: string | number | null
+  dateEvent?: string
+}
+
+interface TheSportsDBEventResponse {
+  events?: TheSportsDBEvent[]
+}
+
 /**
  * Fetch team roster from TheSportsDB
  */
 export async function fetchTeamRoster(teamName: string, sport: string): Promise<Player[]> {
   try {
-    // TheSportsDB free API - search for team first to get team ID
-    const teamSearchUrl = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`
+    if (!isTheSportsDBConfigured()) {
+      return []
+    }
+    const teamSearchUrl = buildTheSportsDBUrl(
+      process.env.THESPORTSDB_SEARCH_TEAM,
+      '/search/team/',
+      encodeURIComponent(teamName)
+    )
     const teamResponse = await fetch(teamSearchUrl)
     const teamData = await teamResponse.json()
 
@@ -135,8 +175,11 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
 
     const teamId = teamData.teams[0].idTeam
 
-    // Fetch players for the team
-    const playersUrl = `https://www.thesportsdb.com/api/v1/json/3/lookup_all_players.php?id=${teamId}`
+    const playersUrl = buildTheSportsDBUrl(
+      process.env.THESPORTSDB_LIST_LEAGUE_TEAMS,
+      '/list/players/',
+      String(teamId)
+    )
     const playersResponse = await fetch(playersUrl)
     const playersData: TheSportsDBResponse = await playersResponse.json()
 
@@ -161,13 +204,77 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
 }
 
 /**
+ * Fetch recent results for a team (e.g., last 5 games) as a simple form string array like ['W','L','D']
+ */
+export async function fetchTeamRecentResults(teamName: string, limit: number = 5): Promise<string[]> {
+  try {
+    if (!isTheSportsDBConfigured()) {
+      return []
+    }
+    const teamSearchUrl = buildTheSportsDBUrl(
+      process.env.THESPORTSDB_SEARCH_TEAM,
+      '/search/team/',
+      encodeURIComponent(teamName)
+    )
+    const teamResponse = await fetch(teamSearchUrl)
+    const teamData = await teamResponse.json()
+
+    if (!teamData.teams || teamData.teams.length === 0) {
+      console.warn(`[Team Form] Team not found: ${teamName}`)
+      return []
+    }
+
+    const teamId = teamData.teams[0].idTeam
+
+    const scheduleUrl = buildTheSportsDBUrl(
+      process.env.THESPORTSDB_PREVIOUS_10_EVENTS_IN_TEAM,
+      '/schedule/previous/team/',
+      String(teamId)
+    )
+    const scheduleResponse = await fetch(scheduleUrl)
+    const scheduleData: TheSportsDBEventResponse = await scheduleResponse.json()
+
+    if (!scheduleData.events || scheduleData.events.length === 0) {
+      console.warn(`[Team Form] No previous events for team: ${teamName}`)
+      return []
+    }
+
+    const events = scheduleData.events.slice(0, limit)
+
+    return events.map((evt) => {
+      const homeScore = evt.intHomeScore != null ? Number(evt.intHomeScore) : null
+      const awayScore = evt.intAwayScore != null ? Number(evt.intAwayScore) : null
+      if (homeScore == null || awayScore == null) return '–'
+
+      const isHome = evt.strHomeTeam?.toLowerCase() === teamName.toLowerCase()
+      const isAway = evt.strAwayTeam?.toLowerCase() === teamName.toLowerCase()
+      if (!isHome && !isAway) return '–'
+
+      if (homeScore === awayScore) return 'D'
+
+      const didWin = (isHome && homeScore > awayScore) || (isAway && awayScore > homeScore)
+      return didWin ? 'W' : 'L'
+    })
+  } catch (error) {
+    console.error('[Team Form] Error fetching recent results:', error)
+    return []
+  }
+}
+
+/**
  * Fetch detailed player information
  * Uses TheSportsDB for bio/image and ESPN for real-time stats
  */
 export async function fetchPlayerDetails(playerId: string, playerName: string, teamName?: string, sport?: string): Promise<PlayerDetail | null> {
   try {
-    // Search by player name in TheSportsDB for bio and image
-    const searchUrl = `https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(playerName)}`
+    if (!isTheSportsDBConfigured()) {
+      return null
+    }
+    const searchUrl = buildTheSportsDBUrl(
+      process.env.THESPORTSDB_SEARCH_PLAYER,
+      '/search/player/',
+      encodeURIComponent(playerName)
+    )
     const response = await fetch(searchUrl)
     const data: TheSportsDBResponse = await response.json()
 

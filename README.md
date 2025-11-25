@@ -164,6 +164,25 @@ See [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) for detailed instructions.
 - Odds API: `NEXT_PUBLIC_ODDS_API_KEY` (The Odds API)
 - Place real keys in `.env.local`
 
+### Testing Mode: Subscriptions Without Payment
+
+**IMPORTANT**: The subscription system is currently in **TESTING MODE**. Users can subscribe to any tier (Free, Premium, Premium Plus, Elite) without payment for testing purposes.
+
+**How it works:**
+- The Stripe checkout flow has been bypassed
+- When users click "Upgrade", they are immediately subscribed to the selected tier
+- Subscriptions are set to "active" status with a 1-month duration
+- All subscription features are unlocked without requiring payment
+
+**Location of changes:**
+- [app/api/stripe/checkout/route.ts](app/api/stripe/checkout/route.ts#L43-L44) - Bypasses Stripe, directly updates database
+- [components/tabs/account-tab.tsx](components/tabs/account-tab.tsx#L151-L155) - Auto-syncs subscription after upgrade
+
+**To enable real Stripe payments later:**
+1. Restore the original Stripe checkout code from git history
+2. Configure Stripe environment variables (see STRIPE_SETUP_GUIDE.md)
+3. Test the Stripe webhook integration
+
 ### Mobile
 
 - Capacitor build scripts in `package.json` and guides under docs

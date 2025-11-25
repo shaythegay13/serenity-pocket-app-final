@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       .upsert({
         id: user.id,
         name: user.email?.split('@')[0] || 'User',
+        email: user.email,
         level: 1,
         xp: 0,
         xp_to_next_level: 100,

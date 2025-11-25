@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input"
 import { TrendingUp, Search, Filter, ExternalLink, Lock, RefreshCw, AlertCircle } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
-import { fetchLiveOdds, getMockOddsData, transformOddsForDisplay, fetchPlayerProps, transformPlayerPropsForDisplay, getMockPlayerProps } from "@/lib/odds-api"
+import { fetchPlayerProps, transformPlayerPropsForDisplay } from "@/lib/odds-api"
+import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FeatureGate } from "@/components/feature-gate"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import { fetchTeamRoster, type Player } from "@/lib/sports-data-api"
+import { fetchTeamRoster, fetchTeamRecentResults, type Player } from "@/lib/sports-data-api"
 import { PlayerDetailDialog } from "@/components/odds/player-detail-dialog"
 
 interface LiveOddsTabProps {
@@ -31,6 +32,9 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
   const hasAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
   const cooldown = !!userData.cooldownEnabled
   const [dailyBetCount, setDailyBetCount] = useState(0)
+  // Advantage opportunities state
+  const [advantageOpportunities, setAdvantageOpportunities] = useState<any[]>([])
+  const [showAdvantages, setShowAdvantages] = useState(false)
   // Player props modal state
   const [propsOpenId, setPropsOpenId] = useState<string | null>(null)
   const [propsLoading, setPropsLoading] = useState(false)
@@ -44,6 +48,16 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
   const [loadingRosters, setLoadingRosters] = useState<Set<string>>(new Set())
   // Player detail dialog state
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string; team: string; sport: string } | null>(null)
+  const [teamForm, setTeamForm] = useState<Record<string, string[]>>({})
+  // AI Coach dialog state
+  const [coachOpenId, setCoachOpenId] = useState<string | null>(null)
+  const [coachStake, setCoachStake] = useState<string>("")
+  const [coachReason, setCoachReason] = useState<string>("")
+  const [coachFavoriteTeam, setCoachFavoriteTeam] = useState<boolean>(false)
+  const [coachRivalTeam, setCoachRivalTeam] = useState<boolean>(false)
+  const [coachLoading, setCoachLoading] = useState(false)
+  const [coachError, setCoachError] = useState<string | null>(null)
+  const [coachResult, setCoachResult] = useState<any | null>(null)
 
   // Fetch live odds on mount and when sport changes
   useEffect(() => {
@@ -63,14 +77,13 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     try {
       const res = await fetchPlayerProps(odds.sportKey, odds.id)
       if (res.success && res.data) {
-        let rows = transformPlayerPropsForDisplay(res.data)
-        if (!rows.length) rows = getMockPlayerProps(odds.homeTeam, odds.awayTeam)
+        const rows = transformPlayerPropsForDisplay(res.data)
         setPropsRows(rows)
       } else {
-        setPropsRows(getMockPlayerProps(odds.homeTeam, odds.awayTeam) as any)
+        setPropsRows([])
       }
     } catch {
-      setPropsRows(getMockPlayerProps(odds.homeTeam, odds.awayTeam) as any)
+      setPropsRows([])
     } finally {
       setPropsLoading(false)
     }
@@ -95,58 +108,56 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     setLoading(true)
     setError(null)
 
-    const result = await fetchLiveOdds(selectedSport)
+    const response = await fetchEnhancedLiveOdds(selectedSport, 'auto')
 
-    if (result.success && result.data) {
-      const transformed = transformOddsForDisplay(result.data)
-      setOddsData(transformed)
-      
-      if (result.remainingRequests !== undefined) {
-        console.log(`API requests remaining: ${result.remainingRequests}`)
+    if (response.success && response.data) {
+      setOddsData(response.data)
+
+      const uniqueTeams = new Set<string>()
+      response.data.forEach((odds: any) => {
+        if (odds.homeTeam) uniqueTeams.add(odds.homeTeam)
+        if (odds.awayTeam) uniqueTeams.add(odds.awayTeam)
+      })
+
+      for (const team of uniqueTeams) {
+        if (teamForm[team]) continue
+        fetchTeamRecentResults(team, 5).then(form => {
+          if (form && form.length) {
+            setTeamForm(prev => ({ ...prev, [team]: form }))
+          }
+        }).catch(err => {
+          console.warn('Error loading team form for', team, err)
+        })
+      }
+
+      // Store advantage opportunities
+      if (response.advantageOpportunities && response.advantageOpportunities.length > 0) {
+        setAdvantageOpportunities(response.advantageOpportunities)
+        console.log(`💰 Found ${response.advantageOpportunities.length} advantage opportunities (arbitrage/+EV)`)
+      } else {
+        setAdvantageOpportunities([])
+      }
+
+      // Log API source and remaining requests
+      console.log(`📊 Odds loaded from: ${response.source}`)
+      if (response.remainingRequests) {
+        if (response.remainingRequests.rapidapi !== undefined) {
+          console.log(`🔑 RapidAPI requests remaining: ${response.remainingRequests.rapidapi}`)
+        }
+        if (response.remainingRequests.theodds !== undefined) {
+          console.log(`🔑 The Odds API requests remaining: ${response.remainingRequests.theodds}`)
+        }
       }
     } else {
-      // Fallback to mock data if API fails
-      console.warn('Using mock data:', result.error)
-      setOddsData(getMockOddsData())
-      setError(result.error || 'Failed to load odds')
+      const unifiedMsg = 'Sorry, we are unable to show current game data right now. Please check back another time.'
+      console.warn('⚠️ Odds providers unavailable:', response.error)
+      setOddsData([])
+      setAdvantageOpportunities([])
+      setError(response.error || unifiedMsg)
     }
 
     setLoading(false)
   }
-
-  // Mock odds data for locked state preview
-  const mockOddsPreview = [
-    {
-      id: "1",
-      sport: "NBA",
-      event: "Lakers vs Warriors",
-      eventTime: new Date(Date.now() + 3600000),
-      betType: "Moneyline",
-      comparisons: [
-        { sportsbook: "DraftKings", odds: -110 },
-        { sportsbook: "FanDuel", odds: -105 },
-        { sportsbook: "BetMGM", odds: -115 },
-        { sportsbook: "Caesars", odds: -108 },
-      ],
-      bestOdds: -105,
-      bestSportsbook: "FanDuel",
-    },
-    {
-      id: "2",
-      sport: "NFL",
-      event: "Chiefs vs Bills",
-      eventTime: new Date(Date.now() + 7200000),
-      betType: "Spread",
-      comparisons: [
-        { sportsbook: "DraftKings", odds: -3.5 },
-        { sportsbook: "FanDuel", odds: -3 },
-        { sportsbook: "BetMGM", odds: -3.5 },
-        { sportsbook: "Caesars", odds: -3 },
-      ],
-      bestOdds: -3,
-      bestSportsbook: "FanDuel",
-    },
-  ]
 
   // Sports options
   const sports = [
@@ -182,29 +193,7 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
           </Button>
         </Card>
 
-        {/* Preview of what's available */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-50 pointer-events-none blur-sm">
-          {mockOddsPreview.map((odds) => (
-            <Card key={odds.id} className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <Badge variant="outline">{odds.sport}</Badge>
-                  <h3 className="text-lg font-semibold text-foreground mt-2">{odds.event}</h3>
-                  <p className="text-xs text-muted-foreground">{odds.eventTime.toLocaleString()}</p>
-                </div>
-                <TrendingUp className="h-6 w-6 text-green-500" />
-              </div>
-              <div className="space-y-2">
-                {odds.comparisons.map((comp) => (
-                  <div key={comp.sportsbook} className="flex items-center justify-between p-2 rounded bg-muted">
-                    <span className="text-sm font-medium">{comp.sportsbook}</span>
-                    <span className="text-sm">{comp.odds}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
+        {/* Locked users do not see live data without preview mocks */}
       </div>
     )
   }
@@ -287,13 +276,100 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
           <div className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-yellow-500" />
             <div>
-              <p className="text-sm font-medium text-foreground">Using Mock Data</p>
+              <p className="text-sm font-medium text-foreground">Data Currently Unavailable</p>
               <p className="text-xs text-muted-foreground">{error}</p>
               <p className="text-xs text-muted-foreground mt-1">
                 Check that NEXT_PUBLIC_ODDS_API_KEY is set in .env.local and restart the server.
               </p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Advantage Opportunities Section */}
+      {!loading && advantageOpportunities.length > 0 && (
+        <Card className="p-6 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              <h3 className="text-lg font-semibold text-foreground">
+                💰 Advantage Opportunities ({advantageOpportunities.length})
+              </h3>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAdvantages(!showAdvantages)}
+            >
+              {showAdvantages ? 'Hide' : 'Show'} Details
+            </Button>
+          </div>
+
+          <p className="text-sm text-muted-foreground mb-4">
+            {advantageOpportunities.filter(o => o.advantageType === 'ARBITRAGE').length} Arbitrage bets (risk-free profit) • {' '}
+            {advantageOpportunities.filter(o => o.advantageType === 'POSITIVE_EV').length} Positive EV bets (value bets)
+          </p>
+
+          {showAdvantages && (
+            <div className="space-y-3 mt-4">
+              {advantageOpportunities.map((opp, index) => (
+                <Card key={index} className="p-4 bg-background/50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={opp.advantageType === 'ARBITRAGE' ? 'default' : 'secondary'}>
+                          {opp.advantageType === 'ARBITRAGE' ? '🔒 Arbitrage' : '📈 +EV'}
+                        </Badge>
+                        <span className="text-sm font-medium text-foreground">{opp.event}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {opp.league} • {new Date(opp.eventTime).toLocaleString()}
+                      </p>
+                    </div>
+                    {opp.advantageType === 'ARBITRAGE' && opp.profitPercentage && (
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-green-500">+{opp.profitPercentage.toFixed(2)}%</p>
+                        <p className="text-xs text-muted-foreground">Guaranteed Profit</p>
+                      </div>
+                    )}
+                    {opp.advantageType === 'POSITIVE_EV' && opp.expectedValue && (
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-blue-500">+{opp.expectedValue.toFixed(2)}%</p>
+                        <p className="text-xs text-muted-foreground">Expected Value</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Books to use:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {opp.books?.map((book: any, bookIndex: number) => (
+                        <div key={bookIndex} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{book.sportsbook}</p>
+                            <p className="text-xs text-muted-foreground">{book.selection}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-foreground">
+                              {book.odds > 0 ? `+${book.odds}` : book.odds}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {opp.advantageType === 'ARBITRAGE' && (
+                    <div className="mt-3 p-3 bg-green-500/10 rounded border border-green-500/30">
+                      <p className="text-xs text-foreground">
+                        <strong>How it works:</strong> Place bets on both outcomes across different sportsbooks for guaranteed profit regardless of the outcome.
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -312,12 +388,13 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
             .filter((odds) => {
               if (!searchQuery) return true
               const query = searchQuery.toLowerCase()
+              const eventTime = odds.commenceTime || odds.eventTime
               // Search across teams, sport, event time
               const matchesBasic = (
                 odds.homeTeam.toLowerCase().includes(query) ||
                 odds.awayTeam.toLowerCase().includes(query) ||
                 odds.sport.toLowerCase().includes(query) ||
-                odds.commenceTime.toLocaleString().toLowerCase().includes(query)
+                (eventTime && eventTime.toLocaleString().toLowerCase().includes(query))
               )
               // Also search in player rosters if available
               const homeRoster = teamRosters[odds.homeTeam] || []
@@ -325,16 +402,26 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
               const matchesPlayer = [...homeRoster, ...awayRoster].some(p => p.name.toLowerCase().includes(query))
               return matchesBasic || matchesPlayer
             })
-            .map((odds) => (
-            <Card key={odds.id} className="p-6 hover:shadow-lg transition-shadow">
+            .map((odds) => {
+              if (!odds.homeOdds || !odds.awayOdds) {
+                return null
+              }
+
+              return (
+                <Card key={odds.id} className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <Badge variant="outline" className="mb-2">{odds.sport}</Badge>
                   <h3 className="text-lg font-semibold text-foreground">
                     {odds.awayTeam} @ {odds.homeTeam}
                   </h3>
+                  {(teamForm[odds.homeTeam] || teamForm[odds.awayTeam]) && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Recent form — Home: {teamForm[odds.homeTeam]?.join(' ') || 'n/a'} • Away: {teamForm[odds.awayTeam]?.join(' ') || 'n/a'}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    {odds.commenceTime.toLocaleString()}
+                    {(odds.commenceTime || odds.eventTime) && (odds.commenceTime || odds.eventTime).toLocaleString()}
                   </p>
                 </div>
                 <TrendingUp className="h-6 w-6 text-green-500" />
@@ -424,7 +511,7 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                         sport: odds.sport,
                         homeTeam: odds.homeTeam,
                         awayTeam: odds.awayTeam,
-                        eventTime: odds.commenceTime.toISOString(),
+                        eventTime: (odds.commenceTime || odds.eventTime) ? (odds.commenceTime || odds.eventTime).toISOString() : new Date().toISOString(),
                         bestHomeOdds: odds.homeOdds.best.odds,
                         bestAwayOdds: odds.awayOdds.best.odds,
                         bestHomeBookmaker: odds.homeOdds.best.bookmaker,
@@ -439,6 +526,20 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                     disabled={cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit)}
                   >
                     Analyze This Bet
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setCoachOpenId(odds.id)
+                      setCoachStake("")
+                      setCoachReason("")
+                      setCoachFavoriteTeam(false)
+                      setCoachRivalTeam(false)
+                      setCoachResult(null)
+                      setCoachError(null)
+                    }}
+                  >
+                    Ask AI Coach
                   </Button>
                 </div>
 
@@ -552,63 +653,74 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                   </Button>
                 </div>
                 <div className="flex gap-2">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="flex-1">Preview Bet</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Bet Preview</DialogTitle>
-                      <DialogDescription>{odds.awayTeam} @ {odds.homeTeam}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Card className="p-3">
-                          <p className="text-xs text-muted-foreground">Best Home</p>
-                          <p className="text-sm font-medium">{odds.homeOdds.best.bookmaker}: {odds.homeOdds.best.odds}</p>
-                        </Card>
-                        <Card className="p-3">
-                          <p className="text-xs text-muted-foreground">Best Away</p>
-                          <p className="text-sm font-medium">{odds.awayOdds.best.bookmaker}: {odds.awayOdds.best.odds}</p>
-                        </Card>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="flex-1">Preview Bet</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Bet Preview</DialogTitle>
+                        <DialogDescription>{odds.awayTeam} @ {odds.homeTeam}</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Card className="p-3">
+                            <p className="text-xs text-muted-foreground">Best Home</p>
+                            <p className="text-sm font-medium">{odds.homeOdds.best.bookmaker}: {odds.homeOdds.best.odds}</p>
+                          </Card>
+                          <Card className="p-3">
+                            <p className="text-xs text-muted-foreground">Best Away</p>
+                            <p className="text-sm font-medium">{odds.awayOdds.best.bookmaker}: {odds.awayOdds.best.odds}</p>
+                          </Card>
+                        </div>
+                        <Button onClick={() => {
+                          const betData = {
+                            sport: odds.sport,
+                            homeTeam: odds.homeTeam,
+                            awayTeam: odds.awayTeam,
+                            eventTime: odds.commenceTime.toISOString(),
+                            bestHomeOdds: odds.homeOdds.best.odds,
+                            bestAwayOdds: odds.awayOdds.best.odds,
+                            bestHomeBookmaker: odds.homeOdds.best.bookmaker,
+                            bestAwayBookmaker: odds.awayOdds.best.bookmaker,
+                            homeOddsByBook: odds.homeOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
+                            awayOddsByBook: odds.awayOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
+                          }
+                          if (!(cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit))) {
+                            localStorage.setItem('pendingBetAnalysis', JSON.stringify(betData))
+                            toast.success('Bet loaded! Fill in your analysis details.')
+                            onNavigateToTab("analyze")
+                          }
+                        }}
+                        >
+                          Analyze in Detail
+                        </Button>
                       </div>
-                      <Button onClick={() => {
-                        const betData = {
-                          sport: odds.sport,
-                          homeTeam: odds.homeTeam,
-                          awayTeam: odds.awayTeam,
-                          eventTime: odds.commenceTime.toISOString(),
-                          bestHomeOdds: odds.homeOdds.best.odds,
-                          bestAwayOdds: odds.awayOdds.best.odds,
-                          bestHomeBookmaker: odds.homeOdds.best.bookmaker,
-                          bestAwayBookmaker: odds.awayOdds.best.bookmaker,
-                          homeOddsByBook: odds.homeOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
-                          awayOddsByBook: odds.awayOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
-                        }
-                        if (!(cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit))) {
-                          localStorage.setItem('pendingBetAnalysis', JSON.stringify(betData))
-                          onNavigateToTab('analyze')
-                        }
-                      }}>Analyze</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Button variant="outline" className="flex-1" onClick={() => openPlayerProps(odds)}>
-                  Player Props
-                </Button>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
+
             </Card>
-          ))}
+              )
+            })}
         </div>
       )}
 
-      {/* No Results */}
+      {/* No Results / Provider Exhausted Message */}
       {!loading && oddsData.length === 0 && (
         <Card className="p-12 text-center">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground">No odds available for this sport right now.</p>
-          <p className="text-sm text-muted-foreground mt-2">Try selecting a different sport or refreshing.</p>
+          {error === 'Sorry, we cannot provide data on this game at this time. Please try again later.' ? (
+            <>
+              <p className="text-muted-foreground">Sorry, we cannot provide data on this game at this time. Please try again later.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground">No odds available for this sport right now.</p>
+              <p className="text-sm text-muted-foreground mt-2">Try selecting a different sport or refreshing.</p>
+            </>
+          )}
         </Card>
       )}
 

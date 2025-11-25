@@ -79,11 +79,16 @@ export async function initializeUserData(userId: string, username?: string) {
     
     if (!existingUserProfile) {
       console.log("Creating user_profiles entry...")
+
+      // Get user email from auth
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error: userProfileInsertError } = await supabase
         .from("user_profiles")
         .insert({
           id: userId,
           name: finalUsername,
+          email: user?.email,
           level: 1,
           xp: 0,
           xp_to_next_level: 500,

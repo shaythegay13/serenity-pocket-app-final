@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeBet, getMockAnalysis, type BetAnalysisInput } from '@/lib/ai-analysis'
+import { analyzeBet, type BetAnalysisInput } from '@/lib/ai-analysis'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,30 +23,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if OpenAI API key is configured
-    const hasOpenAI = !!process.env.OPENAI_API_KEY
-
     let result
-    if (hasOpenAI) {
-      try {
-        // Use real AI analysis
-        result = await analyzeBet(input)
-        console.log('✅ Real AI analysis completed')
-      } catch (error) {
-        console.error('AI analysis failed, falling back to mock:', error)
-        // Fallback to mock if AI fails
-        result = getMockAnalysis(input)
-      }
-    } else {
-      // Use mock analysis if no API key
-      console.log('⚠️ No OpenAI API key, using mock analysis')
-      result = getMockAnalysis(input)
+    try {
+      // Use Claude via AWS Bedrock for real AI analysis
+      result = await analyzeBet(input)
+      console.log('✅ AI analysis completed via Claude (AWS Bedrock)')
+    } catch (error) {
+      console.error('AI analysis failed:', error)
+      return NextResponse.json(
+        { error: 'Failed to analyze bet' },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json({
       success: true,
       analysis: result,
-      usedAI: hasOpenAI
+      usedAI: true
     })
   } catch (error) {
     console.error('Error in analyze-bet API:', error)

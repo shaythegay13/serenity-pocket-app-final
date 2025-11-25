@@ -76,7 +76,7 @@ export async function fetchPlayerProps(sportKey: string, eventId: string): Promi
     const arr = Array.isArray(data) ? data : [data]
     return { success: true, data: arr }
   } catch (error) {
-    console.warn('Player props fetch failed, using mock:', error)
+    console.warn('Player props fetch failed:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -109,20 +109,6 @@ export function transformPlayerPropsForDisplay(propsData: OddsData[]): Array<{
     }
   }
   return rows
-}
-
-/** Mock player props for UI preview/fallback */
-export function getMockPlayerProps(homeTeam = 'Home Team', awayTeam = 'Away Team') {
-  return [
-    { bookmaker: 'DraftKings', market: 'player_points', outcome: 'LeBron James Over 26.5', price: -115 },
-    { bookmaker: 'FanDuel', market: 'player_points', outcome: 'LeBron James Over 26.5', price: -110 },
-    { bookmaker: 'BetMGM', market: 'player_points', outcome: 'LeBron James Under 26.5', price: -105 },
-    { bookmaker: 'DraftKings', market: 'player_assists', outcome: 'Stephen Curry Over 5.5', price: -120 },
-    { bookmaker: 'FanDuel', market: 'player_threes', outcome: 'Stephen Curry Over 4.5', price: +140 },
-    { bookmaker: 'Caesars', market: 'player_rebounds', outcome: 'Anthony Davis Over 11.5', price: -102 },
-    { bookmaker: 'DraftKings', market: 'player_points', outcome: 'Jayson Tatum Over 27.5', price: -110 },
-    { bookmaker: 'FanDuel', market: 'player_points', outcome: 'Jayson Tatum Under 27.5', price: -108 },
-  ]
 }
 
 export interface LiveOddsResponse {
@@ -272,60 +258,4 @@ export function transformOddsForDisplay(oddsData: OddsData[]) {
       bookmakers: game.bookmakers.map(b => b.title)
     }
   })
-}
-
-/**
- * Mock data fallback (for development/testing)
- */
-export function getMockOddsData() {
-  return [
-    {
-      id: "mock-1",
-      sport: "NBA",
-      homeTeam: "Los Angeles Lakers",
-      awayTeam: "Golden State Warriors",
-      commenceTime: new Date(Date.now() + 3600000),
-      homeOdds: {
-        best: { bookmaker: "DraftKings", team: "Los Angeles Lakers", odds: -110 },
-        all: [
-          { bookmaker: "DraftKings", team: "Los Angeles Lakers", odds: -110 },
-          { bookmaker: "FanDuel", team: "Los Angeles Lakers", odds: -115 },
-          { bookmaker: "BetMGM", team: "Los Angeles Lakers", odds: -108 }
-        ]
-      },
-      awayOdds: {
-        best: { bookmaker: "BetMGM", team: "Golden State Warriors", odds: -105 },
-        all: [
-          { bookmaker: "DraftKings", team: "Golden State Warriors", odds: -110 },
-          { bookmaker: "FanDuel", team: "Golden State Warriors", odds: -105 },
-          { bookmaker: "BetMGM", team: "Golden State Warriors", odds: -105 }
-        ]
-      },
-      bookmakers: ["DraftKings", "FanDuel", "BetMGM"]
-    },
-    {
-      id: "mock-2",
-      sport: "NFL",
-      homeTeam: "Kansas City Chiefs",
-      awayTeam: "Buffalo Bills",
-      commenceTime: new Date(Date.now() + 7200000),
-      homeOdds: {
-        best: { bookmaker: "FanDuel", team: "Kansas City Chiefs", odds: -120 },
-        all: [
-          { bookmaker: "DraftKings", team: "Kansas City Chiefs", odds: -125 },
-          { bookmaker: "FanDuel", team: "Kansas City Chiefs", odds: -120 },
-          { bookmaker: "BetMGM", team: "Kansas City Chiefs", odds: -122 }
-        ]
-      },
-      awayOdds: {
-        best: { bookmaker: "DraftKings", team: "Buffalo Bills", odds: +105 },
-        all: [
-          { bookmaker: "DraftKings", team: "Buffalo Bills", odds: +105 },
-          { bookmaker: "FanDuel", team: "Buffalo Bills", odds: +100 },
-          { bookmaker: "BetMGM", team: "Buffalo Bills", odds: +102 }
-        ]
-      },
-      bookmakers: ["DraftKings", "FanDuel", "BetMGM"]
-    }
-  ]
 }

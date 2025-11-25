@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2 } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
 import { calculateEmotionalStability, getScoreColor, shouldReceiveAIPicks } from "@/lib/emotional-scoring"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
+import AIBetAdvisor from "@/components/ai-bet-advisor"
 
 interface AIPicksTabProps {
   userData: UserData
@@ -298,11 +300,26 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   return (
     <div className="space-y-6 fade-in">
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">AI-Powered Picks</h2>
+        <h2 className="text-3xl font-bold text-foreground">AI-Powered Features</h2>
         <p className="text-muted-foreground">
-          Personalized suggestions filtered by your psychology and current emotional state
+          Get AI-generated picks or analyze your own bets with comprehensive psychological insights
         </p>
       </div>
+
+      <Tabs defaultValue="picks" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="picks">
+            <Sparkles className="h-4 w-4 mr-2" />
+            AI Picks
+          </TabsTrigger>
+          <TabsTrigger value="advisor">
+            <Brain className="h-4 w-4 mr-2" />
+            Analyze My Bet
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="picks" className="space-y-6 mt-6">
+      {/* Existing AI Picks content */}
 
       {(cooldown) && (
         <Card className="p-4 bg-red-500/10 border-red-500/30">
@@ -539,10 +556,16 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       {/* Disclaimer */}
       <Card className="p-4 bg-muted">
         <p className="text-xs text-muted-foreground text-center">
-          <strong>Disclaimer:</strong> AI picks are suggestions based on data analysis and your behavioral profile. 
+          <strong>Disclaimer:</strong> AI picks are suggestions based on data analysis and your behavioral profile.
           Always bet responsibly and never wager more than you can afford to lose.
         </p>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="advisor" className="space-y-6 mt-6">
+          <AIBetAdvisor />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

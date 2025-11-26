@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     // Get authenticated user from authorization header
     const authHeader = req.headers.get('authorization')
-    if (\!authHeader) {
+    if (!authHeader) {
       console.error('❌ No authorization header')
       return NextResponse.json(
         { error: 'Unauthorized - No auth token' },
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
 
-    if (authError || \!user) {
+    if (authError || !user) {
       console.error('❌ Auth error:', authError)
       return NextResponse.json(
         { error: 'Unauthorized - Invalid token' },
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     // Validate tier
     const validTiers = ['premium', 'premium_plus', 'elite']
-    if (\!validTiers.includes(tier)) {
+    if (!validTiers.includes(tier)) {
       console.error('❌ Invalid tier')
       return NextResponse.json(
         { error: 'Invalid tier' },
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
     // Get the price ID for the tier
     const priceId = getTierPriceId(tier as keyof typeof TIER_PRICES)
-    if (\!priceId) {
+    if (!priceId) {
       console.error('❌ Price ID not configured for tier:', tier)
       return NextResponse.json(
         { error: 'Price not configured' },
@@ -56,8 +56,8 @@ export async function POST(req: Request) {
                               process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
 
     // If no Flowglad credentials, use test mode (development only)
-    if (\!hasFlowgladConfig) {
-      if (process.env.NODE_ENV \!== 'development') {
+    if (!hasFlowgladConfig) {
+      if (process.env.NODE_ENV !== 'development') {
         return NextResponse.json(
           { error: 'Flowglad not configured' },
           { status: 500 }
@@ -68,8 +68,8 @@ export async function POST(req: Request) {
 
       // Create admin client to bypass RLS
       const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL\!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY\!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
         {
           auth: {
             autoRefreshToken: false,

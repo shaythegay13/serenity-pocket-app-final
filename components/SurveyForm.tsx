@@ -66,20 +66,23 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
   }, []);
 
   const handleNextQuestion = useCallback(() => {
-    // Validate current question is answered
-    const countForCurrent = answers.filter((a) => a.questionId === currentQuestion.id).length;
-    const needsAtLeast = currentQuestion.multi ? 1 : 1;
-    if (countForCurrent < needsAtLeast) {
-      setValidationErrors((prev) => ({
-        ...prev,
-        [currentQuestion.id]: 'Please select an answer before continuing',
-      }));
-      return;
-    }
+    // Small delay to ensure state update completes
+    setTimeout(() => {
+      // Validate current question is answered
+      const countForCurrent = answers.filter((a) => a.questionId === currentQuestion.id).length;
+      const needsAtLeast = currentQuestion.multi ? 1 : 1;
+      if (countForCurrent < needsAtLeast) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          [currentQuestion.id]: 'Please select an answer before continuing',
+        }));
+        return;
+      }
 
-    if (currentQuestionIndex < qs.length - 1) {
-      setCurrentQuestionIndex((prev) => prev + 1);
-    }
+      if (currentQuestionIndex < qs.length - 1) {
+        setCurrentQuestionIndex((prev) => prev + 1);
+      }
+    }, 50);
   }, [answers, currentQuestion.id, currentQuestionIndex, qs.length, currentQuestion.multi]);
 
   const handlePreviousQuestion = useCallback(() => {
@@ -89,24 +92,43 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
   }, [currentQuestionIndex]);
 
   const handleSubmit = useCallback(async () => {
-    // Validate all questions are answered
-    const unansweredQuestions = qs.filter((q) => {
-      const count = answers.filter((a) => a.questionId === q.id).length;
-      return q.multi ? count < 1 : count !== 1;
-    });
+    // Small delay to ensure state update completes
+    setTimeout(async () => {
+      // Validate all questions are answered
+      const unansweredQuestions = qs.filter((q) => {
+        const count = answers.filter((a) => a.questionId === q.id).length;
+        return q.multi ? count < 1 : count !== 1;
+      });
 
-    if (unansweredQuestions.length > 0) {
-      const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
-      if (currentUnanswered) {
-        setValidationErrors((prev) => ({
-          ...prev,
-          [currentQuestion.id]: 'Please answer this question',
-        }));
+      if (unansweredQuestions.length > 0) {
+        console.log('Unanswered questions:', unansweredQuestions.map(q => q.id));
+        console.log('Current answers:', answers);
+        
+        const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
+        if (currentUnanswered) {
+          setValidationErrors((prev) => ({
+            ...prev,
+            [currentQuestion.id]: 'Please answer this question before submitting',
+          }));
+        } else {
+          // If current question is answered but others aren't, navigate to first unanswered
+          const firstUnanswered = unansweredQuestions[0];
+          const firstUnansweredIndex = qs.findIndex((q) => q.id === firstUnanswered.id);
+          if (firstUnansweredIndex !== -1) {
+            setCurrentQuestionIndex(firstUnansweredIndex);
+            setValidationErrors((prev) => ({
+              ...prev,
+              [firstUnanswered.id]: 'Please answer this question',
+            }));
+          }
+        }
+        return;
       }
-      return;
-    }
 
-    await onSubmit(answers);
+      // Clear any validation errors before submitting
+      setValidationErrors({});
+      await onSubmit(answers);
+    }, 100);
   }, [answers, currentQuestion.id, onSubmit, qs]);
 
   const isOptionSelected = (questionId: string, option: string) =>

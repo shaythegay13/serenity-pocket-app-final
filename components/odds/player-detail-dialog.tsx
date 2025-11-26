@@ -22,18 +22,40 @@ export function PlayerDetailDialog({ open, onOpenChange, playerId, playerName, t
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (open && playerName) {
-      loadPlayerDetails()
+    // Only load when dialog opens with a player name
+    if (!open || !playerName) {
+      return
     }
-  }, [open, playerName])
 
-  const loadPlayerDetails = async () => {
-    setLoading(true)
-    // Pass team and sport to get real ESPN stats
-    const details = await fetchPlayerDetails(playerId, playerName, teamName, sport)
-    setPlayer(details)
-    setLoading(false)
-  }
+    // Prevent loading if already loading
+    if (loading) {
+      return
+    }
+
+    // Load player details
+    const loadPlayerDetails = async () => {
+      setLoading(true)
+
+      try {
+        // Pass team and sport to get real ESPN stats
+        const details = await fetchPlayerDetails(playerId, playerName, teamName, sport)
+        setPlayer(details)
+      } catch (error) {
+        console.error('[PlayerDetailDialog] Error loading player:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPlayerDetails()
+  }, [open, playerId, playerName, teamName, sport])
+
+  // Reset player data when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setPlayer(null)
+    }
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

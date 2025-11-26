@@ -175,8 +175,8 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
         return
       }
       
-      // Create Stripe checkout session
-      const response = await fetch('/api/stripe/checkout', {
+      // Create Flowglad checkout session
+      const response = await fetch('/api/flowglad/checkout', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

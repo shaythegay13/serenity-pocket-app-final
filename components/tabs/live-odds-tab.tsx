@@ -9,13 +9,13 @@ import { TrendingUp, Search, Filter, ExternalLink, Lock, RefreshCw, AlertCircle 
 import type { UserData } from "@/lib/types"
 import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
 import { fetchPlayerProps, transformPlayerPropsForDisplay } from "@/lib/odds-api"
-import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FeatureGate } from "@/components/feature-gate"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import { fetchTeamRoster, fetchTeamRecentResults, type Player } from "@/lib/sports-data-api"
+import { fetchTeamRecentResults, type Player } from "@/lib/sports-data-api"
+import { fetchESPNTeamRoster } from "@/lib/espn-api"
 import { PlayerDetailDialog } from "@/components/odds/player-detail-dialog"
 
 interface LiveOddsTabProps {
@@ -108,9 +108,14 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     setLoading(true)
     setError(null)
 
-    const response = await fetchEnhancedLiveOdds(selectedSport, 'auto')
+    try {
+      const res = await fetch(`/api/enhanced-odds?sport=${selectedSport}&strategy=auto&includeAdvantages=true`)
+      if (!res.ok) {
+        throw new Error(`API request failed: ${res.status}`)
+      }
+      const response = await res.json()
 
-    if (response.success && response.data) {
+      if (response.success && response.data) {
       setOddsData(response.data)
 
       const uniqueTeams = new Set<string>()
@@ -148,15 +153,21 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
           console.log(`🔑 The Odds API requests remaining: ${response.remainingRequests.theodds}`)
         }
       }
-    } else {
-      const unifiedMsg = 'Sorry, we are unable to show current game data right now. Please check back another time.'
-      console.warn('⚠️ Odds providers unavailable:', response.error)
+      } else {
+        const unifiedMsg = 'Sorry, we are unable to show current game data right now. Please check back another time.'
+        console.warn('⚠️ Odds providers unavailable:', response.error)
+        setOddsData([])
+        setAdvantageOpportunities([])
+        setError(response.error || unifiedMsg)
+      }
+    } catch (err) {
+      console.error('❌ Error loading odds:', err)
       setOddsData([])
       setAdvantageOpportunities([])
-      setError(response.error || unifiedMsg)
+      setError(err instanceof Error ? err.message : 'Failed to load odds data')
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   // Sports options
@@ -627,8 +638,8 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
 
                         try {
                           const [homeRoster, awayRoster] = await Promise.all([
-                            fetchTeamRoster(odds.homeTeam, odds.sport),
-                            fetchTeamRoster(odds.awayTeam, odds.sport)
+                            fetchESPNTeamRoster(odds.homeTeam, odds.sport),
+                            fetchESPNTeamRoster(odds.awayTeam, odds.sport)
                           ])
 
                           setTeamRosters(prev => ({

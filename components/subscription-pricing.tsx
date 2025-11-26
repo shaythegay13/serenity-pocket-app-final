@@ -215,7 +215,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
           <h4 className="font-semibold mb-2">What payment methods do you accept?</h4>
           <p className="text-sm text-muted-foreground">
             We accept all major credit cards, debit cards, and PayPal. All payments are processed 
-            securely through Stripe.
+            securely through Flowglad.
           </p>
         </Card>
 

@@ -7,6 +7,17 @@
 
 import type { PlayerStats } from './sports-data-api'
 
+/**
+ * Normalize a string for comparison by removing accents and converting to lowercase
+ */
+function normalizeString(str: string): string {
+  return str
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .toLowerCase()
+    .trim()
+}
+
 interface ESPNPlayerStats {
   id: string
   displayName: string
@@ -233,7 +244,7 @@ export async function fetchPlayerStatsByTeam(
 
     // Try to get team roster with stats
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const url = `/api/espn-proxy?endpoint=${encodeURIComponent(espnUrl)}`
+    const url = `/api/espn-proxy/?endpoint=${encodeURIComponent(espnUrl)}`
     console.log(`[ESPN API] Fetching roster for ${teamName} (${sport}) using abbreviation "${teamAbbr}":`, espnUrl)
     const response = await fetch(url)
 
@@ -298,11 +309,15 @@ export async function fetchPlayerStatsByTeam(
 
     console.log(`[ESPN API] Extracted ${allPlayerNames.length} player names from ${allAthletes.length} athletes`)
 
+    // Normalize the search name for comparison (handles accents like González -> Gonzalez)
+    const normalizedSearchName = normalizeString(playerName)
+
     const foundPlayer = allAthletes.find(p => {
       const name = p.displayName || p.fullName || p.name || p.athlete?.displayName || p.athlete?.fullName
       if (!name) return false
-      return name.toLowerCase().includes(playerName.toLowerCase()) ||
-        playerName.toLowerCase().includes(name.toLowerCase())
+      const normalizedName = normalizeString(name)
+      return normalizedName.includes(normalizedSearchName) ||
+        normalizedSearchName.includes(normalizedName)
     })
 
     if (!foundPlayer) {
@@ -330,7 +345,7 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = `/api/espn-proxy?endpoint=${encodeURIComponent(athleteUrl)}`
+        const proxyUrl = `/api/espn-proxy/?endpoint=${encodeURIComponent(athleteUrl)}`
         const athleteResponse = await fetch(proxyUrl)
         if (athleteResponse.ok) {
           const athleteData = await athleteResponse.json()
@@ -355,7 +370,7 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = `/api/espn-proxy?endpoint=${encodeURIComponent(statsUrl)}`
+        const proxyUrl = `/api/espn-proxy/?endpoint=${encodeURIComponent(statsUrl)}`
         const statsResponse = await fetch(proxyUrl)
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
@@ -747,5 +762,63 @@ export async function fetchRecentGameLogs(
   } catch (error) {
     console.error('Error fetching game logs:', error)
     return null
+  }
+}
+
+/**
+ * Fetch team roster from ESPN (more accurate than TheSportsDB)
+ * Returns list of current players on the team
+ */
+export async function fetchESPNTeamRoster(
+  teamName: string,
+  sport: string
+): Promise<Array<{ id: string; name: string; position?: string; number?: string; imageUrl?: string; team: string }>> {
+  try {
+    const sportPath = getSportPath(sport)
+    const teamAbbr = getTeamAbbreviation(teamName)
+
+    const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
+    const url = `/api/espn-proxy/?endpoint=${encodeURIComponent(espnUrl)}`
+
+    const response = await fetch(url)
+    if (!response.ok) {
+      console.warn(`[ESPN Roster] Failed to fetch: ${response.status}`)
+      return []
+    }
+
+    const data: any = await response.json()
+
+    // Flatten athletes array
+    let allAthletes: any[] = []
+    if (data.athletes) {
+      if (Array.isArray(data.athletes)) {
+        const first = data.athletes[0]
+        if (first && first.items && Array.isArray(first.items)) {
+          // Grouped format
+          for (const group of data.athletes) {
+            if (group.items) {
+              allAthletes = allAthletes.concat(group.items)
+            }
+          }
+        } else {
+          // Flat format
+          allAthletes = data.athletes
+        }
+      }
+    }
+
+    // Transform to simplified player format
+    return allAthletes.map(athlete => ({
+      id: athlete.id || '',
+      name: athlete.displayName || athlete.fullName || '',
+      position: athlete.position?.abbreviation || athlete.position?.displayName || '',
+      number: athlete.jersey || '',
+      imageUrl: athlete.headshot?.href || '',
+      team: teamName
+    })).filter(p => p.name) // Only include players with names
+
+  } catch (error) {
+    console.error('[ESPN Roster] Error:', error)
+    return []
   }
 }

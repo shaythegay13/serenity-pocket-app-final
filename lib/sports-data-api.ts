@@ -7,25 +7,30 @@
 
 import { fetchPlayerStatsByTeam } from './espn-api'
 
-const THESPORTSDB_BASE_URL = process.env.NEXT_PUBLIC_THESPORTSDB_BASE_URL || 'https://www.thesportsdb.com/api/v2/json'
-const THESPORTSDB_API_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || ''
+// Using v1 API with premium subscription key from environment variables
+const THESPORTSDB_V1_BASE_URL = process.env.NEXT_PUBLIC_THESPORTSDB_BASE_URL_V1 || 'https://www.thesportsdb.com/api/v1/json'
+const THESPORTSDB_V1_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || '3'
 
 function isTheSportsDBConfigured(): boolean {
-  if (!THESPORTSDB_BASE_URL) return false
-  // Some deployments may rely on the default keyless path; treat empty key as "not configured" to avoid noisy 400s
-  if (!THESPORTSDB_API_KEY) {
-    console.warn('[TheSportsDB] API key not configured; skipping team form/roster lookups')
-    return false
-  }
-  return true
+  // v1 API is available with premium subscription
+  return !!THESPORTSDB_V1_BASE_URL && !!THESPORTSDB_V1_KEY
 }
 
-function buildTheSportsDBUrl(pathEnv: string | undefined, defaultPath: string, suffix: string): string {
-  const base = THESPORTSDB_BASE_URL.replace(/\/$/, '')
-  const keySegment = THESPORTSDB_API_KEY ? `/${THESPORTSDB_API_KEY}` : ''
-  const rawPath = (pathEnv || defaultPath).replace(/number$/, '')
-  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
-  return `${base}${keySegment}${path}${suffix}`
+// Build v1 API URLs (uses PHP-style endpoints with query parameters)
+function buildV1SearchTeamUrl(teamName: string): string {
+  return `${THESPORTSDB_V1_BASE_URL}/${THESPORTSDB_V1_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`
+}
+
+function buildV1SearchPlayerUrl(playerName: string): string {
+  return `${THESPORTSDB_V1_BASE_URL}/${THESPORTSDB_V1_KEY}/searchplayers.php?p=${encodeURIComponent(playerName)}`
+}
+
+function buildV1LookupTeamPlayersUrl(teamId: string): string {
+  return `${THESPORTSDB_V1_BASE_URL}/${THESPORTSDB_V1_KEY}/lookup_all_players.php?id=${teamId}`
+}
+
+function buildV1TeamLastEventsUrl(teamId: string): string {
+  return `${THESPORTSDB_V1_BASE_URL}/${THESPORTSDB_V1_KEY}/eventslast.php?id=${teamId}`
 }
 
 export interface Player {
@@ -150,6 +155,7 @@ interface TheSportsDBEvent {
 
 interface TheSportsDBEventResponse {
   events?: TheSportsDBEvent[]
+  results?: TheSportsDBEvent[] // v1 API uses 'results' instead of 'events'
 }
 
 /**
@@ -160,12 +166,23 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
     if (!isTheSportsDBConfigured()) {
       return []
     }
-    const teamSearchUrl = buildTheSportsDBUrl(
-      process.env.THESPORTSDB_SEARCH_TEAM,
-      '/search/team/',
-      encodeURIComponent(teamName)
-    )
+
+    // Search for team using v1 API
+    const teamSearchUrl = buildV1SearchTeamUrl(teamName)
     const teamResponse = await fetch(teamSearchUrl)
+
+    // Check if response is OK and is JSON before parsing
+    if (!teamResponse.ok) {
+      console.warn(`Failed to fetch team data for roster: ${teamResponse.status} ${teamResponse.statusText}`)
+      return getMockRosterForTeam(teamName, sport)
+    }
+
+    const contentType = teamResponse.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`Invalid response type for team roster: ${contentType}`)
+      return getMockRosterForTeam(teamName, sport)
+    }
+
     const teamData = await teamResponse.json()
 
     if (!teamData.teams || teamData.teams.length === 0) {
@@ -175,12 +192,22 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
 
     const teamId = teamData.teams[0].idTeam
 
-    const playersUrl = buildTheSportsDBUrl(
-      process.env.THESPORTSDB_LIST_LEAGUE_TEAMS,
-      '/list/players/',
-      String(teamId)
-    )
+    // Get players for team using v1 API
+    const playersUrl = buildV1LookupTeamPlayersUrl(teamId)
     const playersResponse = await fetch(playersUrl)
+
+    // Check if response is OK and is JSON before parsing
+    if (!playersResponse.ok) {
+      console.warn(`Failed to fetch players data: ${playersResponse.status} ${playersResponse.statusText}`)
+      return getMockRosterForTeam(teamName, sport)
+    }
+
+    const playersContentType = playersResponse.headers.get('content-type')
+    if (!playersContentType || !playersContentType.includes('application/json')) {
+      console.warn(`Invalid response type for players: ${playersContentType}`)
+      return getMockRosterForTeam(teamName, sport)
+    }
+
     const playersData: TheSportsDBResponse = await playersResponse.json()
 
     if (!playersData.player || playersData.player.length === 0) {
@@ -211,12 +238,23 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
     if (!isTheSportsDBConfigured()) {
       return []
     }
-    const teamSearchUrl = buildTheSportsDBUrl(
-      process.env.THESPORTSDB_SEARCH_TEAM,
-      '/search/team/',
-      encodeURIComponent(teamName)
-    )
+
+    // Search for team using v1 API
+    const teamSearchUrl = buildV1SearchTeamUrl(teamName)
     const teamResponse = await fetch(teamSearchUrl)
+
+    // Check if response is OK and is JSON before parsing
+    if (!teamResponse.ok) {
+      console.warn(`[Team Form] Failed to fetch team data: ${teamResponse.status} ${teamResponse.statusText}`)
+      return []
+    }
+
+    const contentType = teamResponse.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`[Team Form] Invalid response type: ${contentType}`)
+      return []
+    }
+
     const teamData = await teamResponse.json()
 
     if (!teamData.teams || teamData.teams.length === 0) {
@@ -226,20 +264,32 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
 
     const teamId = teamData.teams[0].idTeam
 
-    const scheduleUrl = buildTheSportsDBUrl(
-      process.env.THESPORTSDB_PREVIOUS_10_EVENTS_IN_TEAM,
-      '/schedule/previous/team/',
-      String(teamId)
-    )
+    // Get recent events using v1 API
+    const scheduleUrl = buildV1TeamLastEventsUrl(teamId)
     const scheduleResponse = await fetch(scheduleUrl)
+
+    // Check if response is OK and is JSON before parsing
+    if (!scheduleResponse.ok) {
+      console.warn(`[Team Form] Failed to fetch schedule data: ${scheduleResponse.status} ${scheduleResponse.statusText}`)
+      return []
+    }
+
+    const scheduleContentType = scheduleResponse.headers.get('content-type')
+    if (!scheduleContentType || !scheduleContentType.includes('application/json')) {
+      console.warn(`[Team Form] Invalid schedule response type: ${scheduleContentType}`)
+      return []
+    }
+
     const scheduleData: TheSportsDBEventResponse = await scheduleResponse.json()
 
-    if (!scheduleData.events || scheduleData.events.length === 0) {
+    // v1 API returns 'results', v2 API returns 'events'
+    const eventsArray = scheduleData.results || scheduleData.events
+    if (!eventsArray || eventsArray.length === 0) {
       console.warn(`[Team Form] No previous events for team: ${teamName}`)
       return []
     }
 
-    const events = scheduleData.events.slice(0, limit)
+    const events = eventsArray.slice(0, limit)
 
     return events.map((evt) => {
       const homeScore = evt.intHomeScore != null ? Number(evt.intHomeScore) : null
@@ -268,18 +318,30 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
 export async function fetchPlayerDetails(playerId: string, playerName: string, teamName?: string, sport?: string): Promise<PlayerDetail | null> {
   try {
     if (!isTheSportsDBConfigured()) {
-      return null
+      console.warn(`[Player Details] TheSportsDB not configured, using mock profile for ${playerName}`)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
-    const searchUrl = buildTheSportsDBUrl(
-      process.env.THESPORTSDB_SEARCH_PLAYER,
-      '/search/player/',
-      encodeURIComponent(playerName)
-    )
+    // Search for player using v1 API
+    const searchUrl = buildV1SearchPlayerUrl(playerName)
     const response = await fetch(searchUrl)
+
+    // Check if response is OK and is JSON before parsing
+    if (!response.ok) {
+      console.warn(`[Player Details] Failed to fetch player data: ${response.status} ${response.statusText}`)
+      return createMockPlayerProfile(playerName, teamName, sport)
+    }
+
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`[Player Details] Invalid response type: ${contentType}`)
+      return createMockPlayerProfile(playerName, teamName, sport)
+    }
+
     const data: TheSportsDBResponse = await response.json()
 
     if (!data.player || data.player.length === 0) {
-      return null
+      console.warn(`[Player Details] No data from TheSportsDB for ${playerName}, using mock profile`)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
 
     const player = data.player[0]
@@ -317,7 +379,35 @@ export async function fetchPlayerDetails(playerId: string, playerName: string, t
     }
   } catch (error) {
     console.error('Error fetching player details:', error)
-    return null
+    console.warn(`[Player Details] Error occurred, using mock profile for ${playerName}`)
+    return createMockPlayerProfile(playerName, teamName, sport)
+  }
+}
+
+/**
+ * Create a mock player profile when API is unavailable
+ */
+function createMockPlayerProfile(playerName: string, teamName?: string, sport?: string): PlayerDetail {
+  const positions = sport === 'basketball_nba' 
+    ? ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center']
+    : ['Quarterback', 'Running Back', 'Wide Receiver', 'Tight End', 'Linebacker']
+  
+  const randomPosition = positions[Math.floor(Math.random() * positions.length)]
+  const stats = generateMockStats(randomPosition)
+  
+  return {
+    id: `mock-${Date.now()}`,
+    name: playerName,
+    position: randomPosition,
+    number: String(Math.floor(Math.random() * 89) + 1),
+    imageUrl: undefined,
+    team: teamName || 'Unknown Team',
+    height: `${Math.floor(Math.random() * 8) + 68}"`,
+    weight: `${Math.floor(Math.random() * 60) + 180} lbs`,
+    dateOfBirth: undefined,
+    nationality: 'USA',
+    bio: `Professional ${sport || 'basketball'} player. Statistical data shown is for demonstration purposes.`,
+    stats: stats
   }
 }
 

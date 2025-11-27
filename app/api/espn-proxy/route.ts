@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
  * ESPN API Proxy
  * Bypasses CORS restrictions by making requests from the server
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const endpoint = searchParams.get('endpoint')
+    const body = await request.json().catch(() => null)
+    const endpoint = body?.endpoint as string | undefined
     
     if (!endpoint) {
       return NextResponse.json(

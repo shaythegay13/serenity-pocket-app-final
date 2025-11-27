@@ -244,9 +244,15 @@ export async function fetchPlayerStatsByTeam(
 
     // Try to get team roster with stats
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const url = `/api/espn-proxy/?endpoint=${encodeURIComponent(espnUrl)}`
+    const proxyUrl = '/api/espn-proxy'
     console.log(`[ESPN API] Fetching roster for ${teamName} (${sport}) using abbreviation "${teamAbbr}":`, espnUrl)
-    const response = await fetch(url)
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ endpoint: espnUrl }),
+    })
 
     if (!response.ok) {
       console.warn(`[ESPN API] Failed to fetch roster: ${response.status} ${response.statusText}`)
@@ -345,8 +351,14 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = `/api/espn-proxy/?endpoint=${encodeURIComponent(athleteUrl)}`
-        const athleteResponse = await fetch(proxyUrl)
+        const proxyUrl = '/api/espn-proxy'
+        const athleteResponse = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ endpoint: athleteUrl }),
+        })
         if (athleteResponse.ok) {
           const athleteData = await athleteResponse.json()
           console.log(`[ESPN API] Athlete data received via proxy:`, athleteData)
@@ -370,8 +382,14 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = `/api/espn-proxy/?endpoint=${encodeURIComponent(statsUrl)}`
-        const statsResponse = await fetch(proxyUrl)
+        const proxyUrl = '/api/espn-proxy'
+        const statsResponse = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ endpoint: statsUrl }),
+        })
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           console.log(`[ESPN API] Stats data received via proxy:`, statsData)
@@ -778,9 +796,15 @@ export async function fetchESPNTeamRoster(
     const teamAbbr = getTeamAbbreviation(teamName)
 
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const url = `/api/espn-proxy/?endpoint=${encodeURIComponent(espnUrl)}`
+    const proxyUrl = '/api/espn-proxy'
 
-    const response = await fetch(url)
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ endpoint: espnUrl }),
+    })
     if (!response.ok) {
       console.warn(`[ESPN Roster] Failed to fetch: ${response.status}`)
       return []

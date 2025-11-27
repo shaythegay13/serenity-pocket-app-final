@@ -9,7 +9,7 @@ const nextConfig = {
   // Enable static export for mobile app builds
   output: process.env.BUILD_MODE === 'mobile' ? 'export' : undefined,
   // Disable trailing slashes for better mobile compatibility
-  trailingSlash: true,
+  trailingSlash: false,
   // External packages for server components (prevents bundling issues)
   serverExternalPackages: [
     '@modelcontextprotocol/sdk',

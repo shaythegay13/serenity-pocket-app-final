@@ -244,7 +244,7 @@ export async function fetchPlayerStatsByTeam(
 
     // Try to get team roster with stats
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const proxyUrl = '/api/espn-proxy'
+    const proxyUrl = '/api/espn'
     console.log(`[ESPN API] Fetching roster for ${teamName} (${sport}) using abbreviation "${teamAbbr}":`, espnUrl)
     const response = await fetch(proxyUrl, {
       method: 'POST',
@@ -351,7 +351,7 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = '/api/espn-proxy'
+        const proxyUrl = '/api/espn'
         const athleteResponse = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
@@ -382,7 +382,7 @@ export async function fetchPlayerStatsByTeam(
       
       try {
         // Use proxy to bypass CORS
-        const proxyUrl = '/api/espn-proxy'
+        const proxyUrl = '/api/espn'
         const statsResponse = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
@@ -796,7 +796,7 @@ export async function fetchESPNTeamRoster(
     const teamAbbr = getTeamAbbreviation(teamName)
 
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const proxyUrl = '/api/espn-proxy'
+    const proxyUrl = '/api/espn'
 
     const response = await fetch(proxyUrl, {
       method: 'POST',

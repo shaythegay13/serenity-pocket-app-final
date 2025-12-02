@@ -285,6 +285,9 @@ async function fetchFromBothAPIs(
  * Transform RapidAPI odds data to our rich internal format
  */
 function transformRapidAPIData(odds: RapidAPILiveOdds[]): any[] {
+  // Guard against clearly broken American odds from the upstream feed
+  const isReasonableAmerican = (o: number) => o > -2000 && o < 2000;
+
   return odds
     .map((event, index) => {
       // Focus on MONEYLINE market for side odds
@@ -297,9 +300,9 @@ function transformRapidAPIData(odds: RapidAPILiveOdds[]): any[] {
       const homeTeam = event.homeTeam;
       const awayTeam = event.awayTeam;
 
-      // Build odds arrays for each side
+      // Build odds arrays for each side, filtering out absurd prices
       const homeOddsAll = moneylineMarket.sportsbooks
-        .filter(book => typeof book.odds.home === 'number')
+        .filter(book => typeof book.odds.home === 'number' && isReasonableAmerican(book.odds.home as number))
         .map(book => ({
           bookmaker: book.name,
           team: homeTeam,
@@ -307,7 +310,7 @@ function transformRapidAPIData(odds: RapidAPILiveOdds[]): any[] {
         }));
 
       const awayOddsAll = moneylineMarket.sportsbooks
-        .filter(book => typeof book.odds.away === 'number')
+        .filter(book => typeof book.odds.away === 'number' && isReasonableAmerican(book.odds.away as number))
         .map(book => ({
           bookmaker: book.name,
           team: awayTeam,
@@ -374,16 +377,19 @@ export async function fetchAdvantageOpportunities(
         fetchPositiveEVOpportunities(league)
       ]);
 
+      const arbData = Array.isArray(arbResponse?.data) ? arbResponse.data : [];
+      const evData = Array.isArray(evResponse?.data) ? evResponse.data : [];
+
       return [
-        ...(arbResponse.data || []),
-        ...(evResponse.data || [])
+        ...arbData,
+        ...evData
       ];
     } else if (type === 'ARBITRAGE') {
       const response = await fetchArbitrageOpportunities(league);
-      return response.data || [];
+      return Array.isArray(response?.data) ? response.data : [];
     } else {
       const response = await fetchPositiveEVOpportunities(league);
-      return response.data || [];
+      return Array.isArray(response?.data) ? response.data : [];
     }
   } catch (error) {
     console.error('❌ Error fetching advantage opportunities:', error);

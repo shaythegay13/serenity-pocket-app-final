@@ -14,7 +14,11 @@ const isEnhancedAIEnabled = process.env.ENABLE_ENHANCED_AI_ANALYSIS === "true"
 
 // AWS Bedrock configuration
 const AWS_REGION = process.env.AWS_REGION || "us-east-1"
-const AWS_BEDROCK_MODEL_ID = process.env.AWS_BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20241022-v2:0"
+// Default to Claude Sonnet 4.5 model ID unless overridden via AWS_BEDROCK_MODEL_ID.
+// You may set AWS_BEDROCK_MODEL_ID to EITHER a raw model ID OR an inference profile ARN
+// provisioned in your AWS account.
+const AWS_BEDROCK_MODEL_ID =
+  process.env.AWS_BEDROCK_MODEL_ID || "anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 // Initialize Bedrock client (only if credentials are available)
 let bedrockClient: BedrockRuntimeClient | null = null
@@ -32,6 +36,9 @@ if (
     },
   })
   console.log("✅ AWS Bedrock client initialized for enhanced AI analysis")
+  if (process.env.NODE_ENV !== "production") {
+    console.log("🧠 Using AWS Bedrock Claude model:", AWS_BEDROCK_MODEL_ID)
+  }
 } else {
   console.log("ℹ️  Enhanced AI analysis disabled - using built-in algorithms")
 }
@@ -78,14 +85,16 @@ export async function invokeClaude(request: ClaudeRequest): Promise<string> {
 
   try {
     const input: InvokeModelCommandInput = {
+      // AWS_BEDROCK_MODEL_ID may be a raw model ID OR an inference profile ARN
       modelId: AWS_BEDROCK_MODEL_ID,
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
         max_tokens: request.max_tokens,
-        temperature: request.temperature || 0.7,
-        top_p: request.top_p || 1,
+        // Claude on Bedrock does not allow specifying both temperature and top_p.
+        // We prioritize temperature and omit top_p to avoid ValidationException.
+        temperature: request.temperature ?? 0.7,
         system: request.system,
         messages: request.messages,
       }),
@@ -105,7 +114,17 @@ export async function invokeClaude(request: ClaudeRequest): Promise<string> {
     return text
   } catch (error) {
     console.error("❌ Error invoking Claude via Bedrock:", error)
-    throw new Error(`Failed to invoke Claude: ${error instanceof Error ? error.message : "Unknown error"}`)
+
+    const message = error instanceof Error ? error.message : String(error)
+    const isThrottling =
+      message.includes("ThrottlingException") ||
+      message.includes("Too many requests, please wait before trying again")
+
+    if (isThrottling) {
+      throw new Error(`CLAUDE_THROTTLED: ${message}`)
+    }
+
+    throw new Error(`Failed to invoke Claude: ${message}`)
   }
 }
 

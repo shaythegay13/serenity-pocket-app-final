@@ -1,5 +1,15 @@
 import { supabase } from "./supabase"
-import type { UserData, EmotionLog, Trade, Achievement, BiasProfile, BiasQuizHistory, Challenge, BetAnalysis } from "./types"
+import type {
+  UserData,
+  EmotionLog,
+  Trade,
+  Achievement,
+  BiasProfile,
+  BiasQuizHistory,
+  Challenge,
+  BetAnalysis,
+  GameLineRecord,
+} from "./types"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
@@ -11,6 +21,7 @@ const STORAGE_KEYS = {
   CHALLENGES: "serenity_challenges",
   LAST_CHECK_IN: "serenity_last_check_in",
   BET_ANALYSES: "serenity_bet_analyses",
+  GAME_LINES: "serenity_game_lines",
 }
 
 // Hybrid storage that uses Supabase for authenticated users and localStorage as fallback
@@ -49,6 +60,145 @@ export const storageHybrid = {
     }
   },
 
+  // Game Line / Result History Operations
+  // These mirror other hybrid methods: use Supabase when a user is logged in,
+  // and fall back to localStorage for anonymous users or offline scenarios.
+
+  async getGameLines(): Promise<GameLineRecord[]> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from("game_lines")
+          .select("*")
+          .eq("user_id", userId)
+          .order("commence_time", { ascending: false })
+          .limit(1000)
+
+        if (error) {
+          console.error("Error fetching game lines from Supabase:", error)
+        } else if (data) {
+          return data.map((row: any): GameLineRecord => ({
+            id: row.id,
+            sport: row.sport,
+            league: row.league ?? undefined,
+            homeTeam: row.home_team,
+            awayTeam: row.away_team,
+            commenceTime: row.commence_time,
+            sportsbook: row.sportsbook ?? undefined,
+            markets: Array.isArray(row.markets) ? row.markets : [],
+            homeScore: row.home_score ?? undefined,
+            awayScore: row.away_score ?? undefined,
+            finalStatus: row.final_status ?? undefined,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          }))
+        }
+      } catch (err) {
+        console.error("Exception fetching game lines from Supabase:", err)
+      }
+    }
+
+    if (typeof window === "undefined") return []
+    const data = localStorage.getItem(STORAGE_KEYS.GAME_LINES)
+    return data ? (JSON.parse(data) as GameLineRecord[]) : []
+  },
+
+  async upsertGameLine(record: GameLineRecord): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from("game_lines")
+          .upsert({
+            id: record.id,
+            user_id: userId,
+            sport: record.sport,
+            league: record.league ?? null,
+            home_team: record.homeTeam,
+            away_team: record.awayTeam,
+            commence_time: record.commenceTime,
+            sportsbook: record.sportsbook ?? null,
+            markets: record.markets,
+            home_score: record.homeScore ?? null,
+            away_score: record.awayScore ?? null,
+            final_status: record.finalStatus ?? null,
+            created_at: record.createdAt,
+            updated_at: record.updatedAt,
+          })
+
+        if (error) {
+          console.error("Error upserting game line in Supabase:", error)
+        }
+      } catch (err) {
+        console.error("Exception upserting game line in Supabase:", err)
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(STORAGE_KEYS.GAME_LINES)
+      const list: GameLineRecord[] = raw ? JSON.parse(raw) : []
+      const idx = list.findIndex(g => g.id === record.id)
+      if (idx === -1) {
+        list.push(record)
+      } else {
+        list[idx] = record
+      }
+      localStorage.setItem(STORAGE_KEYS.GAME_LINES, JSON.stringify(list))
+    }
+  },
+
+  async bulkUpsertGameLines(records: GameLineRecord[]): Promise<void> {
+    if (!records.length) return
+
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const payload = records.map(r => ({
+          id: r.id,
+          user_id: userId,
+          sport: r.sport,
+          league: r.league ?? null,
+          home_team: r.homeTeam,
+          away_team: r.awayTeam,
+          commence_time: r.commenceTime,
+          sportsbook: r.sportsbook ?? null,
+          markets: r.markets,
+          home_score: r.homeScore ?? null,
+          away_score: r.awayScore ?? null,
+          final_status: r.finalStatus ?? null,
+          created_at: r.createdAt,
+          updated_at: r.updatedAt,
+        }))
+
+        const { error } = await supabase.from("game_lines").upsert(payload)
+        if (error) {
+          console.error("Error bulk upserting game lines in Supabase:", error)
+        }
+      } catch (err) {
+        console.error("Exception bulk upserting game lines in Supabase:", err)
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(STORAGE_KEYS.GAME_LINES)
+      const existing: GameLineRecord[] = raw ? JSON.parse(raw) : []
+      const map = new Map<string, GameLineRecord>()
+
+      for (const r of existing) {
+        map.set(r.id, r)
+      }
+      for (const r of records) {
+        map.set(r.id, r)
+      }
+
+      localStorage.setItem(STORAGE_KEYS.GAME_LINES, JSON.stringify(Array.from(map.values())))
+    }
+  },
+
   // User Data Operations
   async getUserData(): Promise<UserData> {
     const userId = await this.getCurrentUserId()
@@ -59,10 +209,10 @@ export const storageHybrid = {
         .from("user_profiles")
         .select("*")
         .eq("id", userId)
-        .single()
+        .maybeSingle()
 
-      if (error || !data) {
-        // Create minimal profile if missing to avoid schema mismatches
+      if (!data) {
+        // No profile row yet – create a minimal one so the rest of the app has a stable shape
         const defaultData = getDefaultUserData()
         const { error: insertError } = await supabase
           .from("user_profiles")
@@ -72,10 +222,24 @@ export const storageHybrid = {
           })
 
         if (insertError) {
-          console.error("Error creating user profile:", insertError)
+          console.error("Error creating user profile:", {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            code: insertError.code,
+          })
         }
 
         return defaultData
+      }
+
+      if (error) {
+        console.warn("Error fetching user profile, falling back to defaults:", {
+          message: (error as any).message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+          code: (error as any).code,
+        })
       }
 
       // Convert snake_case DB fields to camelCase
@@ -735,7 +899,12 @@ export const storageHybrid = {
         .eq("user_id", userId)
 
       if (error) {
-        console.error("Error fetching challenges:", error)
+        console.error("Error fetching challenges:", {
+          message: (error as any).message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+          code: (error as any).code,
+        })
         const defaultChallenges = getDefaultChallenges()
 
         // Try to create default challenges
@@ -743,7 +912,7 @@ export const storageHybrid = {
           .from("challenges")
           .insert(
             defaultChallenges.map(challenge => ({
-              id: challenge.id,
+              // Let the database generate the primary key ID to avoid type mismatches
               user_id: userId,
               title: challenge.title,
               description: challenge.description,
@@ -755,7 +924,12 @@ export const storageHybrid = {
           )
 
         if (insertError) {
-          console.error("Error creating challenges:", insertError)
+          console.error("Error creating challenges:", {
+            message: (insertError as any).message,
+            details: (insertError as any).details,
+            hint: (insertError as any).hint,
+            code: (insertError as any).code,
+          })
         }
 
         return defaultChallenges
@@ -769,7 +943,7 @@ export const storageHybrid = {
           .from("challenges")
           .insert(
             defaultChallenges.map(challenge => ({
-              id: challenge.id,
+              // Let the database generate the primary key ID to avoid type mismatches
               user_id: userId,
               title: challenge.title,
               description: challenge.description,
@@ -781,7 +955,12 @@ export const storageHybrid = {
           )
 
         if (insertError) {
-          console.error("Error creating challenges:", insertError)
+          console.error("Error creating challenges:", {
+            message: (insertError as any).message,
+            details: (insertError as any).details,
+            hint: (insertError as any).hint,
+            code: (insertError as any).code,
+          })
         }
 
         return defaultChallenges

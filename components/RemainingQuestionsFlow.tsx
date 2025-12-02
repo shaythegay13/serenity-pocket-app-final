@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SurveyAnswer, SURVEY_QUESTIONS } from '@/types/survey';
 import SurveyForm from '@/components/SurveyForm';
 import { Card } from '@/components/ui/card';
+import { supabase } from '@/lib/supabase';
 
 // Get the remaining questions (c5-c12) - everything except the first 4 snapshot questions
 const REMAINING_QUESTIONS = SURVEY_QUESTIONS.slice(4);
@@ -30,6 +31,16 @@ export function RemainingQuestionsFlow() {
       // Combine snapshot responses with the remaining questions responses
       const allResponses = [...snapshotResponses, ...responses];
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const email = user?.email;
+
+      if (!email) {
+        throw new Error('Unable to determine user email. Please sign in again and retry the survey.');
+      }
+
       // Submit the complete survey
       const response = await fetch('/api/gambling-survey/submit', {
         method: 'POST',
@@ -37,6 +48,7 @@ export function RemainingQuestionsFlow() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          email,
           responses: allResponses,
         }),
         credentials: 'include',

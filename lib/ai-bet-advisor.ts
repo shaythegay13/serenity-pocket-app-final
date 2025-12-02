@@ -8,6 +8,8 @@
  * 3. Unified Recommendation: Combined analysis with confidence scoring
  */
 
+import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './aws-bedrock'
+import { isPerplexityAvailable, invokePerplexity } from './perplexity'
 export interface BetScenario {
   sport: string
   betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay'
@@ -86,6 +88,20 @@ export interface ComprehensiveAnalysis {
   analytical: AnalyticalAnalysis
   safety: SafetyAnalysis
   recommendation: UnifiedRecommendation
+}
+
+export interface AIEnhancedAnalysis extends ComprehensiveAnalysis {
+  ai?: {
+    usedClaude: boolean
+    usedPerplexity: boolean
+    claudeAnalysis?: {
+      enhancedReasoning: string
+      refinedRecommendation: 'PLACE BET' | 'DON\'T PLACE BET' | 'PROCEED WITH CAUTION'
+      confidenceScore: number
+      keyInsights: string[]
+    }
+    perplexitySummary?: string
+  }
 }
 
 /**
@@ -475,5 +491,107 @@ export function analyzeScenario(payload: BetScenario): ComprehensiveAnalysis {
     analytical,
     safety,
     recommendation
+  }
+}
+
+export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnhancedAnalysis> {
+  const base = analyzeScenario(payload)
+
+  const hasClaude = isEnhancedAIAvailable()
+  const hasPerplexity = isPerplexityAvailable()
+
+  let claudeAnalysis:
+    | {
+        enhancedReasoning: string
+        refinedRecommendation: 'PLACE BET' | "DON'T PLACE BET" | 'PROCEED WITH CAUTION'
+        confidenceScore: number
+        keyInsights: string[]
+      }
+    | undefined
+  let perplexitySummary: string | undefined
+
+  if (hasPerplexity) {
+    try {
+      const researchPrompt = `You are assisting with research for a responsible betting advisor.
+
+Please provide concise, factual context for this betting scenario.
+
+Sport: ${payload.sport}
+Bet Type: ${payload.betType}
+Bet Amount: $${payload.betAmount}
+Weekly Budget: $${payload.budget}
+Favorite: ${payload.favoriteTeam} (${payload.favoriteRecord})
+Underdog: ${payload.underdogTeam} (${payload.underdogRecord})
+Injuries: ${payload.injuries || 'None reported'}
+Weather: ${payload.weather || 'N/A'}
+Current Emotion: ${payload.currentEmotion}
+Last Outcome: ${payload.lastOutcome}
+
+User notes: ${payload.notes || 'n/a'}
+
+Focus on data that could impact responsible betting decisions (schedule spots, injuries, trends, etc.).
+Respond with 3-8 bullet points.`
+
+      perplexitySummary = await invokePerplexity({
+        system: 'You are a neutral research assistant supporting a responsible gambling advisor.',
+        messages: [
+          {
+            role: 'user',
+            content: researchPrompt,
+          },
+        ],
+        max_tokens: 900,
+        temperature: 0.3,
+      })
+    } catch (error) {
+      console.error('Perplexity research failed (analyzeScenarioWithAI):', error)
+    }
+  }
+
+  if (hasClaude) {
+    try {
+      claudeAnalysis = await getEnhancedBetAnalysis({
+        sport: payload.sport,
+        betType: payload.betType,
+        betAmount: payload.betAmount,
+        budget: payload.budget,
+        favoriteTeam: payload.favoriteTeam,
+        underdogTeam: payload.underdogTeam,
+        favoriteRecord: payload.favoriteRecord,
+        underdogRecord: payload.underdogRecord,
+        injuries: payload.injuries,
+        weather: payload.weather,
+        currentEmotion: payload.currentEmotion,
+        lastOutcome: payload.lastOutcome,
+        emotionalTriggers: payload.emotionalTriggers,
+        bettingSlip: payload.bettingSlip,
+        history: payload.history,
+        notes: payload.notes,
+        builtInAnalysis: {
+          analyticalInsights: [
+            ...base.analytical.insights,
+            ...base.analytical.evNotes,
+            ...base.analytical.factors,
+          ],
+          emotionalRisk: base.recommendation.emotionalAnalysis.emotionalRisk,
+          emotionalFactors: base.recommendation.emotionalAnalysis.emotionalFactors,
+          safetySignals: base.safety.signals.map((s) => s.label),
+          recommendation: base.recommendation.recommendation,
+          confidence: base.recommendation.confidence,
+        },
+      })
+    } catch (error) {
+      console.error('Claude enhanced analysis failed (analyzeScenarioWithAI):', error)
+    }
+  }
+
+  return {
+    ...base,
+    ai: {
+      usedClaude: !!claudeAnalysis,
+      usedPerplexity: !!perplexitySummary,
+      claudeAnalysis,
+      perplexitySummary,
+    },
   }
 }

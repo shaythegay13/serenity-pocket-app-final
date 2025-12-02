@@ -30,7 +30,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
   )
   const currentTier = userData.subscriptionTier || "free"
   const currentTierData = SUBSCRIPTION_TIERS.find((t) => t.id === currentTier)
-  const isDev = process.env.NODE_ENV === 'development'
 
   // Update local state when userData changes
   useEffect(() => {
@@ -102,44 +101,42 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     }
   }
 
-  // TEMPORARY: Manual subscription test
-  const handleTestSubscription = async (tier: string) => {
+  const handleDeleteAccount = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-      
+      const confirmed = window.confirm(
+        "Are you sure you want to delete your account? This action cannot be undone.",
+      )
+      if (!confirmed) return
+
+      const { supabase } = await import("@/lib/supabase")
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
       if (!session) {
-        toast.error('Not authenticated')
+        toast.error("Not authenticated")
         return
       }
 
-      console.log('🧪 Testing subscription update to:', tier)
-      
-      const response = await fetch('/api/test-subscription', {
-        method: 'POST',
+      const response = await fetch("/api/user/delete", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ tier }),
       })
 
-      const data = await response.json()
-      console.log('🧪 Test subscription response:', data)
-
       if (!response.ok) {
-        console.error('❌ Test subscription failed:', data)
-        throw new Error(data.error || 'Failed to update subscription')
+        const data = await response.json().catch(() => null)
+        toast.error(data?.error || "Failed to delete account")
+        return
       }
 
-      toast.success(`Test subscription updated to ${tier}!`)
-      
-      // Wait a moment for database to update
-      await new Promise(resolve => setTimeout(resolve, 500))
-      await handleSyncSubscription()
+      await supabase.auth.signOut()
+      toast.success("Your account has been deleted")
+      window.location.href = "/"
     } catch (error) {
-      console.error('❌ Error:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to update test subscription')
+      console.error("Error deleting account:", error)
+      toast.error("Failed to delete account")
     }
   }
 
@@ -367,85 +364,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
           )}
         </div>
       </Card>
-
-      {/* Dev Mode: Tier Switcher */}
-      {isDev && (
-        <>
-          <Card className="p-4 bg-yellow-500/10 border-yellow-500/50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🛠️</span>
-              <h3 className="text-sm font-semibold text-foreground">Developer Mode: Test Subscription Tiers</h3>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Instantly switch between tiers to test premium features. This only appears in development.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SUBSCRIPTION_TIERS.map((tier) => (
-                <Button
-                  key={tier.id}
-                  size="sm"
-                  variant={currentTier === tier.id ? "default" : "outline"}
-                  onClick={() => updateUserData({ subscriptionTier: tier.id as any })}
-                  className="flex items-center gap-2"
-                >
-                  {tier.id === "elite" && <Crown className="h-3 w-3" />}
-                  {tier.displayName}
-                  {currentTier === tier.id && <Check className="h-3 w-3" />}
-                </Button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-blue-500/10 border-blue-500/50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🧪</span>
-              <h3 className="text-sm font-semibold text-foreground">Test Database Subscription Update</h3>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Manually update subscription in database (bypasses Stripe webhook for testing).
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="default"
-                onClick={async () => {
-                  try {
-                    const { supabase } = await import('@/lib/supabase')
-                    const { data: { session } } = await supabase.auth.getSession()
-                    if (!session) return
-                    
-                    const res = await fetch('/api/create-profile', {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${session.access_token}` }
-                    })
-                    const data = await res.json()
-                    if (res.ok) {
-                      toast.success('Profile created!')
-                      await handleSyncSubscription()
-                    } else {
-                      toast.error(data.error)
-                    }
-                  } catch (e) {
-                    toast.error('Failed to create profile')
-                  }
-                }}
-              >
-                🔨 Create Profile
-              </Button>
-              {SUBSCRIPTION_TIERS.filter(t => t.id !== 'free').map((tier) => (
-                <Button
-                  key={tier.id}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTestSubscription(tier.id)}
-                >
-                  Set {tier.displayName}
-                </Button>
-              ))}
-            </div>
-          </Card>
-        </>
-      )}
 
       {/* Current Plan */}
       <Card className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
@@ -731,6 +649,20 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                 placeholder="Maximum stake per bet"
               />
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-border flex justify-between items-center">
+            <div className="text-xs text-muted-foreground">
+              If you no longer wish to use Serenity Pocket, you can permanently delete your account.
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteAccount}
+            >
+              Delete Account
+            </Button>
           </div>
         </div>
       </Card>

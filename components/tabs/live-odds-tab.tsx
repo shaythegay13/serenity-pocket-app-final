@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { TrendingUp, Search, Filter, ExternalLink, Lock, RefreshCw, AlertCircle } from "lucide-react"
-import type { UserData } from "@/lib/types"
+import type { UserData, GameLineRecord, GameMarketSnapshot, SupportedSportKey } from "@/lib/types"
 import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
 import { fetchPlayerProps, transformPlayerPropsForDisplay } from "@/lib/odds-api"
 import { toast } from "sonner"
@@ -59,6 +59,14 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
   const [coachError, setCoachError] = useState<string | null>(null)
   const [coachResult, setCoachResult] = useState<any | null>(null)
 
+  const getEventDate = (value: any): Date | null => {
+    if (!value) return null
+    if (value instanceof Date) return value
+    const s = typeof value === "string" ? value : String(value)
+    const d = new Date(s)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
   // Fetch live odds on mount and when sport changes
   useEffect(() => {
     if (hasAccess) {
@@ -109,7 +117,7 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/enhanced-odds?sport=${selectedSport}&strategy=auto&includeAdvantages=true`)
+      const res = await fetch(`/api/enhanced-odds?sport=${selectedSport}&strategy=theodds&includeAdvantages=true`)
       if (!res.ok) {
         throw new Error(`API request failed: ${res.status}`)
       }
@@ -117,6 +125,65 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
 
       if (response.success && response.data) {
       setOddsData(response.data)
+
+      try {
+        const nowIso = new Date().toISOString()
+        const records: GameLineRecord[] = (response.data as any[]).map((odds: any): GameLineRecord => {
+          const eventDate = getEventDate(odds.commenceTime || odds.eventTime) || new Date()
+          const homeBest = odds?.homeOdds?.best
+          const awayBest = odds?.awayOdds?.best
+
+          const markets: GameMarketSnapshot[] = []
+
+          if (homeBest && typeof homeBest.odds === "number") {
+            markets.push({
+              id: `${odds.id}-moneyline-home`,
+              marketType: "moneyline",
+              side: "home",
+              line: undefined,
+              price: homeBest.odds,
+              label: `${odds.homeTeam} moneyline`,
+              sportsbook: homeBest.bookmaker,
+            })
+          }
+
+          if (awayBest && typeof awayBest.odds === "number") {
+            markets.push({
+              id: `${odds.id}-moneyline-away`,
+              marketType: "moneyline",
+              side: "away",
+              line: undefined,
+              price: awayBest.odds,
+              label: `${odds.awayTeam} moneyline`,
+              sportsbook: awayBest.bookmaker,
+            })
+          }
+
+          const record: GameLineRecord = {
+            id: String(odds.id),
+            sport: (odds.sportKey || odds.sport) as SupportedSportKey,
+            league: undefined,
+            homeTeam: odds.homeTeam,
+            awayTeam: odds.awayTeam,
+            commenceTime: eventDate.toISOString(),
+            sportsbook: markets[0]?.sportsbook,
+            markets,
+            homeScore: undefined,
+            awayScore: undefined,
+            finalStatus: "scheduled",
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          }
+
+          return record
+        }).filter((rec: GameLineRecord) => rec.markets.length > 0)
+
+        if (records.length > 0) {
+          await storage.bulkUpsertGameLines(records)
+        }
+      } catch (err) {
+        console.warn('Error persisting game lines history:', err)
+      }
 
       const uniqueTeams = new Set<string>()
       response.data.forEach((odds: any) => {
@@ -176,7 +243,6 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     { key: "americanfootball_nfl", label: "NFL" },
     { key: "baseball_mlb", label: "MLB" },
     { key: "icehockey_nhl", label: "NHL" },
-    { key: "soccer_epl", label: "Soccer (EPL)" },
   ]
 
   if (!hasAccess) {
@@ -399,13 +465,13 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
             .filter((odds) => {
               if (!searchQuery) return true
               const query = searchQuery.toLowerCase()
-              const eventTime = odds.commenceTime || odds.eventTime
+              const eventDate = getEventDate(odds.commenceTime || odds.eventTime)
               // Search across teams, sport, event time
               const matchesBasic = (
                 odds.homeTeam.toLowerCase().includes(query) ||
                 odds.awayTeam.toLowerCase().includes(query) ||
                 odds.sport.toLowerCase().includes(query) ||
-                (eventTime && eventTime.toLocaleString().toLowerCase().includes(query))
+                (eventDate && eventDate.toLocaleString().toLowerCase().includes(query))
               )
               // Also search in player rosters if available
               const homeRoster = teamRosters[odds.homeTeam] || []
@@ -432,7 +498,10 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {(odds.commenceTime || odds.eventTime) && (odds.commenceTime || odds.eventTime).toLocaleString()}
+                    {(() => {
+                      const d = getEventDate(odds.commenceTime || odds.eventTime)
+                      return d ? d.toLocaleString() : ""
+                    })()}
                   </p>
                 </div>
                 <TrendingUp className="h-6 w-6 text-green-500" />
@@ -518,21 +587,34 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                     onClick={() => {
                       if (cooldown) return
                       if (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) return
+                      const eventDate = getEventDate(odds.commenceTime || odds.eventTime)
                       const betData = {
                         sport: odds.sport,
                         homeTeam: odds.homeTeam,
                         awayTeam: odds.awayTeam,
-                        eventTime: (odds.commenceTime || odds.eventTime) ? (odds.commenceTime || odds.eventTime).toISOString() : new Date().toISOString(),
+                        eventTime: (eventDate || new Date()).toISOString(),
                         bestHomeOdds: odds.homeOdds.best.odds,
                         bestAwayOdds: odds.awayOdds.best.odds,
                         bestHomeBookmaker: odds.homeOdds.best.bookmaker,
                         bestAwayBookmaker: odds.awayOdds.best.bookmaker,
                         homeOddsByBook: odds.homeOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
                         awayOddsByBook: odds.awayOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
+                        defaultStake: 50,
                       }
                       localStorage.setItem('pendingBetAnalysis', JSON.stringify(betData))
                       toast.success('Bet loaded! Fill in your analysis details.')
-                      onNavigateToTab("analyze")
+
+                      const isElite = (userData.subscriptionTier || 'free') === 'elite'
+                      if (isElite) {
+                        try {
+                          localStorage.setItem('aiAdvisorFromLiveOdds', '1')
+                        } catch {
+                          // ignore storage errors
+                        }
+                        onNavigateToTab('ai-picks')
+                      } else {
+                        onNavigateToTab('analyze')
+                      }
                     }}
                     disabled={cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit)}
                   >
@@ -685,17 +767,19 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
                           </Card>
                         </div>
                         <Button onClick={() => {
+                          const eventDate = getEventDate(odds.commenceTime || odds.eventTime)
                           const betData = {
                             sport: odds.sport,
                             homeTeam: odds.homeTeam,
                             awayTeam: odds.awayTeam,
-                            eventTime: odds.commenceTime.toISOString(),
+                            eventTime: (eventDate || new Date()).toISOString(),
                             bestHomeOdds: odds.homeOdds.best.odds,
                             bestAwayOdds: odds.awayOdds.best.odds,
                             bestHomeBookmaker: odds.homeOdds.best.bookmaker,
                             bestAwayBookmaker: odds.awayOdds.best.bookmaker,
                             homeOddsByBook: odds.homeOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
                             awayOddsByBook: odds.awayOdds.all.slice(0, 12).reduce((acc: any, comp: any) => { acc[comp.bookmaker] = comp.odds; return acc }, {}),
+                            defaultStake: 50,
                           }
                           if (!(cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit))) {
                             localStorage.setItem('pendingBetAnalysis', JSON.stringify(betData))

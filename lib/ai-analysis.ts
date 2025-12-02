@@ -1,9 +1,10 @@
 /**
- * AI-Powered Bet Analysis using OpenAI
+ * AI-Powered Bet Analysis using AI models
  * Provides probability estimation, EV calculation, and bias detection
  */
 
 import { invokeClaude } from "./aws-bedrock"
+import { invokePerplexity, isPerplexityAvailable } from "./perplexity"
 
 export interface BetAnalysisInput {
   description: string
@@ -51,38 +52,96 @@ Your role is to:
 
 Focus on mathematical analysis and value betting.`
 
-    const userPrompt = buildAnalysisPrompt(input)
-
-    const rawText = await invokeClaude({
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-      max_tokens: 1000,
-      temperature: 0.7,
-    })
-
-    let jsonText = rawText.trim()
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "")
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/```\n?/g, "")
+    let researchContext = ""
+    if (isPerplexityAvailable()) {
+      try {
+        const researchPrompt = buildPerplexityBetResearchPrompt(input)
+        researchContext = await invokePerplexity({
+          system: "You are a research assistant helping gather up-to-date, factual context for a responsible sports betting advisor.",
+          messages: [
+            {
+              role: "user",
+              content: researchPrompt,
+            },
+          ],
+          max_tokens: 800,
+          temperature: 0.3,
+        })
+      } catch (error) {
+        console.error("Perplexity research failed (analyzeBet):", error)
+      }
     }
 
-    const result = JSON.parse(jsonText)
-    
-    // Validate and format the response
-    return {
-      recommendation: result.recommendation || 'MODERATE_BET',
-      probability: Math.min(100, Math.max(0, result.probability || 50)),
-      expectedValue: result.expectedValue || 0,
-      reasoning: result.reasoning || 'Analysis completed.',
-      biasWarnings: result.biasWarnings || [],
-      confidenceScore: Math.min(100, Math.max(0, result.confidenceScore || 70)),
-      riskLevel: result.riskLevel || 'MEDIUM'
+    const userPrompt = buildAnalysisPrompt(input, researchContext)
+
+    try {
+      const rawText = await invokeClaude({
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.7,
+      })
+
+      let jsonText = rawText.trim()
+      if (jsonText.startsWith("```json")) {
+        jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "")
+      } else if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```\n?/g, "")
+      }
+
+      const result = JSON.parse(jsonText)
+      
+      // Validate and format the response
+      return {
+        recommendation: result.recommendation || 'MODERATE_BET',
+        probability: Math.min(100, Math.max(0, result.probability || 50)),
+        expectedValue: result.expectedValue || 0,
+        reasoning: result.reasoning || 'Analysis completed.',
+        biasWarnings: result.biasWarnings || [],
+        confidenceScore: Math.min(100, Math.max(0, result.confidenceScore || 70)),
+        riskLevel: result.riskLevel || 'MEDIUM'
+      }
+    } catch (claudeError) {
+      console.error('Claude/Bedrock analysis failed, falling back to safe rule-based analysis:', claudeError)
+
+      // Fallback: rule-based analysis using odds and stake only (no randomness, no mock AI)
+      const impliedProb = calculateImpliedProbability(input.odds)
+      const stake = input.stake
+      const potentialWin = input.odds > 0
+        ? (stake * input.odds / 100)
+        : (stake * 100 / Math.abs(input.odds))
+      const p = impliedProb / 100
+      const ev = p * potentialWin - (1 - p) * stake
+
+      let recommendation: BetAnalysisResult['recommendation'] = 'AVOID'
+      let riskLevel: BetAnalysisResult['riskLevel'] = 'HIGH'
+
+      if (ev > 0 && p >= 55) {
+        recommendation = 'STRONG_BET'
+        riskLevel = 'LOW'
+      } else if (ev > 0 && p >= 50) {
+        recommendation = 'MODERATE_BET'
+        riskLevel = 'MEDIUM'
+      } else if (ev > -stake * 0.1) {
+        recommendation = 'WEAK_BET'
+        riskLevel = 'MEDIUM'
+      }
+
+      return {
+        recommendation,
+        probability: Number(impliedProb.toFixed(1)),
+        expectedValue: Number(ev.toFixed(2)),
+        reasoning:
+          'AI analysis is temporarily unavailable. This fallback uses implied probability and basic EV math only. When in doubt, size down or avoid emotional bets.',
+        biasWarnings: [],
+        confidenceScore: 50,
+        riskLevel,
+      }
     }
   } catch (error) {
     console.error('Error analyzing bet:', error)
@@ -93,7 +152,7 @@ Focus on mathematical analysis and value betting.`
 /**
  * Build the analysis prompt
  */
-function buildAnalysisPrompt(input: BetAnalysisInput): string {
+function buildAnalysisPrompt(input: BetAnalysisInput, researchContext?: string): string {
   const oddsType = input.odds > 0 ? 'American (positive)' : 'American (negative)'
   const impliedProbability = calculateImpliedProbability(input.odds)
 
@@ -132,7 +191,6 @@ REQUIRED ANALYSIS:
 3. Provide a recommendation: STRONG_BET, MODERATE_BET, WEAK_BET, or AVOID
 4. Give your confidence score (0-100%) in this analysis
 5. Assess risk level: LOW, MEDIUM, or HIGH
-6. Explain your reasoning in 2-3 sentences
 `
 
   if (input.includeBiasDetection) {
@@ -161,6 +219,13 @@ RESPOND IN JSON FORMAT:
   "riskLevel": "LOW" | "MEDIUM" | "HIGH"
 }
 `
+
+  if (researchContext) {
+    prompt += `
+ADDITIONAL RESEARCH CONTEXT (from external research assistant):
+${researchContext}
+`
+  }
 
   return prompt
 }
@@ -198,6 +263,26 @@ export async function generateAIPicks(
 
 Only recommend bets with positive expected value and appropriate risk levels.`
 
+    let researchContext = ""
+    if (isPerplexityAvailable()) {
+      try {
+        const researchPrompt = buildPerplexityPicksResearchPrompt(validGames, userEmotionalScore, userRiskTolerance)
+        researchContext = await invokePerplexity({
+          system: "You are a research assistant helping gather up-to-date, factual context for sports betting markets.",
+          messages: [
+            {
+              role: "user",
+              content: researchPrompt,
+            },
+          ],
+          max_tokens: 800,
+          temperature: 0.3,
+        })
+      } catch (error) {
+        console.error("Perplexity research failed (generateAIPicks):", error)
+      }
+    }
+
     const userPrompt = `Analyze these games and recommend the top 3 bets:
 
 GAMES:
@@ -218,6 +303,11 @@ ${idx + 1}. ${game.away_team} @ ${game.home_team}
 USER PROFILE:
 - Emotional Stability Score: ${userEmotionalScore}/100
 - Risk Tolerance: ${userRiskTolerance}
+
+${researchContext && researchContext.trim() ? `
+ADDITIONAL RESEARCH CONTEXT (from external research assistant):
+${researchContext}
+` : ""}
 
 REQUIREMENTS:
 - Only recommend if emotional score > 70
@@ -272,4 +362,44 @@ RESPOND IN JSON FORMAT:
     console.error('Error generating AI picks:', error)
     throw new Error('Failed to generate AI picks. Please try again.')
   }
+}
+
+function buildPerplexityBetResearchPrompt(input: BetAnalysisInput): string {
+  return `You are assisting with research for a sports betting analysis tool.
+
+Gather concise, factual, and up-to-date information that could help evaluate this bet.
+
+Bet description: ${input.description}
+Odds: ${input.odds}
+Stake: $${input.stake}
+
+Focus on:
+- Recent performance and injuries relevant to this bet
+- Any notable situational factors (schedule, weather, etc.)
+- Market or line movement, if available
+
+Respond with a short, structured summary (3-6 bullet points).`
+}
+
+function buildPerplexityPicksResearchPrompt(
+  games: any[],
+  userEmotionalScore: number,
+  userRiskTolerance: 'conservative' | 'moderate' | 'aggressive',
+): string {
+  const gameList = games
+    .slice(0, 5)
+    .map((g, idx) => `${idx + 1}. ${g.away_team} @ ${g.home_team} (commence: ${g.commence_time})`)
+    .join('\n')
+
+  return `You are assisting with research for an AI that suggests responsible sports bets.
+
+Here are upcoming games:
+${gameList}
+
+User profile:
+- Emotional Stability Score: ${userEmotionalScore}/100
+- Risk Tolerance: ${userRiskTolerance}
+
+Provide concise market/context notes that could inform value-focused bets. Emphasize data, not hype.
+Respond with 3-8 bullet points summarizing key angles across these games.`
 }

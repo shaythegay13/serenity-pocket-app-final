@@ -12,6 +12,7 @@ import { calculateEmotionalStability, getScoreColor, shouldReceiveAIPicks } from
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import AIBetAdvisor from "@/components/ai-bet-advisor"
+import { supabase } from "@/lib/supabase"
 
 interface AIPicksTabProps {
   userData: UserData
@@ -23,11 +24,14 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const cooldown = !!userData.cooldownEnabled
   
   const [loading, setLoading] = useState(false)
+  const [isFetchingPicks, setIsFetchingPicks] = useState(false)
+  const [lastPicksFetchAt, setLastPicksFetchAt] = useState<number | null>(null)
   const [picks, setPicks] = useState<any[]>([])
   const [emotionalStability, setEmotionalStability] = useState<any>(null)
   const [selectedSport, setSelectedSport] = useState('basketball_nba')
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
+  const [activeSection, setActiveSection] = useState<'picks' | 'advisor'>('picks')
 
   // Calculate emotional stability on mount
   useEffect(() => {
@@ -35,6 +39,20 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       calculateUserStability()
     }
   }, [hasAccess])
+
+  // If coming from Live Odds wanting AI Analyze My Bet, switch to advisor tab
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const flag = localStorage.getItem('aiAdvisorFromLiveOdds')
+      if (flag) {
+        setActiveSection('advisor')
+        localStorage.removeItem('aiAdvisorFromLiveOdds')
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [])
 
   // Initialize daily bet count to enforce daily limit when logging bets
   useEffect(() => {
@@ -89,17 +107,41 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       return
     }
 
+    const now = Date.now()
+    if (isFetchingPicks) {
+      console.log('AI Picks: Skipping fetch because a request is already in flight')
+      return
+    }
+    if (lastPicksFetchAt && now - lastPicksFetchAt < 60_000) {
+      console.log('AI Picks: Skipping fetch because last run was less than 60s ago')
+      toast.info('AI Picks Cooldown', {
+        description: 'Please wait at least 60 seconds between AI Picks runs.',
+      })
+      return
+    }
+
     console.log('AI Picks: Fetching picks...', {
       sport: selectedSport,
       emotionalScore: emotionalStability.score,
       riskTolerance
     })
-
     setLoading(true)
+    setIsFetchingPicks(true)
     try {
-      const response = await fetch('/api/ai-picks', {
+      let accessToken: string | undefined
+      try {
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token
+      } catch (e) {
+        console.warn("AI Picks: Failed to get Supabase session for JWT auth", e)
+      }
+
+      const response = await fetch('/api/picker/recommend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           sport: selectedSport,
           emotionalScore: emotionalStability.score,
@@ -117,19 +159,36 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       const data = await response.json()
       console.log('AI Picks: Response data:', data)
-      
+
       if (!data.shouldBet) {
         toast.warning('Emotional Stability Check', {
           description: data.message
         })
         setPicks([])
       } else {
-        setPicks(data.picks || [])
-        if (data.picks && data.picks.length > 0) {
-          console.log(`AI Picks: Loaded ${data.picks.length} picks`)
-          if (!data.usedAI) {
-            toast.info('Using Mock Picks', {
-              description: 'Add OPENAI_API_KEY for real AI-generated picks'
+        const recs = data.recommendations || []
+
+        const mappedPicks = recs.map((rec: any) => ({
+          sport: selectedSport,
+          event: rec.teams || 'Matchup',
+          pick: rec.line ? `${rec.betType} ${rec.line}` : rec.betType,
+          odds: rec.odds,
+          confidence: typeof rec.emotionalAlignment === 'number' ? rec.emotionalAlignment : 0,
+          expectedValue: 0,
+          suggestedStake: rec.suggestedStakeAbsolute ?? 0,
+          riskLevel: rec.riskLevel || 'MEDIUM',
+          emotionalAlignment: rec.emotionalAlignment ?? 0,
+          reasoning: rec.shortExplanation || '',
+          commenceTime: rec.startTime,
+        }))
+
+        setPicks(mappedPicks)
+        if (mappedPicks.length > 0) {
+          console.log(`AI Picks: Loaded ${mappedPicks.length} picks`)
+          const meta = data.meta || {}
+          if (!meta.usedClaude && !meta.usedSageMaker && !meta.usedPerplexity) {
+            toast.info('Using Fallback Picks', {
+              description: 'Real-time AI stack (Perplexity + SageMaker + Claude) is unavailable; using safer fallback logic.'
             })
           }
         } else {
@@ -147,6 +206,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       setPicks([])
     } finally {
       setLoading(false)
+      setIsFetchingPicks(false)
+      setLastPicksFetchAt(now)
     }
   }
 
@@ -306,7 +367,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         </p>
       </div>
 
-      <Tabs defaultValue="picks" className="w-full">
+      <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'picks' | 'advisor')} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="picks">
             <Sparkles className="h-4 w-4 mr-2" />
@@ -359,7 +420,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 calculateUserStability()
                 fetchAIPicks()
               }}
-              disabled={loading || cooldown}
+              disabled={loading || cooldown || isFetchingPicks}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh

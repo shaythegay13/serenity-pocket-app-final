@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
+import { supabase } from "@/lib/supabase"
 
 export default function AIBetAdvisor() {
   const [loading, setLoading] = useState(false)
@@ -44,10 +45,19 @@ export default function AIBetAdvisor() {
     setAnalysis(null)
 
     try {
+      let accessToken: string | undefined
+      try {
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token
+      } catch (err) {
+        console.warn("AI Bet Advisor: Failed to get Supabase session for JWT auth", err)
+      }
+
       const response = await fetch("/api/ai/analyze-bet", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify(formData),
       })

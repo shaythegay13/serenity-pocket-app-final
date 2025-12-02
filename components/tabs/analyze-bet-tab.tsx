@@ -13,7 +13,6 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
 import { LineMovementSeries } from "@/components/odds/LineMovementSeries"
-import { SportsbookDeals } from "@/components/deals/SportsbookDeals"
 import { FeatureGate } from "@/components/feature-gate"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -57,9 +56,13 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
   // Line movement controls
   const [lineUnit, setLineUnit] = useState<'minutes' | 'hours' | 'days'>('hours')
   const [lineAmount, setLineAmount] = useState<string>('6')
+  const [lineHistory, setLineHistory] = useState<Array<{ timestamp: number; home?: number; away?: number }>>([])
   // Parlay analysis state
   const [parlayAnalysis, setParlayAnalysis] = useState<any>(null)
   const [analyzingParlay, setAnalyzingParlay] = useState(false)
+  // UI toggles
+  const [showSlipBuilder, setShowSlipBuilder] = useState(false)
+  const [showParlayBuilder, setShowParlayBuilder] = useState(false)
 
   const hasBasicAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
   const hasPsychAccess = canAccessFeature(userData.subscriptionTier || "free", "premium_plus")
@@ -68,13 +71,23 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
 
   // Check for pending bet analysis from Live Odds tab
   useEffect(() => {
-    const pendingBet = localStorage.getItem('pendingBetAnalysis')
-    if (pendingBet) {
+    const loadPendingBet = () => {
+      const pendingBet = localStorage.getItem('pendingBetAnalysis')
+      if (!pendingBet) return
       try {
         const betData = JSON.parse(pendingBet)
         // Pre-fill the form with the bet data
         const description = `${betData.sport}: ${betData.awayTeam} @ ${betData.homeTeam}\nBest odds: ${betData.bestHomeBookmaker} (${betData.bestHomeOdds}) vs ${betData.bestAwayBookmaker} (${betData.bestAwayOdds})`
         setBetDescription(description)
+        // Prefill core odds/stake fields so user doesn't have to retype
+        if (typeof betData.bestHomeOdds === 'number') {
+          setOdds(String(betData.bestHomeOdds))
+        } else if (typeof betData.bestAwayOdds === 'number') {
+          setOdds(String(betData.bestAwayOdds))
+        }
+        if (typeof betData.defaultStake === 'number') {
+          setStake(String(betData.defaultStake))
+        }
         setBuilderAwayTeam(betData.awayTeam || "")
         setBuilderHomeTeam(betData.homeTeam || "")
         // Load per-book odds maps for autopopulating builder odds
@@ -89,6 +102,16 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
         console.error('Failed to load pending bet:', error)
       }
     }
+
+    loadPendingBet()
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'pendingBetAnalysis' && event.newValue) {
+        loadPendingBet()
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+
     ;(async () => {
       try {
         const emotionLogs = await storage.getEmotionLogs()
@@ -106,6 +129,10 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
         setDailyBetCount(todayCount)
       } catch {}
     })()
+
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
   }, [])
 
   // Autopopulate builder odds when sportsbook/selection changes (Moneyline/Spread only)
@@ -136,9 +163,23 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
     if (!propBook && availableBooks.length > 0) setPropBook(availableBooks[0])
   }, [availableBooks, propBook])
 
-  // Time-series line movement points (synthetic from per-book snapshot)
-  const lineSeriesPoints = useMemo(() => {
-    if (!homeOddsByBook && !awayOddsByBook) return [] as { time: string; home?: number; away?: number }[]
+  // Persist line movement snapshots in localStorage and build time-series from history
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('lineMovementHistory')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          setLineHistory(parsed)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load line movement history', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!homeOddsByBook && !awayOddsByBook) return
     const avg = (m: Record<string, number> | null) => {
       if (!m) return undefined
       const vals = Object.values(m)
@@ -147,34 +188,48 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
     }
     const baseHome = avg(homeOddsByBook)
     const baseAway = avg(awayOddsByBook)
-    if (baseHome == null && baseAway == null) return []
+    if (baseHome == null && baseAway == null) return
+
+    const snapshot = {
+      timestamp: Date.now(),
+      home: baseHome,
+      away: baseAway,
+    }
+
+    setLineHistory((prev) => {
+      const MAX_HISTORY_MS = 7 * 24 * 60 * 60 * 1000
+      const cutoff = Date.now() - MAX_HISTORY_MS
+      const filtered = prev.filter((p) => p.timestamp >= cutoff)
+      const next = [...filtered, snapshot]
+      try {
+        localStorage.setItem('lineMovementHistory', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [homeOddsByBook, awayOddsByBook])
+
+  const lineSeriesPoints = useMemo(() => {
+    if (!lineHistory.length) return [] as { time: string; home?: number; away?: number }[]
 
     const unitMs = lineUnit === 'minutes' ? 60_000 : lineUnit === 'hours' ? 3_600_000 : 86_400_000
     const totalMs = Math.max(1, parseInt(lineAmount || '1', 10)) * unitMs
-    const numPoints = 30
-    const step = totalMs / numPoints
-    const now = Date.now()
+    const cutoff = Date.now() - totalMs
 
-    const points: { time: string; home?: number; away?: number }[] = []
-    for (let i = numPoints; i >= 1; i--) {
-      const t = new Date(now - i * step)
+    const windowed = lineHistory.filter((p) => p.timestamp >= cutoff)
+    if (!windowed.length) return []
+
+    return windowed.map((p) => {
+      const t = new Date(p.timestamp)
       const label = lineUnit === 'days'
         ? t.toLocaleDateString()
         : t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      const jitter = (base: number | undefined, k: number) => {
-        if (base == null) return undefined
-        const amp = Math.max(5, Math.round(Math.abs(base) * 0.05)) // ~5% or min 5
-        const val = Math.round(base + amp * Math.sin(k / 2) + (amp / 3) * Math.cos(k / 3))
-        return val
-      }
-      points.push({
+      return {
         time: label,
-        home: jitter(baseHome as any, i),
-        away: jitter(baseAway as any, i + 1),
-      })
-    }
-    return points
-  }, [homeOddsByBook, awayOddsByBook, lineUnit, lineAmount])
+        home: typeof p.home === 'number' ? Math.round(p.home) : undefined,
+        away: typeof p.away === 'number' ? Math.round(p.away) : undefined,
+      }
+    })
+  }, [lineHistory, lineUnit, lineAmount])
 
   // Helpers for parlay math
   const americanToDecimal = (a: number) => a >= 100 ? 1 + a / 100 : 1 + 100 / Math.abs(a)
@@ -590,7 +645,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground mb-1 block">Paste Bet Slip</label>
+            <label className="text-sm font-medium text-foreground mb-1 block">Paste Bet Slip <span className="italic">(Optional)</span></label>
             <Textarea
               placeholder="Paste a bet slip or ticket text here"
               value={slipText}
@@ -609,79 +664,95 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
           </div>
 
           {/* Bet Slip Builder (Copy & Paste) */}
-          <Card className="p-4 bg-background/40 border-dashed">
-            <h4 className="text-sm font-semibold text-foreground mb-3">Bet Slip Builder (Copy for Sportsbooks)</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Sportsbook</label>
-                <select className="w-full bg-background border rounded px-3 py-2 text-sm" value={builderBook} onChange={(e) => setBuilderBook(e.target.value)}>
-                  {(availableBooks.length ? availableBooks : ["DraftKings", "FanDuel", "Caesars", "BetMGM"]).map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Sport</label>
-                <Input placeholder="NBA" value={builderSport} onChange={(e) => setBuilderSport(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Bet Type</label>
-                <select className="w-full bg-background border rounded px-3 py-2 text-sm" value={builderType} onChange={(e) => setBuilderType(e.target.value as any)}>
-                  <option>Moneyline</option>
-                  <option>Spread</option>
-                  <option>Total</option>
-                </select>
-              </div>
-              <div className="hidden md:block" />
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Away Team</label>
-                <Input placeholder="Lakers" value={builderAwayTeam} onChange={(e) => setBuilderAwayTeam(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Home Team</label>
-                <Input placeholder="Warriors" value={builderHomeTeam} onChange={(e) => setBuilderHomeTeam(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Selection</label>
-                <select
-                  className="w-full bg-background border rounded px-3 py-2 text-sm"
-                  value={builderSide}
-                  onChange={(e) => setBuilderSide(e.target.value)}
-                >
-                  {builderType === "Total" ? (
-                    <>
-                      <option>Over</option>
-                      <option>Under</option>
-                    </>
-                  ) : (
-                    <>
-                      <option>Away</option>
-                      <option>Home</option>
-                    </>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                id="toggle-slip-builder"
+                type="checkbox"
+                className="h-4 w-4"
+                checked={showSlipBuilder}
+                onChange={(e) => setShowSlipBuilder(e.target.checked)}
+              />
+              <label htmlFor="toggle-slip-builder" className="text-xs text-muted-foreground">
+                Use Bet Slip Builder (optional)
+              </label>
+            </div>
+            {showSlipBuilder && (
+              <Card className="p-4 bg-background/40 border-dashed">
+                <h4 className="text-sm font-semibold text-foreground mb-3">Bet Slip Builder (Copy for Sportsbooks)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Sportsbook</label>
+                    <select className="w-full bg-background border rounded px-3 py-2 text-sm" value={builderBook} onChange={(e) => setBuilderBook(e.target.value)}>
+                      {(availableBooks.length ? availableBooks : ["DraftKings", "FanDuel", "Caesars", "BetMGM"]).map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Sport</label>
+                    <Input placeholder="NBA" value={builderSport} onChange={(e) => setBuilderSport(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Bet Type</label>
+                    <select className="w-full bg-background border rounded px-3 py-2 text-sm" value={builderType} onChange={(e) => setBuilderType(e.target.value as any)}>
+                      <option>Moneyline</option>
+                      <option>Spread</option>
+                      <option>Total</option>
+                    </select>
+                  </div>
+                  <div className="hidden md:block" />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Away Team</label>
+                    <Input placeholder="Lakers" value={builderAwayTeam} onChange={(e) => setBuilderAwayTeam(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Home Team</label>
+                    <Input placeholder="Warriors" value={builderHomeTeam} onChange={(e) => setBuilderHomeTeam(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Selection</label>
+                    <select
+                      className="w-full bg-background border rounded px-3 py-2 text-sm"
+                      value={builderSide}
+                      onChange={(e) => setBuilderSide(e.target.value)}
+                    >
+                      {builderType === "Total" ? (
+                        <>
+                          <option>Over</option>
+                          <option>Under</option>
+                        </>
+                      ) : (
+                        <>
+                          <option>Away</option>
+                          <option>Home</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  {builderType !== "Moneyline" && (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">{builderType === "Spread" ? "Spread" : "Total"}</label>
+                      <Input placeholder={builderType === "Spread" ? "+3.5" : "215.5"} value={builderLine} onChange={(e) => setBuilderLine(e.target.value)} />
+                    </div>
                   )}
-                </select>
-              </div>
-              {builderType !== "Moneyline" && (
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">{builderType === "Spread" ? "Spread" : "Total"}</label>
-                  <Input placeholder={builderType === "Spread" ? "+3.5" : "215.5"} value={builderLine} onChange={(e) => setBuilderLine(e.target.value)} />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Odds</label>
+                    <Input placeholder="-110" value={builderOdds} onChange={(e) => setBuilderOdds(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Stake ($)</label>
+                    <Input placeholder="50" value={builderStake} onChange={(e) => setBuilderStake(e.target.value)} />
+                  </div>
                 </div>
-              )}
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Odds</label>
-                <Input placeholder="-110" value={builderOdds} onChange={(e) => setBuilderOdds(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Stake ($)</label>
-                <Input placeholder="50" value={builderStake} onChange={(e) => setBuilderStake(e.target.value)} />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3">
-              <Button variant="outline" onClick={prefillBuilderFromInputs}>Use Current Fields</Button>
-              <Button onClick={() => copySlipFor(builderBook)}>Copy {builderBook}</Button>
-              <Button variant="secondary" onClick={() => copySlipFor("Generic")}>Copy Generic</Button>
-            </div>
-          </Card>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Button variant="outline" onClick={prefillBuilderFromInputs}>Use Current Fields</Button>
+                  <Button onClick={() => copySlipFor(builderBook)}>Copy {builderBook}</Button>
+                  <Button variant="secondary" onClick={() => copySlipFor("Generic")}>Copy Generic</Button>
+                </div>
+              </Card>
+            )}
+          </div>
 
           <Button
             className="w-full"
@@ -708,67 +779,79 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       </Card>
 
       {/* Line Movement with Range Controls */}
-      {(
-        <FeatureGate
-          currentTier={userData.subscriptionTier || "free"}
-          requiredTier={"premium"}
-          featureName="Line Movement Timeline"
-          onUpgrade={() => onNavigateToTab('account')}
-          preview={
-            <Card className="p-4">
-              <p className="text-sm font-semibold mb-2">Line Movement</p>
-              <div className="h-24 bg-muted rounded" />
-            </Card>
-          }
-        >
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground">Line Movement</h3>
-              <div className="flex items-center gap-2">
-                <Select value={lineUnit} onValueChange={(v) => setLineUnit(v as any)}>
-                  <SelectTrigger className="w-28">
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="minutes">Minutes</SelectItem>
-                    <SelectItem value="hours">Hours</SelectItem>
-                    <SelectItem value="days">Days</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={lineAmount} onValueChange={setLineAmount}>
-                  <SelectTrigger className="w-24">
-                    <SelectValue placeholder="Range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      lineUnit === 'minutes'
-                        ? ['15','30','60']
-                        : lineUnit === 'hours'
-                          ? ['2','6','12','24']
-                          : ['3','7']
-                    ).map(v => (
-                      <SelectItem key={v} value={v}>{v}{lineUnit === 'minutes' ? 'm' : lineUnit === 'hours' ? 'h' : 'd'}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <LineMovementSeries title={undefined} points={lineSeriesPoints} />
+      <FeatureGate
+        currentTier={userData.subscriptionTier || "free"}
+        requiredTier={"premium"}
+        featureName="Line Movement Timeline"
+        onUpgrade={() => onNavigateToTab('account')}
+        preview={
+          <Card className="p-4">
+            <p className="text-sm font-semibold mb-2">Line Movement</p>
+            <div className="h-24 bg-muted rounded" />
           </Card>
-        </FeatureGate>
-      )}
+        }
+      >
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Line Movement</h3>
+            <div className="flex items-center gap-2">
+              <Select value={lineUnit} onValueChange={(v) => setLineUnit(v as any)}>
+                <SelectTrigger className="w-28">
+                  <SelectValue placeholder="Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">Minutes</SelectItem>
+                  <SelectItem value="hours">Hours</SelectItem>
+                  <SelectItem value="days">Days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={lineAmount} onValueChange={setLineAmount}>
+                <SelectTrigger className="w-24">
+                  <SelectValue placeholder="Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    lineUnit === 'minutes'
+                      ? ['15','30','60']
+                      : lineUnit === 'hours'
+                        ? ['2','6','12','24']
+                        : ['3','7']
+                  ).map(v => (
+                    <SelectItem key={v} value={v}>{v}{lineUnit === 'minutes' ? 'm' : lineUnit === 'hours' ? 'h' : 'd'}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <LineMovementSeries title={undefined} points={lineSeriesPoints} />
+        </Card>
+      </FeatureGate>
 
       {/* Parlay Builder */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          Parlay Builder
-        </h3>
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Button variant="outline" onClick={addCurrentSelectionAsLeg}>
-            <Plus className="h-4 w-4 mr-1" /> Add Current Selection as Leg
-          </Button>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            id="toggle-parlay-builder"
+            type="checkbox"
+            className="h-4 w-4"
+            checked={showParlayBuilder}
+            onChange={(e) => setShowParlayBuilder(e.target.checked)}
+          />
+          <label htmlFor="toggle-parlay-builder" className="text-sm text-muted-foreground">
+            Build my parlay
+          </label>
         </div>
+        {showParlayBuilder && (
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Parlay Builder
+            </h3>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button variant="outline" onClick={addCurrentSelectionAsLeg}>
+                <Plus className="h-4 w-4 mr-1" /> Add Current Selection as Leg
+              </Button>
+            </div>
         {/* Player Prop Leg */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
           <div className="md:col-span-2">
@@ -884,6 +967,9 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
           </FeatureGate>
         </div>
       </Card>
+        )}
+
+      </div>
 
       {/* Parlay Analysis Results */}
       {parlayAnalysis && (
@@ -974,9 +1060,6 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
           )}
         </Card>
       )}
-
-      {/* Sportsbook Specials */}
-      <SportsbookDeals />
 
       {/* Analysis Results */}
       {analysis && (

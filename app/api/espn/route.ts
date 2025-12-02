@@ -35,6 +35,21 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       console.warn(`[ESPN Proxy] Failed: ${response.status} ${response.statusText}`)
+
+      // Treat upstream 404s as a soft failure so the frontend doesn't hard-error
+      if (response.status === 404) {
+        return NextResponse.json(
+          {
+            success: false,
+            notFound: true,
+            message: 'ESPN endpoint returned 404 (resource moved or unavailable)',
+            status: 404,
+            endpoint,
+          },
+          { status: 200 },
+        )
+      }
+
       return NextResponse.json(
         { error: `ESPN API returned ${response.status}` },
         { status: response.status }

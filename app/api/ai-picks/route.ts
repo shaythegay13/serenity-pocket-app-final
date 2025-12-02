@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { generateAIPicks } from '@/lib/ai-analysis'
 import { fetchLiveOdds } from '@/lib/odds-api'
+import { isEnhancedAIAvailable } from '@/lib/aws-bedrock'
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
+
     const body = await request.json()
     
     const {
@@ -60,41 +65,48 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Check if OpenAI API key is configured
-    const hasOpenAI = !!process.env.OPENAI_API_KEY
-    console.log(`🤖 OpenAI API key configured: ${hasOpenAI}`)
+    // Check if enhanced AI (Claude via AWS Bedrock) is available
+    const hasEnhancedAI = isEnhancedAIAvailable()
+    console.log(`🤖 Enhanced AI (Claude via AWS Bedrock) available: ${hasEnhancedAI}`)
 
-    let picks = []
-    if (hasOpenAI) {
-      try {
-        // Generate AI picks
-        console.log('🧠 Generating AI picks with OpenAI...')
-        picks = await generateAIPicks(liveOdds, emotionalScore, riskTolerance)
-        console.log(`✅ AI picks generated successfully: ${picks.length} picks`)
-      } catch (error) {
-        console.error('❌ AI picks generation failed:', error)
-        // Fallback to mock picks instead of returning empty
-        console.log('🔄 Falling back to mock picks...')
-        picks = generateMockPicks(liveOdds, emotionalScore, riskTolerance)
-        console.log(`✅ Generated ${picks.length} mock picks as fallback`)
-      }
-    } else {
-      // Generate mock picks if no API key
-      console.log('⚠️ No OpenAI API key, using mock picks')
-      picks = generateMockPicks(liveOdds, emotionalScore, riskTolerance)
-      console.log(`✅ Generated ${picks.length} mock picks`)
+    if (!hasEnhancedAI) {
+      console.log('⚠️ Enhanced AI not available, returning no picks (no mock data)')
+      return NextResponse.json({
+        success: true,
+        shouldBet: false,
+        message: 'AI picks are temporarily unavailable. We will only show real AI-derived picks, so no suggestions are shown right now.',
+        picks: [],
+        emotionalScore,
+        usedAI: false,
+      })
     }
 
-    return NextResponse.json({
-      success: true,
-      shouldBet: true,
-      message: picks.length > 0 
-        ? `Found ${picks.length} high-value picks for you based on your emotional state and risk tolerance.`
-        : 'No high-value picks available at the moment. Check back later.',
-      picks,
-      emotionalScore,
-      usedAI: hasOpenAI
-    })
+    try {
+      console.log('🧠 Generating AI picks with Claude via AWS Bedrock...')
+      const picks = await generateAIPicks(liveOdds, emotionalScore, riskTolerance)
+      console.log(`✅ AI picks generated successfully: ${picks.length} picks`)
+
+      return NextResponse.json({
+        success: true,
+        shouldBet: picks.length > 0,
+        message: picks.length > 0
+          ? `Found ${picks.length} high-value picks for you based on your emotional state and risk tolerance.`
+          : 'No high-value picks available at the moment. Check back later.',
+        picks,
+        emotionalScore,
+        usedAI: true,
+      })
+    } catch (error) {
+      console.error('❌ AI picks generation failed:', error)
+      return NextResponse.json({
+        success: true,
+        shouldBet: false,
+        message: 'AI picks are temporarily unavailable due to a technical issue. No mock or synthetic picks are shown.',
+        picks: [],
+        emotionalScore,
+        usedAI: true,
+      })
+    }
   } catch (error) {
     console.error('❌ FATAL ERROR in ai-picks API:')
     console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
@@ -110,66 +122,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-/**
- * Generate mock picks for testing/fallback
- */
-function generateMockPicks(liveOdds: any[], emotionalScore: number, riskTolerance: string): any[] {
-  if (!liveOdds || liveOdds.length === 0) {
-    console.log('⚠️ No odds data to generate mock picks')
-    return []
-  }
-
-  console.log(`🎲 Generating mock picks from ${liveOdds.length} games`)
-
-  // Take first 3 games and create mock picks
-  const picks = liveOdds.slice(0, 3).map((game, idx) => {
-    try {
-      const pickHome = idx % 2 === 0
-      const team = pickHome ? game.home_team : game.away_team
-      
-      // Get odds - handle different possible structures
-      let odds = -110 // Default odds
-      if (pickHome) {
-        odds = game.home_odds?.best?.odds || game.bookmakers?.[0]?.markets?.[0]?.outcomes?.find((o: any) => o.name === game.home_team)?.price || -110
-      } else {
-        odds = game.away_odds?.best?.odds || game.bookmakers?.[0]?.markets?.[0]?.outcomes?.find((o: any) => o.name === game.away_team)?.price || -110
-      }
-      
-      // Calculate mock values
-      const baseConfidence = 65 + Math.random() * 20
-      const emotionalAdjustment = (emotionalScore - 70) / 30 * 10
-      const confidence = Math.min(95, Math.max(50, baseConfidence + emotionalAdjustment))
-      
-      const impliedProb = odds > 0 
-        ? (100 / (odds + 100)) * 100
-        : (Math.abs(odds) / (Math.abs(odds) + 100)) * 100
-      
-      const estimatedProb = impliedProb + (Math.random() * 8 - 2)
-      const stake = riskTolerance === 'aggressive' ? 100 : riskTolerance === 'conservative' ? 25 : 50
-      const potentialWin = odds > 0 ? (stake * odds / 100) : (stake * 100 / Math.abs(odds))
-      const ev = (estimatedProb / 100 * potentialWin) - ((1 - estimatedProb / 100) * stake)
-      
-      return {
-        sport: game.sport_key || 'basketball_nba',
-        event: `${game.away_team} @ ${game.home_team}`,
-        pick: `${team} Moneyline`,
-        odds,
-        confidence: Math.round(confidence),
-        expectedValue: Math.round(ev * 100) / 100,
-        reasoning: `Strong value play. ${team} has favorable matchup and the odds provide positive expected value. Market appears to be undervaluing this team's chances.`,
-        emotionalAlignment: emotionalScore,
-        riskLevel: ev > stake * 0.15 ? 'LOW' : ev > stake * 0.05 ? 'MEDIUM' : 'HIGH',
-        suggestedStake: stake,
-        commenceTime: game.commence_time
-      }
-    } catch (error) {
-      console.error('Error generating mock pick for game:', game, error)
-      return null
-    }
-  }).filter((pick): pick is NonNullable<typeof pick> => pick !== null && pick.expectedValue > 0) // Only positive EV picks
-
-  console.log(`✅ Generated ${picks.length} mock picks with positive EV`)
-  return picks.sort((a, b) => b.expectedValue - a.expectedValue).slice(0, 3)
 }

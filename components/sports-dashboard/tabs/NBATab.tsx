@@ -3,7 +3,7 @@
 import React, { Suspense } from "react"
 import { FeatureCard } from "../shared/FeatureCard"
 import { FeatureCardGrid } from "../shared/FeatureCardGrid"
-import { useSportsStore } from "@/lib/stores/sports-store"
+import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import {
   TrendingUp,
   Users,
@@ -25,9 +25,10 @@ import {
 export default function NBATab() {
   const activeSport = useSportsStore((state) => state.activeSport)
   const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
+  const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
-  const handleFeatureClick = (featureName: string) => {
-    console.log(`NBA Feature clicked: ${featureName}`)
+  const handleFeatureClick = (feature: SportsFeatureView) => {
+    setActiveFeature(feature)
   }
 
   return (
@@ -38,21 +39,21 @@ export default function NBATab() {
           title="Live Odds"
           description="Real-time NBA betting lines from all major sportsbooks. Compare spreads, totals, and moneylines instantly."
           badge="LIVE"
-          onClick={() => handleFeatureClick("Live Odds")}
+          onClick={() => handleFeatureClick("live_odds")}
         />
 
         <FeatureCard
           icon={<Users className="h-10 w-10" />}
           title="Player Props"
           description="Points, rebounds, assists, and threes. Advanced player prop markets with statistical breakdowns."
-          onClick={() => handleFeatureClick("Player Props")}
+          onClick={() => handleFeatureClick("player_props")}
         />
 
         <FeatureCard
           icon={<Target className="h-10 w-10" />}
           title="Matchups"
           description="Team-vs-team analysis with pace, efficiency ratings, and defensive matchup advantages."
-          onClick={() => handleFeatureClick("Matchups")}
+          onClick={() => handleFeatureClick("matchups")}
         />
 
         <FeatureCard
@@ -60,7 +61,7 @@ export default function NBATab() {
           title="Game Dashboard"
           description="Comprehensive NBA game center with live stats, betting trends, and real-time line movements."
           badge="POPULAR"
-          onClick={() => handleFeatureClick("Game Dashboard")}
+          onClick={() => handleFeatureClick("game_dashboard")}
         />
 
         <FeatureCard
@@ -68,35 +69,35 @@ export default function NBATab() {
           title="Injury Reports"
           description="Up-to-the-minute injury updates and probable/questionable player designations before tip-off."
           badge="UPDATED"
-          onClick={() => handleFeatureClick("Injury Reports")}
+          onClick={() => handleFeatureClick("injuries")}
         />
 
         <FeatureCard
           icon={<Calendar className="h-10 w-10" />}
           title="Upcoming Games"
           description="Full NBA schedule with previews, rest days analysis, and back-to-back game tracking."
-          onClick={() => handleFeatureClick("Upcoming Games")}
+          onClick={() => handleFeatureClick("upcoming_games")}
         />
 
         <FeatureCard
           icon={<Clock className="h-10 w-10" />}
           title="Historical Trends"
           description="ATS performance, home/away splits, and situational betting trends for every NBA team."
-          onClick={() => handleFeatureClick("Historical Trends")}
+          onClick={() => handleFeatureClick("historical_trends")}
         />
 
         <FeatureCard
           icon={<Shield className="h-10 w-10" />}
           title="Team Analytics"
           description="Advanced metrics including offensive rating, defensive rating, pace, and four factors analysis."
-          onClick={() => handleFeatureClick("Team Analytics")}
+          onClick={() => handleFeatureClick("team_analytics")}
         />
 
         <FeatureCard
           icon={<LineChart className="h-10 w-10" />}
           title="Line Movement History"
           description="Track line movements from opening to tip-off. Identify sharp action and public betting patterns."
-          onClick={() => handleFeatureClick("Line Movement")}
+          onClick={() => handleFeatureClick("line_movement")}
         />
       </FeatureCardGrid>
     </Suspense>

@@ -3,7 +3,7 @@
 import React, { Suspense } from "react"
 import { FeatureCard } from "../shared/FeatureCard"
 import { FeatureCardGrid } from "../shared/FeatureCardGrid"
-import { useSportsStore } from "@/lib/stores/sports-store"
+import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import {
   TrendingUp,
   Users,
@@ -36,11 +36,10 @@ import {
 export default function NFLTab() {
   const activeSport = useSportsStore((state) => state.activeSport)
   const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
+  const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
-  // Feature card handlers (placeholder - will connect to actual panels later)
-  const handleFeatureClick = (featureName: string) => {
-    console.log(`NFL Feature clicked: ${featureName}`)
-    // TODO: Implement panel/modal navigation
+  const handleFeatureClick = (feature: SportsFeatureView) => {
+    setActiveFeature(feature)
   }
 
   return (
@@ -52,7 +51,7 @@ export default function NFLTab() {
           title="Live Odds"
           description="Compare real-time betting lines across DraftKings, FanDuel, BetMGM, and more. Find the best value for your NFL bets."
           badge="LIVE"
-          onClick={() => handleFeatureClick("Live Odds")}
+          onClick={() => handleFeatureClick("live_odds")}
         />
 
         {/* 2. Player Props */}
@@ -60,7 +59,7 @@ export default function NFLTab() {
           icon={<Users className="h-10 w-10" />}
           title="Player Props"
           description="Explore passing yards, touchdowns, receptions, and rushing props. Data-driven insights for every position."
-          onClick={() => handleFeatureClick("Player Props")}
+          onClick={() => handleFeatureClick("player_props")}
         />
 
         {/* 3. Matchups */}
@@ -68,7 +67,7 @@ export default function NFLTab() {
           icon={<Target className="h-10 w-10" />}
           title="Matchups"
           description="Deep-dive analysis of team matchups, offensive vs defensive rankings, and key statistical edges."
-          onClick={() => handleFeatureClick("Matchups")}
+          onClick={() => handleFeatureClick("matchups")}
         />
 
         {/* 4. Game Dashboard */}
@@ -77,7 +76,7 @@ export default function NFLTab() {
           title="Game Dashboard"
           description="All-in-one view of spreads, totals, moneylines, and key game metrics for every NFL contest."
           badge="POPULAR"
-          onClick={() => handleFeatureClick("Game Dashboard")}
+          onClick={() => handleFeatureClick("game_dashboard")}
         />
 
         {/* 5. Injury Reports */}
@@ -86,7 +85,7 @@ export default function NFLTab() {
           title="Injury Reports"
           description="Stay updated with the latest injury news and probable/questionable designations before kickoff."
           badge="UPDATED"
-          onClick={() => handleFeatureClick("Injury Reports")}
+          onClick={() => handleFeatureClick("injuries")}
         />
 
         {/* 6. Upcoming Games */}
@@ -94,7 +93,7 @@ export default function NFLTab() {
           icon={<Calendar className="h-10 w-10" />}
           title="Upcoming Games"
           description="Full NFL schedule with game previews, betting trends, and expert picks for every matchup."
-          onClick={() => handleFeatureClick("Upcoming Games")}
+          onClick={() => handleFeatureClick("upcoming_games")}
         />
 
         {/* 7. Historical Trends */}
@@ -102,7 +101,7 @@ export default function NFLTab() {
           icon={<Clock className="h-10 w-10" />}
           title="Historical Trends"
           description="Against-the-spread records, over/under performance, and situational betting trends."
-          onClick={() => handleFeatureClick("Historical Trends")}
+          onClick={() => handleFeatureClick("historical_trends")}
         />
 
         {/* 8. Team Analytics */}
@@ -110,7 +109,7 @@ export default function NFLTab() {
           icon={<Shield className="h-10 w-10" />}
           title="Team Analytics"
           description="Advanced stats including DVOA, EPA, success rates, and red zone efficiency for all 32 teams."
-          onClick={() => handleFeatureClick("Team Analytics")}
+          onClick={() => handleFeatureClick("team_analytics")}
         />
 
         {/* 9. Line Movement */}
@@ -118,7 +117,7 @@ export default function NFLTab() {
           icon={<LineChart className="h-10 w-10" />}
           title="Line Movement History"
           description="Track how betting lines move from opening to kickoff. Identify sharp money and public action."
-          onClick={() => handleFeatureClick("Line Movement")}
+          onClick={() => handleFeatureClick("line_movement")}
         />
       </FeatureCardGrid>
     </Suspense>

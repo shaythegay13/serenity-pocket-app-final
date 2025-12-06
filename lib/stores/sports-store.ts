@@ -2,6 +2,18 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { GameLineRecord, SupportedSportKey } from "@/lib/types"
 
+// Feature views available within the Sports Dashboard
+export type SportsFeatureView =
+  | "live_odds"
+  | "player_props"
+  | "matchups"
+  | "game_dashboard"
+  | "injuries"
+  | "upcoming_games"
+  | "historical_trends"
+  | "team_analytics"
+  | "line_movement"
+
 /**
  * Sports Store State Interface
  * 
@@ -11,6 +23,9 @@ import type { GameLineRecord, SupportedSportKey } from "@/lib/types"
 export interface SportsStoreState {
   /** Currently active sport tab */
   activeSport: SupportedSportKey
+
+  /** Currently active feature panel within the selected sport */
+  activeFeature: SportsFeatureView
 
   /** Odds data per sport (keyed by sport) */
   oddsData: Record<SupportedSportKey, GameLineRecord[]>
@@ -26,6 +41,7 @@ export interface SportsStoreState {
 
   /** Actions */
   setActiveSport: (sport: SupportedSportKey) => void
+  setActiveFeature: (feature: SportsFeatureView) => void
   setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) => void
   setLoading: (sport: SupportedSportKey, loading: boolean) => void
   setLastFetched: (sport: SupportedSportKey, timestamp: number) => void
@@ -39,6 +55,7 @@ export interface SportsStoreState {
  */
 const initialState = {
   activeSport: "americanfootball_nfl" as SupportedSportKey,
+  activeFeature: "live_odds" as SportsFeatureView,
   oddsData: {
     americanfootball_nfl: [],
     basketball_nba: [],
@@ -87,6 +104,9 @@ export const useSportsStore = create<SportsStoreState>()(
 
       setActiveSport: (sport: SupportedSportKey) =>
         set({ activeSport: sport }),
+
+      setActiveFeature: (feature: SportsFeatureView) =>
+        set({ activeFeature: feature }),
 
       setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) =>
         set((state) => ({

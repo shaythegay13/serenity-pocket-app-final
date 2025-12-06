@@ -3,6 +3,7 @@
 import React from "react"
 import { SportTabs } from "./SportTabs"
 import { SportTabRouter } from "./SportTabRouter"
+import { FeaturePanels } from "./FeaturePanels"
 import { useSportsStore } from "@/lib/stores/sports-store"
 import { BarChart3 } from "lucide-react"
 
@@ -71,6 +72,7 @@ export function SportsDashboard() {
         aria-label="Sports data content"
       >
         <SportTabRouter activeSport={activeSport} />
+        <FeaturePanels />
       </main>
     </div>
   )

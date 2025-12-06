@@ -26,16 +26,12 @@ export function ABTestSurveyWrapper({
   onSwitchToLogin,
   forceVariant 
 }: ABTestSurveyWrapperProps) {
-  const [variant, setVariant] = useState<SurveyVariant | null>(forceVariant || null);
+  const [variant, setVariant] = useState<SurveyVariant | null>(() => {
+    if (forceVariant) return forceVariant;
+    // Default deterministic/random assignment when no forced variant is provided
+    return getSurveyVariant();
+  });
   const [email, setEmail] = useState<string>('');
-
-  // Initialize variant on mount (random assignment initially)
-  useEffect(() => {
-    if (!forceVariant && !variant) {
-      const initialVariant = getSurveyVariant();
-      setVariant(initialVariant);
-    }
-  }, [forceVariant, variant]);
 
   // Update variant when email is captured (deterministic assignment)
   const handleEmailCapture = (capturedEmail: string) => {
@@ -92,14 +88,10 @@ export function ABTestSurveyWrapper({
 /**
  * Hook to get the current survey variant
  * Useful for components that need to know which variant is active
+ *
+ * Since getSurveyVariant is a pure function of email (and/or global config),
+ * we can derive the value directly without local React state or effects.
  */
 export function useSurveyVariant(email?: string): SurveyVariant {
-  const [variant, setVariant] = useState<SurveyVariant>('A');
-
-  useEffect(() => {
-    const currentVariant = getSurveyVariant(email);
-    setVariant(currentVariant);
-  }, [email]);
-
-  return variant;
+  return getSurveyVariant(email);
 }

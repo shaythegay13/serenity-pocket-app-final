@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,16 +30,14 @@ const phaseLabels = {
 }
 
 export function EmotionHistory({ logs, trades }: EmotionHistoryProps) {
-  const [titles, setTitles] = useState<Record<string, string>>({})
-  const [editing, setEditing] = useState<string | null>(null)
-
-  useEffect(() => {
+  const [titles, setTitles] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {}
     for (const t of trades) {
       if (t.title) map[t.id] = t.title
     }
-    setTitles(map)
-  }, [trades])
+    return map
+  })
+  const [editing, setEditing] = useState<string | null>(null)
 
   if (trades.length === 0) {
     return (

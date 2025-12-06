@@ -276,38 +276,15 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
   return (
     <div className="space-y-6 fade-in">
-      {/* Header with View Tabs */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Emotion Tracking</h2>
-          <p className="text-muted-foreground">Understand your emotional patterns in betting and trading</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant={view === "log" ? "default" : "outline"} onClick={() => setView("log")} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Log
-          </Button>
-          <Button
-            variant={view === "history" ? "default" : "outline"}
-            onClick={() => setView("history")}
-            className="gap-2"
-          >
-            <History className="h-4 w-4" />
-            History
-          </Button>
-          <Button
-            variant={view === "insights" ? "default" : "outline"}
-            onClick={() => setView("insights")}
-            className="gap-2"
-          >
-            <Lightbulb className="h-4 w-4" />
-            Insights
-          </Button>
+          <h2 className="text-3xl font-bold text-foreground">Behavior</h2>
+          <p className="text-muted-foreground">Track your emotions before, during, and after betting</p>
         </div>
       </div>
 
-      {/* Log Emotion View */}
-      {view === "log" && (
+      {/* Log Emotion */}
         <div className="space-y-6">
           {/* Pending Trades Alert */}
           {trades.filter(t => !t.outcome).length > 0 && (
@@ -659,53 +636,6 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           )}
         </Card>
         </div>
-      )}
-
-      {/* History View */}
-      {view === "history" && (
-        <div className="space-y-6">
-          <EmotionInsights logs={logs} />
-          <div>
-            <h3 className="text-xl font-semibold text-foreground mb-4">Recent Emotion Logs</h3>
-            <EmotionHistory logs={logs} trades={trades} />
-          </div>
-        </div>
-      )}
-
-      {/* Insights View */}
-      {view === "insights" && (
-        <div className="space-y-6">
-          <EmotionInsights logs={logs} />
-
-          <WeeklyStabilityReport logs={logs} />
-
-          <Card className="p-6">
-            <h3 className="text-xl font-semibold text-foreground mb-4">Emotional Patterns</h3>
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <h4 className="font-semibold text-foreground mb-2">Pre-Trade Emotions</h4>
-                <p className="text-sm text-muted-foreground">
-                  Track emotions before trades to identify patterns that lead to impulsive decisions. Anxiety and
-                  excitement often precede risky trades.
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-blue/5 border border-blue/20">
-                <h4 className="font-semibold text-foreground mb-2">During-Trade Emotions</h4>
-                <p className="text-sm text-muted-foreground">
-                  Monitor emotions while positions are open. Fear and greed can cause premature exits or holding too
-                  long.
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-accent/10 border border-accent/30">
-                <h4 className="font-semibold text-foreground mb-2">Post-Trade Emotions</h4>
-                <p className="text-sm text-muted-foreground">
-                  Reflect on emotions after closing trades. Regret and frustration can lead to revenge trading.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
     </div>
   )
 }

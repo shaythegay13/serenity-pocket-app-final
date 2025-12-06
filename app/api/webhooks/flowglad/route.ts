@@ -230,6 +230,64 @@ export async function POST(req: Request) {
         break
       }
 
+      case 'payment.succeeded': {
+        const data = event.data
+        const customerId = data.customerId || data.customer_id
+        const paymentId = data.id
+
+        console.log('💰 One-time payment succeeded:', { customerId, paymentId })
+
+        // Check if this is a marketplace purchase (one-time payment, not subscription)
+        // Look for pending purchase with matching user
+        const { data: user } = await supabaseAdmin
+          .from('user_profiles')
+          .select('id')
+          .eq('flowglad_customer_id', customerId)
+          .single()
+
+        if (user) {
+          // Find pending purchase for this user
+          const { data: pendingPurchases } = await supabaseAdmin
+            .from('ai_usage_purchases')
+            .select('*')
+            .eq('user_id', user.id)
+            .like('flowglad_payment_id', 'pending_%')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (pendingPurchases && pendingPurchases.length > 0) {
+            const purchase = pendingPurchases[0]
+            
+            // Get product details to update credits
+            const { data: product } = await supabaseAdmin
+              .from('ai_marketplace_products')
+              .select('*')
+              .eq('product_key', purchase.purchase_type)
+              .single()
+
+            if (product) {
+              // Update purchase with actual payment ID and credits
+              const { error: updateError } = await supabaseAdmin
+                .from('ai_usage_purchases')
+                .update({
+                  flowglad_payment_id: paymentId,
+                  ai_picker_credits: product.ai_picker_credits,
+                  ai_bet_analyzer_credits: product.ai_bet_analyzer_credits,
+                  price_paid: product.price
+                })
+                .eq('id', purchase.id)
+
+              if (updateError) {
+                console.error('❌ Error updating marketplace purchase:', updateError)
+              } else {
+                console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
+              }
+            }
+          }
+        }
+        break
+      }
+
       default:
         console.log(`ℹ️  Unhandled event type: ${event.type}`)
     }

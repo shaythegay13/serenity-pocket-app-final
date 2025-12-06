@@ -32,8 +32,8 @@ export function WeeklyStabilityReport({ logs }: WeeklyStabilityReportProps) {
         {days.map((day, idx) => (
           <div key={idx} className="flex flex-col items-center gap-2">
             <div
-              className="w-full bg-primary/20 rounded"
-              style={{ height: `${Math.max(8, Math.min(100, day.score))}%` }}
+              className="w-full rounded bg-primary/60 border border-primary/40 shadow-sm"
+              style={{ height: `${Math.max(15, Math.min(100, day.score))}%` }}
               title={`${day.label}: ${Math.round(day.score)}%`}
             />
             <span className="text-xs text-muted-foreground">{day.label}</span>

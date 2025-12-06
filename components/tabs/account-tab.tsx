@@ -18,6 +18,7 @@ interface AccountTabProps {
 export function AccountTab({ userData, updateUserData }: AccountTabProps) {
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [switchingTier, setSwitchingTier] = useState(false)
   const [localName, setLocalName] = useState(userData.name)
   const [localUsername, setLocalUsername] = useState(userData.username || '')
   const [localAge, setLocalAge] = useState(userData.age?.toString() || '')
@@ -158,6 +159,43 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     }
   }, [])
 
+  // Developer mode: Quick tier switcher
+  const handleDevTierSwitch = async (tier: string) => {
+    try {
+      setSwitchingTier(true)
+      
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        toast.error('Please sign in')
+        setSwitchingTier(false)
+        return
+      }
+      
+      const response = await fetch('/api/test-subscription', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ tier }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to switch tier')
+      }
+
+      toast.success(`Switched to ${tier} tier!`)
+      await handleSyncSubscription()
+    } catch (error) {
+      console.error('Error switching tier:', error)
+      toast.error('Failed to switch tier')
+    } finally {
+      setSwitchingTier(false)
+    }
+  }
+
   const handleUpgrade = async (tierId: string) => {
     try {
       setUpgrading(true)
@@ -214,6 +252,31 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
           Manage your subscription and unlock more features
         </p>
       </div>
+
+      {/* Developer Mode: Quick Tier Switcher */}
+      <Card className="p-4 bg-yellow-500/10 border-yellow-500/50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">🧪 Developer Mode</h3>
+            <p className="text-xs text-muted-foreground">Quick tier switcher for testing</p>
+          </div>
+          <Select 
+            value={currentTier} 
+            onValueChange={handleDevTierSwitch}
+            disabled={switchingTier}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select tier" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="free">Free</SelectItem>
+              <SelectItem value="premium">Premium</SelectItem>
+              <SelectItem value="premium_plus">Premium Plus</SelectItem>
+              <SelectItem value="elite">Elite</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
 
       {/* Current Subscription Status */}
       <Card className="p-6">
@@ -366,7 +429,7 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
       </Card>
 
       {/* Current Plan */}
-      <Card className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
+      <Card className="p-6 bg-linear-to-br from-primary/10 to-accent/10 border-primary/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-full bg-primary/20">
@@ -433,7 +496,7 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                 <div className="space-y-2 mb-6">
                   {tier.features.slice(0, 5).map((feature, index) => (
                     <div key={index} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                       <span className="text-sm text-foreground">{feature}</span>
                     </div>
                   ))}

@@ -17,6 +17,7 @@ import type {
   UserPsychProfile,
 } from "@/lib/types/ai-models"
 import { isPerplexityAvailable } from "@/lib/perplexity"
+import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
 
 /**
  * AI Bet Analysis API Route
@@ -46,24 +47,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get user's subscription tier
-    const { data: profile, error: profileError } = await supabase
-      .from("user_profiles")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .single()
+    // Check AI service usage limits (tier-based + purchased credits)
+    const usageCheck = await checkAIServiceUsage(supabase, user.id, 'ai_bet_analyzer')
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-    }
-
-    // Check if user has Elite subscription
-    if (profile.subscription_tier !== "elite") {
+    if (!usageCheck.canUse) {
       return NextResponse.json(
         {
-          error: "This feature requires an Elite subscription",
-          upgrade_required: true,
-          current_tier: profile.subscription_tier,
+          error: usageCheck.reason || "AI Bet Analyzer usage limit reached",
+          upgrade_required: usageCheck.limit === 0,
+          usage_limit_reached: usageCheck.limit > 0,
+          current_usage: {
+            used: usageCheck.usedThisWeek,
+            limit: usageCheck.limit,
+            remaining: usageCheck.remaining,
+            purchased_credits: usageCheck.purchasedCredits,
+            total_available: usageCheck.totalAvailable
+          },
+          marketplace_url: '/marketplace'
         },
         { status: 403 }
       )
@@ -355,6 +355,15 @@ export async function POST(request: NextRequest) {
       emotional_risk: analysis.recommendation.emotionalAnalysis.emotionalRisk,
       emotional_state: analysis.recommendation.emotionalAnalysis.emotionalState,
       created_at: new Date().toISOString(),
+    })
+
+    // Record AI service usage
+    await recordAIServiceUsage(supabase, user.id, 'ai_bet_analyzer', {
+      sport: payload.sport,
+      betType: payload.betType,
+      betAmount: payload.betAmount,
+      recommendation: analysis.recommendation.recommendation,
+      usedEnhancedAI
     })
 
     return NextResponse.json({

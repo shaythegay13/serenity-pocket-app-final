@@ -24,9 +24,10 @@ interface HomeTabProps {
   userData: UserData
   updateUserData: (updates: Partial<UserData>) => Promise<void>
   onNavigateToTab: (tab: string) => void
+  refreshKey: number
 }
 
-export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabProps) {
+export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey }: HomeTabProps) {
   const [tiltAlerts, setTiltAlerts] = useState<TiltAlert[]>([])
   const [recentBets, setRecentBets] = useState<any[]>([])
   const [emotionalScore, setEmotionalScore] = useState(75)
@@ -42,11 +43,17 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabPr
       // Higher intensity negative emotions = lower score
       if (recentEmotions.length > 0) {
         const negativeEmotions = ["anxious", "frustrated", "angry", "fearful", "stressed"]
-        const avgIntensity = recentEmotions.reduce((sum, log) => {
+
+        const avgScore = recentEmotions.reduce((sum, log) => {
           const isNegative = negativeEmotions.includes(log.emotion.toLowerCase())
-          return sum + (isNegative ? log.intensity : 100 - log.intensity)
+          // Map 1-5 intensity to 0-100 scale
+          const scaledIntensity = (log.intensity / 5) * 100
+          // Negative: high intensity lowers score; Positive/neutral: high intensity raises score
+          const entryScore = isNegative ? 100 - scaledIntensity : scaledIntensity
+          return sum + entryScore
         }, 0) / recentEmotions.length
-        setEmotionalScore(Math.round(100 - avgIntensity))
+
+        setEmotionalScore(Math.round(avgScore))
       }
 
       // Check for tilt conditions
@@ -85,7 +92,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabPr
       setTiltAlerts(alerts)
     }
     init()
-  }, [userData, emotionalScore])
+  }, [userData, refreshKey])
 
   const getEmotionalScoreColor = (score: number) => {
     if (score >= 70) return "text-green-500"
@@ -127,7 +134,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabPr
       </div>
 
       {/* Emotional Score Card */}
-      <Card className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
+      <Card className="p-6 bg-linear-to-br from-primary/10 to-accent/10 border-primary/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="p-4 rounded-full bg-primary/20">
@@ -152,7 +159,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabPr
 
       {/* Cooldown Mode Alert */}
       {showCooldown && (
-        <Card className="p-6 bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-500/30">
+        <Card className="p-6 bg-linear-to-br from-red-500/10 to-orange-500/10 border-red-500/30">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-full bg-red-500/20">
               <Shield className="h-8 w-8 text-red-500" />
@@ -326,7 +333,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab }: HomeTabPr
       </Card>
 
       {/* Personalized Insights */}
-      <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+      <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
         <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-purple-500" />
           Personalized Insights

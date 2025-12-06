@@ -422,21 +422,34 @@ export const storageHybrid = {
         .eq("user_id", userId)
         .order("timestamp", { ascending: false })
 
-      if (error) {
-        console.error("Error fetching emotion logs:", error)
-        return []
+      if (!error && data && data.length > 0) {
+        // Convert DB format to app format when rows exist
+        return data.map((log: any): EmotionLog => ({
+          id: log.id,
+          timestamp: new Date(log.timestamp),
+          emotion: log.emotion,
+          intensity: log.intensity,
+          context: log.notes || "",
+          phase: log.phase,
+          tradeId: undefined, // Not stored in current schema
+        }))
       }
 
-      // Convert DB format to app format
-      return (data || []).map(log => ({
-        id: log.id,
-        timestamp: new Date(log.timestamp),
-        emotion: log.emotion,
-        intensity: log.intensity,
-        context: log.notes || "",
-        phase: log.phase,
-        tradeId: undefined, // Not stored in current schema
-      }))
+      // If there was an error or no rows yet, fall back to localStorage
+      if (error) {
+        console.error("Error fetching emotion logs from Supabase, falling back to localStorage:", error)
+      }
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem(STORAGE_KEYS.EMOTION_LOGS)
+        if (cached) {
+          try {
+            return JSON.parse(cached) as EmotionLog[]
+          } catch {
+            // Ignore parse errors and fall through to empty array
+          }
+        }
+      }
+      return []
     }
 
     // Fallback to localStorage
@@ -1305,6 +1318,7 @@ storageHybrid.addBetAnalysis = async function(analysis: BetAnalysis): Promise<vo
       const { error } = await supabase
         .from("bet_analyses")
         .insert({
+          id: analysis.id,
           user_id: userId,
           bet_type: analysis.betType,
           sport: analysis.sport,

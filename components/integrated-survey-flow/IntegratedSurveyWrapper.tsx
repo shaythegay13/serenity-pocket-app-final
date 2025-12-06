@@ -48,7 +48,6 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
   // Allows users to skip retake and create an account with previous results
   // or retake Survey C again
   // Loaded only on mount
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -266,7 +265,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
               Understand the real impact of your habits. Take our quick, confidential quiz to support your emotional health.
             </p>
 
-            <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-4 max-w-lg">
+            <div className="bg-linear-to-r from-blue-50 to-green-50 rounded-lg p-4 max-w-lg">
               <ul className="text-left space-y-1.5 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">✓</span>
@@ -289,7 +288,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
 
             <Button 
               onClick={handleStartSurvey}
-              className="w-full md:w-auto px-8 py-3 text-base bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+              className="w-full md:w-auto px-8 py-3 text-base bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
             >
               Start 20s Snapshot
             </Button>
@@ -346,7 +345,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
               <h2 className="text-3xl font-bold text-gray-900">You’re a “{snapshotArchetype?.name || snapshotResult?.tag}”.</h2>
               <div className="mt-3 text-gray-700">See your full breakdown →</div>
             </div>
-            <div className="relative mx-auto max-w-lg p-6 rounded-lg bg-gradient-to-r from-blue-50 to-green-50">
+            <div className="relative mx-auto max-w-lg p-6 rounded-lg bg-linear-to-r from-blue-50 to-green-50">
               <div className="filter blur-sm select-none">
                 <p className="text-gray-800 font-medium">What this means</p>
                 <p className="text-gray-700 mt-1">{snapshotArchetype?.description || snapshotResult?.blurb} Personalized insights, risk patterns, and recommended guardrails are ready.</p>
@@ -357,7 +356,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
             </div>
 
             <div className="mt-8 flex flex-col gap-3 max-w-md mx-auto">
-              <Button onClick={handleUnlockClick} className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">Unlock Full Breakdown</Button>
+              <Button onClick={handleUnlockClick} className="w-full bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">Unlock Full Breakdown</Button>
               <button type="button" onClick={() => setCurrentFlow(SurveyFlow.SNAPSHOT)} className="text-blue-500 hover:underline text-sm">Retake snapshot</button>
             </div>
           </div>
@@ -418,7 +417,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
                 <Button
                   onClick={handleEmailSubmit}
                   disabled={isSubmitting}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                  className="flex-1 bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
                 >
                   {isSubmitting ? 'Checking...' : 'Continue to Survey'}
                 </Button>
@@ -465,7 +464,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
           <div className="p-8 text-center bg-white">
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Assessment Complete!</h2>
-              <div className="p-6 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
+              <div className="p-6 bg-linear-to-r from-blue-50 to-green-50 rounded-lg">
                 <div className="text-6xl mb-4">🎉</div>
                 <div className="text-xl text-gray-900 font-semibold mb-2">
                   Your results are ready!
@@ -501,7 +500,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
 
               <Button
                 onClick={handleCreateAccount}
-                className="w-full px-8 py-4 text-lg bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                className="w-full px-8 py-4 text-lg bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
               >
                 Create Account to See Results
               </Button>

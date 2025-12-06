@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2 } from "lucide-react"
 import type { UserData } from "@/lib/types"
-import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
 import { calculateEmotionalStability, getScoreColor, shouldReceiveAIPicks } from "@/lib/emotional-scoring"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
@@ -20,7 +19,8 @@ interface AIPicksTabProps {
 }
 
 export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
-  const hasAccess = canAccessFeature(userData.subscriptionTier || "free", "elite")
+  const tier = userData.subscriptionTier || "free"
+  const hasAccess = tier !== "free" // All paid tiers get AI Picks; free sees paywall
   const cooldown = !!userData.cooldownEnabled
   
   const [loading, setLoading] = useState(false)
@@ -69,13 +69,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     })()
   }, [])
 
-  // Fetch picks when sport or risk tolerance changes
-  useEffect(() => {
-    if (hasAccess && emotionalStability) {
-      fetchAIPicks()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSport, riskTolerance, hasAccess, emotionalStability])
+  // Previously, AI Picks would auto-fetch when sport or risk changed.
+  // Now we only fetch when the user explicitly requests it (e.g., via the Refresh button),
+  // so we don't consume weekly usage automatically.
 
   const calculateUserStability = async () => {
     try {
@@ -151,13 +147,38 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       console.log('AI Picks: Response status:', response.status)
 
+      let responseData: any = null
+      try {
+        responseData = await response.json()
+      } catch (e) {
+        console.warn('AI Picks: Failed to parse JSON response', e)
+      }
+
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('AI Picks: API error:', errorText)
+        // Handle usage-limit / access errors (403) more gracefully
+        if (response.status === 403 && responseData) {
+          console.error('AI Picks: Usage or access error:', responseData)
+          const description =
+            responseData.error ||
+            'Your current plan or weekly usage does not allow more AI Picks right now.'
+
+          toast.warning('AI Picks Unavailable', {
+            description,
+          })
+
+          if (responseData.marketplace_url) {
+            toast.info('Need more AI uses?', {
+              description: 'You can purchase additional AI credits in the marketplace.',
+            })
+          }
+        } else {
+          console.error('AI Picks: API error:', responseData || response.statusText)
+        }
+
         throw new Error(`Failed to fetch AI picks: ${response.status}`)
       }
 
-      const data = await response.json()
+      const data = responseData as any
       console.log('AI Picks: Response data:', data)
 
       if (!data.shouldBet) {
@@ -270,15 +291,16 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           </p>
         </div>
 
-        <Card className="p-12 text-center bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
+        <Card className="p-12 text-center bg-linear-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
           <div className="flex justify-center mb-6">
             <div className="p-4 rounded-full bg-amber-500/20">
               <Lock className="h-12 w-12 text-amber-500" />
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-foreground mb-3">Elite Feature</h3>
+          <h3 className="text-2xl font-bold text-foreground mb-3">Paid Feature</h3>
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            {getUpgradeMessage(userData.subscriptionTier || "free", "AI Picks")}
+            This AI feature is available on paid plans (Premium, Premium Plus, Elite).
+            Upgrade to unlock AI-powered picks.
           </p>
           <div className="mb-6">
             <p className="text-sm text-muted-foreground mb-4">What you'll get with Elite:</p>
@@ -301,7 +323,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </div>
           </div>
           <Button size="lg" onClick={() => onNavigateToTab("account")}>
-            Upgrade to Elite
+            View Subscription Plans
           </Button>
         </Card>
 
@@ -407,7 +429,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       {/* User Status Card */}
       {emotionalStability && (
-        <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+        <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <Brain className="h-5 w-5 text-purple-500" />
@@ -515,7 +537,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       {/* No Picks State */}
       {!loading && picks.length === 0 && emotionalStability && emotionalStability.score < 70 && (
-        <Card className="p-8 text-center bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
+        <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
           <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
           <p className="text-muted-foreground mb-4">
@@ -542,7 +564,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
               <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
 
-              <div className="p-4 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
+              <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
                 <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
                 <p className="text-sm text-center text-muted-foreground mt-1">
                   {pick.odds > 0 ? '+' : ''}{pick.odds}
@@ -589,7 +611,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
               <div className="p-3 rounded-lg bg-muted mb-4">
                 <div className="flex items-start gap-2">
-                  <Brain className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                  <Brain className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
                   <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
                 </div>
               </div>

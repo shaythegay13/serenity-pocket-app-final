@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, TrendingUp, Target, Activity, Sparkles, User, History, RefreshCw, LogOut } from "lucide-react"
+import { Home, TrendingUp, Target, Activity, Sparkles, User, History, RefreshCw, LogOut, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -13,10 +13,10 @@ interface NavigationProps {
 const navItems = [
   { id: "home", label: "Home", icon: Home },
   { id: "odds", label: "Live Odds", icon: TrendingUp },
-  { id: "analyze", label: "Analyze", icon: Target },
+  { id: "analyze", label: "Analyze (Basic)", icon: Target },
   { id: "behavior", label: "Behavior", icon: Activity },
   { id: "ai-picks", label: "AI Picks", icon: Sparkles },
-  { id: "history", label: "History", icon: History },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "account", label: "Account", icon: User },
 ]
 

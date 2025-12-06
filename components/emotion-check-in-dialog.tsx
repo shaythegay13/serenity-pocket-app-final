@@ -79,6 +79,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       updateUserData
 
     await storage.addEmotionLog({
+      // eslint-disable-next-line react-hooks/purity
       id: Date.now().toString(),
       timestamp: new Date(),
       emotion: selectedEmotion,
@@ -100,6 +101,14 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
         description: "Great job completing your pre and post-bet emotions!"
       })
     } else {
+      // Regular emotion check-in: +10 XP, increment total emotions logged
+      if (userData && updateUserData) {
+        await updateUserData({
+          xp: (userData.xp || 0) + 10,
+          totalEmotionsLogged: (userData.totalEmotionsLogged || 0) + 1
+        })
+      }
+
       toast.success("Emotion check-in completed! +10 XP earned", {
         description: "Your emotional awareness is improving. Keep it up!"
       })

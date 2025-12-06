@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -75,19 +76,23 @@ export function PlayerDetailDialog({ open, onOpenChange, playerId, playerName, t
           <div className="space-y-6">
             {/* Player Header with Image */}
             <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 {player.imageUrl ? (
-                  <img
+                  <Image
                     src={player.imageUrl}
                     alt={player.name}
-                    className="w-48 h-48 object-contain rounded-lg bg-muted"
+                    width={192}
+                    height={192}
+                    className="object-contain rounded-lg bg-muted"
                     onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                      const target = e.currentTarget as HTMLImageElement
+                      target.style.display = "none"
+                      const fallback = target.nextElementSibling as HTMLElement | null
+                      fallback?.classList.remove("hidden")
                     }}
                   />
                 ) : null}
-                <div className={`w-48 h-48 flex items-center justify-center bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg ${player.imageUrl ? 'hidden' : ''}`}>
+                <div className={`w-48 h-48 flex items-center justify-center bg-linear-to-br from-blue-500/20 to-purple-500/20 rounded-lg ${player.imageUrl ? 'hidden' : ''}`}>
                   <User className="h-24 w-24 text-muted-foreground" />
                 </div>
               </div>
@@ -295,7 +300,7 @@ export function PlayerDetailDialog({ open, onOpenChange, playerId, playerName, t
                 </div>
 
                 {/* Betting-Related Stats */}
-                <Card className="p-4 bg-gradient-to-br from-green-500/10 to-blue-500/10 border-green-500/30">
+                <Card className="p-4 bg-linear-to-br from-green-500/10 to-blue-500/10 border-green-500/30">
                   <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-green-500" />
                     Betting Insights

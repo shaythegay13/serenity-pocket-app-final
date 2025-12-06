@@ -213,7 +213,7 @@ const SurveyProgressBar = ({ current, total }) => (
   <div className="progress-container">
     <div className="progress-bar bg-gray-200 h-2 rounded-full">
       <div 
-        className="progress-fill bg-gradient-to-r from-blue-400 to-green-400 h-2 rounded-full transition-all duration-300"
+        className="progress-fill bg-linear-to-r from-blue-400 to-green-400 h-2 rounded-full transition-all duration-300"
         style={{ width: `${(current / total) * 100}%` }}
       />
     </div>
@@ -329,7 +329,7 @@ const SurveyProgressBar = ({ current, total }) => (
 ### Profile Section Display
 
 ```tsx
-<div className="survey-results-card bg-gradient-to-br from-blue-50 to-green-50 p-6 rounded-lg">
+<div className="survey-results-card bg-linear-to-br from-blue-50 to-green-50 p-6 rounded-lg">
   <h3 className="text-lg font-semibold mb-4">Your Serenity Assessment</h3>
   
   <div className="result-display flex items-center justify-between">

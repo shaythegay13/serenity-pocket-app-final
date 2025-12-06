@@ -7,6 +7,7 @@ import { HomeTab } from "@/components/tabs/home-tab"
 import { LiveOddsTab } from "@/components/tabs/live-odds-tab"
 import { AnalyzeBetTab } from "@/components/tabs/analyze-bet-tab"
 import { BehaviorTab } from "@/components/tabs/behavior-tab"
+import { AnalyticsTab } from "@/components/tabs/analytics-tab"
 import { AIPicksTab } from "@/components/tabs/ai-picks-tab"
 import { HistoryTab } from "@/components/tabs/history-tab"
 import { AccountTab } from "@/components/tabs/account-tab"
@@ -281,18 +282,15 @@ export default function Home() {
   const handleEmotionCheckInComplete = async () => {
     if (!userData) return
     
-    // Track emotion check-in (XP system removed)
-    const updatedData = {
-      ...userData,
-      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
+    // Track emotion check-in metadata: last check-in time and ring progress.
+    // XP and totalEmotionsLogged are now handled inside EmotionCheckInDialog.
+    await updateUserData({
       lastEmotionCheckIn: new Date(),
       dailyRings: {
         ...userData.dailyRings,
         emotionalAwareness: Math.min(100, userData.dailyRings.emotionalAwareness + 25)
       }
-    }
-    
-    await updateUserData(updatedData)
+    })
     setShowEmotionCheckIn(false)
     
     // Trigger refresh of emotion charts and progress tab
@@ -433,7 +431,7 @@ export default function Home() {
       
       {/* Pending Emotion Completion Banner */}
       {userData?.pendingEmotionTradeId && (
-        <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20">
+        <div className="bg-linear-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20">
           <div className="container mx-auto px-3 sm:px-4 py-3 max-w-7xl">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -462,12 +460,19 @@ export default function Home() {
       )}
       
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
-        {activeTab === "home" && <HomeTab userData={userData} updateUserData={updateUserData} onNavigateToTab={setActiveTab} />}
+        {activeTab === "home" && (
+          <HomeTab
+            userData={userData}
+            updateUserData={updateUserData}
+            onNavigateToTab={setActiveTab}
+            refreshKey={refreshKey}
+          />
+        )}
         {activeTab === "odds" && <LiveOddsTab userData={userData} onNavigateToTab={setActiveTab} />}
         {activeTab === "analyze" && <AnalyzeBetTab userData={userData} onNavigateToTab={setActiveTab} />}
         {activeTab === "behavior" && <BehaviorTab userData={userData} updateUserData={updateUserData} refreshKey={refreshKey} />}
+        {activeTab === "analytics" && <AnalyticsTab userData={userData} onNavigateToTab={setActiveTab} />}
         {activeTab === "ai-picks" && <AIPicksTab userData={userData} onNavigateToTab={setActiveTab} />}
-        {activeTab === "history" && <HistoryTab userData={userData} onNavigateToTab={setActiveTab} />}
         {activeTab === "account" && <AccountTab userData={userData} updateUserData={updateUserData} />}
       </main>
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -323,7 +324,13 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
             <div className="flex gap-2">
               <Button onClick={uploadAvatar} disabled={!file || uploading}>{uploading ? "Uploading..." : "Upload & Save"}</Button>
               {avatarUrl && (
-                <img src={avatarUrl} alt="picture" className="h-10 w-10 rounded-full object-cover" />
+                <Image
+                  src={avatarUrl}
+                  alt="Profile picture"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
               )}
             </div>
           </div>

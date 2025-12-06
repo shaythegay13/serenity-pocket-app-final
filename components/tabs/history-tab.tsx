@@ -256,7 +256,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       </div>
 
       {/* Performance Metrics Dashboard */}
-      <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30">
+      <Card className="p-6 bg-linear-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30">
         <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-blue-500" />
           Performance Overview
@@ -475,7 +475,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                 </div>
 
                 {/* Right: Metrics */}
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <div className="text-sm font-semibold text-foreground mb-1">
                     ${bet.stake.toFixed(2)}
                   </div>
@@ -499,7 +499,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
               {bet.biasWarnings && bet.biasWarnings.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                    <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
                     <div className="flex flex-wrap gap-1">
                       {bet.biasWarnings.slice(0, 2).map((warning, idx) => (
                         <span key={idx} className="text-xs text-muted-foreground">
@@ -613,7 +613,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                     <div className="space-y-1">
                       {selectedBet.biasWarnings.map((warning, idx) => (
                         <div key={idx} className="flex items-start gap-2 text-sm">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
                           <span className="text-muted-foreground">{warning}</span>
                         </div>
                       ))}

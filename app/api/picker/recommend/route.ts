@@ -17,6 +17,7 @@ import {
   type SerenityFeatureInput,
 } from "@/lib/services/serenityFeatureBuilder"
 import { predictSerenityBet } from "@/lib/services/sagemakerSerenityCsv"
+import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
 
 function computeRecentWinRate(form?: string[]): number | undefined {
   if (!form || form.length === 0) return undefined
@@ -67,25 +68,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Subscription tier check (Elite only)
-    const { data: profile, error: profileError } = await supabase
-      .from("user_profiles")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .single()
+    // Check AI service usage limits (tier-based + purchased credits)
+    const usageCheck = await checkAIServiceUsage(supabase, user.id, 'ai_picker')
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-    }
-
-    if (profile.subscription_tier !== "elite") {
+    if (!usageCheck.canUse) {
       return NextResponse.json(
         {
-          error: "This feature requires an Elite subscription",
-          upgrade_required: true,
-          current_tier: profile.subscription_tier,
+          error: usageCheck.reason || "AI Picker usage limit reached",
+          upgrade_required: usageCheck.limit === 0, // No tier access at all
+          usage_limit_reached: usageCheck.limit > 0, // Has tier access but limit reached
+          current_usage: {
+            used: usageCheck.usedThisWeek,
+            limit: usageCheck.limit,
+            remaining: usageCheck.remaining,
+            purchased_credits: usageCheck.purchasedCredits,
+            total_available: usageCheck.totalAvailable
+          },
+          marketplace_url: '/marketplace'
         },
-        { status: 403 },
+        { status: 403 }
       )
     }
 
@@ -517,6 +518,16 @@ export async function POST(request: NextRequest) {
         probsByGameId[g.id] = g.probs
       }
     }
+
+    // Record AI service usage
+    await recordAIServiceUsage(supabase, user.id, 'ai_picker', {
+      sport,
+      emotionalScore,
+      riskTolerance,
+      recommendations_count: reasoningOutput.recommendations.length,
+      used_perplexity: anyPerplexityUsed,
+      used_sagemaker: serenityUsedFlags.some(Boolean)
+    })
 
     return NextResponse.json({
       success: true,

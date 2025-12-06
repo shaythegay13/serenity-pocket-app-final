@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,41 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
 import { supabase } from "@/lib/supabase"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
+
+// Core emotions with 10 sub-emotions each (matching behavior check-in)
+const coreEmotions = [
+  {
+    id: "joy",
+    label: "JOY",
+    subEmotions: ["Happy", "Excited", "Optimistic", "Grateful", "Confident", "Proud", "Hopeful", "Content", "Cheerful", "Inspired"]
+  },
+  {
+    id: "calm",
+    label: "CALM",
+    subEmotions: ["Peaceful", "Relaxed", "Centered", "Focused", "Balanced", "Serene", "Patient", "Composed", "Tranquil", "Stable"]
+  },
+  {
+    id: "fear",
+    label: "FEAR",
+    subEmotions: ["Anxious", "Worried", "Nervous", "Scared", "Uncertain", "Panicked", "Hesitant", "Overwhelmed", "Tense", "Uneasy"]
+  },
+  {
+    id: "greed",
+    label: "GREED",
+    subEmotions: ["FOMO", "Euphoric", "Impulsive", "Overconfident", "Eager", "Craving", "Obsessed", "Compulsive", "Restless", "Driven"]
+  },
+  {
+    id: "frustration",
+    label: "FRUSTRATION",
+    subEmotions: ["Angry", "Irritated", "Disappointed", "Impatient", "Stressed", "Resentful", "Annoyed", "Agitated", "Bitter", "Exhausted"]
+  },
+  {
+    id: "sadness",
+    label: "SADNESS",
+    subEmotions: ["Down", "Discouraged", "Regretful", "Defeated", "Helpless", "Lonely", "Empty", "Hopeless", "Dejected", "Grief"]
+  }
+]
 
 export default function AIBetAdvisor() {
   const [loading, setLoading] = useState(false)
@@ -18,6 +53,7 @@ export default function AIBetAdvisor() {
   const [error, setError] = useState<string | null>(null)
   const [usedEnhancedAI, setUsedEnhancedAI] = useState(false)
   const [enhancedInsights, setEnhancedInsights] = useState<string[] | null>(null)
+  const [emotionCategory, setEmotionCategory] = useState<string>("")
 
   const [formData, setFormData] = useState<BetScenario>({
     sport: "NFL",
@@ -30,13 +66,162 @@ export default function AIBetAdvisor() {
     underdogRecord: "",
     injuries: "",
     weather: "",
-    currentEmotion: "Neutral/Calm",
+    currentEmotion: "Centered",
     lastOutcome: "Haven't bet recently",
     emotionalTriggers: "",
     bettingSlip: "",
     history: "",
     notes: "",
   })
+
+  // Prefill from Live Odds "Analyze This Bet (Advanced)" flow
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const raw = window.localStorage.getItem("pendingBetAnalysis")
+      if (!raw) return
+
+      const payload = JSON.parse(raw) as {
+        sport?: string
+        homeTeam?: string
+        awayTeam?: string
+        bestHomeOdds?: number
+        bestAwayOdds?: number
+        defaultStake?: number
+        homeRecord?: string
+        awayRecord?: string
+      }
+
+      // Map internal sport keys from odds API to human-readable labels
+      const sportMap: Record<string, string> = {
+        basketball_nba: "NBA",
+        americanfootball_nfl: "NFL",
+        baseball_mlb: "MLB",
+        icehockey_nhl: "NHL",
+      }
+
+      const mappedSport = payload.sport && sportMap[payload.sport]
+
+      // Infer favorite vs underdog from moneyline odds
+      const homeOdds = typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : NaN
+      const awayOdds = typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : NaN
+
+      let favoriteTeam = payload.homeTeam || ""
+      let underdogTeam = payload.awayTeam || ""
+      let favoriteRecord = payload.homeRecord || ""
+      let underdogRecord = payload.awayRecord || ""
+
+      if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
+        const implied = (odds: number) => {
+          if (!odds || Number.isNaN(odds)) return 0.5
+          return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+        }
+
+        const homeImp = implied(homeOdds)
+        const awayImp = implied(awayOdds)
+
+        if (awayImp > homeImp) {
+          favoriteTeam = payload.awayTeam || favoriteTeam
+          underdogTeam = payload.homeTeam || underdogTeam
+          favoriteRecord = payload.awayRecord || favoriteRecord
+          underdogRecord = payload.homeRecord || underdogRecord
+        }
+      }
+
+      setFormData(prev => {
+        const effectiveBetAmount = payload.defaultStake ?? prev.betAmount ?? 0
+        // If user never set a budget, derive a reasonable default from the stake (e.g. 10x) or fallback to 500
+        const effectiveBudget = (prev.budget && prev.budget > 0)
+          ? prev.budget
+          : (effectiveBetAmount > 0 ? effectiveBetAmount * 10 : 500)
+
+        return {
+          ...prev,
+          sport: mappedSport || prev.sport,
+          betType: "Moneyline",
+          betAmount: effectiveBetAmount,
+          budget: effectiveBudget,
+          favoriteTeam: favoriteTeam || prev.favoriteTeam,
+          underdogTeam: underdogTeam || prev.underdogTeam,
+          favoriteRecord: favoriteRecord || prev.favoriteRecord,
+          underdogRecord: underdogRecord || prev.underdogRecord,
+        }
+      })
+
+      // Clear after use so it doesn't override manual entries later
+      window.localStorage.removeItem("pendingBetAnalysis")
+    } catch (err) {
+      console.warn("AI Bet Advisor: Failed to prefill from pendingBetAnalysis", err)
+    }
+  }, [])
+
+  // Auto-fill emotion from latest behavior check-in and last bet outcome
+  useEffect(() => {
+    const loadUserContext = async () => {
+      try {
+        // Get latest emotion log
+        const emotionLogs = await storage.getEmotionLogs()
+        if (emotionLogs.length > 0) {
+          const latestEmotion = emotionLogs[emotionLogs.length - 1]
+          const emotion = latestEmotion.emotion || "Centered"
+
+          // Set the emotion and also the category
+          const category = coreEmotions.find(c => c.subEmotions.includes(emotion))
+          if (category) {
+            setEmotionCategory(category.id)
+          }
+
+          setFormData(prev => ({
+            ...prev,
+            currentEmotion: emotion
+          }))
+        }
+
+        // Get last bet outcome from trades
+        const trades = await storage.getTrades()
+
+        if (trades.length > 0) {
+          // Sort trades by timestamp descending to get the most recent
+          const sortedTrades = [...trades].sort((a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          )
+
+          // Find the most recent trade with an outcome
+          const lastCompletedTrade = sortedTrades.find(trade => trade.outcome)
+
+          if (lastCompletedTrade) {
+            // Check if the last bet was within 7 days
+            const sevenDaysAgo = new Date()
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+            const lastBetDate = new Date(lastCompletedTrade.timestamp)
+
+            let lastOutcome = "Haven't bet recently"
+
+            if (lastBetDate >= sevenDaysAgo) {
+              // Last bet was within 7 days, use the outcome
+              if (lastCompletedTrade.outcome === "profit") {
+                lastOutcome = "Won (feeling good)"
+              } else if (lastCompletedTrade.outcome === "loss") {
+                lastOutcome = "Lost (feeling frustrated)"
+              } else if (lastCompletedTrade.outcome === "breakeven") {
+                lastOutcome = "Push/Tie"
+              }
+            }
+
+            setFormData(prev => ({
+              ...prev,
+              lastOutcome
+            }))
+          }
+        }
+      } catch (err) {
+        console.warn("AI Bet Advisor: Failed to load user context", err)
+      }
+    }
+
+    loadUserContext()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,10 +296,6 @@ export default function AIBetAdvisor() {
                     <SelectItem value="NBA">NBA</SelectItem>
                     <SelectItem value="MLB">MLB</SelectItem>
                     <SelectItem value="NHL">NHL</SelectItem>
-                    <SelectItem value="Premier League">Premier League</SelectItem>
-                    <SelectItem value="MLS">MLS</SelectItem>
-                    <SelectItem value="NCAA Basketball">NCAA Basketball</SelectItem>
-                    <SelectItem value="MMA/UFC">MMA/UFC</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -220,24 +401,48 @@ export default function AIBetAdvisor() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="currentEmotion">How are you feeling right now?</Label>
-                <Select value={formData.currentEmotion} onValueChange={(value) => updateFormData("currentEmotion", value)}>
-                  <SelectTrigger id="currentEmotion">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Neutral/Calm">Neutral/Calm</SelectItem>
-                    <SelectItem value="Happy/Excited">Happy/Excited</SelectItem>
-                    <SelectItem value="Confident/Optimistic">Confident/Optimistic</SelectItem>
-                    <SelectItem value="Frustrated/Annoyed">Frustrated/Annoyed</SelectItem>
-                    <SelectItem value="Sad/Disappointed">Sad/Disappointed</SelectItem>
-                    <SelectItem value="Anxious/Stressed">Anxious/Stressed</SelectItem>
-                    <SelectItem value="Angry/Upset">Angry/Upset</SelectItem>
-                    <SelectItem value="Greedy/Feeling Lucky">Greedy/Feeling Lucky</SelectItem>
-                    <SelectItem value="Desperate/Need to Win">Desperate/Need to Win</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label htmlFor="emotionCategory">How are you feeling right now?</Label>
+                <div className="space-y-2">
+                  {/* Step 1: Select Category */}
+                  <Select value={emotionCategory} onValueChange={(value) => {
+                    setEmotionCategory(value)
+                    // Reset emotion when category changes
+                    const category = coreEmotions.find(c => c.id === value)
+                    if (category && category.subEmotions.length > 0) {
+                      updateFormData("currentEmotion", category.subEmotions[0])
+                    }
+                  }}>
+                    <SelectTrigger id="emotionCategory">
+                      <SelectValue placeholder="Select emotion category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coreEmotions.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Step 2: Select Sub-Emotion (only shows if category selected) */}
+                  {emotionCategory && (
+                    <Select value={formData.currentEmotion} onValueChange={(value) => updateFormData("currentEmotion", value)}>
+                      <SelectTrigger id="currentEmotion">
+                        <SelectValue placeholder="Select specific emotion" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {coreEmotions
+                          .find(c => c.id === emotionCategory)
+                          ?.subEmotions.map((emotion) => (
+                            <SelectItem key={emotion} value={emotion}>
+                              {emotion}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -326,7 +531,7 @@ export default function AIBetAdvisor() {
         <div className="space-y-6">
           {/* Enhanced AI Badge */}
           {usedEnhancedAI && (
-            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
+            <Card className="bg-linear-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-purple-500" />
@@ -436,7 +641,7 @@ export default function AIBetAdvisor() {
 
           {/* Enhanced Insights from Claude */}
           {enhancedInsights && enhancedInsights.length > 0 && (
-            <Card className="bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-500/20">
+            <Card className="bg-linear-to-br from-purple-500/5 to-pink-500/5 border-purple-500/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-purple-500" />
@@ -450,7 +655,7 @@ export default function AIBetAdvisor() {
                 <ul className="space-y-3">
                   {enhancedInsights.map((insight, i) => (
                     <li key={i} className="flex items-start gap-3">
-                      <div className="mt-1 h-2 w-2 rounded-full bg-purple-500 flex-shrink-0" />
+                      <div className="mt-1 h-2 w-2 rounded-full bg-purple-500 shrink-0" />
                       <p className="text-sm">{insight}</p>
                     </li>
                   ))}

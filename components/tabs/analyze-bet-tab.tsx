@@ -567,7 +567,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
           </p>
         </div>
 
-        <Card className="p-12 text-center bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+        <Card className="p-12 text-center bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
           <div className="flex justify-center mb-6">
             <div className="p-4 rounded-full bg-purple-500/20">
               <Lock className="h-12 w-12 text-purple-500" />
@@ -973,7 +973,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
 
       {/* Parlay Analysis Results */}
       {parlayAnalysis && (
-        <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+        <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
           <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <Brain className="h-5 w-5 text-purple-500" />
             Parlay Analysis Results
@@ -1047,7 +1047,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
                     'bg-yellow-500/10 border-yellow-500/30'
                   }`}
                 >
-                  <AlertTriangle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                  <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${
                     warning.severity === 'high' ? 'text-red-500' : 'text-yellow-500'
                   }`} />
                   <div>
@@ -1065,7 +1065,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       {analysis && (
         <div className="space-y-4">
           {/* Data Analysis */}
-          <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30">
+          <Card className="p-6 bg-linear-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30">
             <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-blue-500" />
               Data Analysis
@@ -1129,7 +1129,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
 
           {/* Psychological Analysis (Premium Plus) */}
           {hasPsychAccess ? (
-            <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+            <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
               <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Brain className="h-5 w-5 text-purple-500" />
                 Psychological Analysis
@@ -1165,7 +1165,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
               </div>
             </Card>
           ) : (
-            <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+            <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Lock className="h-6 w-6 text-purple-500" />

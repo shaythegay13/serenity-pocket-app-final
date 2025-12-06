@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, ArrowRight } from 'lucide-react'
 
-export default function MarketplaceSuccessPage() {
+function SuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const product = searchParams.get('product')
@@ -60,6 +60,25 @@ export default function MarketplaceSuccessPage() {
         </p>
       </Card>
     </div>
+  )
+}
+
+export default function MarketplaceSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-16 px-4 max-w-2xl">
+        <Card className="p-8 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="rounded-full bg-green-500/20 p-4">
+              <CheckCircle className="h-16 w-16 text-green-500" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold mb-3">Loading...</h1>
+        </Card>
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   )
 }
 

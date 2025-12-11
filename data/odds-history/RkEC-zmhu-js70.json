@@ -1,0 +1,105 @@
+{
+  "gameId": "RkEC-zmhu-js70",
+  "homeTeam": "Valencia Basket",
+  "awayTeam": "Anadolu Efes",
+  "sport": "BASKETBALL",
+  "commenceTime": "2025-12-11T19:30:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T12:14:51.721Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:14:52.328Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:14:52.663Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:14:52.988Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:44:51.926Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:44:52.406Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:44:52.759Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T12:44:53.014Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T13:14:51.627Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T13:14:52.076Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T13:14:52.487Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T13:14:52.792Z",
+      "moneyline": {
+        "home": 1.4,
+        "away": 3.6,
+        "bookmaker": "BET_MGM"
+      }
+    }
+  ]
+}

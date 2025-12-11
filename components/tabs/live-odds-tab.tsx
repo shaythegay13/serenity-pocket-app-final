@@ -20,9 +20,9 @@ export function LiveOddsTab({ userData, onNavigateToTab }: LiveOddsTabProps) {
     return (
       <div className="space-y-6 fade-in">
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">Live Odds Comparison</h2>
+          <h2 className="text-3xl font-bold text-foreground">Sports Dashboard</h2>
           <p className="text-muted-foreground">
-            Compare real-time odds across all major sportsbooks
+            Compare real-time odds, analytics, and insights across all major sports
           </p>
         </div>
 

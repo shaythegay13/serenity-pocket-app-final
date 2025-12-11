@@ -133,29 +133,28 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         </p>
       </div>
 
-      {/* Emotional Score Card */}
-      <Card className="p-6 bg-linear-to-br from-primary/10 to-accent/10 border-primary/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-4 rounded-full bg-primary/20">
-              <Heart className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-foreground">Emotional Stability Score</h3>
-              <p className="text-sm text-muted-foreground">Based on your recent emotional check-ins</p>
-            </div>
+      {/* Mission Statement */}
+      <div className="px-4">
+        <p className="text-sm text-foreground leading-relaxed">
+          Serenity Pocket by PlayMindLabs applies behavioral science and data analytics to betting performance. Using real‑time mood tracking and decision‑pattern modeling, our system identifies when psychological factors—such as stress, confidence, or loss‑chasing—are influencing your wagers. By correlating emotional states with outcome data, Serenity Pocket helps you quantify risk, minimize volatility, and optimize long‑term performance through self‑awareness and evidence‑based insights.
+        </p>
+        <p className="text-sm text-foreground leading-relaxed mt-4 font-medium">
+          Thank you for being part of a movement toward smarter, data‑driven play.
+        </p>
+      </div>
+
+      {/* What Sets Us Apart */}
+      <div className="px-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-full bg-purple-500/20">
+            <Sparkles className="h-6 w-6 text-purple-500" />
           </div>
-          <div className="flex items-center gap-4">
-            <ActivityRing
-              progress={emotionalScore}
-              color={getGaugeColor(emotionalScore)}
-              label={getEmotionalScoreLabel(emotionalScore)}
-              value={`${emotionalScore}/100`}
-              size={120}
-            />
-          </div>
+          <h3 className="text-xl font-semibold text-foreground">What Sets Serenity Pocket Apart</h3>
         </div>
-      </Card>
+        <p className="text-sm text-foreground leading-relaxed">
+          What sets Serenity Pocket apart is the fusion of psychology and predictive analytics. Our AI systems don't just process sports data — they learn from your behavioral patterns, emotional responses, and historical outcomes to deliver truly personalized insights. By combining cognitive modeling, real‑time performance tracking, and recovery recommendations, we help users transform betting into a skill‑based, self‑aware process. Serenity Pocket isn't just another betting tool — it's the first system designed to help you win with both data and discipline.
+        </p>
+      </div>
 
       {/* Cooldown Mode Alert */}
       {showCooldown && (
@@ -219,6 +218,19 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         </div>
       )}
 
+      {/* Privacy & Ethics Statement */}
+      <div className="px-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-full bg-green-500/20">
+            <Shield className="h-6 w-6 text-green-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-foreground">Your Privacy & Well-Being Come First</h3>
+        </div>
+        <p className="text-sm text-foreground leading-relaxed">
+          Your data and well‑being come first. Serenity Pocket is built on privacy, security, and ethical design principles that prioritize transparency at every step. All tracking features are optional and encrypted, giving you full control over what's recorded and how it's used. Our mission is to create a responsible betting companion that supports informed decisions — never exploits impulsive ones — ensuring that you stay in control of both your data and your play.
+        </p>
+      </div>
+
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("odds") }}>
@@ -226,7 +238,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
             <div className="p-2 rounded-full bg-blue-500/10">
               <TrendingUp className="h-6 w-6 text-blue-500" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground">Live Odds</h3>
+            <h3 className="text-lg font-semibold text-foreground">Sports Dashboard</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Compare real-time odds across multiple sportsbooks
@@ -276,97 +288,6 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          Recent Betting Activity
-        </h3>
-        {recentBets.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">No recent bets logged</p>
-            <Button 
-              className="mt-4" 
-              onClick={() => onNavigateToTab("behavior")}
-            >
-              Log Your First Bet
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentBets.slice(0, 5).map((bet) => (
-              <div key={bet.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full ${
-                    bet.outcome === "profit" ? "bg-green-500/10" :
-                    bet.outcome === "loss" ? "bg-red-500/10" :
-                    "bg-gray-500/10"
-                  }`}>
-                    {bet.outcome === "profit" ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                    ) : bet.outcome === "loss" ? (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
-                    ) : (
-                      <Clock className="h-4 w-4 text-gray-500" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {bet.preTradeEmotion} • Confidence: {bet.confidenceLevel}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(bet.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant={
-                  bet.outcome === "profit" ? "default" :
-                  bet.outcome === "loss" ? "destructive" :
-                  "secondary"
-                }>
-                  {bet.outcome || "Pending"}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Personalized Insights */}
-      <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-500" />
-          Personalized Insights
-        </h3>
-        <div className="space-y-3">
-          {userData.surveyData && (
-            <div className="p-3 rounded-lg bg-background/50">
-              <p className="text-sm font-medium text-foreground">
-                Your gambling risk level: <span className="text-purple-500">{userData.surveyData.level}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Score: {userData.surveyData.score}/100
-              </p>
-            </div>
-          )}
-          <div className="p-3 rounded-lg bg-background/50">
-            <p className="text-sm font-medium text-foreground">
-              Mindful Decision Rate: <span className="text-purple-500">{Math.round(userData.mindfulDecisionPercentage)}%</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {userData.mindfulTrades} out of {userData.totalTrades} bets made mindfully
-            </p>
-          </div>
-          <div className="p-3 rounded-lg bg-background/50">
-            <p className="text-sm font-medium text-foreground">
-              Bias Recognition: <span className="text-purple-500">{Math.round(userData.biasRecognitionScore)}%</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {userData.totalBiasesIdentified} biases identified across all bets
-            </p>
-          </div>
-        </div>
-      </Card>
     </div>
   )
 }

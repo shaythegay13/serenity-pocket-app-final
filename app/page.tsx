@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { HomeTab } from "@/components/tabs/home-tab"
@@ -427,7 +428,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader userData={userData} />
+
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      {activeTab === "home" && (
+        <div className="border-b border-border bg-card">
+          <div className="container mx-auto px-3 sm:px-4 py-4 max-w-7xl">
+            <Image
+              src="/home-hero.jpg"
+              alt="Bet smarter, protect your mind"
+              width={1024}
+              height={517}
+              className="w-full h-auto rounded-lg"
+              priority
+            />
+          </div>
+        </div>
+      )}
       
       {/* Pending Emotion Completion Banner */}
       {userData?.pendingEmotionTradeId && (

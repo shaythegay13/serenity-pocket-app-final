@@ -121,12 +121,27 @@ export async function POST(req: Request) {
       url: checkoutSession.url,
       success: true,
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error processing subscription:', error)
+
+    // Try to surface as much detail as possible from Flowglad/HTTP errors
+    let details: string
+
+    if (typeof error === 'object' && error !== null) {
+      try {
+        // Many HTTP client errors have status, headers, and error/body fields
+        details = JSON.stringify(error)
+      } catch {
+        details = String(error)
+      }
+    } else {
+      details = String(error)
+    }
+
     return NextResponse.json(
       {
         error: 'Failed to process subscription',
-        details: error instanceof Error ? error.message : String(error)
+        details,
       },
       { status: 500 }
     )

@@ -1,0 +1,41 @@
+{
+  "gameId": "3LoV-zmht-0e3N",
+  "homeTeam": "Olimpia Milano",
+  "awayTeam": "Panathinaikos",
+  "sport": "BASKETBALL",
+  "commenceTime": "2025-12-11T19:30:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T11:44:53.754Z",
+      "moneyline": {
+        "home": 2.54,
+        "away": 1.67,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:54.296Z",
+      "moneyline": {
+        "home": 2.54,
+        "away": 1.67,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:54.788Z",
+      "moneyline": {
+        "home": 2.54,
+        "away": 1.67,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:55.328Z",
+      "moneyline": {
+        "home": 2.54,
+        "away": 1.67,
+        "bookmaker": "BET_MGM"
+      }
+    }
+  ]
+}

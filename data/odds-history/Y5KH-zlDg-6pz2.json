@@ -1,0 +1,41 @@
+{
+  "gameId": "Y5KH-zlDg-6pz2",
+  "homeTeam": "Los Angeles Lakers",
+  "awayTeam": "San Antonio Spurs",
+  "sport": "BASKETBALL",
+  "commenceTime": "2025-12-11T03:00:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T11:44:53.724Z",
+      "moneyline": {
+        "home": 1.555556,
+        "away": 2.9,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:54.274Z",
+      "moneyline": {
+        "home": 1.555556,
+        "away": 2.9,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:54.767Z",
+      "moneyline": {
+        "home": 1.555556,
+        "away": 2.9,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T11:44:55.264Z",
+      "moneyline": {
+        "home": 1.555556,
+        "away": 2.9,
+        "bookmaker": "BOVADA"
+      }
+    }
+  ]
+}

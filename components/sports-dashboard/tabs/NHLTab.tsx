@@ -7,20 +7,25 @@ import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-stor
 import {
   TrendingUp,
   Users,
-  Target,
-  BarChart3,
-  Activity,
-  Calendar,
-  Clock,
-  Shield,
-  LineChart
+  LineChart,
+  PieChart,
+  CloudRain,
+  Zap
 } from "lucide-react"
 
 /**
  * NHLTab Component
- * 
+ *
  * NHL-specific sports data dashboard tab.
- * Displays 9 feature cards in a 3x3 grid for different NHL data views.
+ * Displays 6 feature cards in a grid for different NHL data views.
+ *
+ * Feature Cards:
+ * 1. Live Scores - In-game scores and live betting
+ * 2. Upcoming Games & Odds - Consolidated live odds, schedule, matchups, and game dashboard
+ * 3. Team & Player Analytics - Consolidated player props, team analytics, and injuries
+ * 4. Line Movement - Historical line tracking
+ * 5. Betting Trends - Public betting percentages and sharp action
+ * 6. Weather Conditions - Weather impact on game totals
  */
 export default function NHLTab() {
   const activeSport = useSportsStore((state) => state.activeSport)
@@ -32,72 +37,57 @@ export default function NHLTab() {
   }
 
   return (
-    <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={9} />}>
+    <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={6} />}>
       <FeatureCardGrid isLoading={isLoading}>
+        {/* 1. Live Scores */}
+        <FeatureCard
+          icon={<Zap className="h-10 w-10" />}
+          title="Live Scores"
+          description="In-game scores, live betting lines, and real-time updates. Track your action as games unfold."
+          badge="LIVE"
+          onClick={() => handleFeatureClick("live_scores")}
+        />
+
+        {/* 2. Upcoming Games & Odds - CONSOLIDATED */}
         <FeatureCard
           icon={<TrendingUp className="h-10 w-10" />}
-          title="Live Odds"
-          description="Real-time NHL puck lines, totals, and moneylines from all major sportsbooks for every matchup."
-          badge="LIVE"
-          onClick={() => handleFeatureClick("live_odds")}
+          title="Upcoming Games & Odds"
+          description="Live betting lines across all sportsbooks with complete schedule, matchup breakdowns, spreads, totals, and moneylines."
+          badge="POPULAR"
+          onClick={() => handleFeatureClick("upcoming_games_odds")}
         />
 
+        {/* 3. Team & Player Analytics - CONSOLIDATED with Injuries */}
         <FeatureCard
           icon={<Users className="h-10 w-10" />}
-          title="Player Props"
-          description="Goals, assists, shots on goal, and goalie saves. In-depth player prop markets and trends."
-          onClick={() => handleFeatureClick("player_props")}
+          title="Team & Player Analytics"
+          description="Advanced team stats, player props, and injury reports. Offensive ratings, defensive metrics, and lineup confirmations."
+          onClick={() => handleFeatureClick("team_player_analytics")}
         />
 
-        <FeatureCard
-          icon={<Target className="h-10 w-10" />}
-          title="Matchups"
-          description="Goalie vs team analysis, special teams matchups, and head-to-head statistical edges."
-          onClick={() => handleFeatureClick("matchups")}
-        />
-
-        <FeatureCard
-          icon={<BarChart3 className="h-10 w-10" />}
-          title="Game Dashboard"
-          description="Complete NHL game center with goalie starters, rest days, and real-time betting action."
-          badge="POPULAR"
-          onClick={() => handleFeatureClick("game_dashboard")}
-        />
-
-        <FeatureCard
-          icon={<Activity className="h-10 w-10" />}
-          title="Injury Reports"
-          description="Latest injury updates, lineup confirmations, and goalie starter announcements before puck drop."
-          badge="UPDATED"
-          onClick={() => handleFeatureClick("injuries")}
-        />
-
-        <FeatureCard
-          icon={<Calendar className="h-10 w-10" />}
-          title="Upcoming Games"
-          description="Full NHL schedule with back-to-back tracking, road trip analysis, and series previews."
-          onClick={() => handleFeatureClick("upcoming_games")}
-        />
-
-        <FeatureCard
-          icon={<Clock className="h-10 w-10" />}
-          title="Historical Trends"
-          description="Puck line performance, over/under trends, and home/away splits for all NHL teams."
-          onClick={() => handleFeatureClick("historical_trends")}
-        />
-
-        <FeatureCard
-          icon={<Shield className="h-10 w-10" />}
-          title="Team Analytics"
-          description="Advanced metrics including Corsi, Fenwick, PDO, power play efficiency, and penalty kill rates."
-          onClick={() => handleFeatureClick("team_analytics")}
-        />
-
+        {/* 4. Line Movement */}
         <FeatureCard
           icon={<LineChart className="h-10 w-10" />}
-          title="Line Movement History"
-          description="Track puck line and total movements from opening to faceoff. Identify sharp money moves."
+          title="Line Movement"
+          description="Track how betting lines move from opening to kickoff. Identify sharp money and public action."
           onClick={() => handleFeatureClick("line_movement")}
+        />
+
+        {/* 5. Betting Trends - NEW */}
+        <FeatureCard
+          icon={<PieChart className="h-10 w-10" />}
+          title="Betting Trends"
+          description="Public betting percentages, sharp vs public action, and consensus picks. See where the money is going."
+          badge="NEW"
+          onClick={() => handleFeatureClick("betting_trends")}
+        />
+
+        {/* 6. Weather Impact */}
+        <FeatureCard
+          icon={<CloudRain className="h-10 w-10" />}
+          title="Weather Impact"
+          description="Real-time weather forecasts and historical data on how conditions affect scoring and game totals."
+          onClick={() => handleFeatureClick("weather_conditions")}
         />
       </FeatureCardGrid>
     </Suspense>

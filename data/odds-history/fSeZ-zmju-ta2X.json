@@ -1,0 +1,41 @@
+{
+  "gameId": "fSeZ-zmju-ta2X",
+  "homeTeam": "Marshall",
+  "awayTeam": "Western Kentucky",
+  "sport": "BASKETBALL",
+  "commenceTime": "2025-12-11T00:00:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T19:16:48.231Z",
+      "moneyline": {
+        "home": 1.91,
+        "away": 2.1,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:48.671Z",
+      "moneyline": {
+        "home": 1.91,
+        "away": 2.1,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.222Z",
+      "moneyline": {
+        "home": 1.91,
+        "away": 2.1,
+        "bookmaker": "BET_MGM"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.741Z",
+      "moneyline": {
+        "home": 1.91,
+        "away": 2.1,
+        "bookmaker": "BET_MGM"
+      }
+    }
+  ]
+}

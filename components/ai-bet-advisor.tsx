@@ -54,6 +54,8 @@ export default function AIBetAdvisor() {
   const [usedEnhancedAI, setUsedEnhancedAI] = useState(false)
   const [enhancedInsights, setEnhancedInsights] = useState<string[] | null>(null)
   const [emotionCategory, setEmotionCategory] = useState<string>("")
+  const [emotionMenuOpen, setEmotionMenuOpen] = useState(false)
+  const [hoveredEmotionCategory, setHoveredEmotionCategory] = useState<string | null>(null)
 
   const [formData, setFormData] = useState<BetScenario>({
     sport: "NFL",
@@ -403,44 +405,86 @@ export default function AIBetAdvisor() {
 
               <div className="space-y-2">
                 <Label htmlFor="emotionCategory">How are you feeling right now?</Label>
-                <div className="space-y-2">
-                  {/* Step 1: Select Category */}
-                  <Select value={emotionCategory} onValueChange={(value) => {
-                    setEmotionCategory(value)
-                    // Reset emotion when category changes
-                    const category = coreEmotions.find(c => c.id === value)
-                    if (category && category.subEmotions.length > 0) {
-                      updateFormData("currentEmotion", category.subEmotions[0])
-                    }
-                  }}>
-                    <SelectTrigger id="emotionCategory">
-                      <SelectValue placeholder="Select emotion category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coreEmotions.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="relative">
+                  {/* Trigger showing current selection */}
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    onClick={() => {
+                      const nextOpen = !emotionMenuOpen
+                      setEmotionMenuOpen(nextOpen)
+                      if (nextOpen) {
+                        const initialCat = emotionCategory || coreEmotions[0]?.id || ""
+                        setHoveredEmotionCategory(initialCat)
+                      }
+                    }}
+                  >
+                    <span className="text-left truncate">
+                      {(() => {
+                        const categoryLabel = coreEmotions.find(c => c.id === emotionCategory)?.label
+                        if (categoryLabel && formData.currentEmotion) {
+                          return `${categoryLabel} · ${formData.currentEmotion}`
+                        }
+                        if (formData.currentEmotion) {
+                          return formData.currentEmotion
+                        }
+                        return "Select how you're feeling"
+                      })()}
+                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground">▼</span>
+                  </button>
 
-                  {/* Step 2: Select Sub-Emotion (only shows if category selected) */}
-                  {emotionCategory && (
-                    <Select value={formData.currentEmotion} onValueChange={(value) => updateFormData("currentEmotion", value)}>
-                      <SelectTrigger id="currentEmotion">
-                        <SelectValue placeholder="Select specific emotion" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {coreEmotions
-                          .find(c => c.id === emotionCategory)
-                          ?.subEmotions.map((emotion) => (
-                            <SelectItem key={emotion} value={emotion}>
-                              {emotion}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                  {emotionMenuOpen && (
+                    <div className="absolute z-50 mt-2 flex w-full rounded-md border bg-popover text-popover-foreground shadow-lg">
+                      {/* Core emotion list */}
+                      <div className="w-40 max-h-64 overflow-y-auto border-r bg-background">
+                        {coreEmotions.map((category) => (
+                          <button
+                            key={category.id}
+                            type="button"
+                            className={`block w-full px-3 py-2 text-left text-xs font-semibold ${
+                              (hoveredEmotionCategory || emotionCategory) === category.id
+                                ? "bg-accent text-accent-foreground"
+                                : "hover:bg-accent/60"
+                            }`}
+                            onMouseEnter={() => setHoveredEmotionCategory(category.id)}
+                          >
+                            {category.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Sub-emotions for hovered category */}
+                      <div className="flex-1 max-h-64 overflow-y-auto bg-background">
+                        {(() => {
+                          const activeCategoryId = hoveredEmotionCategory || emotionCategory || coreEmotions[0]?.id
+                          const activeCategory = coreEmotions.find(c => c.id === activeCategoryId)
+                          if (!activeCategory) return null
+                          return (
+                            <div className="py-1">
+                              {activeCategory.subEmotions.map((emotion) => (
+                                <button
+                                  key={emotion}
+                                  type="button"
+                                  className={`block w-full px-3 py-2 text-left text-xs ${
+                                    formData.currentEmotion === emotion
+                                      ? "bg-primary/10 text-primary font-semibold"
+                                      : "hover:bg-accent/60"
+                                  }`}
+                                  onClick={() => {
+                                    setEmotionCategory(activeCategory.id)
+                                    updateFormData("currentEmotion", emotion)
+                                    setEmotionMenuOpen(false)
+                                  }}
+                                >
+                                  {emotion}
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

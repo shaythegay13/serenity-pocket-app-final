@@ -12,7 +12,7 @@ interface NavigationProps {
 
 const navItems = [
   { id: "home", label: "Home", icon: Home },
-  { id: "odds", label: "Live Odds", icon: TrendingUp },
+  { id: "odds", label: "Sports Dashboard", icon: TrendingUp },
   { id: "analyze", label: "Analyze (Basic)", icon: Target },
   { id: "behavior", label: "Behavior", icon: Activity },
   { id: "ai-picks", label: "AI Picks", icon: Sparkles },

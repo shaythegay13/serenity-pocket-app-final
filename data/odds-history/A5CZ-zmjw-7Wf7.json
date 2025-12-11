@@ -1,0 +1,73 @@
+{
+  "gameId": "A5CZ-zmjw-7Wf7",
+  "homeTeam": "San Diego State",
+  "awayTeam": "Lamar",
+  "sport": "BASKETBALL",
+  "commenceTime": "2025-12-11T03:00:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T17:46:58.558Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:02.345Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:05.207Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:09.375Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:48.040Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:48.392Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:48.740Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:49.131Z",
+      "moneyline": {
+        "home": 1.1176,
+        "away": 10,
+        "bookmaker": "BOVADA"
+      }
+    }
+  ]
+}

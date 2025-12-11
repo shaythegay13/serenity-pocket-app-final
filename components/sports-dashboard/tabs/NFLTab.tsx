@@ -7,31 +7,28 @@ import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-stor
 import {
   TrendingUp,
   Users,
-  Target,
-  BarChart3,
-  Activity,
   Calendar,
-  Clock,
+  Activity,
+  LineChart,
   Shield,
-  LineChart
+  PieChart,
+  CloudRain,
+  Zap
 } from "lucide-react"
 
 /**
  * NFLTab Component
  * 
  * NFL-specific sports data dashboard tab.
- * Displays 9 feature cards in a 3x3 grid for different NFL data views.
+ * Displays 6 feature cards in a grid for different NFL data views.
  * 
  * Feature Cards:
- * 1. Live Odds - Real-time betting lines
- * 2. Player Props - Individual player prop markets
- * 3. Matchups - Head-to-head game analysis
- * 4. Game Dashboard - Comprehensive game data
- * 5. Injury Reports - Latest injury updates
- * 6. Upcoming Games - Schedule and previews
- * 7. Historical Trends - ATS, O/U performance
- * 8. Team Analytics - Advanced team statistics
- * 9. Line Movement - Historical line tracking
+ * 1. Live Scores - In-game scores and live betting
+ * 2. Upcoming Games & Odds - Consolidated live odds, schedule, matchups, and game dashboard
+ * 3. Team & Player Analytics - Consolidated player props, team analytics, and injuries
+ * 4. Line Movement - Historical line tracking
+ * 5. Betting Trends - Public betting percentages and sharp action
+ * 6. Weather Conditions - Weather impact on game totals
  */
 export default function NFLTab() {
   const activeSport = useSportsStore((state) => state.activeSport)
@@ -39,85 +36,62 @@ export default function NFLTab() {
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
   const handleFeatureClick = (feature: SportsFeatureView) => {
+    console.log('🏈 NFL feature card clicked:', feature)
     setActiveFeature(feature)
   }
 
   return (
-    <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={9} />}>
+    <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={6} />}>
       <FeatureCardGrid isLoading={isLoading}>
-        {/* 1. Live Odds */}
+        {/* 1. Live Scores */}
+        <FeatureCard
+          icon={<Zap className="h-10 w-10" />}
+          title="Live Scores"
+          description="In-game scores, live betting lines, and real-time updates. Track your action as games unfold."
+          badge="LIVE"
+          onClick={() => handleFeatureClick("live_scores")}
+        />
+
+        {/* 2. Upcoming Games & Odds - CONSOLIDATED */}
         <FeatureCard
           icon={<TrendingUp className="h-10 w-10" />}
-          title="Live Odds"
-          description="Compare real-time betting lines across DraftKings, FanDuel, BetMGM, and more. Find the best value for your NFL bets."
-          badge="LIVE"
-          onClick={() => handleFeatureClick("live_odds")}
+          title="Upcoming Games & Odds"
+          description="Live betting lines across all sportsbooks with complete schedule, matchup breakdowns, spreads, totals, and moneylines."
+          badge="POPULAR"
+          onClick={() => handleFeatureClick("upcoming_games_odds")}
         />
 
-        {/* 2. Player Props */}
+        {/* 3. Team & Player Analytics - CONSOLIDATED with Injuries */}
         <FeatureCard
           icon={<Users className="h-10 w-10" />}
-          title="Player Props"
-          description="Explore passing yards, touchdowns, receptions, and rushing props. Data-driven insights for every position."
-          onClick={() => handleFeatureClick("player_props")}
+          title="Team & Player Analytics"
+          description="Advanced team stats, player props, and injury reports. Offensive ratings, defensive metrics, and lineup confirmations."
+          onClick={() => handleFeatureClick("team_player_analytics")}
         />
 
-        {/* 3. Matchups */}
-        <FeatureCard
-          icon={<Target className="h-10 w-10" />}
-          title="Matchups"
-          description="Deep-dive analysis of team matchups, offensive vs defensive rankings, and key statistical edges."
-          onClick={() => handleFeatureClick("matchups")}
-        />
-
-        {/* 4. Game Dashboard */}
-        <FeatureCard
-          icon={<BarChart3 className="h-10 w-10" />}
-          title="Game Dashboard"
-          description="All-in-one view of spreads, totals, moneylines, and key game metrics for every NFL contest."
-          badge="POPULAR"
-          onClick={() => handleFeatureClick("game_dashboard")}
-        />
-
-        {/* 5. Injury Reports */}
-        <FeatureCard
-          icon={<Activity className="h-10 w-10" />}
-          title="Injury Reports"
-          description="Stay updated with the latest injury news and probable/questionable designations before kickoff."
-          badge="UPDATED"
-          onClick={() => handleFeatureClick("injuries")}
-        />
-
-        {/* 6. Upcoming Games */}
-        <FeatureCard
-          icon={<Calendar className="h-10 w-10" />}
-          title="Upcoming Games"
-          description="Full NFL schedule with game previews, betting trends, and expert picks for every matchup."
-          onClick={() => handleFeatureClick("upcoming_games")}
-        />
-
-        {/* 7. Historical Trends */}
-        <FeatureCard
-          icon={<Clock className="h-10 w-10" />}
-          title="Historical Trends"
-          description="Against-the-spread records, over/under performance, and situational betting trends."
-          onClick={() => handleFeatureClick("historical_trends")}
-        />
-
-        {/* 8. Team Analytics */}
-        <FeatureCard
-          icon={<Shield className="h-10 w-10" />}
-          title="Team Analytics"
-          description="Advanced stats including DVOA, EPA, success rates, and red zone efficiency for all 32 teams."
-          onClick={() => handleFeatureClick("team_analytics")}
-        />
-
-        {/* 9. Line Movement */}
+        {/* 4. Line Movement */}
         <FeatureCard
           icon={<LineChart className="h-10 w-10" />}
-          title="Line Movement History"
+          title="Line Movement"
           description="Track how betting lines move from opening to kickoff. Identify sharp money and public action."
           onClick={() => handleFeatureClick("line_movement")}
+        />
+
+        {/* 5. Betting Trends - NEW */}
+        <FeatureCard
+          icon={<PieChart className="h-10 w-10" />}
+          title="Betting Trends"
+          description="Public betting percentages, sharp vs public action, and consensus picks. See where the money is going."
+          badge="NEW"
+          onClick={() => handleFeatureClick("betting_trends")}
+        />
+
+        {/* 6. Weather Impact */}
+        <FeatureCard
+          icon={<CloudRain className="h-10 w-10" />}
+          title="Weather Impact"
+          description="Real-time weather forecasts and historical data on how conditions affect scoring and game totals."
+          onClick={() => handleFeatureClick("weather_conditions")}
         />
       </FeatureCardGrid>
     </Suspense>

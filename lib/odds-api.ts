@@ -156,10 +156,18 @@ export async function fetchLiveOdds(sport: string = 'upcoming'): Promise<LiveOdd
     const remainingRequests = response.headers.get('x-requests-remaining')
 
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ The Odds API error (${response.status}):`, errorText)
+
+      if (response.status === 401) {
+        throw new Error(`API key unauthorized. Please check your NEXT_PUBLIC_ODDS_API_KEY is valid. Visit https://the-odds-api.com/ to verify or get a new key.`)
+      }
       throw new Error(`API responded with status: ${response.status}`)
     }
 
     const data = await response.json()
+
+    console.log(`✅ The Odds API success - Retrieved ${Array.isArray(data) ? data.length : 0} games for ${sport}`)
 
     return {
       success: true,

@@ -1,0 +1,105 @@
+{
+  "gameId": "2Wqa-zhhs-ivjm",
+  "homeTeam": "Carolina Panthers",
+  "awayTeam": "Tampa Bay Buccaneers",
+  "sport": "AMERICAN_FOOTBALL",
+  "commenceTime": "2025-12-21T18:00:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T21:16:48.657Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:49.388Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:50.210Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:51.179Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:57:59.474Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:02.629Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:05.234Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:08.229Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:45.873Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:46.374Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:46.922Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:47.388Z",
+      "moneyline": {
+        "home": 2.28,
+        "away": 1.8,
+        "bookmaker": "FAN_DUEL"
+      }
+    }
+  ]
+}

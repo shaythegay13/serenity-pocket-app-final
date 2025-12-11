@@ -1,0 +1,65 @@
+{
+  "gameId": "p7Z3-zmel-UK0k",
+  "homeTeam": "Ipswich Town",
+  "awayTeam": "Stoke City",
+  "sport": "SOCCER",
+  "commenceTime": "2025-12-10T19:45:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T18:46:47.848Z",
+      "totals": {
+        "over": {
+          "line": 0,
+          "odds": 2.15
+        },
+        "under": {
+          "line": 0,
+          "odds": 1.87
+        },
+        "bookmaker": "DRAFT_KINGS"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:48.687Z",
+      "totals": {
+        "over": {
+          "line": 0,
+          "odds": 2.15
+        },
+        "under": {
+          "line": 0,
+          "odds": 1.87
+        },
+        "bookmaker": "DRAFT_KINGS"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:49.285Z",
+      "totals": {
+        "over": {
+          "line": 0,
+          "odds": 2.15
+        },
+        "under": {
+          "line": 0,
+          "odds": 1.87
+        },
+        "bookmaker": "DRAFT_KINGS"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:49.710Z",
+      "totals": {
+        "over": {
+          "line": 0,
+          "odds": 2.15
+        },
+        "under": {
+          "line": 0,
+          "odds": 1.87
+        },
+        "bookmaker": "DRAFT_KINGS"
+      }
+    }
+  ]
+}

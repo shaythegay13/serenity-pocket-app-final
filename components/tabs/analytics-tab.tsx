@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import type { EmotionLog, Trade, UserData, BetAnalysis } from "@/lib/types"
+import type { EmotionLog, Trade, UserData, BetAnalysis, GameLineRecord } from "@/lib/types"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
 import {
   Activity,
@@ -63,19 +63,23 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [filterSport, setFilterSport] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"date" | "ev" | "stake">("date")
   const [selectedBet, setSelectedBet] = useState<BetAnalysis | null>(null)
+  const [gameLines, setGameLines] = useState<GameLineRecord[]>([])
+  const [emotionViewTab, setEmotionViewTab] = useState<"by-bets" | "all-checkins">("by-bets")
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [emotionLogs, tradeData, betAnalyses] = await Promise.all([
+        const [emotionLogs, tradeData, betAnalyses, gameLineData] = await Promise.all([
           storage.getEmotionLogs(),
           storage.getTrades(),
           // @ts-ignore - Method added dynamically to storageHybrid
           storage.getBetAnalyses().catch(() => []),
+          storage.getGameLines().catch(() => [] as GameLineRecord[]),
         ])
         setLogs(emotionLogs)
         setTrades(tradeData)
         setAnalyses(betAnalyses || [])
+        setGameLines(gameLineData || [])
       } finally {
         setLoading(false)
       }
@@ -121,14 +125,34 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
   const sportStats = useMemo(() => {
     const bySport: Record<string, { bets: number; wins: number }> = {}
+
+    const ensureSport = (sport: string) => {
+      const key = (sport || "Unknown").toString()
+      if (!bySport[key]) bySport[key] = { bets: 0, wins: 0 }
+      return key
+    }
+
+    // Trades (logged bets with outcomes)
     trades.forEach(t => {
-      const sport = (t.sport || "Unknown").toString()
-      if (!bySport[sport]) bySport[sport] = { bets: 0, wins: 0 }
-      bySport[sport].bets += 1
-      if (t.outcome === "profit") bySport[sport].wins += 1
+      const key = ensureSport(t.sport as string)
+      bySport[key].bets += 1
+      if (t.outcome === "profit") bySport[key].wins += 1
     })
+
+    // Saved bet analyses (from Analyze My Bet flows, including AI-powered ones)
+    analyses.forEach(bet => {
+      const key = ensureSport(bet.sport as string)
+      bySport[key].bets += 1
+    })
+
+    // Game lines / interest from Live Odds & related flows
+    gameLines.forEach(game => {
+      const key = ensureSport(game.sport as string)
+      bySport[key].bets += 1
+    })
+
     return bySport
-  }, [trades])
+  }, [trades, analyses, gameLines])
 
   const topSports = useMemo(() => {
     const entries = Object.entries(sportStats)
@@ -1032,10 +1056,116 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       {activeSubTab === "emotional-history" && (
         <div className="space-y-6">
           <EmotionInsights logs={logs} />
-          <div>
-            <h3 className="text-xl font-semibold text-foreground mb-4">Emotional History</h3>
-            <EmotionHistory logs={logs} trades={trades} />
-          </div>
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Emotion Tracker</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  View your emotions linked to specific bets or explore every check-in you have logged.
+                </p>
+              </div>
+              <div className="inline-flex rounded-md border border-border bg-muted p-1 text-xs">
+                <button
+                  type="button"
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    emotionViewTab === "by-bets" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                  }`}
+                  onClick={() => setEmotionViewTab("by-bets")}
+                >
+                  By Bets
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    emotionViewTab === "all-checkins" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                  }`}
+                  onClick={() => setEmotionViewTab("all-checkins")}
+                >
+                  All Check-ins
+                </button>
+              </div>
+            </div>
+
+            {emotionViewTab === "by-bets" ? (
+              <div className="space-y-3">
+                <p className="text-[11px] text-muted-foreground mb-1">
+                  Each card below shows a single bet with your emotional intensity before and after (and during, if you logged it).
+                </p>
+                <EmotionHistory logs={logs} trades={trades} />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[11px] text-muted-foreground">
+                    Every emotion check-in you have recorded, visualized by phase and intensity.
+                  </p>
+                  <span className="text-[11px] text-muted-foreground">{logs.length} total</span>
+                </div>
+
+                {logs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No emotion check-ins yet. Use the Behavior tab or the quick check-in dialog to start tracking how you feel.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {[...logs]
+                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .map((log) => {
+                        const barWidth = Math.max(6, (log.intensity / 5) * 100)
+                        const phaseColor =
+                          log.phase === "before"
+                            ? "bg-emerald-400/80"
+                            : log.phase === "during"
+                            ? "bg-amber-400/80"
+                            : "bg-sky-400/80"
+
+                        return (
+                          <div
+                            key={log.id}
+                            className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 px-3 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-foreground truncate max-w-40">
+                                  {log.emotion}
+                                </span>
+                                <span className="text-[11px] inline-flex items-center rounded-full border px-2 py-0.5 text-muted-foreground capitalize">
+                                  {log.phase} bet
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className={`h-full ${phaseColor}`}
+                                    style={{ width: `${barWidth}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                  {log.intensity}/5
+                                </span>
+                              </div>
+                              {log.context && (
+                                <p className="mt-1 text-[11px] text-muted-foreground line-clamp-1">
+                                  {log.context}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0 ml-1">
+                              <p className="text-[11px] text-muted-foreground">
+                                {new Date(log.timestamp).toLocaleDateString()}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {new Date(log.timestamp).toLocaleTimeString()}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
         </div>
       )}
     </div>

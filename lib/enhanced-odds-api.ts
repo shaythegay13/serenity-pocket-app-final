@@ -9,17 +9,36 @@
  */
 
 import {
-  fetchArbitrageOpportunities,
-  fetchPositiveEVOpportunities,
-  fetchLiveOddsData as fetchRapidAPILiveOdds,
-  fetchPlayerPropsData as fetchRapidAPIPlayerProps,
-  isRapidAPIConfigured,
-  mapSportToLeague,
-  mapLeagueToSport,
-  type AdvantageOpportunity,
-  type LiveOdds as RapidAPILiveOdds,
-  type SportLeague
-} from './rapidapi-sportsbook';
+  fetchAdvantages as fetchSportsbookAdvantages,
+  isConfigured as isRapidAPIConfigured,
+  type TransformedGame as SportsbookGame
+} from './sportsbook-api-v2';
+import { fetchSportsDBFixturesForSport } from './thesportsdb';
+import { fetchPerplexityGameInsights } from './perplexity-client';
+
+// Sport mapping utilities
+function mapSportToLeague(sport: string): string {
+  const mapping: Record<string, string> = {
+    'americanfootball_nfl': 'NFL',
+    'basketball_nba': 'NBA',
+    'baseball_mlb': 'MLB',
+    'icehockey_nhl': 'NHL'
+  };
+  return mapping[sport] || sport;
+}
+
+function mapLeagueToSport(league: string): string {
+  const mapping: Record<string, string> = {
+    'NFL': 'americanfootball_nfl',
+    'NBA': 'basketball_nba',
+    'MLB': 'baseball_mlb',
+    'NHL': 'icehockey_nhl'
+  };
+  return mapping[league] || league.toLowerCase();
+}
+
+type SportLeague = 'NFL' | 'NBA' | 'MLB' | 'NHL';
+type AdvantageOpportunity = any; // Placeholder
 
 import {
   fetchLiveOdds as fetchTheOddsAPIData,
@@ -40,7 +59,7 @@ export interface EnhancedOddsResponse {
   success: boolean;
   // Rich odds objects compatible with LiveOddsTab (homeTeam/awayTeam/homeOdds/awayOdds)
   data: any[];
-  source: 'rapidapi' | 'theodds' | 'combined' | 'mock';
+  source: 'rapidapi' | 'theodds' | 'combined' | 'sportsdb' | 'perplexity' | 'mock';
   advantageOpportunities?: AdvantageOpportunity[];
   remainingRequests?: {
     rapidapi?: number;
@@ -62,8 +81,6 @@ export async function fetchEnhancedLiveOdds(
   sport: string,
   strategy: OddsStrategy = 'auto'
 ): Promise<EnhancedOddsResponse> {
-  const league = mapSportToLeague(sport);
-
   // Auto strategy: try The Odds API first, then fallback to RapidAPI
   if (strategy === 'auto') {
     console.log('📊 [AUTO] Trying The Odds API first');
@@ -84,7 +101,7 @@ export async function fetchEnhancedLiveOdds(
     // If The Odds API has no usable data (empty, mock, or failed), try RapidAPI if configured
     if (isRapidAPIConfigured()) {
       console.log('📊 [AUTO] The Odds API unavailable/empty, trying RapidAPI Sportsbook');
-      const rapidResult = await fetchFromRapidAPI(league);
+      const rapidResult = await fetchFromRapidAPI(sport);
 
       const hasRealRapidData =
         rapidResult.success &&
@@ -97,8 +114,25 @@ export async function fetchEnhancedLiveOdds(
         return rapidResult;
       }
 
-      // Both providers failed or are rate-limited
-      console.warn('⚠️ [AUTO] Both The Odds API and RapidAPI are unavailable or rate-limited');
+      // Both providers failed or are rate-limited, try TheSportsDB fixtures and then Perplexity research
+      console.warn('⚠️ [AUTO] Both The Odds API and RapidAPI are unavailable or rate-limited, trying TheSportsDB fixtures');
+      const sportsDBResult = await fetchFromSportsDB(sport);
+
+      if (sportsDBResult.success && Array.isArray(sportsDBResult.data) && sportsDBResult.data.length > 0) {
+        console.log('✅ [AUTO] Using TheSportsDB fixtures as fallback, enriching with Perplexity');
+        const perplexityResult = await fetchFromPerplexity(sport, sportsDBResult.data);
+        if (perplexityResult.success) {
+          return perplexityResult;
+        }
+        return sportsDBResult;
+      }
+
+      console.warn('⚠️ [AUTO] TheSportsDB returned no fixtures; falling back to Perplexity league-level insights');
+      const leagueOnlyPerplexity = await fetchFromPerplexity(sport, []);
+      if (leagueOnlyPerplexity.success && leagueOnlyPerplexity.data.length > 0) {
+        return leagueOnlyPerplexity;
+      }
+
       return {
         success: false,
         data: [],
@@ -107,8 +141,25 @@ export async function fetchEnhancedLiveOdds(
       };
     }
 
-    // RapidAPI not configured and The Odds API yielded no useful data
-    console.warn('⚠️ [AUTO] The Odds API returned no data and RapidAPI is not configured');
+    // RapidAPI not configured and The Odds API yielded no useful data - try TheSportsDB, then Perplexity
+    console.warn('⚠️ [AUTO] The Odds API returned no data and RapidAPI is not configured, trying TheSportsDB fixtures');
+    const sportsDBResult = await fetchFromSportsDB(sport);
+
+    if (sportsDBResult.success && Array.isArray(sportsDBResult.data) && sportsDBResult.data.length > 0) {
+      console.log('✅ [AUTO] Using TheSportsDB fixtures as fallback, enriching with Perplexity');
+      const perplexityResult = await fetchFromPerplexity(sport, sportsDBResult.data);
+      if (perplexityResult.success) {
+        return perplexityResult;
+      }
+      return sportsDBResult;
+    }
+
+    console.warn('⚠️ [AUTO] TheSportsDB returned no fixtures; falling back to Perplexity league-level insights');
+    const leagueOnlyPerplexity = await fetchFromPerplexity(sport, []);
+    if (leagueOnlyPerplexity.success && leagueOnlyPerplexity.data.length > 0) {
+      return leagueOnlyPerplexity;
+    }
+
     return {
       success: false,
       data: [],
@@ -119,7 +170,7 @@ export async function fetchEnhancedLiveOdds(
 
   // RapidAPI only
   if (strategy === 'rapidapi') {
-    return await fetchFromRapidAPI(league);
+    return await fetchFromRapidAPI(sport);
   }
 
   // The Odds API only
@@ -129,6 +180,7 @@ export async function fetchEnhancedLiveOdds(
 
   // Both: merge data from both sources
   if (strategy === 'both') {
+    const league = mapSportToLeague(sport) as SportLeague;
     return await fetchFromBothAPIs(sport, league);
   }
 
@@ -143,42 +195,30 @@ export async function fetchEnhancedLiveOdds(
 
 /**
  * Fetch from RapidAPI Sportsbook only
+ * Uses the new sportsbook-api-v2 implementation
  */
-async function fetchFromRapidAPI(league: SportLeague): Promise<EnhancedOddsResponse> {
+async function fetchFromRapidAPI(sport: string): Promise<EnhancedOddsResponse> {
   try {
-    // Fetch both live odds and advantage opportunities in parallel
-    const [oddsResponse, arbResponse, evResponse] = await Promise.all([
-      fetchRapidAPILiveOdds(league),
-      fetchArbitrageOpportunities(league),
-      fetchPositiveEVOpportunities(league)
-    ]);
+    const response = await fetchSportsbookAdvantages(sport);
 
-    if (!oddsResponse.success) {
-      console.warn('⚠️ RapidAPI failed');
+    if (!response.success || !response.data || response.data.length === 0) {
+      console.warn('⚠️ RapidAPI Sportsbook failed or returned no data');
       return {
         success: false,
         data: [],
         source: 'mock',
-        error: oddsResponse.error
+        error: response.error || 'No data available from Sportsbook API'
       };
     }
 
-    // Transform RapidAPI data into rich format compatible with LiveOddsTab
-    const transformedData = transformRapidAPIData(oddsResponse.data || []);
-
-    // Combine advantage opportunities
-    const advantages = [
-      ...(arbResponse.data || []),
-      ...(evResponse.data || [])
-    ];
+    console.log(`✅ RapidAPI Sportsbook success - ${response.data.length} games`);
 
     return {
       success: true,
-      data: transformedData,
+      data: response.data,
       source: 'rapidapi',
-      advantageOpportunities: advantages,
       remainingRequests: {
-        rapidapi: oddsResponse.remainingRequests
+        rapidapi: response.remainingRequests
       }
     };
   } catch (error) {
@@ -188,6 +228,155 @@ async function fetchFromRapidAPI(league: SportLeague): Promise<EnhancedOddsRespo
       data: [],
       source: 'mock',
       error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Use Perplexity to enrich fixtures or, if fixtures are missing, to provide league-level qualitative insights.
+ * Never fabricates odds; only attaches aiInsights metadata to game-like objects.
+ */
+async function fetchFromPerplexity(
+  sport: string,
+  games: any[],
+): Promise<EnhancedOddsResponse> {
+  try {
+    const fixturesForAI = games.map(g => ({
+      id: String(g.id ?? ''),
+      homeTeam: String(g.homeTeam ?? ''),
+      awayTeam: String(g.awayTeam ?? ''),
+      commenceTime: g.commenceTime instanceof Date ? g.commenceTime : g.commenceTime ? new Date(g.commenceTime) : undefined,
+    }))
+
+    const aiResponse = await fetchPerplexityGameInsights(sport, fixturesForAI)
+
+    if (!aiResponse.success || !aiResponse.data) {
+      console.warn('⚠️ Perplexity failed or returned no data')
+      return {
+        success: false,
+        data: [],
+        source: 'mock',
+        error: aiResponse.error || 'Perplexity did not return insights',
+      }
+    }
+
+    if (games.length === 0) {
+      // League-level only: create a synthetic item containing narrative
+      const first = aiResponse.data[0]
+      if (!first) {
+        return {
+          success: false,
+          data: [],
+          source: 'mock',
+          error: 'Perplexity returned empty insights array',
+        }
+      }
+
+      return {
+        success: true,
+        source: 'perplexity',
+        data: [
+          {
+            id: first.id || `perplexity-${sport}`,
+            sport,
+            sportKey: sport,
+            homeTeam: first.homeTeam || 'N/A',
+            awayTeam: first.awayTeam || 'N/A',
+            commenceTime: first.commenceTime ? new Date(first.commenceTime) : new Date(),
+            homeOdds: undefined,
+            awayOdds: undefined,
+            bookmakers: [],
+            aiInsights: {
+              source: 'perplexity',
+              narrative: first.narrative,
+              keyFactors: first.keyFactors,
+              riskWarnings: first.riskWarnings,
+            },
+          },
+        ],
+      }
+    }
+
+    // Map insights back onto the provided games
+    const byId = new Map<string, ReturnType<typeof Object>>()
+    for (const ai of aiResponse.data) {
+      byId.set(String(ai.id), ai)
+    }
+
+    const enriched = games.map(g => {
+      const id = String(g.id ?? '')
+      const ai = byId.get(id)
+      if (!ai) return g
+
+      return {
+        ...g,
+        aiInsights: {
+          source: 'perplexity',
+          narrative: ai.narrative,
+          keyFactors: ai.keyFactors,
+          riskWarnings: ai.riskWarnings,
+        },
+      }
+    })
+
+    return {
+      success: true,
+      data: enriched,
+      source: 'perplexity',
+    }
+  } catch (error) {
+    console.error('❌ Error enriching with Perplexity:', error)
+    return {
+      success: false,
+      data: [],
+      source: 'mock',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Fetch from TheSportsDB as a tertiary fallback
+ * Returns real fixtures (teams + start times) without odds
+ */
+async function fetchFromSportsDB(sport: string): Promise<EnhancedOddsResponse> {
+  try {
+    const fixturesResponse = await fetchSportsDBFixturesForSport(sport);
+
+    if (!fixturesResponse.success || !fixturesResponse.data || fixturesResponse.data.length === 0) {
+      console.warn('⚠️ TheSportsDB returned no fixtures or failed');
+      return {
+        success: false,
+        data: [],
+        source: 'mock',
+        error: fixturesResponse.error || 'No fixtures available from TheSportsDB',
+      };
+    }
+
+    const transformed = fixturesResponse.data.map(fixture => ({
+      id: fixture.id,
+      sport,
+      sportKey: sport,
+      homeTeam: fixture.homeTeam,
+      awayTeam: fixture.awayTeam,
+      commenceTime: fixture.commenceTime,
+      homeOdds: undefined,
+      awayOdds: undefined,
+      bookmakers: [],
+    }));
+
+    return {
+      success: true,
+      data: transformed,
+      source: 'sportsdb',
+    };
+  } catch (error) {
+    console.error('❌ Error fetching from TheSportsDB:', error);
+    return {
+      success: false,
+      data: [],
+      source: 'mock',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -282,80 +471,6 @@ async function fetchFromBothAPIs(
 }
 
 /**
- * Transform RapidAPI odds data to our rich internal format
- */
-function transformRapidAPIData(odds: RapidAPILiveOdds[]): any[] {
-  // Guard against clearly broken American odds from the upstream feed
-  const isReasonableAmerican = (o: number) => o > -2000 && o < 2000;
-
-  return odds
-    .map((event, index) => {
-      // Focus on MONEYLINE market for side odds
-      const moneylineMarket = event.markets?.find(m => m.type === 'MONEYLINE');
-
-      if (!moneylineMarket?.sportsbooks || moneylineMarket.sportsbooks.length === 0) {
-        return null;
-      }
-
-      const homeTeam = event.homeTeam;
-      const awayTeam = event.awayTeam;
-
-      // Build odds arrays for each side, filtering out absurd prices
-      const homeOddsAll = moneylineMarket.sportsbooks
-        .filter(book => typeof book.odds.home === 'number' && isReasonableAmerican(book.odds.home as number))
-        .map(book => ({
-          bookmaker: book.name,
-          team: homeTeam,
-          odds: book.odds.home as number
-        }));
-
-      const awayOddsAll = moneylineMarket.sportsbooks
-        .filter(book => typeof book.odds.away === 'number' && isReasonableAmerican(book.odds.away as number))
-        .map(book => ({
-          bookmaker: book.name,
-          team: awayTeam,
-          odds: book.odds.away as number
-        }));
-
-      if (homeOddsAll.length === 0 || awayOddsAll.length === 0) {
-        return null;
-      }
-
-      const bestHome = homeOddsAll.reduce((best, current) =>
-        current.odds > best.odds ? current : best
-      );
-
-      const bestAway = awayOddsAll.reduce((best, current) =>
-        current.odds > best.odds ? current : best
-      );
-
-      const bookmakers = Array.from(new Set([
-        ...homeOddsAll.map(o => o.bookmaker),
-        ...awayOddsAll.map(o => o.bookmaker)
-      ]));
-
-      return {
-        id: event.id || `rapid-${index}`,
-        sport: mapLeagueToSport(event.league),
-        sportKey: mapLeagueToSport(event.league),
-        homeTeam,
-        awayTeam,
-        commenceTime: new Date(event.eventTime),
-        homeOdds: {
-          best: bestHome,
-          all: homeOddsAll
-        },
-        awayOdds: {
-          best: bestAway,
-          all: awayOddsAll
-        },
-        bookmakers
-      };
-    })
-    .filter((item): item is any => item !== null);
-}
-
-/**
  * Fetch advantage opportunities (arbitrage, +EV, etc.)
  * Only available with RapidAPI Sportsbook
  */
@@ -371,26 +486,13 @@ export async function fetchAdvantageOpportunities(
   const league = sport ? mapSportToLeague(sport) : undefined;
 
   try {
-    if (type === 'ALL') {
-      const [arbResponse, evResponse] = await Promise.all([
-        fetchArbitrageOpportunities(league),
-        fetchPositiveEVOpportunities(league)
-      ]);
-
-      const arbData = Array.isArray(arbResponse?.data) ? arbResponse.data : [];
-      const evData = Array.isArray(evResponse?.data) ? evResponse.data : [];
-
-      return [
-        ...arbData,
-        ...evData
-      ];
-    } else if (type === 'ARBITRAGE') {
-      const response = await fetchArbitrageOpportunities(league);
-      return Array.isArray(response?.data) ? response.data : [];
-    } else {
-      const response = await fetchPositiveEVOpportunities(league);
-      return Array.isArray(response?.data) ? response.data : [];
-    }
+    // The newer Sportsbook API v2 integration exposes a unified `fetchAdvantages`
+    // which already returns transformed game data. For now, we don't surface
+    // separate arbitrage / +EV structures, so this helper simply returns an
+    // empty list while keeping the API shape intact.
+    console.warn('⚠️ fetchAdvantageOpportunities is not implemented for the current Sportsbook API v2. Returning empty list.');
+    void league; // avoid unused variable warning
+    return [];
   } catch (error) {
     console.error('❌ Error fetching advantage opportunities:', error);
     return [];

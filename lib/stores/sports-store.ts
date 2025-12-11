@@ -4,15 +4,12 @@ import type { GameLineRecord, SupportedSportKey } from "@/lib/types"
 
 // Feature views available within the Sports Dashboard
 export type SportsFeatureView =
-  | "live_odds"
-  | "player_props"
-  | "matchups"
-  | "game_dashboard"
-  | "injuries"
-  | "upcoming_games"
-  | "historical_trends"
-  | "team_analytics"
+  | "live_scores" // New: in-game scores and live betting
+  | "upcoming_games_odds" // Consolidated: live odds, upcoming games, matchups, game dashboard
+  | "team_player_analytics" // Consolidated: player props, team analytics, and injuries
   | "line_movement"
+  | "betting_trends" // New: public betting percentages and sharp action
+  | "weather_conditions" // New: weather impact on totals
 
 /**
  * Sports Store State Interface
@@ -25,7 +22,7 @@ export interface SportsStoreState {
   activeSport: SupportedSportKey
 
   /** Currently active feature panel within the selected sport */
-  activeFeature: SportsFeatureView
+  activeFeature: SportsFeatureView | null
 
   /** Odds data per sport (keyed by sport) */
   oddsData: Record<SupportedSportKey, GameLineRecord[]>
@@ -41,7 +38,7 @@ export interface SportsStoreState {
 
   /** Actions */
   setActiveSport: (sport: SupportedSportKey) => void
-  setActiveFeature: (feature: SportsFeatureView) => void
+  setActiveFeature: (feature: SportsFeatureView | null) => void
   setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) => void
   setLoading: (sport: SupportedSportKey, loading: boolean) => void
   setLastFetched: (sport: SupportedSportKey, timestamp: number) => void
@@ -55,7 +52,7 @@ export interface SportsStoreState {
  */
 const initialState = {
   activeSport: "americanfootball_nfl" as SupportedSportKey,
-  activeFeature: "live_odds" as SportsFeatureView,
+  activeFeature: null as SportsFeatureView | null,
   oddsData: {
     americanfootball_nfl: [],
     basketball_nba: [],
@@ -105,7 +102,7 @@ export const useSportsStore = create<SportsStoreState>()(
       setActiveSport: (sport: SupportedSportKey) =>
         set({ activeSport: sport }),
 
-      setActiveFeature: (feature: SportsFeatureView) =>
+      setActiveFeature: (feature: SportsFeatureView | null) =>
         set({ activeFeature: feature }),
 
       setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) =>

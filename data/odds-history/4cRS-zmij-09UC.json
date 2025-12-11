@@ -1,0 +1,137 @@
+{
+  "gameId": "4cRS-zmij-09UC",
+  "homeTeam": "USAM Nimes Gard",
+  "awayTeam": "Chambery Savoie Mont Blanc Handball",
+  "sport": "HANDBALL",
+  "commenceTime": "2025-12-13T19:00:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T19:16:48.219Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:48.663Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.211Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.731Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:48.325Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:48.807Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:49.596Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:50.291Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:48.595Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:49.422Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:49.963Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:50.493Z",
+      "moneyline": {
+        "home": 1.61,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:48.217Z",
+      "moneyline": {
+        "home": 1.63,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:48.790Z",
+      "moneyline": {
+        "home": 1.63,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:49.628Z",
+      "moneyline": {
+        "home": 1.63,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:50.149Z",
+      "moneyline": {
+        "home": 1.63,
+        "away": 2.65,
+        "bookmaker": "ESPN_BET"
+      }
+    }
+  ]
+}

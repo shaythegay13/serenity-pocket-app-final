@@ -1,0 +1,329 @@
+{
+  "gameId": "PcWT-zhba-0EMb",
+  "homeTeam": "Indianapolis Colts",
+  "awayTeam": "San Francisco 49ers",
+  "sport": "AMERICAN_FOOTBALL",
+  "commenceTime": "2025-12-23T01:15:00.000Z",
+  "snapshots": [
+    {
+      "timestamp": "2025-12-10T17:46:56.975Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:01.821Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:04.404Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T17:47:07.462Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:47.849Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:48.310Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:48.647Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:16:49.035Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:47.809Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:48.677Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:49.271Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T18:46:49.702Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:48.061Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:48.600Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.122Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:16:49.643Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:48.180Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:48.716Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:49.493Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T19:46:50.207Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:48.481Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:49.168Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:49.854Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:16:50.372Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:48.072Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:48.656Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:49.215Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T20:46:50.018Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.387597,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:48.594Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:49.350Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:50.182Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-10T21:16:51.105Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:57:58.900Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:02.547Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:05.145Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T04:58:07.913Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:45.819Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:46.325Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:46.870Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    },
+    {
+      "timestamp": "2025-12-11T05:27:47.342Z",
+      "moneyline": {
+        "home": 3.7927,
+        "away": 1.37037,
+        "bookmaker": "KUTT"
+      }
+    }
+  ]
+}

@@ -1,8 +1,0 @@
-# Environment Variables Template
-# Copy this to .env.local and fill in your values
-
-NEXT_PUBLIC_SUPABASE_URL=https://wlutkohnrwpfakxwazlj.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdXRrb2hucndwZmFreHdhemxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0ODg4MTAsImV4cCI6MjA3NzA2NDgxMH0.GXclWK-AAldHZtCOzmEnkWwwOPu_5dk_bIDV2FiEeZM
-# A/B Testing Configuration
-NEXT_PUBLIC_SURVEY_AB_TEST_ENABLED=true
-NEXT_PUBLIC_SURVEY_B_PERCENTAGE=50

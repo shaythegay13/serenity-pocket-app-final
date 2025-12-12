@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { User, Crown, Check, Lock, Loader2 } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { UserData } from "@/lib/types"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import { toast } from "sonner"
@@ -18,7 +17,6 @@ interface AccountTabProps {
 export function AccountTab({ userData, updateUserData }: AccountTabProps) {
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [switchingTier, setSwitchingTier] = useState(false)
   const [localName, setLocalName] = useState(userData.name)
   const [localUsername, setLocalUsername] = useState(userData.username || '')
   const [localAge, setLocalAge] = useState(userData.age?.toString() || '')
@@ -159,43 +157,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     }
   }, [])
 
-  // Developer mode: Quick tier switcher
-  const handleDevTierSwitch = async (tier: string) => {
-    try {
-      setSwitchingTier(true)
-      
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        toast.error('Please sign in')
-        setSwitchingTier(false)
-        return
-      }
-      
-      const response = await fetch('/api/test-subscription', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ tier }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to switch tier')
-      }
-
-      toast.success(`Switched to ${tier} tier!`)
-      await handleSyncSubscription()
-    } catch (error) {
-      console.error('Error switching tier:', error)
-      toast.error('Failed to switch tier')
-    } finally {
-      setSwitchingTier(false)
-    }
-  }
-
   const handleUpgrade = async (tierId: string) => {
     try {
       setUpgrading(true)
@@ -252,31 +213,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
           Manage your subscription and unlock more features
         </p>
       </div>
-
-      {/* Developer Mode: Quick Tier Switcher */}
-      <Card className="p-4 bg-yellow-500/10 border-yellow-500/50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">🧪 Developer Mode</h3>
-            <p className="text-xs text-muted-foreground">Quick tier switcher for testing</p>
-          </div>
-          <Select 
-            value={currentTier} 
-            onValueChange={handleDevTierSwitch}
-            disabled={switchingTier}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select tier" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="free">Free</SelectItem>
-              <SelectItem value="premium">Premium</SelectItem>
-              <SelectItem value="premium_plus">Premium Plus</SelectItem>
-              <SelectItem value="elite">Elite</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
 
       {/* Current Subscription Status */}
       <Card className="p-6">

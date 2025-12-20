@@ -356,11 +356,30 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   }
 
   const handleAnalyzePick = (pick: any) => {
-    // Navigate to analyze tab with pre-filled data
-    onNavigateToTab('analyze')
-    toast.info('Pick loaded', {
-      description: 'Fill in remaining details to analyze this pick'
-    })
+    try {
+      const event = String(pick.event || '')
+      const parts = event.split(' @ ')
+      const awayTeam = parts[0]?.trim() || ''
+      const homeTeam = parts[1]?.trim() || ''
+
+      const payload = {
+        sport: String(pick.sport || selectedSport || ''),
+        homeTeam,
+        awayTeam,
+        defaultStake: Number(pick.suggestedStake) || 0,
+        bestHomeOdds: undefined as any,
+        bestAwayOdds: undefined as any,
+      }
+
+      try {
+        window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
+      } catch {}
+
+      setActiveSection('advisor')
+      toast.info('AI Bet Analyzer ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
+    } catch (e) {
+      toast.error('Failed to open AI bet analyzer')
+    }
   }
 
   const handleLogBet = async (pick: any) => {

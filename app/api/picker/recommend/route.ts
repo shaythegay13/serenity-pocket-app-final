@@ -8,6 +8,7 @@ import type {
   HistoricalFeatureVector,
   ModelPrediction,
   PickerReasoningInput,
+  PickerReasoningOutput,
   UserPsychologySnapshot,
 } from "@/lib/types/ai-models"
 import { isPerplexityAvailable } from "@/lib/perplexity"
@@ -54,6 +55,7 @@ function buildFallbackRecommendations(args: {
   games: Array<{ id?: string; context: CurrentGameContext }>
   riskTolerance: "conservative" | "moderate" | "aggressive"
   weeklyBudget: number
+  emotionalScore?: number
 }): PickerReasoningOutput {
   const minImplied =
     args.riskTolerance === "conservative"
@@ -63,11 +65,16 @@ function buildFallbackRecommendations(args: {
         : 0.5
 
   const stakeFraction =
-    args.riskTolerance === "conservative"
-      ? 0.02
-      : args.riskTolerance === "moderate"
+    args.riskTolerance === "aggressive"
+      ? 0.08
+      : args.riskTolerance === "conservative"
         ? 0.04
         : 0.06
+
+  const alignment =
+    typeof args.emotionalScore === "number" && Number.isFinite(args.emotionalScore)
+      ? Math.max(0, Math.min(100, Math.round(args.emotionalScore)))
+      : 70
 
   const picks = args.games
     .map((g) => {
@@ -99,7 +106,8 @@ function buildFallbackRecommendations(args: {
         betType: "moneyline",
         line: `${pickTeam} ML`,
         odds,
-        emotionalAlignment: 70,
+        emotionalAlignment: alignment,
+        confidence: Math.max(0, Math.min(100, Math.round(implied * 100))),
         suggestedStakeFraction: stakeFraction,
         suggestedStakeAbsolute,
         riskLevel,
@@ -580,6 +588,7 @@ export async function POST(request: NextRequest) {
         games: enrichedGames.map((g) => ({ id: g.id, context: g.context })),
         riskTolerance,
         weeklyBudget,
+        emotionalScore,
       })
     }
 

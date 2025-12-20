@@ -111,6 +111,7 @@ export interface PickerRecommendationItem {
   line: string
   odds: number
   emotionalAlignment: number // 0-100
+  confidence?: number // 0-100
   suggestedStakeFraction: number
   suggestedStakeAbsolute?: number
   riskLevel: RiskLevel

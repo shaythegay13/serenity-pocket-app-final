@@ -243,16 +243,37 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           { pLoss?: number; pPush?: number; pWin?: number }
         >
 
+        const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+        const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
+        const impliedProbFromAmericanOdds = (odds: number) => {
+          if (!Number.isFinite(odds) || odds === 0) return 0.5
+          return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+        }
+
         const mappedPicks = recs.map((rec: any) => ({
           ...(rec.gameId ? { gameId: rec.gameId } : {}),
           sport: selectedSport,
           event: rec.teams || 'Matchup',
           pick: rec.line ? `${rec.betType} ${rec.line}` : rec.betType,
           odds: rec.odds,
-          confidence: typeof rec.emotionalAlignment === 'number' ? rec.emotionalAlignment : 0,
+          confidence: (() => {
+            if (typeof rec.confidence === 'number' && Number.isFinite(rec.confidence)) {
+              return clampPct(rec.confidence)
+            }
+            const odds = Number(rec.odds)
+            return clampPct(impliedProbFromAmericanOdds(odds) * 100)
+          })(),
           suggestedStake: rec.suggestedStakeAbsolute ?? 0,
           riskLevel: rec.riskLevel || 'MEDIUM',
-          emotionalAlignment: rec.emotionalAlignment ?? 0,
+          emotionalAlignment: (() => {
+            if (typeof rec.emotionalAlignment === 'number' && Number.isFinite(rec.emotionalAlignment)) {
+              return clampPct(rec.emotionalAlignment)
+            }
+            if (typeof data.emotionalScore === 'number' && Number.isFinite(data.emotionalScore)) {
+              return clampPct(data.emotionalScore)
+            }
+            return 0
+          })(),
           reasoning: rec.shortExplanation || '',
           commenceTime: rec.startTime,
           expectedValue: (() => {
@@ -345,6 +366,11 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const handleLogBet = async (pick: any) => {
     if (cooldown) {
       toast.warning('Safety Guard Active', { description: 'Logging bets is limited while cooldown is enabled.' })
+      return
+    }
+
+    if (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0) {
+      toast.warning('Do not bet', { description: 'This pick has negative expected value based on current odds/probabilities.' })
       return
     }
     const limitReached = userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit
@@ -680,6 +706,15 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                     {pick.expectedValue >= 0 ? '+' : ''}${pick.expectedValue.toFixed(2)}
                   </span>
                 </div>
+
+                {typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                    <p className="text-sm font-semibold text-red-500">Do not bet on this game</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This pick is currently negative EV. Consider skipping or waiting for a better line.
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Suggested Stake:</span>
                   <span className="text-lg font-semibold text-foreground">${pick.suggestedStake}</span>
@@ -718,18 +753,32 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 </div>
               </div>
 
-              {pick.commenceTime && (
-                <p className="text-xs text-muted-foreground mb-4 text-center">
-                  Starts: {new Date(pick.commenceTime).toLocaleString()}
-                </p>
-              )}
+              {(() => {
+                const raw = pick.commenceTime
+                if (!raw) return null
+                const d = new Date(raw)
+                if (!Number.isFinite(d.getTime())) return null
+                return (
+                  <p className="text-xs text-muted-foreground mb-4 text-center">
+                    Starts: {d.toLocaleString()}
+                  </p>
+                )
+              })()}
 
               <div className="flex gap-2">
                 <Button className="flex-1" variant="outline" onClick={() => handleAnalyzePick(pick)}>
                   <Target className="h-4 w-4 mr-2" />
                   Analyze
                 </Button>
-                <Button className="flex-1" onClick={() => handleLogBet(pick)} disabled={cooldown || (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit)}>
+                <Button
+                  className="flex-1"
+                  onClick={() => handleLogBet(pick)}
+                  disabled={
+                    cooldown ||
+                    (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) ||
+                    (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0)
+                  }
+                >
                   Log Bet
                 </Button>
               </div>

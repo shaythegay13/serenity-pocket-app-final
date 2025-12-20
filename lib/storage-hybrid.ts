@@ -323,6 +323,37 @@ export const storageHybrid = {
         name: data.name,
       }
 
+      if (data.level !== undefined) updateData.level = data.level
+      if (data.xp !== undefined) updateData.xp = data.xp
+      if (data.xpToNextLevel !== undefined) updateData.xp_to_next_level = data.xpToNextLevel
+      if (data.emotionalAwarenessStreak !== undefined) updateData.emotional_awareness_streak = data.emotionalAwarenessStreak
+      if (data.biasRecognitionScore !== undefined) updateData.bias_recognition_score = data.biasRecognitionScore
+      if (data.mindfulDecisionPercentage !== undefined) updateData.mindful_decision_percentage = data.mindfulDecisionPercentage
+      if (data.totalTrades !== undefined) updateData.total_trades = data.totalTrades
+      if (data.mindfulTrades !== undefined) updateData.mindful_trades = data.mindfulTrades
+      if (data.serenityTokens !== undefined) updateData.serenity_tokens = data.serenityTokens
+      if (data.dailyRings !== undefined) updateData.daily_rings = data.dailyRings
+      if (data.lastRingReset !== undefined) {
+        updateData.last_ring_reset =
+          data.lastRingReset instanceof Date
+            ? data.lastRingReset.toISOString()
+            : new Date(data.lastRingReset as any).toISOString()
+      }
+      if (data.perfectDays !== undefined) updateData.perfect_days = data.perfectDays
+      if (data.longestStreak !== undefined) updateData.longest_streak = data.longestStreak
+      if (data.totalEmotionsLogged !== undefined) updateData.total_emotions_logged = data.totalEmotionsLogged
+      if (data.totalBiasesIdentified !== undefined) updateData.total_biases_identified = data.totalBiasesIdentified
+      if (data.totalJournalsCompleted !== undefined) updateData.total_journals_completed = data.totalJournalsCompleted
+      if (data.totalModulesCompleted !== undefined) updateData.total_modules_completed = data.totalModulesCompleted
+      if (data.totalBreathingExercises !== undefined) updateData.total_breathing_exercises = data.totalBreathingExercises
+      if (data.mostProductiveDay !== undefined) updateData.most_productive_day = data.mostProductiveDay
+      if (data.lastEmotionCheckIn !== undefined) {
+        updateData.last_emotion_check_in =
+          data.lastEmotionCheckIn instanceof Date
+            ? data.lastEmotionCheckIn.toISOString()
+            : new Date(data.lastEmotionCheckIn as any).toISOString()
+      }
+
       // Add email if present
       if (data.email !== undefined) {
         updateData.email = data.email || null

@@ -74,10 +74,6 @@ CREATE TABLE IF NOT EXISTS emotion_logs (
 CREATE TABLE IF NOT EXISTS trades (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  asset TEXT NOT NULL,
-  type TEXT NOT NULL,
-  entry_price NUMERIC NOT NULL,
-  position_size NUMERIC NOT NULL,
   -- Pre-betting emotion tracking
   pre_trade_emotion TEXT,
   pre_trade_intensity INTEGER DEFAULT 3 CHECK (pre_trade_intensity >= 1 AND pre_trade_intensity <= 5),
@@ -89,15 +85,12 @@ CREATE TABLE IF NOT EXISTS trades (
   during_trade_intensity INTEGER CHECK (during_trade_intensity >= 1 AND during_trade_intensity <= 5),
   -- Post-betting emotion tracking
   outcome TEXT,
-  exit_price NUMERIC,
-  pnl NUMERIC,
   post_trade_emotion TEXT,
   post_trade_intensity INTEGER CHECK (post_trade_intensity >= 1 AND post_trade_intensity <= 5),
   post_trade_notes TEXT,
   emotional_impact INTEGER CHECK (emotional_impact >= 1 AND emotional_impact <= 5),
   mindful_decision BOOLEAN DEFAULT false,
   timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  closed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

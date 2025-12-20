@@ -628,10 +628,6 @@ export const storageHybrid = {
         .insert({
           // Let Supabase generate the UUID automatically by not including 'id'
           user_id: userId,
-          asset: "Unknown", // Not in Trade type but required by schema
-          type: "Unknown", // Not in Trade type but required by schema
-          entry_price: 0, // Not in Trade type but required by schema
-          position_size: 0, // Not in Trade type but required by schema
           pre_trade_emotion: trade.preTradeEmotion,
           pre_trade_intensity: trade.preTradeIntensity,
           pre_trade_confidence: trade.confidenceLevel,

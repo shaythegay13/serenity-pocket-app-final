@@ -26,46 +26,8 @@ export async function initializeUserData(userId: string, username?: string) {
       finalUsername = user?.user_metadata?.username || user?.email?.split('@')[0] || 'Trader'
     }
     console.log("Username:", finalUsername)
-    
-    // 1. Create profile entry if it doesn't exist
-    console.log("Checking for existing profile...")
-    const profilePromise = supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle()
-    
-    const { data: existingProfile, error: profileCheckError } = await Promise.race([
-      profilePromise,
-      new Promise<any>((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout checking profile')), 3000)
-      )
-    ]).catch(err => {
-      console.error("Error or timeout checking profile:", err)
-      return { data: null, error: err }
-    })
-    
-    if (profileCheckError) {
-      console.error("Error checking profile:", profileCheckError)
-    }
-    
-    if (!existingProfile) {
-      console.log("Creating profile entry...")
-      const { error: profileInsertError } = await supabase.from("profiles").insert({
-        id: userId,
-        username: finalUsername,
-        name: finalUsername,
-      })
-      if (profileInsertError) {
-        console.error("Error creating profile:", profileInsertError)
-      } else {
-        console.log("Profile created successfully")
-      }
-    } else {
-      console.log("Profile already exists")
-    }
-    
-    // 2. Create user_profiles entry if it doesn't exist
+
+    // Create user_profiles entry if it doesn't exist
     console.log("Checking for existing user_profiles...")
     const { data: existingUserProfile, error: userProfileCheckError } = await supabase
       .from("user_profiles")
@@ -89,6 +51,7 @@ export async function initializeUserData(userId: string, username?: string) {
           id: userId,
           name: finalUsername,
           email: user?.email,
+          username: finalUsername,
           level: 1,
           xp: 0,
           xp_to_next_level: 500,

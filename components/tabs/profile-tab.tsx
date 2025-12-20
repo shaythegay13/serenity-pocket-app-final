@@ -51,7 +51,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase
-        .from("profiles")
+        .from("user_profiles")
         .select("name, avatar_url, age, gender, location, occupation, experience_years")
         .eq("id", user.id)
         .maybeSingle()
@@ -95,7 +95,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not signed in")
-      const { error } = await supabase.from("profiles").upsert({
+      const { error } = await supabase.from("user_profiles").upsert({
         id: user.id,
         name,
         avatar_url: avatarUrl,
@@ -206,7 +206,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
       const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(path)
       const url = publicData.publicUrl
       setAvatarUrl(url)
-      const { error: upsertError } = await supabase.from("profiles").upsert({
+      const { error: upsertError } = await supabase.from("user_profiles").upsert({
         id: user.id,
         name,
         avatar_url: url,

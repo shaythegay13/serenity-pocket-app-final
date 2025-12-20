@@ -119,8 +119,10 @@ export function ForgotPassword({ onBack }: ForgotPasswordProps) {
     }
 
     try {
+      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "").trim()
+      const origin = siteUrl || window.location.origin
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${origin}/auth/reset-password`,
       })
 
       if (resetError) {

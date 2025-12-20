@@ -16,6 +16,38 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  useEffect(() => {
+    let cancelled = false
+
+    const initRecoverySession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (data.session) return
+
+        if (typeof window === "undefined") return
+
+        const url = window.location.href
+        if (url.includes("code=") || url.includes("type=recovery")) {
+          const { error } = await supabase.auth.exchangeCodeForSession(url)
+          if (error && !cancelled) {
+            console.error("Password recovery session exchange error:", error)
+            setError(error.message)
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error("Password recovery init error:", e)
+        }
+      }
+    }
+
+    void initRecoverySession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleResetPassword = async () => {
     setError(null)
     
@@ -31,6 +63,11 @@ export default function ResetPasswordPage() {
 
     setLoading(true)
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData.session) {
+        throw new Error("Your reset link is invalid or expired. Please request a new password reset email.")
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       })

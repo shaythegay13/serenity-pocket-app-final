@@ -525,11 +525,35 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         .replace(/[^a-z\s]/g, "")
         .replace(/\s+/g, " ")
 
-    const emotionScoreFromLog = (log: EmotionLog): number | undefined => {
-      const key = normalizeEmotionKey(log.emotion)
-      if (!key) return undefined
+    const getLookupBaseScore = (raw: string): number | undefined => {
+      const normalized = normalizeEmotionKey(raw)
+      if (!normalized) return undefined
 
-      const base = EMOTION_SCORE_LOOKUP[key]
+      // Direct match
+      const direct = EMOTION_SCORE_LOOKUP[normalized]
+      if (typeof direct === "number") return direct
+
+      // If stored as "CATEGORY emotion" or "emotion category" or any multi-word label,
+      // try to match any token (prefer the last token).
+      const tokens = normalized.split(" ").filter(Boolean)
+      if (!tokens.length) return undefined
+
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        const t = tokens[i]
+        const v = EMOTION_SCORE_LOOKUP[t]
+        if (typeof v === "number") return v
+      }
+
+      // As a last resort, match if the normalized string contains a lookup key.
+      for (const k of Object.keys(EMOTION_SCORE_LOOKUP)) {
+        if (normalized.includes(k)) return EMOTION_SCORE_LOOKUP[k]
+      }
+
+      return undefined
+    }
+
+    const emotionScoreFromLog = (log: EmotionLog): number | undefined => {
+      const base = getLookupBaseScore(log.emotion)
       if (typeof base !== "number") return undefined
 
       const intensity5 = Number.isFinite(log.intensity) ? Number(log.intensity) : 3
@@ -568,7 +592,13 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       const t = new Date((b as any).timestamp)
       if (Number.isNaN(t.getTime())) continue
       const k = toDayKey(t)
-      const v = b.outcome === "win" ? 1 : b.outcome === "loss" ? -1 : 0
+      const rawOutcome = String((b as any).outcome || "").toLowerCase()
+      const v =
+        rawOutcome === "win" || rawOutcome === "profit"
+          ? 1
+          : rawOutcome === "loss"
+            ? -1
+            : 0
       const agg = outcomeByDay.get(k) || { sum: 0, n: 0 }
       agg.sum += v
       agg.n += 1
@@ -903,7 +933,12 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={emotionOutcomeSeries} margin={{ top: 10, right: 30, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground) / 0.15)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 12 }} interval={8} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 12 }}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                  />
                   {showEmotionLine && (
                     <YAxis
                       yAxisId="left"

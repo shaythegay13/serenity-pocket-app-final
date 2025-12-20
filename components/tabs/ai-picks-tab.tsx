@@ -18,6 +18,56 @@ interface AIPicksTabProps {
   onNavigateToTab: (tab: string) => void
 }
 
+function profitForAmericanOdds(stake: number, odds: number): number {
+  if (!Number.isFinite(stake) || stake <= 0) return 0
+  if (!Number.isFinite(odds) || odds === 0) return 0
+
+  if (odds > 0) {
+    return stake * (odds / 100)
+  }
+  return stake * (100 / Math.abs(odds))
+}
+
+function computeExpectedValueDollars(args: {
+  stake: number
+  odds: number
+  pWin: number
+  pLoss: number
+  pPush?: number
+}): number {
+  const stake = Number.isFinite(args.stake) && args.stake > 0 ? args.stake : 0
+  if (stake <= 0) return 0
+
+  const pWin = Number.isFinite(args.pWin) ? args.pWin : 0.5
+  const pLoss = Number.isFinite(args.pLoss) ? args.pLoss : 0.5
+  const pPush = Number.isFinite(args.pPush) ? (args.pPush as number) : 0
+
+  const profit = profitForAmericanOdds(stake, args.odds)
+  return pWin * profit - pLoss * stake + pPush * 0
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.min(1, Math.max(0, n))
+}
+
+function guessSideFromLine(args: {
+  teamsText: string
+  line: string
+}): "home" | "away" | null {
+  const teams = args.teamsText || ""
+  const line = args.line || ""
+  const parts = teams.split(" @ ")
+  if (parts.length !== 2) return null
+  const away = parts[0].trim()
+  const home = parts[1].trim()
+
+  const l = line.toLowerCase()
+  if (home && l.includes(home.toLowerCase())) return "home"
+  if (away && l.includes(away.toLowerCase())) return "away"
+  return null
+}
+
 export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const tier = userData.subscriptionTier || "free"
   const hasAccess = tier !== "free" // All paid tiers get AI Picks; free sees paywall
@@ -188,19 +238,71 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         setPicks([])
       } else {
         const recs = data.recommendations || []
+        const probsByGameId = (data.probsByGameId || {}) as Record<
+          string,
+          { pLoss?: number; pPush?: number; pWin?: number }
+        >
 
         const mappedPicks = recs.map((rec: any) => ({
+          ...(rec.gameId ? { gameId: rec.gameId } : {}),
           sport: selectedSport,
           event: rec.teams || 'Matchup',
           pick: rec.line ? `${rec.betType} ${rec.line}` : rec.betType,
           odds: rec.odds,
           confidence: typeof rec.emotionalAlignment === 'number' ? rec.emotionalAlignment : 0,
-          expectedValue: 0,
           suggestedStake: rec.suggestedStakeAbsolute ?? 0,
           riskLevel: rec.riskLevel || 'MEDIUM',
           emotionalAlignment: rec.emotionalAlignment ?? 0,
           reasoning: rec.shortExplanation || '',
           commenceTime: rec.startTime,
+          expectedValue: (() => {
+            const odds = Number(rec.odds)
+            const stake = Number(rec.suggestedStakeAbsolute ?? 0) || 0
+            if (!Number.isFinite(odds) || odds === 0) return 0
+
+            const gameId = rec.gameId ? String(rec.gameId) : undefined
+            const probs = gameId ? probsByGameId[gameId] : undefined
+
+            const side = guessSideFromLine({
+              teamsText: String(rec.teams ?? ""),
+              line: String(rec.line ?? ""),
+            })
+
+            if (probs && (typeof probs.pWin === "number" || typeof probs.pLoss === "number")) {
+              const pWinHome = clamp01(Number(probs.pWin ?? 0.5))
+              const pWinAway = clamp01(Number(probs.pLoss ?? (1 - pWinHome)))
+              const pPush = clamp01(Number(probs.pPush ?? 0))
+
+              if (side === "home") {
+                return computeExpectedValueDollars({
+                  stake: stake || 100,
+                  odds,
+                  pWin: pWinHome,
+                  pLoss: clamp01(1 - pWinHome - pPush),
+                  pPush,
+                })
+              }
+              if (side === "away") {
+                return computeExpectedValueDollars({
+                  stake: stake || 100,
+                  odds,
+                  pWin: pWinAway,
+                  pLoss: clamp01(1 - pWinAway - pPush),
+                  pPush,
+                })
+              }
+            }
+
+            const implied = odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+            const pWin = clamp01(implied)
+            const pLoss = clamp01(1 - pWin)
+            return computeExpectedValueDollars({
+              stake: stake || 100,
+              odds,
+              pWin,
+              pLoss,
+            })
+          })(),
         }))
 
         setPicks(mappedPicks)

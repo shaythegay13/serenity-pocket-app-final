@@ -392,6 +392,38 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
         usedAI: data.usedAI
       })
 
+      // Auto-persist every analysis run to bet_analyses so Analytics stays in sync
+      try {
+        setSaving(true)
+        const betAnalysis: BetAnalysis = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          betType: "straight",
+          sport: "Unknown",
+          description: betDescription,
+          odds: parseFloat(odds) || 0,
+          stake: parseFloat(stake) || 0,
+          emotionalState: lastEmotion?.emotion || "neutral",
+          emotionalIntensity: lastEmotion?.intensity || 5,
+          biasWarnings: hasPsychAccess ? (data.analysis.biasWarnings || []) : [],
+          aiRecommendation: data.analysis.reasoning,
+          expectedValue: data.analysis.expectedValue,
+          probabilityEstimate: data.analysis.probability,
+          outcome: "pending",
+        }
+        // @ts-ignore - Method added dynamically to storageHybrid
+        await storage.addBetAnalysis(betAnalysis)
+        setSaved(true)
+        setDailyBetCount((c) => c + 1)
+        toast.success("Analysis saved", {
+          description: "Saved automatically to your betting history."
+        })
+      } catch (e) {
+        console.warn("Auto-save analysis failed", e)
+      } finally {
+        setSaving(false)
+      }
+
       if (!data.usedAI) {
         toast.info("Using mock analysis", {
           description: "Add OPENAI_API_KEY to .env.local for real AI analysis"
@@ -544,9 +576,6 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       toast.success("Analysis saved successfully!", {
         description: "You can review this analysis in your bet history."
       })
-
-      // Reset saved state after 3 seconds
-      setTimeout(() => setSaved(false), 3000)
     } catch (error) {
       console.error("Error saving analysis:", error)
       toast.error("Failed to save analysis", {

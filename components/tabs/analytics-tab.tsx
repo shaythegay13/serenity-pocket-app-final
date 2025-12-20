@@ -34,6 +34,12 @@ interface AnalyticsTabProps {
   onNavigateToTab?: (tab: string) => void
 }
 
+type UnifiedBetSource = "analysis" | "trade"
+
+type UnifiedBet = BetAnalysis & {
+  source: UnifiedBetSource
+}
+
 interface DailyBucket {
   label: string
   wins: number
@@ -87,10 +93,68 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     load()
   }, [])
 
+  const unifiedBets: UnifiedBet[] = useMemo(() => {
+    const analysisItems: UnifiedBet[] = (analyses || []).map((a) => ({
+      ...(a as BetAnalysis),
+      source: "analysis" as const,
+    }))
+
+    const tradeItems: UnifiedBet[] = (trades || []).map((t) => {
+      // Map Trade outcome schema to BetAnalysis outcome schema
+      const mappedOutcome: BetAnalysis["outcome"] =
+        t.outcome === "profit"
+          ? "win"
+          : t.outcome === "loss"
+            ? "loss"
+            : t.outcome === "breakeven"
+              ? "push"
+              : "pending"
+
+      // BetAnalysis uses 0-10 scale; Trade uses 1-5. Convert.
+      const intensity10 = Number.isFinite(t.preTradeIntensity)
+        ? Math.max(0, Math.min(10, Math.round(((t.preTradeIntensity || 0) / 5) * 10)))
+        : 0
+
+      const description =
+        t.title?.trim() ||
+        (t.reasoning ? String(t.reasoning).slice(0, 140) : "Emotion-tracked bet")
+
+      return {
+        id: `trade:${t.id}`,
+        timestamp: new Date(t.timestamp),
+        betType: "straight",
+        sport: (t.sport as any) || "Unknown",
+        description,
+        odds: 0,
+        stake: 0,
+        emotionalState: t.preTradeEmotion || "",
+        emotionalIntensity: intensity10,
+        biasWarnings: Array.isArray(t.biasesIdentified) ? t.biasesIdentified : [],
+        aiRecommendation: undefined,
+        expectedValue: undefined,
+        probabilityEstimate: undefined,
+        outcome: mappedOutcome,
+        actualReturn: undefined,
+        source: "trade" as const,
+      }
+    })
+
+    const merged = [...analysisItems, ...tradeItems]
+    const map = new Map<string, UnifiedBet>()
+    for (const b of merged) {
+      // Prefer analysis record if it shares the same id
+      const existing = map.get(b.id)
+      if (!existing) map.set(b.id, b)
+      else if (existing.source === "trade" && b.source === "analysis") map.set(b.id, b)
+    }
+
+    return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  }, [analyses, trades])
+
   // Filter and sort betting history when criteria change
   useEffect(() => {
     filterAndSortAnalyses()
-  }, [analyses, searchTerm, filterOutcome, filterSport, sortBy])
+  }, [unifiedBets, searchTerm, filterOutcome, filterSport, sortBy])
 
   const totalBets = trades.length
   const wins = trades.filter(t => t.outcome === "profit").length
@@ -235,6 +299,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
   const handleUpdateOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
     try {
+      // Only update persisted bet analyses (not trade-derived rows)
       const betIndex = analyses.findIndex(bet => bet.id === betId)
       if (betIndex === -1) return
 
@@ -267,7 +332,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   }
 
   const filterAndSortAnalyses = () => {
-    let filtered = [...analyses]
+    let filtered = [...unifiedBets]
 
     if (searchTerm) {
       filtered = filtered.filter(bet =>
@@ -308,7 +373,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   }
 
   const calculateBettingMetrics = () => {
-    const completed = analyses.filter(bet => bet.outcome && bet.outcome !== 'pending')
+    const completed = unifiedBets.filter(bet => bet.outcome && bet.outcome !== 'pending')
     const wins = completed.filter(bet => bet.outcome === 'win')
     const losses = completed.filter(bet => bet.outcome === 'loss')
 
@@ -318,12 +383,12 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     const roi = totalStaked > 0 ? (profit / totalStaked) * 100 : 0
     const winRate = completed.length > 0 ? (wins.length / completed.length) * 100 : 0
 
-    const avgEV = analyses.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (analyses.length || 1)
+    const avgEV = unifiedBets.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (unifiedBets.length || 1)
 
     return {
-      totalBets: analyses.length,
+      totalBets: unifiedBets.length,
       completedBets: completed.length,
-      pendingBets: analyses.filter(bet => bet.outcome === 'pending').length,
+      pendingBets: unifiedBets.filter(bet => bet.outcome === 'pending').length,
       wins: wins.length,
       losses: losses.length,
       winRate,
@@ -336,13 +401,42 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   }
 
   const bettingMetrics = calculateBettingMetrics()
-  const userSports = Array.from(new Set(analyses.map(bet => bet.sport)))
+  const userSports = Array.from(new Set(unifiedBets.map(bet => bet.sport)))
   const allSportOptions = [
     ...AVAILABLE_SPORTS,
     ...userSports
       .filter(sport => !AVAILABLE_SPORTS.some(s => s.key === sport || s.label === sport))
       .map(sport => ({ key: sport, label: sport }))
   ]
+
+  const emotionOutcomeBuckets = useMemo(() => {
+    // Correlate emotional intensity with outcomes across unified bets.
+    // Intensity is 0-10; bucket into Low (0-3), Medium (4-6), High (7-10)
+    const buckets: Record<"LOW" | "MEDIUM" | "HIGH", { bets: number; wins: number; losses: number; pushes: number; avgIntensity: number }> = {
+      LOW: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
+      MEDIUM: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
+      HIGH: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
+    }
+
+    const completed = unifiedBets.filter((b) => b.outcome && b.outcome !== "pending")
+    for (const b of completed) {
+      const intensity = Number.isFinite(b.emotionalIntensity) ? Number(b.emotionalIntensity) : 0
+      const bucket: keyof typeof buckets = intensity <= 3 ? "LOW" : intensity <= 6 ? "MEDIUM" : "HIGH"
+
+      buckets[bucket].bets += 1
+      buckets[bucket].avgIntensity += intensity
+      if (b.outcome === "win") buckets[bucket].wins += 1
+      else if (b.outcome === "loss") buckets[bucket].losses += 1
+      else if (b.outcome === "push") buckets[bucket].pushes += 1
+    }
+
+    for (const k of Object.keys(buckets) as Array<keyof typeof buckets>) {
+      const b = buckets[k]
+      b.avgIntensity = b.bets ? b.avgIntensity / b.bets : 0
+    }
+
+    return buckets
+  }, [unifiedBets])
 
   if (loading) {
     return (
@@ -599,13 +693,70 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             </div>
           )}
         </Card>
+
+        {/* Emotion Intensity vs Outcomes */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground">Emotion Intensity vs Outcomes</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">Uses both emotion-tracked bets and analyzed bets</p>
+          </div>
+
+          {unifiedBets.filter((b) => b.outcome && b.outcome !== 'pending').length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Once you mark outcomes (win/loss/push) on your analyzed bets and/or complete your emotion-tracked bets,
+              this chart will show how intensity relates to outcomes.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {(["LOW", "MEDIUM", "HIGH"] as const).map((k) => {
+                const b = emotionOutcomeBuckets[k]
+                const winRate = b.bets ? Math.round((b.wins / b.bets) * 100) : 0
+                const total = b.bets || 1
+                const wPct = (b.wins / total) * 100
+                const pPct = (b.pushes / total) * 100
+                const lPct = (b.losses / total) * 100
+
+                return (
+                  <div key={k} className="rounded-md border border-border/60 bg-card/40 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{k} intensity</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Avg intensity: {b.avgIntensity.toFixed(1)} / 10
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-foreground">{winRate}% win rate</p>
+                        <p className="text-[11px] text-muted-foreground">{b.wins}W / {b.losses}L / {b.pushes}P · {b.bets} bets</p>
+                      </div>
+                    </div>
+
+                    <div className="h-3 w-full rounded bg-muted overflow-hidden flex">
+                      <div className="h-full bg-emerald-500/80" style={{ width: `${wPct}%` }} />
+                      <div className="h-full bg-yellow-400/80" style={{ width: `${pPct}%` }} />
+                      <div className="h-full bg-red-500/80" style={{ width: `${lPct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+
+              <p className="text-xs text-muted-foreground">
+                This view buckets by emotional intensity (0–10) recorded at bet time. Over time you should see patterns
+                like higher loss rates at HIGH intensity.
+              </p>
+            </div>
+          )}
+        </Card>
       </div>
     )}
 
     {/* Betting History Tab */}
     {activeSubTab === "betting-history" && (
       <div className="space-y-6">
-        {analyses.length === 0 ? (
+        {unifiedBets.length === 0 ? (
           <Card className="p-12 text-center">
             <History className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-foreground mb-2">No Bets Yet</h3>
@@ -769,9 +920,9 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             </Card>
 
             {/* Results Count */}
-            {filteredAnalyses.length !== analyses.length && (
+            {filteredAnalyses.length !== unifiedBets.length && (
               <div className="text-center text-sm text-muted-foreground">
-                Showing {filteredAnalyses.length} of {analyses.length} bets
+                Showing {filteredAnalyses.length} of {unifiedBets.length} bets
               </div>
             )}
 
@@ -832,10 +983,16 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
                         <div className="text-right shrink-0">
                           <div className="text-sm font-semibold text-foreground mb-1">
-                            ${bet.stake.toFixed(2)}
+                            {bet.stake > 0 ? `$${bet.stake.toFixed(2)}` : (
+                              <span className="text-xs text-muted-foreground">(stake not logged)</span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mb-1">
-                            Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}
+                            {bet.odds !== 0 ? (
+                              <>Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}</>
+                            ) : (
+                              <>Odds: <span className="text-muted-foreground">(not logged)</span></>
+                            )}
                           </div>
                           {bet.expectedValue !== undefined && (
                             <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -977,7 +1134,14 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
                         <div className="pt-4 border-t border-border">
                           <p className="text-sm font-medium text-foreground mb-3">Update Bet Outcome</p>
-                          {selectedBet.outcome === 'pending' ? (
+                          {(selectedBet as any).source === 'trade' ? (
+                            <div className="rounded-md border border-border bg-muted/40 p-3">
+                              <p className="text-sm text-foreground font-medium">Outcome tracked via Emotion Tracker</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                To change this result, update it from the Behavior / emotion-tracking flow.
+                              </p>
+                            </div>
+                          ) : selectedBet.outcome === 'pending' ? (
                             <div className="space-y-2">
                               <p className="text-xs text-muted-foreground mb-2">
                                 Mark this bet as won, lost, or pushed to track your performance

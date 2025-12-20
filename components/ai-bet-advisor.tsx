@@ -12,6 +12,7 @@ import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "luci
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
 import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import type { BetAnalysis } from "@/lib/types"
 
 // Core emotions with 10 sub-emotions each (matching behavior check-in)
 const coreEmotions = [
@@ -263,6 +264,50 @@ export default function AIBetAdvisor() {
       setAnalysis(data.analysis)
       setUsedEnhancedAI(data.usedEnhancedAI || false)
       setEnhancedInsights(data.enhanced?.keyInsights || null)
+
+      // Auto-persist every AI Bet Advisor run into bet_analyses (outcome starts as pending)
+      try {
+        const selection = [
+          formData.favoriteTeam,
+          formData.underdogTeam,
+        ].filter(Boolean).join(" vs ")
+
+        const description = selection
+          ? `${formData.sport}: ${selection} — ${formData.betType}`
+          : `${formData.sport}: ${formData.betType}`
+
+        const betAnalysis: BetAnalysis = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          betType:
+            formData.betType === "Moneyline"
+              ? "moneyline"
+              : formData.betType === "Spread"
+                ? "spread"
+                : formData.betType === "Over/Under"
+                  ? "total"
+                  : "parlay",
+          sport: formData.sport || "Unknown",
+          description,
+          odds: formData.odds ? Number(formData.odds) || 0 : 0,
+          stake: Number(formData.betAmount) || 0,
+          emotionalState: formData.currentEmotion || "neutral",
+          emotionalIntensity: 5,
+          biasWarnings: [],
+          aiRecommendation:
+            data.analysis?.recommendation?.reason ||
+            data.analysis?.recommendation?.recommendation ||
+            "",
+          expectedValue: undefined,
+          probabilityEstimate: undefined,
+          outcome: "pending",
+        }
+
+        // @ts-ignore - Method added dynamically to storageHybrid
+        await storage.addBetAnalysis(betAnalysis)
+      } catch (e) {
+        console.warn("AI Bet Advisor: auto-save bet analysis failed", e)
+      }
     } catch (err) {
       setError("An unexpected error occurred")
       console.error(err)

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { EmotionLog, Trade, UserData, BetAnalysis, GameLineRecord } from "@/lib/types"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
@@ -54,6 +55,82 @@ type EmotionOutcomePoint = {
   day: string
   emotionScore?: number
   outcomeScore?: number
+  betActivity?: number
+  expectedValue?: number
+}
+
+const EMOTION_SCORE_LOOKUP: Record<string, number> = {
+  // JOY (higher is better; happiest person = 100)
+  happy: 100,
+  excited: 96,
+  optimistic: 92,
+  grateful: 90,
+  confident: 88,
+  proud: 86,
+  hopeful: 84,
+  content: 82,
+  cheerful: 80,
+  inspired: 78,
+
+  // CALM (positive/stable)
+  peaceful: 85,
+  relaxed: 82,
+  centered: 80,
+  focused: 78,
+  balanced: 76,
+  serene: 74,
+  patient: 72,
+  composed: 70,
+  tranquil: 68,
+  stable: 66,
+
+  // FEAR (negative)
+  anxious: 35,
+  worried: 37,
+  nervous: 38,
+  scared: 33,
+  uncertain: 40,
+  panicked: 28,
+  hesitant: 42,
+  overwhelmed: 25,
+  tense: 36,
+  uneasy: 39,
+
+  // GREED (risk / impulse; negative leaning)
+  fomo: 30,
+  euphoric: 44,
+  impulsive: 26,
+  overconfident: 40,
+  eager: 52,
+  craving: 24,
+  obsessed: 20,
+  compulsive: 18,
+  restless: 34,
+  driven: 46,
+
+  // FRUSTRATION (lowest; maddest person = 0)
+  angry: 0,
+  irritated: 10,
+  disappointed: 22,
+  impatient: 14,
+  stressed: 12,
+  resentful: 6,
+  annoyed: 16,
+  agitated: 8,
+  bitter: 4,
+  exhausted: 18,
+
+  // SADNESS (sad person = 45)
+  down: 45,
+  discouraged: 42,
+  regretful: 40,
+  defeated: 34,
+  helpless: 28,
+  lonely: 32,
+  empty: 26,
+  hopeless: 20,
+  dejected: 30,
+  grief: 16,
 }
 
 interface DailyBucket {
@@ -87,6 +164,11 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [selectedBet, setSelectedBet] = useState<BetAnalysis | null>(null)
   const [gameLines, setGameLines] = useState<GameLineRecord[]>([])
   const [emotionViewTab, setEmotionViewTab] = useState<"by-bets" | "all-checkins">("by-bets")
+
+  const [showEmotionLine, setShowEmotionLine] = useState(true)
+  const [showOutcomeLine, setShowOutcomeLine] = useState(true)
+  const [showActivityLine, setShowActivityLine] = useState(true)
+  const [showEvLine, setShowEvLine] = useState(true)
 
   useEffect(() => {
     const load = async () => {
@@ -426,7 +508,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   ]
 
   const emotionOutcomeSeries = useMemo((): EmotionOutcomePoint[] => {
-    const DAYS = 30
+    const DAYS = 90
     const points: EmotionOutcomePoint[] = []
 
     const toDayKey = (d: Date) => {
@@ -436,43 +518,33 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       return `${yyyy}-${mm}-${dd}`
     }
 
-    const classifyEmotion = (raw: string): "positive" | "negative" | "neutral" => {
-      const e = String(raw || "").toLowerCase()
-      if (!e) return "neutral"
+    const normalizeEmotionKey = (raw: string) =>
+      String(raw || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z\s]/g, "")
+        .replace(/\s+/g, " ")
 
-      // Positive leaning
-      if (
-        /happy|excited|optimistic|grateful|confident|proud|hopeful|content|cheerful|inspired|calm|peaceful|relaxed|centered|focused|balanced|serene|patient|composed|tranquil|stable/.test(
-          e
-        )
-      ) {
-        return "positive"
-      }
+    const emotionScoreFromLog = (log: EmotionLog): number | undefined => {
+      const key = normalizeEmotionKey(log.emotion)
+      if (!key) return undefined
 
-      // Negative leaning
-      if (
-        /anxious|worried|nervous|scared|uncertain|panicked|hesitant|overwhelmed|tense|uneasy|fomo|euphoric|impulsive|overconfident|craving|obsessed|compulsive|restless|driven|angry|irritated|disappointed|impatient|stressed|resentful|annoyed|agitated|bitter|exhausted|down|discouraged|regretful|defeated|helpless|lonely|empty|hopeless|dejected|grief/.test(
-          e
-        )
-      ) {
-        return "negative"
-      }
+      const base = EMOTION_SCORE_LOOKUP[key]
+      if (typeof base !== "number") return undefined
 
-      return "neutral"
-    }
-
-    const emotionScoreFromLog = (log: EmotionLog): number => {
-      const sentiment = classifyEmotion(log.emotion)
       const intensity5 = Number.isFinite(log.intensity) ? Number(log.intensity) : 3
-      const intensity = Math.max(0, Math.min(5, intensity5))
+      const intensity = Math.max(1, Math.min(5, intensity5))
 
-      // Heuristic mapping to 0-100: base by sentiment, adjust by intensity.
-      // - Positive: higher intensity = better
-      // - Negative: higher intensity = worse
-      // - Neutral: middle band
-      if (sentiment === "positive") return Math.max(0, Math.min(100, Math.round(60 + intensity * 8)))
-      if (sentiment === "negative") return Math.max(0, Math.min(100, Math.round(55 - intensity * 10)))
-      return Math.max(0, Math.min(100, Math.round(55)))
+      // Stable adjustment (keeps lookup as source of truth):
+      // Higher intensity amplifies the emotion direction.
+      const neutralIntensity = 3
+      const step = intensity - neutralIntensity
+
+      const isPositive = base >= 60
+      const isVeryNegative = base <= 30
+
+      const adj = isPositive ? step * 3 : isVeryNegative ? step * -3 : step * -1
+      return Math.max(0, Math.min(100, Number((base + adj).toFixed(1))))
     }
 
     const emotionByDay = new Map<string, { sum: number; n: number }>()
@@ -481,6 +553,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       if (Number.isNaN(t.getTime())) continue
       const k = toDayKey(t)
       const s = emotionScoreFromLog(l)
+      if (typeof s !== "number") continue
       const agg = emotionByDay.get(k) || { sum: 0, n: 0 }
       agg.sum += s
       agg.n += 1
@@ -488,9 +561,11 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
 
     const outcomeByDay = new Map<string, { sum: number; n: number }>()
-    const completed = unifiedBets.filter((b) => b.outcome && b.outcome !== "pending")
-    for (const b of completed) {
-      const t = new Date(b.timestamp)
+    const activityByDay = new Map<string, number>()
+    const evByDay = new Map<string, { sum: number; n: number }>()
+    // Include pending as 0 so the betting line still renders for active betting history.
+    for (const b of unifiedBets) {
+      const t = new Date((b as any).timestamp)
       if (Number.isNaN(t.getTime())) continue
       const k = toDayKey(t)
       const v = b.outcome === "win" ? 1 : b.outcome === "loss" ? -1 : 0
@@ -498,6 +573,15 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       agg.sum += v
       agg.n += 1
       outcomeByDay.set(k, agg)
+
+      activityByDay.set(k, 1)
+
+      if (typeof b.expectedValue === "number" && Number.isFinite(b.expectedValue)) {
+        const evAgg = evByDay.get(k) || { sum: 0, n: 0 }
+        evAgg.sum += b.expectedValue
+        evAgg.n += 1
+        evByDay.set(k, evAgg)
+      }
     }
 
     for (let i = DAYS - 1; i >= 0; i--) {
@@ -507,10 +591,13 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       const k = toDayKey(d)
       const eAgg = emotionByDay.get(k)
       const oAgg = outcomeByDay.get(k)
+      const evAgg = evByDay.get(k)
       points.push({
         day: d.toLocaleDateString([], { month: "short", day: "numeric" }),
         emotionScore: eAgg && eAgg.n ? Number((eAgg.sum / eAgg.n).toFixed(1)) : undefined,
         outcomeScore: oAgg && oAgg.n ? Number((oAgg.sum / oAgg.n).toFixed(2)) : undefined,
+        betActivity: activityByDay.get(k) ? 1 : 0,
+        expectedValue: evAgg && evAgg.n ? Number((evAgg.sum / evAgg.n).toFixed(2)) : undefined,
       })
     }
 
@@ -780,71 +867,137 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               <Activity className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">Emotion vs Betting Outcomes</h3>
             </div>
-            <p className="text-xs text-muted-foreground">Last 30 days · 0–100 emotion, -1/0/1 outcome</p>
+            <p className="text-xs text-muted-foreground">Last 90 days · 0–100 emotion, -1/0/1 outcome</p>
           </div>
 
-          {emotionOutcomeSeries.every((p) => p.emotionScore == null) &&
-          emotionOutcomeSeries.every((p) => p.outcomeScore == null) ? (
+          <div className="flex flex-wrap gap-4 mb-4 rounded-md border border-border bg-muted/40 p-3">
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <Checkbox checked={showEmotionLine} onCheckedChange={(v) => setShowEmotionLine(!!v)} />
+              Emotion (0-100)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <Checkbox checked={showOutcomeLine} onCheckedChange={(v) => setShowOutcomeLine(!!v)} />
+              Outcome (-1/0/1)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <Checkbox checked={showActivityLine} onCheckedChange={(v) => setShowActivityLine(!!v)} />
+              Bet activity (0/1)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <Checkbox checked={showEvLine} onCheckedChange={(v) => setShowEvLine(!!v)} />
+              Expected value (EV)
+            </label>
+          </div>
+
+          {(
+            (!showEmotionLine || emotionOutcomeSeries.every((p) => p.emotionScore == null)) &&
+            (!showOutcomeLine || emotionOutcomeSeries.every((p) => p.outcomeScore == null)) &&
+            (!showActivityLine || emotionOutcomeSeries.every((p) => (p.betActivity ?? 0) === 0)) &&
+            (!showEvLine || emotionOutcomeSeries.every((p) => p.expectedValue == null))
+          ) ? (
             <p className="text-sm text-muted-foreground">
               Log emotions and complete bets (win/loss/push) to see how your emotional state tracks with outcomes.
             </p>
           ) : (
             <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={emotionOutcomeSeries} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                <LineChart data={emotionOutcomeSeries} margin={{ top: 10, right: 30, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground) / 0.15)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 12 }} interval={4} />
-                  <YAxis
-                    yAxisId="left"
-                    domain={[0, 100]}
-                    tick={{ fontSize: 12 }}
-                    tickCount={6}
-                    label={{ value: "Emotion (0-100)", angle: -90, position: "insideLeft" }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    domain={[-1, 1]}
-                    ticks={[-1, 0, 1]}
-                    tick={{ fontSize: 12 }}
-                    label={{ value: "Outcome (-1/0/1)", angle: 90, position: "insideRight" }}
-                  />
+                  <XAxis dataKey="day" tick={{ fontSize: 12 }} interval={8} />
+                  {showEmotionLine && (
+                    <YAxis
+                      yAxisId="left"
+                      domain={[0, 100]}
+                      tick={{ fontSize: 12 }}
+                      tickCount={6}
+                      label={{ value: "Emotion (0-100)", angle: -90, position: "insideLeft" }}
+                    />
+                  )}
+                  {(showOutcomeLine || showActivityLine) && (
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[-1, 1]}
+                      ticks={[-1, 0, 1]}
+                      tick={{ fontSize: 12 }}
+                      label={{ value: "Outcome/Activity", angle: 90, position: "insideRight" }}
+                    />
+                  )}
+                  {showEvLine && (
+                    <YAxis
+                      yAxisId="ev"
+                      orientation="right"
+                      tick={{ fontSize: 12 }}
+                      width={56}
+                      label={{ value: "EV ($)", angle: 90, position: "insideRight" }}
+                    />
+                  )}
                   <Tooltip
                     formatter={(value: any, name: any) => {
-                      if (name === "emotionScore") return [value, "Emotion score"]
-                      if (name === "outcomeScore") return [value, "Outcome score"]
+                      if (name === "Emotion (0-100)") return [value, "Emotion (0-100)"]
+                      if (name === "Outcome (-1/0/1)") return [value, "Outcome (-1/0/1)"]
+                      if (name === "Bet activity (0/1)") return [value, "Bet activity (0/1)"]
+                      if (name === "EV ($)") return [value, "EV ($)"]
                       return [value, name]
                     }}
                   />
                   <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="emotionScore"
-                    name="Emotion score"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="outcomeScore"
-                    name="Outcome score"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                  />
+                  {showEmotionLine && (
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="emotionScore"
+                      name="Emotion (0-100)"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
+                  {showOutcomeLine && (
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="outcomeScore"
+                      name="Outcome (-1/0/1)"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
+                  {showActivityLine && (
+                    <Line
+                      yAxisId="right"
+                      type="stepAfter"
+                      dataKey="betActivity"
+                      name="Bet activity (0/1)"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
+                  {showEvLine && (
+                    <Line
+                      yAxisId="ev"
+                      type="monotone"
+                      dataKey="expectedValue"
+                      name="EV ($)"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
           )}
 
           <p className="mt-3 text-xs text-muted-foreground">
-            Emotion score is a heuristic from your emotion check-ins (0–100). Outcome score is daily average of wins (1),
-            losses (-1), and pushes (0).
+            Emotion score uses the stable 60-emotion lookup table (0–100). Outcome score is daily average of wins (1),
+            losses (-1), and pushes (0). Bet activity is 1 when any bet exists that day. EV is daily average EV from analyses.
           </p>
         </Card>
       </div>

@@ -28,6 +28,16 @@ import {
 import { EmotionHistory } from "@/components/emotion-history"
 import { EmotionInsights } from "@/components/emotion-insights"
 import { toast } from "sonner"
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 interface AnalyticsTabProps {
   userData: UserData
@@ -38,6 +48,12 @@ type UnifiedBetSource = "analysis" | "trade"
 
 type UnifiedBet = BetAnalysis & {
   source: UnifiedBetSource
+}
+
+type EmotionOutcomePoint = {
+  day: string
+  emotionScore?: number
+  outcomeScore?: number
 }
 
 interface DailyBucket {
@@ -409,34 +425,97 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       .map(sport => ({ key: sport, label: sport }))
   ]
 
-  const emotionOutcomeBuckets = useMemo(() => {
-    // Correlate emotional intensity with outcomes across unified bets.
-    // Intensity is 0-10; bucket into Low (0-3), Medium (4-6), High (7-10)
-    const buckets: Record<"LOW" | "MEDIUM" | "HIGH", { bets: number; wins: number; losses: number; pushes: number; avgIntensity: number }> = {
-      LOW: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
-      MEDIUM: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
-      HIGH: { bets: 0, wins: 0, losses: 0, pushes: 0, avgIntensity: 0 },
+  const emotionOutcomeSeries = useMemo((): EmotionOutcomePoint[] => {
+    const DAYS = 30
+    const points: EmotionOutcomePoint[] = []
+
+    const toDayKey = (d: Date) => {
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, "0")
+      const dd = String(d.getDate()).padStart(2, "0")
+      return `${yyyy}-${mm}-${dd}`
     }
 
+    const classifyEmotion = (raw: string): "positive" | "negative" | "neutral" => {
+      const e = String(raw || "").toLowerCase()
+      if (!e) return "neutral"
+
+      // Positive leaning
+      if (
+        /happy|excited|optimistic|grateful|confident|proud|hopeful|content|cheerful|inspired|calm|peaceful|relaxed|centered|focused|balanced|serene|patient|composed|tranquil|stable/.test(
+          e
+        )
+      ) {
+        return "positive"
+      }
+
+      // Negative leaning
+      if (
+        /anxious|worried|nervous|scared|uncertain|panicked|hesitant|overwhelmed|tense|uneasy|fomo|euphoric|impulsive|overconfident|craving|obsessed|compulsive|restless|driven|angry|irritated|disappointed|impatient|stressed|resentful|annoyed|agitated|bitter|exhausted|down|discouraged|regretful|defeated|helpless|lonely|empty|hopeless|dejected|grief/.test(
+          e
+        )
+      ) {
+        return "negative"
+      }
+
+      return "neutral"
+    }
+
+    const emotionScoreFromLog = (log: EmotionLog): number => {
+      const sentiment = classifyEmotion(log.emotion)
+      const intensity5 = Number.isFinite(log.intensity) ? Number(log.intensity) : 3
+      const intensity = Math.max(0, Math.min(5, intensity5))
+
+      // Heuristic mapping to 0-100: base by sentiment, adjust by intensity.
+      // - Positive: higher intensity = better
+      // - Negative: higher intensity = worse
+      // - Neutral: middle band
+      if (sentiment === "positive") return Math.max(0, Math.min(100, Math.round(60 + intensity * 8)))
+      if (sentiment === "negative") return Math.max(0, Math.min(100, Math.round(55 - intensity * 10)))
+      return Math.max(0, Math.min(100, Math.round(55)))
+    }
+
+    const emotionByDay = new Map<string, { sum: number; n: number }>()
+    for (const l of logs || []) {
+      const t = new Date((l as any).timestamp ?? (l as any).created_at ?? Date.now())
+      if (Number.isNaN(t.getTime())) continue
+      const k = toDayKey(t)
+      const s = emotionScoreFromLog(l)
+      const agg = emotionByDay.get(k) || { sum: 0, n: 0 }
+      agg.sum += s
+      agg.n += 1
+      emotionByDay.set(k, agg)
+    }
+
+    const outcomeByDay = new Map<string, { sum: number; n: number }>()
     const completed = unifiedBets.filter((b) => b.outcome && b.outcome !== "pending")
     for (const b of completed) {
-      const intensity = Number.isFinite(b.emotionalIntensity) ? Number(b.emotionalIntensity) : 0
-      const bucket: keyof typeof buckets = intensity <= 3 ? "LOW" : intensity <= 6 ? "MEDIUM" : "HIGH"
-
-      buckets[bucket].bets += 1
-      buckets[bucket].avgIntensity += intensity
-      if (b.outcome === "win") buckets[bucket].wins += 1
-      else if (b.outcome === "loss") buckets[bucket].losses += 1
-      else if (b.outcome === "push") buckets[bucket].pushes += 1
+      const t = new Date(b.timestamp)
+      if (Number.isNaN(t.getTime())) continue
+      const k = toDayKey(t)
+      const v = b.outcome === "win" ? 1 : b.outcome === "loss" ? -1 : 0
+      const agg = outcomeByDay.get(k) || { sum: 0, n: 0 }
+      agg.sum += v
+      agg.n += 1
+      outcomeByDay.set(k, agg)
     }
 
-    for (const k of Object.keys(buckets) as Array<keyof typeof buckets>) {
-      const b = buckets[k]
-      b.avgIntensity = b.bets ? b.avgIntensity / b.bets : 0
+    for (let i = DAYS - 1; i >= 0; i--) {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      d.setDate(d.getDate() - i)
+      const k = toDayKey(d)
+      const eAgg = emotionByDay.get(k)
+      const oAgg = outcomeByDay.get(k)
+      points.push({
+        day: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+        emotionScore: eAgg && eAgg.n ? Number((eAgg.sum / eAgg.n).toFixed(1)) : undefined,
+        outcomeScore: oAgg && oAgg.n ? Number((oAgg.sum / oAgg.n).toFixed(2)) : undefined,
+      })
     }
 
-    return buckets
-  }, [unifiedBets])
+    return points
+  }, [logs, unifiedBets])
 
   if (loading) {
     return (
@@ -694,61 +773,79 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           )}
         </Card>
 
-        {/* Emotion Intensity vs Outcomes */}
+        {/* Emotion vs Betting Outcomes (Time Series) */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Emotion Intensity vs Outcomes</h3>
+              <h3 className="text-lg font-semibold text-foreground">Emotion vs Betting Outcomes</h3>
             </div>
-            <p className="text-xs text-muted-foreground">Uses both emotion-tracked bets and analyzed bets</p>
+            <p className="text-xs text-muted-foreground">Last 30 days · 0–100 emotion, -1/0/1 outcome</p>
           </div>
 
-          {unifiedBets.filter((b) => b.outcome && b.outcome !== 'pending').length === 0 ? (
+          {emotionOutcomeSeries.every((p) => p.emotionScore == null) &&
+          emotionOutcomeSeries.every((p) => p.outcomeScore == null) ? (
             <p className="text-sm text-muted-foreground">
-              Once you mark outcomes (win/loss/push) on your analyzed bets and/or complete your emotion-tracked bets,
-              this chart will show how intensity relates to outcomes.
+              Log emotions and complete bets (win/loss/push) to see how your emotional state tracks with outcomes.
             </p>
           ) : (
-            <div className="space-y-3">
-              {(["LOW", "MEDIUM", "HIGH"] as const).map((k) => {
-                const b = emotionOutcomeBuckets[k]
-                const winRate = b.bets ? Math.round((b.wins / b.bets) * 100) : 0
-                const total = b.bets || 1
-                const wPct = (b.wins / total) * 100
-                const pPct = (b.pushes / total) * 100
-                const lPct = (b.losses / total) * 100
-
-                return (
-                  <div key={k} className="rounded-md border border-border/60 bg-card/40 p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{k} intensity</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Avg intensity: {b.avgIntensity.toFixed(1)} / 10
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-foreground">{winRate}% win rate</p>
-                        <p className="text-[11px] text-muted-foreground">{b.wins}W / {b.losses}L / {b.pushes}P · {b.bets} bets</p>
-                      </div>
-                    </div>
-
-                    <div className="h-3 w-full rounded bg-muted overflow-hidden flex">
-                      <div className="h-full bg-emerald-500/80" style={{ width: `${wPct}%` }} />
-                      <div className="h-full bg-yellow-400/80" style={{ width: `${pPct}%` }} />
-                      <div className="h-full bg-red-500/80" style={{ width: `${lPct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-
-              <p className="text-xs text-muted-foreground">
-                This view buckets by emotional intensity (0–10) recorded at bet time. Over time you should see patterns
-                like higher loss rates at HIGH intensity.
-              </p>
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={emotionOutcomeSeries} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground) / 0.15)" />
+                  <XAxis dataKey="day" tick={{ fontSize: 12 }} interval={4} />
+                  <YAxis
+                    yAxisId="left"
+                    domain={[0, 100]}
+                    tick={{ fontSize: 12 }}
+                    tickCount={6}
+                    label={{ value: "Emotion (0-100)", angle: -90, position: "insideLeft" }}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[-1, 1]}
+                    ticks={[-1, 0, 1]}
+                    tick={{ fontSize: 12 }}
+                    label={{ value: "Outcome (-1/0/1)", angle: 90, position: "insideRight" }}
+                  />
+                  <Tooltip
+                    formatter={(value: any, name: any) => {
+                      if (name === "emotionScore") return [value, "Emotion score"]
+                      if (name === "outcomeScore") return [value, "Outcome score"]
+                      return [value, name]
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="emotionScore"
+                    name="Emotion score"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="outcomeScore"
+                    name="Outcome score"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            Emotion score is a heuristic from your emotion check-ins (0–100). Outcome score is daily average of wins (1),
+            losses (-1), and pushes (0).
+          </p>
         </Card>
       </div>
     )}

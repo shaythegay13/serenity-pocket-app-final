@@ -46,10 +46,12 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
     const biasCount = trade.biasesIdentified.length
     const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
     
-    updateUserData({
+    await updateUserData({
+      lastEmotionCheckIn: new Date(),
       xp: userData.xp + 15,
       totalTrades: userData.totalTrades + 1,
       totalBiasesIdentified: userData.totalBiasesIdentified + biasCount,
+      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
       dailyRings: {
         ...userData.dailyRings,
         biasRecognition: newBiasRingProgress,
@@ -77,13 +79,15 @@ export function JournalTab({ userData, updateUserData }: JournalTabProps) {
     const mindfulTrade = selectedTrade && selectedTrade.biasesIdentified.length > 0
     const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
     
-    updateUserData({
+    await updateUserData({
+      lastEmotionCheckIn: new Date(),
       xp: userData.xp + 20,
       mindfulTrades: mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades,
       mindfulDecisionPercentage: Math.round(
         ((mindfulTrade ? userData.mindfulTrades + 1 : userData.mindfulTrades) / (userData.totalTrades + 1)) * 100,
       ),
       totalJournalsCompleted: userData.totalJournalsCompleted + 1,
+      totalEmotionsLogged: userData.totalEmotionsLogged + 1,
       dailyRings: {
         ...userData.dailyRings,
         mindfulness: newMindfulnessProgress,

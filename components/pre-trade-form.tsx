@@ -39,7 +39,7 @@ export function PreTradeForm({ onComplete }: PreTradeFormProps) {
     setSelectedBiases((prev) => (prev.includes(biasId) ? prev.filter((b) => b !== biasId) : [...prev, biasId]))
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trade: Trade = {
       id: Date.now().toString(),
       timestamp: new Date(),
@@ -50,7 +50,20 @@ export function PreTradeForm({ onComplete }: PreTradeFormProps) {
       reasoning,
     }
 
-    storage.addTrade(trade)
+    await storage.addTrade(trade)
+
+    // Also log the pre-bet emotion so it impacts emotional stability and charts
+    if (emotion) {
+      await storage.addEmotionLog({
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        emotion,
+        intensity,
+        context: `Pre-trade: ${reasoning.substring(0, 200)}`,
+        phase: "before",
+        tradeId: trade.id,
+      })
+    }
     onComplete(trade)
   }
 

@@ -422,34 +422,55 @@ export const storageHybrid = {
         .eq("user_id", userId)
         .order("timestamp", { ascending: true })
 
-      if (!error && data && data.length > 0) {
-        // Convert DB format to app format when rows exist
-        return data.map((log: any): EmotionLog => ({
-          id: log.id,
-          timestamp: new Date(log.timestamp),
-          emotion: log.emotion,
-          intensity: log.intensity,
-          context: log.notes || "",
-          phase: log.phase,
-          tradeId: undefined, // Not stored in current schema
-        }))
-      }
+      const supabaseLogs: EmotionLog[] = !error && data
+        ? data.map((log: any): EmotionLog => ({
+            id: log.id,
+            timestamp: new Date(log.timestamp),
+            emotion: log.emotion,
+            intensity: log.intensity,
+            context: log.notes || "",
+            phase: log.phase,
+            tradeId: undefined,
+          }))
+        : []
 
-      // If there was an error or no rows yet, fall back to localStorage
       if (error) {
         console.error("Error fetching emotion logs from Supabase, falling back to localStorage:", error)
       }
+
+      let localLogs: EmotionLog[] = []
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem(STORAGE_KEYS.EMOTION_LOGS)
         if (cached) {
           try {
-            return JSON.parse(cached) as EmotionLog[]
+            const parsed = JSON.parse(cached) as any[]
+            if (Array.isArray(parsed)) {
+              localLogs = parsed
+                .filter(Boolean)
+                .map((log: any): EmotionLog => ({
+                  id: String(log.id ?? ""),
+                  timestamp: new Date(log.timestamp),
+                  emotion: String(log.emotion ?? ""),
+                  intensity: Number(log.intensity ?? 0),
+                  context: String(log.context ?? ""),
+                  phase: log.phase,
+                  tradeId: log.tradeId,
+                }))
+            }
           } catch {
-            // Ignore parse errors and fall through to empty array
+            // ignore
           }
         }
       }
-      return []
+
+      const merged = [...supabaseLogs, ...localLogs]
+      const deduped = new Map<string, EmotionLog>()
+      for (const l of merged) {
+        if (!l || !l.timestamp || !l.emotion) continue
+        const key = `${l.timestamp.getTime()}|${l.emotion}|${l.intensity}|${l.phase}`
+        deduped.set(key, l)
+      }
+      return Array.from(deduped.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     }
 
     // Fallback to localStorage
@@ -497,26 +518,67 @@ export const storageHybrid = {
         .eq("user_id", userId)
         .order("timestamp", { ascending: true })
 
+      const supabaseTrades: Trade[] = !error && data
+        ? (data || []).map(trade => ({
+            id: trade.id,
+            timestamp: new Date(trade.timestamp),
+            preTradeEmotion: trade.pre_trade_emotion || "",
+            preTradeIntensity: trade.pre_trade_intensity || 3,
+            biasesIdentified: trade.biases_identified || [],
+            confidenceLevel: trade.pre_trade_confidence || 50,
+            reasoning: trade.pre_trade_notes || "",
+            outcome: trade.outcome,
+            postTradeEmotion: trade.post_trade_emotion,
+            postTradeIntensity: trade.post_trade_intensity,
+            reflection: trade.post_trade_notes,
+            emotionalImpact: trade.emotional_impact,
+          }))
+        : []
+
       if (error) {
         console.error("Error fetching trades:", error)
-        return []
       }
 
-      // Convert DB format to app format
-      return (data || []).map(trade => ({
-        id: trade.id,
-        timestamp: new Date(trade.timestamp),
-        preTradeEmotion: trade.pre_trade_emotion || "",
-        preTradeIntensity: trade.pre_trade_intensity || 3,
-        biasesIdentified: trade.biases_identified || [],
-        confidenceLevel: trade.pre_trade_confidence || 50,
-        reasoning: trade.pre_trade_notes || "",
-        outcome: trade.outcome,
-        postTradeEmotion: trade.post_trade_emotion,
-        postTradeIntensity: trade.post_trade_intensity,
-        reflection: trade.post_trade_notes,
-        emotionalImpact: trade.emotional_impact,
-      }))
+      let localTrades: Trade[] = []
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem(STORAGE_KEYS.TRADES)
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as any[]
+            if (Array.isArray(parsed)) {
+              localTrades = parsed
+                .filter(Boolean)
+                .map((t: any): Trade => ({
+                  id: String(t.id ?? ""),
+                  timestamp: new Date(t.timestamp),
+                  title: t.title,
+                  sport: t.sport,
+                  preTradeEmotion: String(t.preTradeEmotion ?? ""),
+                  preTradeIntensity: Number(t.preTradeIntensity ?? 3),
+                  biasesIdentified: Array.isArray(t.biasesIdentified) ? t.biasesIdentified : [],
+                  confidenceLevel: Number(t.confidenceLevel ?? 50),
+                  reasoning: String(t.reasoning ?? ""),
+                  outcome: t.outcome,
+                  postTradeEmotion: t.postTradeEmotion,
+                  postTradeIntensity: t.postTradeIntensity,
+                  reflection: t.reflection,
+                  emotionalImpact: t.emotionalImpact,
+                }))
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      const merged = [...supabaseTrades, ...localTrades]
+      const deduped = new Map<string, Trade>()
+      for (const t of merged) {
+        if (!t || !t.timestamp) continue
+        const key = `${t.timestamp.getTime()}|${t.preTradeEmotion}|${t.preTradeIntensity}|${t.outcome}|${t.postTradeEmotion}`
+        deduped.set(key, t)
+      }
+      return Array.from(deduped.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     }
 
     // Fallback to localStorage

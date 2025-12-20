@@ -383,29 +383,30 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       toast.warning('Stake exceeds your max limit', { description: `Suggested stake $${suggested} exceeds your max $${userData.maxStakeLimit}.` })
       return
     }
+
     try {
-      const bet = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        betType: 'straight',
-        sport: pick.sport || 'Unknown',
-        description: `${pick.event} — ${pick.pick} (${pick.odds > 0 ? '+' : ''}${pick.odds})`,
-        odds: Number(pick.odds) || 0,
-        stake: Number(pick.suggestedStake) || 0,
-        emotionalState: 'neutral',
-        emotionalIntensity: 5,
-        biasWarnings: [],
-        aiRecommendation: pick.reasoning || '',
-        expectedValue: pick.expectedValue || 0,
-        probabilityEstimate: pick.confidence || 0,
-        outcome: 'pending',
+      const event = String(pick.event || '')
+      const parts = event.split(' @ ')
+      const awayTeam = parts[0]?.trim() || ''
+      const homeTeam = parts[1]?.trim() || ''
+
+      const payload = {
+        sport: String(pick.sport || selectedSport || ''),
+        homeTeam,
+        awayTeam,
+        defaultStake: Number(pick.suggestedStake) || 0,
+        bestHomeOdds: undefined as any,
+        bestAwayOdds: undefined as any,
       }
-      // @ts-ignore
-      await storage.addBetAnalysis(bet)
-      setDailyBetCount((c: number) => c + 1)
-      toast.success('Bet logged', { description: `${pick.pick} added to your betting history` })
+
+      try {
+        window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
+      } catch {}
+
+      setActiveSection('advisor')
+      toast.info('AI Bet Analyzer ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
     } catch (e) {
-      toast.error('Failed to log bet')
+      toast.error('Failed to open AI bet analyzer')
     }
   }
 

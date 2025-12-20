@@ -55,6 +55,39 @@ export default function Home() {
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
   const [instantProfile, setInstantProfile] = useState<any | null>(null)
 
+  const syncBiasMetricsIfNeeded = async (base: UserData) => {
+    try {
+      const trades = await storage.getTrades()
+      const biasesCount = getTotalBiasesIdentified(trades)
+      const biasProfile = await storage.getBiasProfile()
+      const mindfulDecisionPercentage = calculateMindfulDecisionPercentage(trades)
+      const biasRecognitionScore = calculateBiasRecognitionScore(
+        biasProfile,
+        biasesCount,
+        trades.length,
+      )
+
+      const needsSync =
+        base.mindfulDecisionPercentage !== mindfulDecisionPercentage ||
+        base.biasRecognitionScore !== biasRecognitionScore ||
+        base.totalBiasesIdentified !== biasesCount
+
+      if (!needsSync) return
+
+      const updated: UserData = {
+        ...base,
+        mindfulDecisionPercentage,
+        biasRecognitionScore,
+        totalBiasesIdentified: biasesCount,
+      }
+
+      await storage.setUserData(updated)
+      setUserData(updated)
+    } catch (e) {
+      console.error("Error syncing bias metrics:", e)
+    }
+  }
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -132,6 +165,8 @@ export default function Home() {
             }
             
             setUserData(data)
+
+            void syncBiasMetricsIfNeeded(data)
             
             // Only show emotion check-in on first login (when lastEmotionCheckIn is undefined)
             // After that, user can manually trigger it from the dashboard

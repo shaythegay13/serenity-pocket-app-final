@@ -44,6 +44,76 @@ interface PickerRequestBody {
   currentEmotionIntensity?: number
 }
 
+function oddsToImpliedProb(odds: number): number {
+  if (!Number.isFinite(odds) || odds === 0) return 0.5
+  if (odds > 0) return 100 / (odds + 100)
+  return Math.abs(odds) / (Math.abs(odds) + 100)
+}
+
+function buildFallbackRecommendations(args: {
+  games: Array<{ id?: string; context: CurrentGameContext }>
+  riskTolerance: "conservative" | "moderate" | "aggressive"
+  weeklyBudget: number
+}): PickerReasoningOutput {
+  const minImplied =
+    args.riskTolerance === "conservative"
+      ? 0.6
+      : args.riskTolerance === "moderate"
+        ? 0.55
+        : 0.5
+
+  const stakeFraction =
+    args.riskTolerance === "conservative"
+      ? 0.02
+      : args.riskTolerance === "moderate"
+        ? 0.04
+        : 0.06
+
+  const picks = args.games
+    .map((g) => {
+      const ctx = g.context
+      const homeOdds = ctx.currentOdds?.moneylineHome
+      const awayOdds = ctx.currentOdds?.moneylineAway
+
+      if (typeof homeOdds !== "number" || typeof awayOdds !== "number") return null
+
+      const homeImplied = oddsToImpliedProb(homeOdds)
+      const awayImplied = oddsToImpliedProb(awayOdds)
+
+      const homeIsFav = homeImplied >= awayImplied
+      const implied = homeIsFav ? homeImplied : awayImplied
+
+      if (implied < minImplied) return null
+
+      const pickTeam = homeIsFav ? ctx.homeTeam : ctx.awayTeam
+      const odds = homeIsFav ? homeOdds : awayOdds
+
+      const suggestedStakeAbsolute = Math.max(5, Math.round(args.weeklyBudget * stakeFraction))
+      const riskLevel =
+        args.riskTolerance === "conservative" ? "LOW" : args.riskTolerance === "aggressive" ? "HIGH" : "MEDIUM"
+
+      const item = {
+        gameId: g.id,
+        teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+        startTime: ctx.startTime,
+        betType: "moneyline",
+        line: `${pickTeam} ML`,
+        odds,
+        emotionalAlignment: 70,
+        suggestedStakeFraction: stakeFraction,
+        suggestedStakeAbsolute,
+        riskLevel,
+        shortExplanation:
+          "Fallback pick based on available odds and your risk preference. Consider this informational only and verify lines before betting.",
+      }
+
+      return item
+    })
+    .filter(Boolean) as PickerReasoningOutput["recommendations"]
+
+  return { recommendations: picks.slice(0, 3) }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = supabaseServer
@@ -504,7 +574,14 @@ export async function POST(request: NextRequest) {
       games: enrichedGames,
     }
 
-    const reasoningOutput = await generatePickerRecommendations(reasoningInput)
+    let reasoningOutput = await generatePickerRecommendations(reasoningInput)
+    if (!reasoningOutput.recommendations || reasoningOutput.recommendations.length === 0) {
+      reasoningOutput = buildFallbackRecommendations({
+        games: enrichedGames.map((g) => ({ id: g.id, context: g.context })),
+        riskTolerance,
+        weeklyBudget,
+      })
+    }
 
     const anyPerplexityUsed = usedPerplexityFlags.some(Boolean)
 

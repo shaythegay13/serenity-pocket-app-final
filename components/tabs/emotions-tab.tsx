@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, type ChangeEvent, type MouseEvent } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -124,7 +124,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   }
 
   const handleBiasToggle = (biasId: string) => {
-    setSelectedBiases((prev) => (prev.includes(biasId) ? prev.filter((b) => b !== biasId) : [...prev, biasId]))
+    setSelectedBiases((prev: string[]) => (prev.includes(biasId) ? prev.filter((b: string) => b !== biasId) : [...prev, biasId]))
   }
 
   const handleBack = () => {
@@ -177,6 +177,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     let xpEarned = 10
     let updates: Partial<UserData> = {
       totalEmotionsLogged: userData.totalEmotionsLogged + 1,
+      lastEmotionCheckIn: new Date(),
     }
 
     if (phase === "before") {
@@ -214,7 +215,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       }
 
       // Update pause challenge
-      const updatedChallenges = challenges.map(c => {
+      const updatedChallenges = challenges.map((c: any) => {
         if (c.id === "pause-challenge" && c.progress < c.maxProgress) {
           return { ...c, progress: c.progress + 1 }
         }
@@ -231,7 +232,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
       
       // Find most recent trade without an outcome and update it
-      const pendingTrade = trades.find(t => !t.outcome)
+      const pendingTrade = [...trades].reverse().find(t => !t.outcome)
       if (pendingTrade) {
         await storage.updateTrade(pendingTrade.id, {
           postTradeEmotion: selectedEmotion,
@@ -317,7 +318,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     <Button 
                       size="sm" 
                       className="shrink-0"
-                      onClick={(e) => {
+                      onClick={(e: MouseEvent<HTMLButtonElement>) => {
                         e.stopPropagation()
                         handleReset()
                         setTimeout(() => {
@@ -404,7 +405,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 
                 {/* 10 circles: 1 center + 9 in optimal packing ring */}
                 <div className="absolute inset-0" style={{ transformOrigin: 'center center' }}>
-                  {selectedCore.subEmotions.map((subEmotion, index) => {
+                  {selectedCore.subEmotions.map((subEmotion: string, index: number) => {
                     // Circle-packing geometry for 9 circles around 1 center:
                     // 
                     // For adjacent outer circles to touch (not overlap):
@@ -562,7 +563,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 {/* Betting Phase */}
                 <div className="space-y-3">
                   <Label>Select Betting Phase</Label>
-                  <RadioGroup value={phase} onValueChange={(val) => setPhase(val as any)}>
+                  <RadioGroup value={phase} onValueChange={(val: string) => setPhase(val as any)}>
                     <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                       <RadioGroupItem value="before" id="before" />
                       <Label htmlFor="before" className="cursor-pointer flex-1 font-normal">Before Betting</Label>
@@ -585,7 +586,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     id="sport"
                     placeholder="e.g., NBA, NFL"
                     value={sport}
-                    onChange={(e) => setSport(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSport(e.target.value)}
                   />
                 </div>
 
@@ -593,7 +594,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 {phase === "after" && (
                   <div className="space-y-3">
                     <Label>What was the outcome?</Label>
-                    <RadioGroup value={outcome} onValueChange={(val) => setOutcome(val as any)}>
+                    <RadioGroup value={outcome} onValueChange={(val: string) => setOutcome(val as any)}>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="profit" id="profit" />
                         <Label htmlFor="profit" className="cursor-pointer flex-1 font-normal">Won 💰</Label>
@@ -617,7 +618,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     id="context"
                     placeholder="What triggered this emotion? What were you thinking about?"
                     value={context}
-                    onChange={(e) => setContext(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setContext(e.target.value)}
                     rows={4}
                   />
                 </div>

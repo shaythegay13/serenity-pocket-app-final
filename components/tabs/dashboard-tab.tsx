@@ -29,7 +29,7 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
   const [showMeditation, setShowMeditation] = useState(false)
   const [trades, setTrades] = useState<any[]>([])
   const [challenges, setChallenges] = useState<any[]>([])
-  const pendingTrades = trades.filter(t => !t.outcome)
+  const pendingTrades = trades.filter((t: any) => !t.outcome)
 
   useEffect(() => {
     const init = async () => {
@@ -78,6 +78,7 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
     const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 33.33, 100)
 
     await updateUserData({
+      lastEmotionCheckIn: new Date(),
       emotionalAwarenessStreak: newStreak,
       longestStreak: Math.max(newStreak, userData.longestStreak),
       xp: userData.xp + 10,
@@ -90,7 +91,7 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
     })
     
     // Update emotion log challenge
-    const updatedChallenges = challenges.map(c => {
+    const updatedChallenges = challenges.map((c: any) => {
       if (c.id === "emotion-log-challenge" && c.progress < c.maxProgress) {
         return { ...c, progress: c.progress + 1 }
       }

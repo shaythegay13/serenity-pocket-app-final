@@ -420,7 +420,7 @@ export const storageHybrid = {
         .from("emotion_logs")
         .select("*")
         .eq("user_id", userId)
-        .order("timestamp", { ascending: false })
+        .order("timestamp", { ascending: true })
 
       if (!error && data && data.length > 0) {
         // Convert DB format to app format when rows exist
@@ -495,7 +495,7 @@ export const storageHybrid = {
         .from("trades")
         .select("*")
         .eq("user_id", userId)
-        .order("timestamp", { ascending: false })
+        .order("timestamp", { ascending: true })
 
       if (error) {
         console.error("Error fetching trades:", error)

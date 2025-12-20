@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ChangeEvent } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -139,6 +139,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
     await updateUserData({
       emotionTrackComplete: true,
       onboardingComplete: true,
+      lastEmotionCheckIn: new Date(),
       xp: (userData?.xp || 0) + 25, // Half XP now, rest when they complete post-bet
       totalEmotionsLogged: (userData?.totalEmotionsLogged || 0) + 1,
       pendingEmotionTradeId: tradeId // Store for later completion
@@ -224,7 +225,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
                   id="biography"
                   placeholder="Example: I've been day trading for 2 years, mostly tech stocks. I struggle with FOMO and tend to overtrade when I'm up. Looking to build better emotional discipline..."
                   value={biography}
-                  onChange={(e) => setBiography(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBiography(e.target.value)}
                   rows={6}
                   className="resize-none"
                 />
@@ -259,7 +260,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
                       id="region"
                       placeholder="e.g., Eastern US, Europe, Asia Pacific"
                       value={region}
-                      onChange={(e) => setRegion(e.target.value)}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setRegion(e.target.value)}
                     />
                   </div>
 
@@ -269,7 +270,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
                       id="occupation"
                       placeholder="e.g., Student, Professional, Retired"
                       value={occupation}
-                      onChange={(e) => setOccupation(e.target.value)}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setOccupation(e.target.value)}
                     />
                   </div>
                 </div>
@@ -322,7 +323,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
                   <Label>Specific Emotion</Label>
                   <RadioGroup value={preEmotion} onValueChange={setPreEmotion}>
                     <div className="grid grid-cols-2 gap-2">
-                      {preSelectedCore.subEmotions.map((emotion) => (
+                      {preSelectedCore.subEmotions.map((emotion: string) => (
                         <div key={emotion} className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-accent cursor-pointer">
                           <RadioGroupItem value={emotion} id={`pre-${emotion}`} />
                           <Label htmlFor={`pre-${emotion}`} className="cursor-pointer flex-1">{emotion}</Label>
@@ -349,7 +350,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
                     id="pre-context"
                     placeholder="What's happening? Why do you feel this way?"
                     value={preContext}
-                    onChange={(e) => setPreContext(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setPreContext(e.target.value)}
                     rows={3}
                   />
                 </div>

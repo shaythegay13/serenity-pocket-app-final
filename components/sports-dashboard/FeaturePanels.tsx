@@ -1,10 +1,13 @@
 "use client"
 
 import React from "react"
+import { useEffect, useState } from "react"
 // DISABLED: Not needed while "Feature Coming Soon" wall is active
 // import { useEffect, useState } from "react"
 // import { GameCard } from "./shared/GameCard"
 // import { TabSkeleton } from "./shared/LoadingSkeleton"
+import { GameCard } from "./shared/GameCard"
+import { TabSkeleton } from "./shared/LoadingSkeleton"
 import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import type { SupportedSportKey } from "@/lib/types"
 import { X, Activity, LineChart, Users, Target } from "lucide-react"
@@ -14,6 +17,10 @@ import { X, Activity, LineChart, Users, Target } from "lucide-react"
 // import { OddsGrid } from "@/components/live-betting/OddsGrid"
 // import { LineMovementChart } from "@/components/live-betting/LineMovementChart"
 // import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsDashboard"
+import { LiveGameCard } from "@/components/live-betting/LiveGameCard"
+import { OddsGrid } from "@/components/live-betting/OddsGrid"
+import { LineMovementChart } from "@/components/live-betting/LineMovementChart"
+import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsDashboard"
 
 // DISABLED: Enhanced panels not needed while "Feature Coming Soon" wall is active
 // import {

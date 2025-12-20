@@ -33,12 +33,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [dailyBetCount, setDailyBetCount] = useState(0)
   const [activeSection, setActiveSection] = useState<'picks' | 'advisor'>('picks')
 
-  // Calculate emotional stability on mount
+  // Calculate emotional stability when access changes or the user logs a new check-in
   useEffect(() => {
     if (hasAccess) {
       calculateUserStability()
     }
-  }, [hasAccess])
+  }, [hasAccess, userData.lastEmotionCheckIn, userData.surveyData?.score])
 
   // If coming from Live Odds wanting AI Analyze My Bet, switch to advisor tab
   useEffect(() => {
@@ -274,7 +274,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       }
       // @ts-ignore
       await storage.addBetAnalysis(bet)
-      setDailyBetCount(c => c + 1)
+      setDailyBetCount((c: number) => c + 1)
       toast.success('Bet logged', { description: `${pick.pick} added to your betting history` })
     } catch (e) {
       toast.error('Failed to log bet')
@@ -389,7 +389,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         </p>
       </div>
 
-      <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'picks' | 'advisor')} className="w-full">
+      <Tabs value={activeSection} onValueChange={(v: string) => setActiveSection(v as 'picks' | 'advisor')} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="picks">
             <Sparkles className="h-4 w-4 mr-2" />
@@ -552,7 +552,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       {/* AI Picks */}
       {!loading && picks.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {picks.map((pick, idx) => (
+          {picks.map((pick: any, idx: number) => (
             <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between mb-4">
                 <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>

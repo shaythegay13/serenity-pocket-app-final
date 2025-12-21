@@ -174,6 +174,18 @@ export interface Trade {
   emotionalImpact?: number
 }
 
+export type AIServiceType = "ai_picker" | "ai_bet_analyzer"
+
+export interface AIServiceUsage {
+  id: string
+  userId: string
+  serviceType: AIServiceType
+  weekStartDate: string
+  tierAtTimeOfUse?: string
+  requestMetadata?: Record<string, any>
+  createdAt: string
+}
+
 export interface BiasProfile {
   confirmationBias: number
   lossAversion: number

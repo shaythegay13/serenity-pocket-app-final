@@ -9,6 +9,7 @@ import type {
   Challenge,
   BetAnalysis,
   GameLineRecord,
+  AIServiceUsage,
 } from "./types"
 
 const STORAGE_KEYS = {
@@ -22,6 +23,7 @@ const STORAGE_KEYS = {
   LAST_CHECK_IN: "serenity_last_check_in",
   BET_ANALYSES: "serenity_bet_analyses",
   GAME_LINES: "serenity_game_lines",
+  AI_USAGE: "serenity_ai_service_usage",
 }
 
 // Hybrid storage that uses Supabase for authenticated users and localStorage as fallback
@@ -1488,7 +1490,7 @@ storageHybrid.getBetAnalyses = async function(): Promise<BetAnalysis[]> {
         .select("*")
         .eq("user_id", userId)
         .order("timestamp", { ascending: false })
-        .limit(50)
+        .limit(1000)
 
       if (data && !error) {
         return data.map((row: any) => ({
@@ -1521,4 +1523,53 @@ storageHybrid.getBetAnalyses = async function(): Promise<BetAnalysis[]> {
   }
 
   return []
+}
+
+// @ts-ignore - Adding methods dynamically
+storageHybrid.getAIServiceUsage = async function(): Promise<AIServiceUsage[]> {
+  const userId = await this.getCurrentUserId()
+
+  if (userId) {
+    try {
+      const ninetyDaysAgo = new Date()
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+      const { data, error } = await supabase
+        .from("ai_service_usage")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("created_at", ninetyDaysAgo.toISOString())
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        console.error("Error fetching AI service usage:", error)
+      } else if (data) {
+        const mapped = (data || []).map((row: any): AIServiceUsage => ({
+          id: row.id,
+          userId: row.user_id,
+          serviceType: row.service_type,
+          weekStartDate: row.week_start_date,
+          tierAtTimeOfUse: row.tier_at_time_of_use ?? undefined,
+          requestMetadata: row.request_metadata ?? undefined,
+          createdAt: row.created_at,
+        }))
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(STORAGE_KEYS.AI_USAGE, JSON.stringify(mapped))
+          } catch {
+            // ignore
+          }
+        }
+
+        return mapped
+      }
+    } catch (err) {
+      console.error("Exception fetching AI service usage:", err)
+    }
+  }
+
+  if (typeof window === "undefined") return []
+  const cached = localStorage.getItem(STORAGE_KEYS.AI_USAGE)
+  return cached ? (JSON.parse(cached) as AIServiceUsage[]) : []
 }

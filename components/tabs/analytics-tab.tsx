@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import type { EmotionLog, Trade, UserData, BetAnalysis, GameLineRecord } from "@/lib/types"
+import type { EmotionLog, Trade, UserData, BetAnalysis, GameLineRecord, AIServiceUsage } from "@/lib/types"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
 import {
   Activity,
@@ -51,12 +51,18 @@ type UnifiedBet = BetAnalysis & {
   source: UnifiedBetSource
 }
 
+type TimelineItem =
+  | { kind: "bet"; ts: Date; bet: UnifiedBet }
+  | { kind: "ai"; ts: Date; usage: AIServiceUsage }
+  | { kind: "game"; ts: Date; game: GameLineRecord }
+
 type EmotionOutcomePoint = {
   day: string
   emotionScore?: number
   outcomeScore?: number
   betActivity?: number
   expectedValue?: number
+  mentalHealthScore?: number
 }
 
 const EMOTION_SCORE_LOOKUP: Record<string, number> = {
@@ -163,27 +169,35 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [sortBy, setSortBy] = useState<"date" | "ev" | "stake">("date")
   const [selectedBet, setSelectedBet] = useState<BetAnalysis | null>(null)
   const [gameLines, setGameLines] = useState<GameLineRecord[]>([])
+  const [aiUsage, setAiUsage] = useState<AIServiceUsage[]>([])
   const [emotionViewTab, setEmotionViewTab] = useState<"by-bets" | "all-checkins">("by-bets")
+
+  const [showUsageEvents, setShowUsageEvents] = useState(true)
+  const [showGameLineEvents, setShowGameLineEvents] = useState(true)
 
   const [showEmotionLine, setShowEmotionLine] = useState(true)
   const [showOutcomeLine, setShowOutcomeLine] = useState(true)
   const [showActivityLine, setShowActivityLine] = useState(true)
   const [showEvLine, setShowEvLine] = useState(true)
+  const [showMentalHealthLine, setShowMentalHealthLine] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [emotionLogs, tradeData, betAnalyses, gameLineData] = await Promise.all([
+        const [emotionLogs, tradeData, betAnalyses, gameLineData, usage] = await Promise.all([
           storage.getEmotionLogs(),
           storage.getTrades(),
           // @ts-ignore - Method added dynamically to storageHybrid
           storage.getBetAnalyses().catch(() => []),
           storage.getGameLines().catch(() => [] as GameLineRecord[]),
+          // @ts-ignore - Method added dynamically to storageHybrid
+          storage.getAIServiceUsage?.().catch(() => [] as AIServiceUsage[]),
         ])
         setLogs(emotionLogs)
         setTrades(tradeData)
         setAnalyses(betAnalyses || [])
         setGameLines(gameLineData || [])
+        setAiUsage(usage || [])
       } finally {
         setLoading(false)
       }
@@ -470,6 +484,64 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     setFilteredAnalyses(filtered)
   }
 
+  const unifiedTimelineItems = useMemo((): TimelineItem[] => {
+    const items: TimelineItem[] = []
+
+    for (const b of filteredAnalyses) {
+      const ts = new Date((b as any).timestamp)
+      if (!Number.isNaN(ts.getTime())) {
+        items.push({ kind: "bet", ts, bet: b as UnifiedBet })
+      }
+    }
+
+    const normalizedSearch = String(searchTerm || "").trim().toLowerCase()
+
+    if (showUsageEvents && filterOutcome === "all" && filterSport === "all") {
+      for (const u of aiUsage || []) {
+        const ts = new Date((u as any).createdAt ?? (u as any).created_at ?? Date.now())
+        if (Number.isNaN(ts.getTime())) continue
+        if (normalizedSearch) {
+          const hay = `${u.serviceType || ""} ${(u as any).tierAtTimeOfUse || ""}`.toLowerCase()
+          if (!hay.includes(normalizedSearch)) continue
+        }
+        items.push({ kind: "ai", ts, usage: u })
+      }
+    }
+
+    if (showGameLineEvents && filterOutcome === "all") {
+      for (const g of gameLines || []) {
+        const ts = new Date(
+          (g as any).updatedAt ??
+            (g as any).updated_at ??
+            (g as any).createdAt ??
+            (g as any).created_at ??
+            (g as any).commenceTime ??
+            (g as any).commence_time ??
+            Date.now(),
+        )
+        if (Number.isNaN(ts.getTime())) continue
+
+        if (filterSport !== "all") {
+          const selectedSport = AVAILABLE_SPORTS.find((s) => s.key === filterSport)
+          const sportMatch =
+            (g.sport as any) === filterSport ||
+            (selectedSport && (g.sport as any) === selectedSport.label) ||
+            (selectedSport && (g as any).sport === selectedSport.key)
+          if (!sportMatch) continue
+        }
+
+        if (normalizedSearch) {
+          const hay = `${g.homeTeam || ""} ${g.awayTeam || ""} ${g.league || ""} ${g.sport || ""}`.toLowerCase()
+          if (!hay.includes(normalizedSearch)) continue
+        }
+
+        items.push({ kind: "game", ts, game: g })
+      }
+    }
+
+    return items.sort((a, b) => b.ts.getTime() - a.ts.getTime())
+  }, [filteredAnalyses, aiUsage, gameLines, showUsageEvents, showGameLineEvents, filterOutcome, filterSport, searchTerm])
+
   const calculateBettingMetrics = () => {
     const completed = unifiedBets.filter(bet => bet.outcome && bet.outcome !== 'pending')
     const wins = completed.filter(bet => bet.outcome === 'win')
@@ -508,7 +580,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   ]
 
   const emotionOutcomeSeries = useMemo((): EmotionOutcomePoint[] => {
-    const DAYS = 90
+    const MS_DAY = 86_400_000
     const points: EmotionOutcomePoint[] = []
 
     const toDayKey = (d: Date) => {
@@ -572,9 +644,23 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
 
     const emotionByDay = new Map<string, { sum: number; n: number }>()
+    let maxTs = 0
+
+    // Include profile-level recency markers so the chart window can't lag behind
+    // if other tables are empty for a period.
+    if ((userData as any)?.lastEmotionCheckIn) {
+      const t = new Date((userData as any).lastEmotionCheckIn)
+      if (!Number.isNaN(t.getTime())) maxTs = Math.max(maxTs, t.getTime())
+    }
+    if ((userData as any)?.lastRingReset) {
+      const t = new Date((userData as any).lastRingReset)
+      if (!Number.isNaN(t.getTime())) maxTs = Math.max(maxTs, t.getTime())
+    }
+
     for (const l of logs || []) {
       const t = new Date((l as any).timestamp ?? (l as any).created_at ?? Date.now())
       if (Number.isNaN(t.getTime())) continue
+      maxTs = Math.max(maxTs, t.getTime())
       const k = toDayKey(t)
       const s = emotionScoreFromLog(l)
       if (typeof s !== "number") continue
@@ -591,6 +677,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     for (const b of unifiedBets) {
       const t = new Date((b as any).timestamp)
       if (Number.isNaN(t.getTime())) continue
+      maxTs = Math.max(maxTs, t.getTime())
       const k = toDayKey(t)
       const rawOutcome = String((b as any).outcome || "").toLowerCase()
       const v =
@@ -614,25 +701,64 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       }
     }
 
-    for (let i = DAYS - 1; i >= 0; i--) {
-      const d = new Date()
-      d.setHours(0, 0, 0, 0)
-      d.setDate(d.getDate() - i)
+    // AI usage (mental load proxy) - higher use implies higher cognitive load / potential risk.
+    const aiByDay = new Map<string, { sum: number; n: number }>()
+    for (const u of aiUsage || []) {
+      const t = new Date((u as any).createdAt ?? (u as any).created_at ?? Date.now())
+      if (Number.isNaN(t.getTime())) continue
+      maxTs = Math.max(maxTs, t.getTime())
+      const k = toDayKey(t)
+      const service = String(u.serviceType || "").toLowerCase()
+      const weight = service === "ai_bet_analyzer" ? 12 : 8
+      const agg = aiByDay.get(k) || { sum: 0, n: 0 }
+      agg.sum += weight
+      agg.n += 1
+      aiByDay.set(k, agg)
+    }
+
+    // Game line records: included for recency and (optionally later) EV proxies.
+    // We at least use them to keep the chart window anchored to the latest captured odds/game activity.
+    for (const g of gameLines || []) {
+      const t = new Date((g as any).updatedAt ?? (g as any).updated_at ?? (g as any).createdAt ?? (g as any).created_at ?? (g as any).commenceTime ?? (g as any).commence_time ?? Date.now())
+      if (Number.isNaN(t.getTime())) continue
+      maxTs = Math.max(maxTs, t.getTime())
+    }
+
+    const defaultWindowDays = 180
+    const end = maxTs ? new Date(maxTs) : new Date()
+    end.setHours(0, 0, 0, 0)
+    const start = new Date(end.getTime() - (defaultWindowDays - 1) * MS_DAY)
+
+    for (let ts = start.getTime(); ts <= end.getTime(); ts += MS_DAY) {
+      const d = new Date(ts)
       const k = toDayKey(d)
       const eAgg = emotionByDay.get(k)
       const oAgg = outcomeByDay.get(k)
       const evAgg = evByDay.get(k)
+      const aiAgg = aiByDay.get(k)
+
+      // Mental health score: emotion (good) minus AI usage load (bad). Keep in 0-100.
+      const emotionBase = eAgg && eAgg.n ? eAgg.sum / eAgg.n : undefined
+      const aiLoad = aiAgg && aiAgg.n ? aiAgg.sum : 0
+      const mental =
+        typeof emotionBase === "number"
+          ? Math.max(0, Math.min(100, Number((emotionBase - aiLoad).toFixed(1))))
+          : aiAgg
+            ? Math.max(0, Math.min(100, 55 - aiLoad))
+            : undefined
+
       points.push({
         day: d.toLocaleDateString([], { month: "short", day: "numeric" }),
         emotionScore: eAgg && eAgg.n ? Number((eAgg.sum / eAgg.n).toFixed(1)) : undefined,
         outcomeScore: oAgg && oAgg.n ? Number((oAgg.sum / oAgg.n).toFixed(2)) : undefined,
         betActivity: activityByDay.get(k) ? 1 : 0,
         expectedValue: evAgg && evAgg.n ? Number((evAgg.sum / evAgg.n).toFixed(2)) : undefined,
+        mentalHealthScore: mental,
       })
     }
 
     return points
-  }, [logs, unifiedBets])
+  }, [logs, unifiedBets, aiUsage, gameLines, userData])
 
   if (loading) {
     return (
@@ -917,13 +1043,18 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               <Checkbox checked={showEvLine} onCheckedChange={(v) => setShowEvLine(!!v)} />
               Expected value (EV)
             </label>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <Checkbox checked={showMentalHealthLine} onCheckedChange={(v) => setShowMentalHealthLine(!!v)} />
+              Mental health score
+            </label>
           </div>
 
           {(
             (!showEmotionLine || emotionOutcomeSeries.every((p) => p.emotionScore == null)) &&
             (!showOutcomeLine || emotionOutcomeSeries.every((p) => p.outcomeScore == null)) &&
             (!showActivityLine || emotionOutcomeSeries.every((p) => (p.betActivity ?? 0) === 0)) &&
-            (!showEvLine || emotionOutcomeSeries.every((p) => p.expectedValue == null))
+            (!showEvLine || emotionOutcomeSeries.every((p) => p.expectedValue == null)) &&
+            (!showMentalHealthLine || emotionOutcomeSeries.every((p) => p.mentalHealthScore == null))
           ) ? (
             <p className="text-sm text-muted-foreground">
               Log emotions and complete bets (win/loss/push) to see how your emotional state tracks with outcomes.
@@ -939,7 +1070,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                     interval="preserveStartEnd"
                     minTickGap={16}
                   />
-                  {showEmotionLine && (
+                  {(showEmotionLine || showMentalHealthLine) && (
                     <YAxis
                       yAxisId="left"
                       domain={[0, 100]}
@@ -973,6 +1104,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                       if (name === "Outcome (-1/0/1)") return [value, "Outcome (-1/0/1)"]
                       if (name === "Bet activity (0/1)") return [value, "Bet activity (0/1)"]
                       if (name === "EV ($)") return [value, "EV ($)"]
+                      if (name === "Mental health score") return [value, "Mental health score"]
                       return [value, name]
                     }}
                   />
@@ -1025,6 +1157,18 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                       connectNulls
                     />
                   )}
+                  {showMentalHealthLine && (
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="mentalHealthScore"
+                      name="Mental health score"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -1033,6 +1177,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           <p className="mt-3 text-xs text-muted-foreground">
             Emotion score uses the stable 60-emotion lookup table (0–100). Outcome score is daily average of wins (1),
             losses (-1), and pushes (0). Bet activity is 1 when any bet exists that day. EV is daily average EV from analyses.
+            Mental health score is a blended proxy: emotion score minus recent AI usage load.
           </p>
         </Card>
       </div>
@@ -1173,6 +1318,22 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                 </div>
               </div>
 
+              <div className="mt-4 flex flex-wrap items-center gap-4 rounded-md border border-border bg-muted/40 p-3">
+                <label className="flex items-center gap-2 text-xs text-foreground">
+                  <Checkbox checked={showUsageEvents} onCheckedChange={(v) => setShowUsageEvents(!!v)} />
+                  Include AI usage events
+                </label>
+                <label className="flex items-center gap-2 text-xs text-foreground">
+                  <Checkbox checked={showGameLineEvents} onCheckedChange={(v) => setShowGameLineEvents(!!v)} />
+                  Include game line events
+                </label>
+                {(showUsageEvents || showGameLineEvents) && sortBy !== "date" && (
+                  <span className="text-xs text-muted-foreground">
+                    Unified timeline view is always sorted by date.
+                  </span>
+                )}
+              </div>
+
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Sort by:</span>
                 <div className="flex gap-2">
@@ -1212,7 +1373,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             )}
 
             {/* Bet List */}
-            {filteredAnalyses.length === 0 ? (
+            {unifiedTimelineItems.length === 0 ? (
               <Card className="p-8 text-center">
                 <Filter className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No bets match your filters</p>
@@ -1230,91 +1391,149 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               </Card>
             ) : (
               <div className="space-y-3">
-                {filteredAnalyses.map((bet) => (
-                    <Card
-                      key={bet.id}
-                      className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setSelectedBet(bet)}
-                    >
+                {unifiedTimelineItems.map((item, idx) => {
+                  if (item.kind === "bet") {
+                    const bet = item.bet
+                    return (
+                      <Card
+                        key={`${item.kind}:${bet.id}:${idx}`}
+                        className="p-4 hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => setSelectedBet(bet)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">
+                                Bet
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {bet.sport}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {bet.betType}
+                              </Badge>
+                              {(bet as any).source && (
+                                <Badge variant="outline" className="text-xs">
+                                  {(bet as any).source}
+                                </Badge>
+                              )}
+                              {bet.outcome && (
+                                <Badge
+                                  className={`text-xs ${
+                                    bet.outcome === 'win' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
+                                    bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
+                                    bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500 border-gray-500/30' :
+                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
+                                  }`}
+                                >
+                                  {bet.outcome.toUpperCase()}
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className="font-semibold text-foreground mb-1 truncate">
+                              {bet.description}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(bet.timestamp).toLocaleDateString()} at {new Date(bet.timestamp).toLocaleTimeString()}
+                            </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-semibold text-foreground mb-1">
+                              {bet.stake > 0 ? `$${bet.stake.toFixed(2)}` : (
+                                <span className="text-xs text-muted-foreground">(stake not logged)</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mb-1">
+                              {bet.odds !== 0 ? (
+                                <>Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}</>
+                              ) : (
+                                <>Odds: <span className="text-muted-foreground">(not logged)</span></>
+                              )}
+                            </div>
+                            {bet.expectedValue !== undefined && (
+                              <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                EV: {bet.expectedValue >= 0 ? '+' : ''}${bet.expectedValue.toFixed(2)}
+                              </div>
+                            )}
+                            {bet.actualReturn !== undefined && bet.outcome !== 'pending' && (
+                              <div className={`text-xs font-medium ${bet.actualReturn >= bet.stake ? 'text-green-500' : 'text-red-500'}`}>
+                                Return: ${bet.actualReturn.toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {bet.biasWarnings && bet.biasWarnings.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                              <div className="flex flex-wrap gap-1">
+                                {bet.biasWarnings.slice(0, 2).map((warning, idx2) => (
+                                  <span key={idx2} className="text-xs text-muted-foreground">
+                                    {warning}{idx2 < Math.min(bet.biasWarnings.length, 2) - 1 ? ',' : ''}
+                                  </span>
+                                ))}
+                                {bet.biasWarnings.length > 2 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    +{bet.biasWarnings.length - 2} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    )
+                  }
+
+                  if (item.kind === "ai") {
+                    const u = item.usage
+                    const title = `AI: ${(u.serviceType || "AI service").toString().replace(/_/g, " ")}`
+                    return (
+                      <Card key={`${item.kind}:${u.id}:${idx}`} className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">AI usage</Badge>
+                            </div>
+                            <h4 className="font-semibold text-foreground mb-1 truncate">{title}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {item.ts.toLocaleDateString()} at {item.ts.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    )
+                  }
+
+                  const g = item.game
+                  const matchup = `${g.homeTeam || ""} vs ${g.awayTeam || ""}`.trim() || "Game line update"
+                  const status = (g.finalStatus || "").toString().replace(/_/g, " ")
+                  return (
+                    <Card key={`${item.kind}:${g.id}:${idx}`} className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="text-xs">
-                              {bet.sport}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {bet.betType}
-                            </Badge>
-                            {bet.outcome && (
-                              <Badge
-                                className={`text-xs ${
-                                  bet.outcome === 'win' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
-                                  bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
-                                  bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500 border-gray-500/30' :
-                                  'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
-                                }`}
-                              >
-                                {bet.outcome.toUpperCase()}
-                              </Badge>
+                            <Badge variant="outline" className="text-xs">Game lines</Badge>
+                            {g.sport && (
+                              <Badge variant="outline" className="text-xs">{g.sport as any}</Badge>
+                            )}
+                            {status && (
+                              <Badge variant="outline" className="text-xs">{status}</Badge>
                             )}
                           </div>
-                          <h4 className="font-semibold text-foreground mb-1 truncate">
-                            {bet.description}
-                          </h4>
+                          <h4 className="font-semibold text-foreground mb-1 truncate">{matchup}</h4>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(bet.timestamp).toLocaleDateString()} at {new Date(bet.timestamp).toLocaleTimeString()}
+                            {item.ts.toLocaleDateString()} at {item.ts.toLocaleTimeString()}
                           </p>
                         </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-semibold text-foreground mb-1">
-                            {bet.stake > 0 ? `$${bet.stake.toFixed(2)}` : (
-                              <span className="text-xs text-muted-foreground">(stake not logged)</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground mb-1">
-                            {bet.odds !== 0 ? (
-                              <>Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}</>
-                            ) : (
-                              <>Odds: <span className="text-muted-foreground">(not logged)</span></>
-                            )}
-                          </div>
-                          {bet.expectedValue !== undefined && (
-                            <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              EV: {bet.expectedValue >= 0 ? '+' : ''}${bet.expectedValue.toFixed(2)}
-                            </div>
-                          )}
-                          {bet.actualReturn !== undefined && bet.outcome !== 'pending' && (
-                            <div className={`text-xs font-medium ${bet.actualReturn >= bet.stake ? 'text-green-500' : 'text-red-500'}`}>
-                              Return: ${bet.actualReturn.toFixed(2)}
-                            </div>
-                          )}
-                        </div>
                       </div>
-
-                      {bet.biasWarnings && bet.biasWarnings.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
-                            <div className="flex flex-wrap gap-1">
-                              {bet.biasWarnings.slice(0, 2).map((warning, idx) => (
-                                <span key={idx} className="text-xs text-muted-foreground">
-                                  {warning}{idx < Math.min(bet.biasWarnings.length, 2) - 1 ? ',' : ''}
-                                </span>
-                              ))}
-                              {bet.biasWarnings.length > 2 && (
-                                <span className="text-xs text-muted-foreground">
-                                  +{bet.biasWarnings.length - 2} more
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </Card>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
+            )}
 
               {/* Bet Detail Modal */}
               {selectedBet && (

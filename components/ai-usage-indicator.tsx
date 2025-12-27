@@ -107,7 +107,7 @@ export function AIUsageIndicator() {
         <div className="flex justify-between text-sm mb-1">
           <span className="font-medium flex items-center gap-1">
             <TrendingUp className="h-3 w-3 text-blue-500" />
-            AI Picker
+            SmartSlip
           </span>
           <span className="text-muted-foreground">
             {aiPicker.usedThisWeek} / {aiPicker.totalAvailable} used
@@ -132,7 +132,7 @@ export function AIUsageIndicator() {
         <div className="flex justify-between text-sm mb-1">
           <span className="font-medium flex items-center gap-1">
             <Zap className="h-3 w-3 text-purple-500" />
-            AI Bet Analyzer
+            TiltLab
           </span>
           <span className="text-muted-foreground">
             {aiBetAnalyzer.usedThisWeek} / {aiBetAnalyzer.totalAvailable} used

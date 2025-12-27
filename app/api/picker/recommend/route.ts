@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
         success: false,
         shouldBet: false,
         message:
-          "Enhanced AI picks are not configured in this environment. Set AWS and Bedrock env vars to enable AI Picks.",
+          "Enhanced AI picks are not configured in this environment. Set AWS and Bedrock env vars to enable SmartSlip.",
         error: "Enhanced AI unavailable",
         recommendations: [],
         emotionalScore,

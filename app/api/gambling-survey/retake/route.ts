@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { validateSurveySubmission, calculateSurveyScore } from '@/lib/surveyValidation';
+import { computeArchetype } from '@/lib/archetypes';
+import type { SurveyAnswer } from '@/types/survey';
 
 export async function POST(request: NextRequest) {
   console.log('=== AUTHENTICATED SURVEY RETAKE API CALLED ===');
@@ -53,6 +55,10 @@ export async function POST(request: NextRequest) {
     // Calculate score
     const score = calculateSurveyScore(responses);
 
+    // Compute archetype from survey responses
+    const archetype = computeArchetype(responses as SurveyAnswer[]);
+    console.log('Computed archetype:', archetype.name);
+
     console.log('Inserting survey response for user:', user.id, 'with score:', score);
 
     // Insert into survey_responses table
@@ -79,6 +85,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch existing profile to merge survey data
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('survey_data')
+      .eq('id', user.id)
+      .single();
+
+    const existingSurveyData = (profileData?.survey_data as any) || {};
+
+    // Update user profile with archetype (merge with existing data)
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        survey_data: {
+          ...existingSurveyData,
+          score,
+          level: score <= 33 ? 'Low Risk' : score <= 66 ? 'Moderate Risk' : 'High Risk',
+          userType: archetype.name,
+        }
+      })
+      .eq('id', user.id);
+
+    if (profileError) {
+      console.error('Error updating profile with archetype:', profileError);
+      // Don't fail the request, just log the error
+    } else {
+      console.log('Successfully updated profile with archetype:', archetype.name);
+    }
+
     console.log('Survey submitted successfully:', data.id);
 
     return NextResponse.json(
@@ -86,6 +121,7 @@ export async function POST(request: NextRequest) {
         success: true,
         surveyId: data.id,
         score: score,
+        archetype: archetype.name,
       },
       { status: 201 }
     );

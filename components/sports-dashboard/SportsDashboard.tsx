@@ -33,26 +33,26 @@ export function SportsDashboard() {
   const setActiveSport = useSportsStore((state) => state.setActiveSport)
 
   return (
-    <div 
-      className="min-h-screen w-full bg-[#1b212c]"
-      style={{ fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif" }}
+    <div
+      className="min-h-screen w-full bg-[#0B0E14]"
+      style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
     >
-      {/* Header */}
-      <header className="border-b border-white/10 bg-[#1b212c] sticky top-0 z-50">
+      {/* Header - Databallr Command Center Style */}
+      <header className="border-b border-white/5 bg-[#0B0E14]/95 sticky top-0 z-50 backdrop-blur-lg">
         <div className="px-4 md:px-6 py-4">
           <div className="flex items-center gap-3">
             {/* Logo/Icon */}
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#20B2AA]/10 border border-[#20B2AA]/30">
-              <BarChart3 className="h-6 w-6 text-[#20B2AA]" aria-hidden="true" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#00FF41]/10 border border-[#00FF41]/30">
+              <BarChart3 className="h-5 w-5 text-[#00FF41]" aria-hidden="true" />
             </div>
 
             {/* Title */}
             <div>
-              <h1 className="text-2xl font-bold text-[#F5F5F5] tracking-tight">
-                Sports Dashboard
+              <h1 className="text-xl font-bold text-white tracking-tight">
+                Sports Command Center
               </h1>
-              <p className="text-sm text-gray-400 hidden md:block">
-                Live odds, analytics, and insights across all major sports
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider hidden md:block" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                Live Odds Terminal
               </p>
             </div>
           </div>
@@ -65,8 +65,15 @@ export function SportsDashboard() {
         />
       </header>
 
+      {/* Data Disclaimer Banner */}
+      <div className="bg-[#161B22] border-b border-white/5 px-4 md:px-6 py-3">
+        <p className="text-xs text-gray-400 text-center leading-relaxed max-w-4xl mx-auto">
+          The information on this dashboard is sourced from industry‑standard sports data providers and, while monitored for quality, may occasionally be updated or corrected as new data is received.
+        </p>
+      </div>
+
       {/* Main Content Area */}
-      <main 
+      <main
         className="w-full"
         role="main"
         aria-label="Sports data content"

@@ -19,10 +19,17 @@ export interface BetScenario {
   underdogTeam: string
   favoriteRecord: string
   underdogRecord: string
+  // Legacy text fields (kept for backward compatibility)
   injuries: string
   weather: string
+  // New boolean fields for UI
+  hasKeyInjuries: boolean
+  hasAdverseWeather: boolean
+  isLiveBet: boolean
+  isFavoriteTeam: boolean
+  isChasingLoss: boolean
   currentEmotion: string
-  lastOutcome: string
+  lastOutcome: 'Won' | 'Lost' | 'Push' | 'None'
   emotionalTriggers: string
   bettingSlip: string
   history: string

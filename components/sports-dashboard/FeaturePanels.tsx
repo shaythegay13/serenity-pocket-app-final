@@ -2,15 +2,17 @@
 
 import React from "react"
 import { useEffect, useState } from "react"
-// DISABLED: Not needed while "Feature Coming Soon" wall is active
-// import { useEffect, useState } from "react"
-// import { GameCard } from "./shared/GameCard"
-// import { TabSkeleton } from "./shared/LoadingSkeleton"
 import { GameCard } from "./shared/GameCard"
 import { TabSkeleton } from "./shared/LoadingSkeleton"
 import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import type { SupportedSportKey } from "@/lib/types"
-import { X, Activity, LineChart, Users, Target } from "lucide-react"
+import { X, Activity, LineChart, Users, Target, AlertTriangle, TrendingUp, BarChart3 } from "lucide-react"
+
+// Extracted hooks and components
+import { useEnhancedOdds, type EnhancedOddsGame } from "./hooks/useEnhancedOdds"
+import { TeamPlayerAnalyticsPanel } from "./panels/TeamPlayerAnalyticsPanel"
+import { LineMovementPanelEnhanced } from "./panels/LineMovementPanelEnhanced"
+import { BettingTrendsPanelEnhanced } from "./panels/BettingTrendsPanelEnhanced"
 
 // DISABLED: Advanced live betting components not needed while "Feature Coming Soon" wall is active
 // import { LiveGameCard } from "@/components/live-betting/LiveGameCard"
@@ -31,89 +33,6 @@ import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsD
 //   TeamPlayerAnalyticsPanelEnhanced as TeamPlayerAnalyticsPanelWithDemo,
 // } from "./FeaturePanelsEnhanced"
 
-interface EnhancedOddsGame {
-  id: string
-  sport: SupportedSportKey | string
-  sportKey?: SupportedSportKey | string
-  homeTeam: string
-  awayTeam: string
-  commenceTime: string | Date
-  homeOdds?: {
-    best?: {
-      bookmaker: string
-      odds: number
-    }
-  }
-  awayOdds?: {
-    best?: {
-      bookmaker: string
-      odds: number
-    }
-  }
-  bookmakers?: string[]
-}
-
-interface EnhancedOddsResponseBody {
-  success: boolean
-  data: EnhancedOddsGame[]
-  source?: string
-  error?: string
-}
-
-function useEnhancedOdds(sport: SupportedSportKey) {
-  const [data, setData] = useState<EnhancedOddsGame[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const params = new URLSearchParams({
-          sport,
-          strategy: "auto",
-          includeAdvantages: "false",
-        })
-        console.log('📡 Fetching enhanced odds:', { sport, url: `/api/enhanced-odds?${params.toString()}` })
-        const res = await fetch(`/api/enhanced-odds?${params.toString()}`)
-        if (!res.ok) {
-          throw new Error(`API responded with status ${res.status}`)
-        }
-        const body: EnhancedOddsResponseBody = await res.json()
-        console.log('📡 Enhanced odds response:', { sport, success: body.success, dataLength: body.data?.length, source: body.source, error: body.error })
-        if (!cancelled) {
-          if (!body.success) {
-            setError(body.error || "Failed to load odds data")
-            setData([])
-          } else {
-            setData(body.data || [])
-          }
-        }
-      } catch (err) {
-        console.error('❌ Enhanced odds fetch error:', err)
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unknown error")
-          setData([])
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [sport])
-
-  return { data, loading, error }
-}
 
 // Note: any external team analytics provider has been removed.
 
@@ -125,27 +44,98 @@ function useEnhancedOdds(sport: SupportedSportKey) {
  * Enhanced Live Scores Panel with WebSocket support
  */
 function LiveScoresPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
-  const { data, loading } = useEnhancedOdds(sport)
+  const { data, loading, error } = useEnhancedOdds(sport)
 
   if (loading && !data) return <TabSkeleton cardCount={3} />
 
-  // Show first 3 games as live game cards
-  const gamesToShow = data?.slice(0, 3) || []
+  if (error) {
+    return (
+      <div className="p-6 text-sm bg-red-900/20 border border-red-500/30 rounded-xl">
+        <p className="text-red-400 font-semibold">⚠️ Error loading live scores</p>
+        <p className="text-red-300/70 mt-2">{error}</p>
+      </div>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
+        <p>No live games available. Check back during game time for real-time scores!</p>
+      </div>
+    )
+  }
+
+  const now = new Date()
 
   return (
     <div className="space-y-4">
-      {gamesToShow.map((game) => (
-        <LiveGameCard
-          key={game.id}
-          sport={sport}
-          gameId={game.id}
-        />
-      ))}
-      {gamesToShow.length === 0 && (
-        <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-          <p>No live games available. Check back during game time for real-time scores!</p>
-        </div>
-      )}
+      {data.map((game) => {
+        const commence = game.commenceTime instanceof Date ? game.commenceTime : new Date(game.commenceTime)
+        const isLive = commence <= now
+        const isPast = commence < new Date(now.getTime() - 4 * 60 * 60 * 1000) // 4 hours ago
+
+        return (
+          <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/10 rounded-xl p-6">
+            {/* Status Badge */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                {isLive && !isPast && (
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-xs font-bold text-red-400">LIVE</span>
+                  </div>
+                )}
+                {isPast && (
+                  <div className="px-3 py-1 rounded-full bg-gray-500/20 border border-gray-500/40">
+                    <span className="text-xs font-bold text-gray-400">FINAL</span>
+                  </div>
+                )}
+                {!isLive && (
+                  <div className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/40">
+                    <span className="text-xs font-bold text-blue-400">UPCOMING</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-xs text-gray-400">
+                {commence.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+
+            {/* Teams */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-400">Away</span>
+                  <span className="text-lg font-bold text-[#F5F5F5]">{game.awayTeam}</span>
+                </div>
+                {game.awayOdds?.best && (
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-[#20B2AA]">
+                      {game.awayOdds.best.odds > 0 ? '+' : ''}{game.awayOdds.best.odds}
+                    </div>
+                    <div className="text-xs text-gray-500">{game.awayOdds.best.bookmaker}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-400">Home</span>
+                  <span className="text-lg font-bold text-[#F5F5F5]">{game.homeTeam}</span>
+                </div>
+                {game.homeOdds?.best && (
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-[#20B2AA]">
+                      {game.homeOdds.best.odds > 0 ? '+' : ''}{game.homeOdds.best.odds}
+                    </div>
+                    <div className="text-xs text-gray-500">{game.homeOdds.best.bookmaker}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -154,80 +144,127 @@ function LiveScoresPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
  * Enhanced Upcoming Games & Odds Panel with multi-book comparison
  */
 function UpcomingGamesOddsPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
-  const { data, loading } = useEnhancedOdds(sport)
+  const { data, loading, error } = useEnhancedOdds(sport)
 
   if (loading && !data) return <TabSkeleton cardCount={3} />
 
-  const gamesToShow = data?.slice(0, 3) || []
+  if (error) {
+    return (
+      <div className="p-6 text-sm bg-red-900/20 border border-red-500/30 rounded-xl">
+        <p className="text-red-400 font-semibold">⚠️ Error loading odds data</p>
+        <p className="text-red-300/70 mt-2">{error}</p>
+      </div>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
+        <p>No upcoming games with odds available.</p>
+      </div>
+    )
+  }
+
+  const now = new Date()
+  const upcomingGames = data.filter(game => {
+    const commence = game.commenceTime instanceof Date ? game.commenceTime : new Date(game.commenceTime)
+    return commence > now
+  })
 
   return (
     <div className="space-y-6">
-      {gamesToShow.map((game) => (
-        <OddsGrid
-          key={game.id}
-          sport={sport}
-          gameId={game.id}
-        />
-      ))}
-      {gamesToShow.length === 0 && (
+      {upcomingGames.map((game) => {
+        const commence = game.commenceTime instanceof Date ? game.commenceTime : new Date(game.commenceTime)
+        const timeUntil = commence.getTime() - now.getTime()
+        const hoursUntil = Math.floor(timeUntil / (1000 * 60 * 60))
+        const daysUntil = Math.floor(hoursUntil / 24)
+
+        return (
+          <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
+            {/* Game Header */}
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
+              <div>
+                <div className="text-xl font-bold text-[#F5F5F5] mb-1">
+                  {game.awayTeam} @ {game.homeTeam}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span>{commence.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  <span>•</span>
+                  <span>{commence.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>•</span>
+                  <span className="text-[#20B2AA]">
+                    {daysUntil > 0 ? `${daysUntil}d ${hoursUntil % 24}h` : `${hoursUntil}h`} away
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Odds Comparison */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Away Team Odds */}
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-400 flex items-center gap-2">
+                  <span>{game.awayTeam}</span>
+                  <span className="text-xs text-gray-500">(Away)</span>
+                </div>
+                {game.awayOdds?.best ? (
+                  <div className="p-3 bg-black/30 rounded-lg border border-[#20B2AA]/20">
+                    <div className="text-xs text-gray-400 mb-1">Best Moneyline</div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-bold text-[#20B2AA]">
+                        {game.awayOdds.best.odds > 0 ? '+' : ''}{game.awayOdds.best.odds}
+                      </span>
+                      <span className="text-xs text-gray-500">{game.awayOdds.best.bookmaker}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-black/20 rounded-lg">
+                    <div className="text-xs text-gray-500">No odds available</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Home Team Odds */}
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-400 flex items-center gap-2">
+                  <span>{game.homeTeam}</span>
+                  <span className="text-xs text-gray-500">(Home)</span>
+                </div>
+                {game.homeOdds?.best ? (
+                  <div className="p-3 bg-black/30 rounded-lg border border-[#FFD700]/20">
+                    <div className="text-xs text-gray-400 mb-1">Best Moneyline</div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-bold text-[#FFD700]">
+                        {game.homeOdds.best.odds > 0 ? '+' : ''}{game.homeOdds.best.odds}
+                      </span>
+                      <span className="text-xs text-gray-500">{game.homeOdds.best.bookmaker}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-black/20 rounded-lg">
+                    <div className="text-xs text-gray-500">No odds available</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bookmaker Info */}
+            {game.bookmakers && game.bookmakers.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                <div className="text-xs text-gray-400">
+                  Odds from {game.bookmakers.length} sportsbook{game.bookmakers.length !== 1 ? 's' : ''}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Compare lines to find the best value
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {upcomingGames.length === 0 && (
         <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-          <p>No upcoming games with odds available.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Enhanced Line Movement Panel with historical tracking
- */
-function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
-  const { data, loading } = useEnhancedOdds(sport)
-
-  if (loading && !data) return <TabSkeleton cardCount={2} />
-
-  const gamesToShow = data?.slice(0, 2) || []
-
-  return (
-    <div className="space-y-6">
-      {gamesToShow.map((game) => (
-        <LineMovementChart
-          key={game.id}
-          sport={sport}
-          gameId={game.id}
-        />
-      ))}
-      {gamesToShow.length === 0 && (
-        <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-          <p>No line movement data available.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Enhanced Betting Trends Panel with sharp money analysis
- */
-function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
-  const { data, loading } = useEnhancedOdds(sport)
-
-  if (loading && !data) return <TabSkeleton cardCount={2} />
-
-  const gamesToShow = data?.slice(0, 2) || []
-
-  return (
-    <div className="space-y-6">
-      {gamesToShow.map((game) => (
-        <BettingTrendsDashboard
-          key={game.id}
-          sport={sport}
-          gameId={game.id}
-        />
-      ))}
-      {gamesToShow.length === 0 && (
-        <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-          <p>No betting trends data available.</p>
+          <p>No upcoming games found. All games have already started.</p>
         </div>
       )}
     </div>
@@ -235,7 +272,7 @@ function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
 }
 
 // ============================================================================
-// ORIGINAL BASIC PANELS (Kept for fallback)
+// STANDARD PANELS
 // ============================================================================
 
 function LiveOddsPanel({ sport }: { sport: SupportedSportKey }) {
@@ -467,52 +504,6 @@ function LineMovementPanel({ sport }: { sport: SupportedSportKey }) {
   )
 }
 
-function TeamPlayerAnalyticsPanel({ sport }: { sport: SupportedSportKey }) {
-  const { data, loading, error } = useEnhancedOdds(sport)
-
-  if (loading && !data) return <TabSkeleton cardCount={3} />
-  if (error) {
-    return (
-      <div className="p-6 text-sm text-red-300 bg-red-900/20 border border-red-500/40 rounded-xl">
-        <p className="font-semibold mb-1">Data Unavailable</p>
-        <p className="opacity-80">Sorry, we are having difficulty accessing the data right now. Please come back later and try again.</p>
-      </div>
-    )
-  }
-  if (!data || data.length === 0) {
-    return (
-      <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-        <p>Analytics will appear here once more data sources are connected.</p>
-      </div>
-    )
-  }
-
-  const primaryGame = data[0]
-
-  return (
-    <div className="mt-4 space-y-3">
-      <p className="text-sm text-gray-400">
-        This dashboard previously used a third-party provider for deep team and player analytics.
-        That integration has been disabled.
-      </p>
-      <div className="p-5 bg-linear-to-br from-[#1a1f2e] to-[#151923] border border-white/10 rounded-xl">
-        <div className="flex items-baseline justify-between mb-3">
-          <div className="text-base font-bold text-[#F5F5F5]">
-            {primaryGame.awayTeam} @ {primaryGame.homeTeam}
-          </div>
-          <div className="text-xs text-gray-400">
-            {new Date(primaryGame.commenceTime).toLocaleString()}
-          </div>
-        </div>
-        <div className="mt-2 text-xs text-gray-400">
-          In a future update, this view can be wired to a different stats provider or to your own
-          internal database for team trends, player prop projections, and injury summaries.
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PanelHeader({ feature }: { feature: SportsFeatureView | null }) {
   const titles: Record<SportsFeatureView, string> = {
     live_scores: "Live Scores & In-Game Updates",
@@ -539,10 +530,6 @@ export function FeaturePanels() {
   const activeFeature = useSportsStore((state) => state.activeFeature)
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
-  // DISABLED: No API calls while "Feature Coming Soon" wall is active
-  // This prevents unnecessary API usage while features are in development
-  // const { data: oddsData, loading: oddsLoading } = useEnhancedOdds(activeSport)
-
   if (!activeFeature) {
     return null
   }
@@ -554,6 +541,28 @@ export function FeaturePanels() {
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       handleClose()
+    }
+  }
+
+  // Render the appropriate panel based on active feature
+  const renderPanelContent = () => {
+    switch (activeFeature) {
+      case "live_scores":
+        return <LiveScoresPanelEnhanced sport={activeSport} />
+      case "upcoming_games_odds":
+        return <UpcomingGamesOddsPanelEnhanced sport={activeSport} />
+      case "line_movement":
+        return <LineMovementPanelEnhanced sport={activeSport} />
+      case "betting_trends":
+        return <BettingTrendsPanelEnhanced sport={activeSport} />
+      case "team_player_analytics":
+        return <TeamPlayerAnalyticsPanel sport={activeSport} />
+      default:
+        return (
+          <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
+            <p>Feature not available</p>
+          </div>
+        )
     }
   }
 
@@ -586,41 +595,7 @@ export function FeaturePanels() {
 
             {/* Panel Content */}
             <div className="px-6 pb-8">
-              {/* Feature Coming Soon Overlay - Blocks all features for all sports */}
-              <div className="flex items-center justify-center min-h-[400px] py-12">
-                <div className="max-w-2xl w-full p-12 bg-linear-to-br from-[#1a1f2e] to-[#151923] border-2 border-[#20B2AA]/30 rounded-2xl text-center shadow-2xl">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#20B2AA]/10 border border-[#20B2AA]/40 mb-6">
-                    <Target className="w-10 h-10 text-[#20B2AA]" />
-                  </div>
-
-                  <h3 className="text-3xl font-bold text-[#F5F5F5] mb-4">
-                    Feature Coming Soon
-                  </h3>
-
-                  <p className="text-lg text-gray-300 mb-6 leading-relaxed">
-                    We're working hard to bring you advanced sports analytics, live betting insights, and real-time data tracking.
-                  </p>
-
-                  <div className="flex items-center justify-center gap-3 text-sm text-gray-400 mb-8">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-lg border border-white/10">
-                      <Activity className="w-4 h-4 text-[#20B2AA]" />
-                      <span>Live Scores</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-lg border border-white/10">
-                      <LineChart className="w-4 h-4 text-[#20B2AA]" />
-                      <span>Line Movement</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-lg border border-white/10">
-                      <Users className="w-4 h-4 text-[#20B2AA]" />
-                      <span>Player Analytics</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-500">
-                    Check back soon for updates. We're fine-tuning the experience to deliver the best sports insights.
-                  </p>
-                </div>
-              </div>
+              {renderPanelContent()}
             </div>
           </section>
         </div>

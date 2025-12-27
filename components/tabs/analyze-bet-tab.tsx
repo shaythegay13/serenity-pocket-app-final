@@ -281,8 +281,9 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       toast.error('Add at least 2 legs to analyze parlay')
       return
     }
-    if (!parlayStake || parseFloat(parlayStake) <= 0) {
-      toast.error('Enter a valid stake amount')
+    const parlayStakeNum = parseFloat(parlayStake)
+    if (!parlayStake || isNaN(parlayStakeNum) || parlayStakeNum <= 0) {
+      toast.error('Please enter a valid stake amount greater than $0')
       return
     }
 
@@ -328,8 +329,12 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       toast.error("Please fill in all fields")
       return
     }
-    const limitReached = userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit
     const stakeNum = parseFloat(stake)
+    if (isNaN(stakeNum) || stakeNum <= 0) {
+      toast.error("Please enter a valid stake amount greater than $0")
+      return
+    }
+    const limitReached = userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit
     const stakeTooHigh = userData.maxStakeLimit != null && !Number.isNaN(stakeNum) && stakeNum > (userData.maxStakeLimit as number)
     if (limitReached) {
       toast.warning("Daily Bet Limit Reached", { description: "You have reached your daily bet limit." })
@@ -395,8 +400,13 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       // Auto-persist every analysis run to bet_analyses so Analytics stays in sync
       try {
         setSaving(true)
+        const analysisId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
         const betAnalysis: BetAnalysis = {
-          id: Date.now().toString(),
+          id: analysisId,
           timestamp: new Date(),
           betType: "straight",
           sport: "Unknown",
@@ -550,8 +560,12 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       const lastEmotion = recentEmotions[recentEmotions.length - 1]
 
       // Create bet analysis object
+      const analysisId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
       const betAnalysis: BetAnalysis = {
-        id: Date.now().toString(),
+        id: analysisId,
         timestamp: new Date(),
         betType: "straight", // Default to straight bet
         sport: "Unknown", // Would be extracted from bet description in real implementation
@@ -662,13 +676,16 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">
-                Stake Amount ($)
+                Stake Amount ($) <span className="text-red-500">*</span>
               </label>
               <Input
                 type="number"
                 placeholder="100"
                 value={stake}
                 onChange={(e) => setStake(e.target.value)}
+                required
+                min="0.01"
+                step="0.01"
               />
             </div>
           </div>

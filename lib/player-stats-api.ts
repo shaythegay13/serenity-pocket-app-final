@@ -392,14 +392,26 @@ export async function fetchTeamRoster(
   sport: SupportedSportKey,
   teamName: string
 ): Promise<TeamRoster | null> {
-  console.log(`📊 Fetching roster for ${teamName} (${sport})`);
+  console.log(`📊 Fetching roster for ${teamName} (${sport}) using ESPN API`);
 
-  const players = await fetchSportsInfoTeamRoster(sport, teamName);
+  // Use free ESPN API instead of paid Sports Information API
+  const { fetchESPNTeamRoster } = await import('./espn-api');
+  const espnPlayers = await fetchESPNTeamRoster(teamName, sport);
 
-  if (players.length === 0) {
-    console.warn(`❌ No roster data found for ${teamName}`);
+  if (espnPlayers.length === 0) {
+    console.warn(`❌ No roster data found for ${teamName} from ESPN`);
     return null;
   }
+
+  // Convert ESPN format to PlayerStats format
+  const players: PlayerStats[] = espnPlayers.map(player => ({
+    playerId: player.id,
+    playerName: player.name,
+    teamName: teamName,
+    position: player.position,
+    jerseyNumber: player.number,
+    stats: {} // ESPN roster doesn't include stats, we'd need to fetch individually
+  }));
 
   return {
     teamId: teamName.toLowerCase().replace(/\s+/g, '-'),

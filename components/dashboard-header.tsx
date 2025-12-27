@@ -1,58 +1,100 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Moon, Sun, Heart, Activity } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Moon, Sun, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useTheme } from "next-themes"
 import Image from "next/image"
-import { computeArchetypeFromSnapshot, computeArchetype } from "@/lib/archetypes"
-import type { SurveyAnswer } from "@/types/survey"
-import type { UserData, EmotionLog, Trade } from "@/lib/types"
-import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import type { UserData } from "@/lib/types"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { useTheme } from "next-themes"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
 interface DashboardHeaderProps {
   userData?: UserData
+  onNavigateToTab?: (tab: string) => void
 }
 
-export function DashboardHeader({ userData }: DashboardHeaderProps) {
-  const { theme, setTheme } = useTheme()
+export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderProps) {
+  const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [emotionalWellness, setEmotionalWellness] = useState<number | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
-  const [emotionalScore, setEmotionalScore] = useState<number | null>(null)
+  const initials = useMemo(() => {
+    const name = (userData?.name || "").trim()
+    if (!name) return "U"
+    const parts = name.split(/\s+/).filter(Boolean)
+    const a = parts[0]?.[0] || "U"
+    const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : ""
+    return (a + b).toUpperCase()
+  }, [userData?.name])
 
+  // Calculate emotional wellness score
   useEffect(() => {
-    const init = async () => {
+    const calcWellness = async () => {
       try {
-        const emotionLogs: EmotionLog[] = await storage.getEmotionLogs()
-        const trades: Trade[] = await storage.getTrades()
-        const surveyScore = userData?.surveyData?.score
-
-        if (emotionLogs.length === 0 && !surveyScore && trades.length === 0) {
-          setEmotionalScore(null)
-          return
-        }
-
-        const stability = calculateEmotionalStability(emotionLogs, surveyScore, trades)
-        setEmotionalScore(stability.score)
-      } catch {
-        // On error, leave score as null so the pill simply doesn't render
-        setEmotionalScore(null)
+        const emotionLogs = await storage.getEmotionLogs()
+        const trades = await storage.getTrades()
+        const stability = calculateEmotionalStability(
+          emotionLogs,
+          userData?.surveyData?.score,
+          trades
+        )
+        setEmotionalWellness(stability.score)
+      } catch (error) {
+        console.error('Error calculating emotional wellness:', error)
+        setEmotionalWellness(null)
       }
     }
+    if (userData) {
+      calcWellness()
+    }
+  }, [userData])
 
-    init()
-  }, [userData?.lastEmotionCheckIn])
+  useEffect(() => {
+    if (!menuOpen) return
 
-  const getEmotionalScoreColor = (score: number) => {
-    if (score >= 70) return "text-green-500"
-    if (score >= 40) return "text-yellow-500"
-    return "text-red-500"
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false)
+    }
+
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (menuRef.current && !menuRef.current.contains(target)) setMenuOpen(false)
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("mousedown", onPointerDown)
+    window.addEventListener("touchstart", onPointerDown)
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("mousedown", onPointerDown)
+      window.removeEventListener("touchstart", onPointerDown)
+    }
+  }, [menuOpen])
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+      if (typeof window !== "undefined") {
+        sessionStorage.clear()
+        localStorage.clear()
+      }
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Error logging out:", error)
+    }
   }
 
-  const getEmotionalScoreLabel = (score: number) => {
-    if (score >= 70) return "Stable"
-    if (score >= 40) return "Moderate"
-    return "Volatile"
+  const toggleTheme = () => {
+    const current = resolvedTheme ?? "light"
+    setTheme(current === "dark" ? "light" : "dark")
   }
 
   return (
@@ -60,66 +102,145 @@ export function DashboardHeader({ userData }: DashboardHeaderProps) {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Serenity Pocket" width={60} height={60} />
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Serenity Pocket</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Your Behavioral Betting Companion</p>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Serenity Pocket"
+              width={72}
+              height={72}
+              className="h-12 w-12 sm:h-14 sm:w-14"
+              priority
+            />
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+              Serenity Pocket
+            </h1>
           </div>
 
-          <div className="flex items-center gap-4">
-            {userData && (() => {
-              let archetypeName: string | undefined = undefined
-              try {
-                const ans = userData.surveyData?.answers
-                if (ans && typeof ans === "object") {
-                  const allAnswers: SurveyAnswer[] = Object.entries(ans).map(
-                    ([questionId, selectedOption]) => ({ questionId, selectedOption } as SurveyAnswer)
-                  )
-
-                  const hasFullSurvey = allAnswers.length >= 12
-                  const at = hasFullSurvey
-                    ? computeArchetype(allAnswers)
-                    : computeArchetypeFromSnapshot(allAnswers)
-                  archetypeName = at?.name
-                }
-              } catch {}
-
-              return (
-                <div className="flex flex-col items-end gap-2 max-w-[220px]">
-                  {emotionalScore !== null && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/40 bg-primary/10 shadow-sm w-full">
-                      <Heart className="h-4 w-4 text-primary" />
-                      <div className="flex flex-col leading-tight">
-                        <span className="text-xs font-medium text-foreground">Emotional Stability</span>
-                        <span className={`text-xs font-semibold ${getEmotionalScoreColor(emotionalScore)}`}>
-                          {emotionalScore}/100 · {getEmotionalScoreLabel(emotionalScore)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {archetypeName && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm bg-linear-to-r from-blue-500/10 to-violet-500/10 border-blue-500/30 w-full">
-                      <Activity className="h-4 w-4 text-blue-600" />
-                      <span className="text-xs font-medium text-foreground">Archetype:</span>
-                      <span className="text-xs font-bold text-blue-700 truncate">{archetypeName}</span>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
+          <div className="relative" ref={menuRef}>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="rounded-full"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              type="button"
             >
-              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
+              <span
+                className={cn(
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                  "bg-muted text-foreground",
+                )}
+              >
+                <span className="text-xs font-semibold" aria-hidden="true">
+                  {initials}
+                </span>
+                <span className="sr-only">Open user menu</span>
+              </span>
             </Button>
+
+            {menuOpen && (
+              <div
+                className={cn(
+                  "absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-md border border-border bg-popover shadow-md",
+                  "origin-top-right z-50 max-h-[calc(100vh-5rem)] overflow-y-auto",
+                )}
+                role="menu"
+                aria-label="User menu"
+              >
+                {/* User Stats Section */}
+                {userData && (
+                  <div className="px-3 py-3 border-b border-border bg-muted/50">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Archetype</span>
+                        <span className="font-semibold text-foreground">
+                          {userData.surveyData?.userType || 'Take survey'}
+                        </span>
+                      </div>
+                      {userData.surveyData && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Risk Level</span>
+                          <span className="font-semibold text-foreground">{userData.surveyData.level || 'N/A'}</span>
+                        </div>
+                      )}
+                      {userData.surveyData && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Score</span>
+                          <span className="font-semibold text-foreground">{userData.surveyData.score !== undefined ? userData.surveyData.score : 'N/A'}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Emotional Wellness</span>
+                        <span className="font-semibold text-foreground">
+                          {emotionalWellness !== null ? `${emotionalWellness}%` : 'Calculating...'}
+                        </span>
+                      </div>
+                      {userData.emotionalAwarenessStreak !== undefined && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Awareness Streak</span>
+                          <span className="font-semibold text-foreground">{userData.emotionalAwarenessStreak} days</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onNavigateToTab?.("account")
+                  }}
+                >
+                  <User className="h-4 w-4" aria-hidden="true" />
+                  <span>Account</span>
+                </button>
+
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    router.push("/gambling-survey")
+                  }}
+                >
+                  <span>Retake Test</span>
+                </button>
+
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    toggleTheme()
+                  }}
+                >
+                  {resolvedTheme === "dark" ? (
+                    <Sun className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Moon className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  <span>{resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
+                </button>
+
+                <div className="h-px bg-border" />
+
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-accent"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    void handleLogout()
+                  }}
+                >
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

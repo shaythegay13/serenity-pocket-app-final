@@ -117,6 +117,7 @@ export async function fetchPerplexityGameInsights(
       },
       body: JSON.stringify(body),
     })
+    console.log(`[Perplexity API] Fetch - Status: ${res.status} ${res.ok ? '✓ SUCCESS' : '✗ FAILED (Auth/Rate Limit Error?)'}`)
 
     if (!res.ok) {
       const text = await res.text()

@@ -274,10 +274,10 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
             <div className="p-2 rounded-full bg-amber-500/10">
               <Sparkles className="h-6 w-6 text-amber-500" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground">AI Picks</h3>
+            <h3 className="text-lg font-semibold text-foreground">Insight Hub</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Personalized bet suggestions based on your psychology
+            AI-powered picks and bet analysis tools
           </p>
           {!canAccessFeature(userData.subscriptionTier || "free", "elite") && (
             <Badge variant="secondary" className="mt-3">Elite Feature</Badge>

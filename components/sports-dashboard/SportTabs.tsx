@@ -24,13 +24,13 @@ export interface SportTabsProps {
 }
 
 /**
- * Default sports configuration
+ * Default sports configuration with icons (Databallr style)
  */
-const DEFAULT_SPORTS: Sport[] = [
-  { id: "americanfootball_nfl", label: "NFL" },
-  { id: "basketball_nba", label: "NBA" },
-  { id: "baseball_mlb", label: "MLB" },
-  { id: "icehockey_nhl", label: "NHL" }
+const DEFAULT_SPORTS: Array<Sport & { icon: string }> = [
+  { id: "americanfootball_nfl", label: "NFL", icon: "🏈" },
+  { id: "basketball_nba", label: "NBA", icon: "🏀" },
+  { id: "baseball_mlb", label: "MLB", icon: "⚾" },
+  { id: "icehockey_nhl", label: "NHL", icon: "🏒" }
 ]
 
 /**
@@ -59,12 +59,12 @@ export function SportTabs({
 }: SportTabsProps) {
   return (
     <nav
-      className="border-b border-white/10 bg-[#1b212c]"
+      className="px-4 md:px-6 pb-3"
       role="navigation"
       aria-label="Sports navigation"
     >
       <div
-        className="flex overflow-x-auto scrollbar-hide px-6 gap-8"
+        className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
         style={{
           scrollbarWidth: "none", // Firefox
           msOverflowStyle: "none" // IE/Edge
@@ -72,35 +72,25 @@ export function SportTabs({
       >
         {sports.map((sport) => {
           const isActive = activeSport === sport.id
-
+          const sportWithIcon = sport as Sport & { icon?: string }
           return (
             <button
               key={sport.id}
               onClick={() => onSportChange(sport.id)}
-              className={`relative py-4 text-sm font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2 focus:ring-offset-[#1b212c] ${isActive ? "text-[#F5F5F5] font-bold" : "text-gray-400 hover:text-gray-200"}`}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm
+                transition-all duration-300 whitespace-nowrap min-w-[44px] min-h-[44px]
+                ${isActive
+                  ? 'bg-[#00FF41]/20 text-[#00FF41] border-2 border-[#00FF41]/50 shadow-[0_0_20px_rgba(0,255,65,0.3)]'
+                  : 'bg-[#161B22] text-gray-400 border border-white/5 hover:border-[#00D1FF]/30 hover:text-[#00D1FF]'
+                }
+              `}
               role="tab"
               aria-selected={isActive}
-              aria-current={isActive ? "page" : undefined}
               aria-label={`View ${sport.label} data`}
             >
-              {/* Tab Label */}
-              <span className="relative z-10">{sport.label}</span>
-
-              {/* Active Underline */}
-              {isActive && (
-                <span
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#20B2AA] transition-all duration-200"
-                  aria-hidden="true"
-                />
-              )}
-
-              {/* Hover Underline (shows for inactive tabs) */}
-              {!isActive && (
-                <span
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-400 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity duration-200"
-                  aria-hidden="true"
-                />
-              )}
+              {sportWithIcon.icon && <span className="text-lg">{sportWithIcon.icon}</span>}
+              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{sport.label}</span>
             </button>
           )
         })}

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 import type { EmotionLog } from "@/lib/types"
+import { ChartEmptyState } from "@/components/ui/chart-empty-state"
 
 interface EmotionChartProps {
   logs: EmotionLog[]
@@ -53,8 +54,8 @@ function EmotionBarChart({ logs, phase }: { logs: EmotionLog[], phase: string })
 
   if (filteredLogs.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[300px]">
-        <p className="text-center text-muted-foreground">No emotion data for this phase yet</p>
+      <div className="h-[300px]">
+        <ChartEmptyState message="No emotion data for this phase yet. Log your emotions during betting to see patterns." className="h-full" />
       </div>
     )
   }
@@ -100,7 +101,8 @@ export function EmotionChart({ logs }: EmotionChartProps) {
   if (logs.length === 0) {
     return (
       <Card className="p-6">
-        <p className="text-center text-muted-foreground">Not enough data to display chart</p>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Most Common Emotions</h3>
+        <ChartEmptyState message="Not enough data to display chart. Start logging your emotions to see patterns." />
       </Card>
     )
   }

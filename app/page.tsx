@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
+import { BottomNav } from "@/components/bottom-nav"
 import { HomeTab } from "@/components/tabs/home-tab"
 import { LiveOddsTab } from "@/components/tabs/live-odds-tab"
 import { AnalyzeBetTab } from "@/components/tabs/analyze-bet-tab"
@@ -143,25 +144,53 @@ export default function Home() {
               }
             }
             
-            // Fetch survey results from database if not already loaded
+            // Load survey data directly from Supabase if not already loaded
             if (!data.surveyData) {
               try {
-                const surveyResponse = await fetch('/api/survey/results')
-                if (surveyResponse.ok) {
-                  const surveyData = await surveyResponse.json()
-                  if (surveyData && surveyData.score !== undefined) {
+                console.log('Loading survey data from Supabase for user:', user.id)
+
+                // Fetch user profile to get survey data including archetype
+                const { data: profileData, error: profileError } = await supabase
+                  .from('user_profiles')
+                  .select('survey_data')
+                  .eq('id', user.id)
+                  .single()
+
+                if (profileError) {
+                  console.error('Error loading profile:', {
+                    code: profileError.code,
+                    message: profileError.message,
+                    details: profileError.details,
+                    hint: profileError.hint
+                  })
+                  console.log('Skipping survey data load due to error')
+                } else if (profileData?.survey_data) {
+                  const surveyData = profileData.survey_data as any
+                  console.log('Profile data received:', surveyData)
+                  if (surveyData.score !== undefined) {
                     data.surveyData = {
                       score: surveyData.score,
-                      level: surveyData.risk_level,
+                      level: surveyData.level,
+                      userType: surveyData.userType,
                       answers: surveyData.answers,
-                      completedAt: surveyData.completed_at
+                      completedAt: surveyData.completedAt
                     }
-                    console.log('Survey results loaded from database:', data.surveyData)
+                    console.log('✅ Survey data loaded successfully. Archetype:', surveyData.userType || 'none')
+
+                    // Save to storage for future loads
+                    await storage.setUserData(data)
+                  } else {
+                    console.log('Survey data exists but has no score')
                   }
+                } else {
+                  console.log('No survey_data field in user profile')
                 }
-              } catch (error) {
-                console.error('Error fetching survey results:', error)
+              } catch (error: any) {
+                console.error('Exception loading survey data:', error.message || error)
+                // Don't fail initialization - continue without survey data
               }
+            } else {
+              console.log('Survey data already present in userData')
             }
             
             setUserData(data)
@@ -462,9 +491,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader userData={userData} />
+      <DashboardHeader userData={userData} onNavigateToTab={setActiveTab} />
 
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="hidden md:block">
+        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
       {activeTab === "home" && (
         <div className="border-b border-border bg-card">
           <div className="container mx-auto px-3 sm:px-4 py-4 max-w-7xl">
@@ -510,7 +541,7 @@ export default function Home() {
         </div>
       )}
       
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl pb-20 md:pb-0">
         {activeTab === "home" && (
           <HomeTab
             userData={userData}
@@ -526,6 +557,10 @@ export default function Home() {
         {activeTab === "ai-picks" && <AIPicksTab userData={userData} onNavigateToTab={setActiveTab} />}
         {activeTab === "account" && <AccountTab userData={userData} updateUserData={updateUserData} />}
       </main>
+
+      <div className="md:hidden">
+        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
 
       <EmotionCheckInDialog
         open={showEmotionCheckIn}

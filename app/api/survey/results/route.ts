@@ -39,16 +39,34 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) {
+      console.error("Error fetching survey responses:", error)
       throw new Error(`Failed to fetch survey history: ${error.message}`)
     }
 
     // Return null if no surveys found
     if (!data || data.length === 0) {
+      console.log("No survey responses found for user")
       return NextResponse.json(null)
     }
 
     // Get the latest survey (first in array since they're ordered by created_at DESC)
     const latestSurvey = data[0]
+    console.log("Latest survey found:", latestSurvey.id)
+
+    // Fetch user profile to get archetype
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('survey_data')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError)
+      // Don't throw - just continue without archetype
+    }
+
+    const surveyData = (profileData?.survey_data as any) || {}
+    console.log("User archetype:", surveyData.userType || "none")
 
     // Map to legacy format for backward compatibility with frontend
     const legacyFormat = {
@@ -57,6 +75,7 @@ export async function GET() {
       risk_level: getScoreInterpretation(latestSurvey.score),
       answers: latestSurvey.responses, // Map responses to answers
       completed_at: latestSurvey.created_at,
+      userType: surveyData.userType, // Include archetype from user_profiles
     }
 
     return NextResponse.json(legacyFormat)

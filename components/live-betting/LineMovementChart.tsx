@@ -15,6 +15,7 @@ import type { SupportedSportKey } from "@/lib/types"
 import type { LineMovementData, LineMovementSnapshot } from "@/lib/types/live-betting"
 import { formatOdds, calculateOddsChange } from "@/lib/utils/betting-calculations"
 import { TrendingUp, TrendingDown, AlertCircle, ZapIcon } from "lucide-react"
+import { ChartEmptyState } from "@/components/ui/chart-empty-state"
 
 interface LineMovementChartProps {
   sport: SupportedSportKey
@@ -185,7 +186,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
             {selectedBetType === "total" ? "Over" : data.awayTeam}
           </div>
           <div className="flex items-baseline gap-3 mb-2">
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 tabular-nums">
               Opening: {selectedBetType === "total"
                 ? opening?.total?.over
                   ? formatOdds(opening.total.over.value)
@@ -194,7 +195,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
                 ? formatOdds((opening as any)[selectedBetType].away.value)
                 : "N/A"}
             </div>
-            <div className="text-2xl font-bold text-[#20B2AA]">
+            <div className="text-2xl font-bold text-[#20B2AA] tabular-nums">
               {selectedBetType === "total"
                 ? consensus?.total?.over
                   ? formatOdds(((consensus.total as any).over.odds || (consensus.total as any).over) as number)
@@ -212,7 +213,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
             ) : awayChange < 0 ? (
               <TrendingDown className="w-4 h-4" />
             ) : null}
-            <span className="font-semibold">
+            <span className="font-semibold tabular-nums">
               {awayChange > 0 ? "+" : ""}{awayChange.toFixed(2)}%
             </span>
           </div>
@@ -224,7 +225,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
             {selectedBetType === "total" ? "Under" : data.homeTeam}
           </div>
           <div className="flex items-baseline gap-3 mb-2">
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 tabular-nums">
               Opening: {selectedBetType === "total"
                 ? opening?.total?.under
                   ? formatOdds(opening.total.under.value)
@@ -233,7 +234,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
                 ? formatOdds((opening as any)[selectedBetType].home.value)
                 : "N/A"}
             </div>
-            <div className="text-2xl font-bold text-[#FFD700]">
+            <div className="text-2xl font-bold text-[#FFD700] tabular-nums">
               {selectedBetType === "total"
                 ? consensus?.total?.under
                   ? formatOdds(((consensus.total as any).under.odds || (consensus.total as any).under) as number)
@@ -251,7 +252,7 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
             ) : homeChange < 0 ? (
               <TrendingDown className="w-4 h-4" />
             ) : null}
-            <span className="font-semibold">
+            <span className="font-semibold tabular-nums">
               {homeChange > 0 ? "+" : ""}{homeChange.toFixed(2)}%
             </span>
           </div>
@@ -283,17 +284,14 @@ export function LineMovementChart({ sport, gameId }: LineMovementChartProps) {
                       {movement.side.toUpperCase()}
                     </div>
                   </div>
-                  <div className="text-sm font-bold text-[#20B2AA]">
+                  <div className="text-sm font-bold text-[#20B2AA] tabular-nums">
                     {formatOdds(movement.odds.value)}
                   </div>
                 </div>
               ))}
           </div>
         ) : (
-          <div className="p-6 text-center text-gray-400">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No line movements recorded yet</p>
-          </div>
+          <ChartEmptyState message="No line movements recorded yet. Check back closer to game time for movement data." />
         )}
       </div>
 

@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { calculateEmotionalStability, getScoreColor, shouldReceiveAIPicks } from "@/lib/emotional-scoring"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
@@ -66,6 +67,82 @@ function guessSideFromLine(args: {
   if (home && l.includes(home.toLowerCase())) return "home"
   if (away && l.includes(away.toLowerCase())) return "away"
   return null
+}
+
+function getTop3Reasons(pick: any): { icon: any; title: string; explanation: string }[] {
+  const reasons: { icon: any; title: string; explanation: string; priority: number }[] = []
+
+  // Reason 1: High Confidence
+  if (pick.confidence >= 75) {
+    reasons.push({
+      icon: Sparkles,
+      title: "High Confidence Match",
+      explanation: `Our AI model shows ${pick.confidence}% confidence in this pick based on historical data, team performance, and real-time odds analysis.`,
+      priority: pick.confidence >= 85 ? 3 : 2
+    })
+  }
+
+  // Reason 2: Positive Expected Value
+  if (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue > 0) {
+    reasons.push({
+      icon: TrendingUp,
+      title: "Positive Expected Value",
+      explanation: `This bet has an expected value of +$${pick.expectedValue.toFixed(2)}, meaning over time, this type of bet should be profitable based on the current odds and win probability.`,
+      priority: pick.expectedValue > 10 ? 3 : pick.expectedValue > 5 ? 2 : 1
+    })
+  }
+
+  // Reason 3: Strong Emotional Alignment
+  if (pick.emotionalAlignment >= 75) {
+    reasons.push({
+      icon: Brain,
+      title: "Strong Emotional Alignment",
+      explanation: `Your current mental state (${pick.emotionalAlignment}% alignment) is well-suited for this type of bet, reducing the risk of emotionally-driven mistakes.`,
+      priority: pick.emotionalAlignment >= 85 ? 3 : 2
+    })
+  }
+
+  // Reason 4: Low Risk Profile
+  if (pick.riskLevel === 'LOW') {
+    reasons.push({
+      icon: Shield,
+      title: "Conservative Risk Profile",
+      explanation: `This pick is classified as low-risk, making it a safer option that aligns with bankroll preservation strategies.`,
+      priority: 2
+    })
+  }
+
+  // Reason 5: Reasonable Suggested Stake
+  if (pick.suggestedStake > 0 && pick.suggestedStake <= 100) {
+    reasons.push({
+      icon: Target,
+      title: "Optimized Stake Size",
+      explanation: `The suggested stake of $${pick.suggestedStake} is calculated using Kelly Criterion principles to maximize long-term growth while managing risk.`,
+      priority: 1
+    })
+  }
+
+  // Reason 6: Favorable Odds
+  if (pick.odds > 0 && pick.odds >= 150) {
+    reasons.push({
+      icon: TrendingUp,
+      title: "Favorable Underdog Odds",
+      explanation: `At +${pick.odds}, this underdog pick offers strong potential returns while our models suggest the actual probability is higher than the implied odds.`,
+      priority: 2
+    })
+  } else if (pick.odds < 0 && pick.odds >= -150) {
+    reasons.push({
+      icon: CheckCircle2,
+      title: "Value on Favorite",
+      explanation: `This favorite pick at ${pick.odds} odds represents good value based on our probability models and recent team performance trends.`,
+      priority: 1
+    })
+  }
+
+  // Sort by priority (highest first) and return top 3
+  return reasons
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 3)
 }
 
 export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
@@ -160,8 +237,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     }
     if (lastPicksFetchAt && now - lastPicksFetchAt < 60_000) {
       console.log('AI Picks: Skipping fetch because last run was less than 60s ago')
-      toast.info('AI Picks Cooldown', {
-        description: 'Please wait at least 60 seconds between AI Picks runs.',
+      toast.info('SmartSlip Cooldown', {
+        description: 'Please wait at least 60 seconds between SmartSlip runs.',
       })
       return
     }
@@ -178,10 +255,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       try {
         const { data } = await supabase.auth.getSession()
         accessToken = data.session?.access_token
+        console.log('AI Picks: Got session, token exists:', !!accessToken)
       } catch (e) {
         console.warn("AI Picks: Failed to get Supabase session for JWT auth", e)
       }
 
+      console.log('AI Picks: Making fetch request to /api/picker/recommend')
       const response = await fetch('/api/picker/recommend', {
         method: 'POST',
         headers: {
@@ -194,8 +273,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           riskTolerance
         })
       })
-
-      console.log('AI Picks: Response status:', response.status)
+      console.log('AI Picks: Fetch completed, status:', response.status)
 
       let responseData: any = null
       try {
@@ -210,9 +288,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           console.error('AI Picks: Usage or access error:', responseData)
           const description =
             responseData.error ||
-            'Your current plan or weekly usage does not allow more AI Picks right now.'
+            'Your current plan or weekly usage does not allow more SmartSlip picks right now.'
 
-          toast.warning('AI Picks Unavailable', {
+          toast.warning('SmartSlip Unavailable', {
             description,
           })
 
@@ -344,8 +422,18 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       }
     } catch (error) {
       console.error('Error fetching AI picks:', error)
-      toast.error('Failed to load AI picks', {
-        description: error instanceof Error ? error.message : 'Please try again'
+
+      // Provide more specific error messages
+      let errorMessage = 'Please try again'
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        errorMessage = 'Unable to connect to the server. Check your internet connection or try restarting the dev server.'
+        console.error('AI Picks: Network error - server may not be running or unreachable')
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      toast.error('Failed to load SmartSlip picks', {
+        description: errorMessage
       })
       setPicks([])
     } finally {
@@ -376,9 +464,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       } catch {}
 
       setActiveSection('advisor')
-      toast.info('AI Bet Analyzer ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
+      toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
     } catch (e) {
-      toast.error('Failed to open AI bet analyzer')
+      toast.error('Failed to open TiltLab')
     }
   }
 
@@ -423,9 +511,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       } catch {}
 
       setActiveSection('advisor')
-      toast.info('AI Bet Analyzer ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
+      toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
     } catch (e) {
-      toast.error('Failed to open AI bet analyzer')
+      toast.error('Failed to open TiltLab')
     }
   }
 
@@ -433,7 +521,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     return (
       <div className="space-y-6 fade-in">
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">AI-Powered Picks</h2>
+          <h2 className="text-3xl font-bold text-foreground">Insight Hub</h2>
           <p className="text-muted-foreground">
             Personalized bet suggestions based on your psychology + real-time data
           </p>
@@ -447,8 +535,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           </div>
           <h3 className="text-2xl font-bold text-foreground mb-3">Paid Feature</h3>
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            This AI feature is available on paid plans (Premium, Premium Plus, Elite).
-            Upgrade to unlock AI-powered picks.
+            SmartSlip and TiltLab are available on paid plans (Premium, Premium Plus, Elite).
+            Upgrade to unlock personalized bet recommendations and analysis.
           </p>
           <div className="mb-6">
             <p className="text-sm text-muted-foreground mb-4">What you'll get with Elite:</p>
@@ -531,7 +619,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   return (
     <div className="space-y-6 fade-in">
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">AI-Powered Features</h2>
+        <h2 className="text-3xl font-bold text-foreground">Insight Hub</h2>
         <p className="text-muted-foreground">
           Get AI-generated picks or analyze your own bets with comprehensive psychological insights
         </p>
@@ -541,11 +629,11 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="picks">
             <Sparkles className="h-4 w-4 mr-2" />
-            AI Picks
+            SmartSlip
           </TabsTrigger>
           <TabsTrigger value="advisor">
             <Brain className="h-4 w-4 mr-2" />
-            Analyze My Bet
+            TiltLab
           </TabsTrigger>
         </TabsList>
 
@@ -558,7 +646,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             <AlertTriangle className="h-5 w-5 text-red-500" />
             <div>
               <p className="text-sm font-medium text-foreground">Safety Guard Active</p>
-              <p className="text-xs text-muted-foreground">AI picks are limited while cooldown is enabled.</p>
+              <p className="text-xs text-muted-foreground">SmartSlip picks are limited while cooldown is enabled.</p>
             </div>
           </div>
         </Card>
@@ -678,7 +766,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       {loading && (
         <Card className="p-12 text-center">
           <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4 animate-spin" />
-          <p className="text-lg font-semibold text-foreground">Generating AI Picks...</p>
+          <p className="text-lg font-semibold text-foreground">Generating SmartSlip Picks...</p>
           <p className="text-sm text-muted-foreground mt-2">Analyzing live odds and your emotional state</p>
         </Card>
       )}
@@ -706,7 +794,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-semibold text-amber-500">{pick.confidence}% Confidence</span>
+                  <span className="text-sm font-semibold text-amber-500 tabular-nums">{pick.confidence}% Confidence</span>
                 </div>
               </div>
 
@@ -714,7 +802,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
               <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
                 <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
-                <p className="text-sm text-center text-muted-foreground mt-1">
+                <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
                   {pick.odds > 0 ? '+' : ''}{pick.odds}
                 </p>
               </div>
@@ -722,7 +810,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Expected Value:</span>
-                  <span className={`text-lg font-bold ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  <span className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {pick.expectedValue >= 0 ? '+' : ''}${pick.expectedValue.toFixed(2)}
                   </span>
                 </div>
@@ -737,7 +825,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Suggested Stake:</span>
-                  <span className="text-lg font-semibold text-foreground">${pick.suggestedStake}</span>
+                  <span className="text-lg font-semibold text-foreground tabular-nums">${pick.suggestedStake}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Risk Level:</span>
@@ -761,7 +849,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                         style={{ width: `${pick.emotionalAlignment}%` }}
                       />
                     </div>
-                    <span className="text-sm font-semibold">{pick.emotionalAlignment}%</span>
+                    <span className="text-sm font-semibold tabular-nums">{pick.emotionalAlignment}%</span>
                   </div>
                 </div>
               </div>
@@ -772,6 +860,36 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                   <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
                 </div>
               </div>
+
+              {/* Why this pick? Accordion */}
+              <Accordion type="single" collapsible className="mb-4">
+                <AccordionItem value="reasons" className="border-none">
+                  <AccordionTrigger className="py-2 hover:no-underline">
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <HelpCircle className="h-4 w-4" />
+                      Why this pick?
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3 pt-2">
+                    <div className="space-y-3">
+                      {getTop3Reasons(pick).map((reason, reasonIdx) => {
+                        const IconComponent = reason.icon
+                        return (
+                          <div key={reasonIdx} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                            <div className="shrink-0 p-2 rounded-lg bg-primary/10">
+                              <IconComponent className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h5 className="text-sm font-semibold text-foreground mb-1">{reason.title}</h5>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{reason.explanation}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               {(() => {
                 const raw = pick.commenceTime
@@ -810,7 +928,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       {/* Disclaimer */}
       <Card className="p-4 bg-muted">
         <p className="text-xs text-muted-foreground text-center">
-          <strong>Disclaimer:</strong> AI picks are suggestions based on data analysis and your behavioral profile.
+          <strong>Disclaimer:</strong> SmartSlip picks are suggestions based on data analysis and your behavioral profile.
           Always bet responsibly and never wager more than you can afford to lose.
         </p>
       </Card>

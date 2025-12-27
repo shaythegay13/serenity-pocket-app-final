@@ -10,8 +10,9 @@ import type {
   RiskLevel,
 } from "../types/ai-models"
 
-const SAGEMAKER_REGION = process.env.AWS_REGION || "us-east-1"
-const SAGEMAKER_ENDPOINT_NAME = process.env.SAGEMAKER_SPORTS_ENDPOINT_NAME || "serenity-pocket-sports-model"
+const SAGEMAKER_REGION = process.env.AWS_REGION || "us-west-2"
+const SAGEMAKER_ENDPOINT_NAME =
+  process.env.SAGEMAKER_SPORTS_ENDPOINT_NAME || "serenity-pocket-xgb-endpoint-v4"
 
 let sagemakerClient: SageMakerRuntimeClient | null = null
 
@@ -23,8 +24,11 @@ function getClient(): SageMakerRuntimeClient {
 }
 
 function serializeFeatures(features: HistoricalFeatureVector): string {
-  // Placeholder: many tabular models accept CSV or JSON; adjust to your actual endpoint contract.
-  return JSON.stringify(features)
+  // Convert to CSV format expected by the endpoint.
+  // This endpoint is trained on a numeric CSV row; categorical features are not safely coercible here.
+  return features.numericFeatures
+    .map((v) => (Number.isFinite(v) ? String(v) : "0"))
+    .join(",")
 }
 
 export async function predictGameOutcomes(
@@ -36,26 +40,39 @@ export async function predictGameOutcomes(
 
   const command = new InvokeEndpointCommand({
     EndpointName: SAGEMAKER_ENDPOINT_NAME,
-    Body: Buffer.from(payload),
-    ContentType: "application/json",
-    Accept: "application/json",
+    Body: Buffer.from(payload, "utf-8"),
+    ContentType: "text/csv",
+    Accept: "text/csv",
   })
 
   const res = await client.send(command)
-  const body = res.Body ? Buffer.from(res.Body as Uint8Array).toString("utf-8") : "{}"
-  const parsed = JSON.parse(body)
+  const body = res.Body ? Buffer.from(res.Body as Uint8Array).toString("utf-8") : ""
+
+  // Expect something like: "pLoss,pPush,pWin" (multiclass probabilities) or a single line.
+  const line = body.trim().split(/\r?\n/)[0] || ""
+  const parts = line
+    .split(",")
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => Number.isFinite(n))
+
+  const [pLoss, pPush, pWin] = parts
+
+  // Map model outputs into our generic ModelPrediction shape.
+  // We treat pWin as the "home" win probability for downstream logic.
+  const winHome = Number.isFinite(pWin) ? (pWin as number) : 0.5
+  const winAway = Number.isFinite(pLoss) ? (pLoss as number) : 1 - winHome
+  const confidence = Math.max(winHome, winAway, Number.isFinite(pPush) ? (pPush as number) : 0)
 
   const prediction: ModelPrediction = {
-    winProbabilityHome: parsed.winProbabilityHome ?? parsed.win_prob_home ?? 0.5,
-    winProbabilityAway: parsed.winProbabilityAway ?? parsed.win_prob_away ?? 0.5,
-    expectedValueMoneylineHome:
-      parsed.expectedValueMoneylineHome ?? parsed.ev_ml_home ?? undefined,
-    expectedValueMoneylineAway:
-      parsed.expectedValueMoneylineAway ?? parsed.ev_ml_away ?? undefined,
-    expectedValueSpread: parsed.expectedValueSpread ?? parsed.ev_spread ?? undefined,
-    expectedValueTotal: parsed.expectedValueTotal ?? parsed.ev_total ?? undefined,
-    modelConfidence: parsed.modelConfidence ?? parsed.confidence ?? 0.5,
-    riskScore: parsed.riskScore ?? parsed.risk_score ?? 0.5,
+    winProbabilityHome: winHome,
+    winProbabilityAway: winAway,
+    expectedValueMoneylineHome: undefined,
+    expectedValueMoneylineAway: undefined,
+    expectedValueSpread: undefined,
+    expectedValueTotal: undefined,
+    modelConfidence: confidence,
+    // RiskScore is a placeholder; treat low confidence as higher risk.
+    riskScore: 1 - confidence,
   }
 
   return prediction

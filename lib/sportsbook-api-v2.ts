@@ -221,6 +221,7 @@ export async function fetchAdvantages(sport?: string): Promise<{
 
     // Check rate limit headers
     const remainingRequests = response.headers.get('x-ratelimit-requests-remaining');
+    console.log(`[Sportsbook API] Fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED (Auth/Rate Limit Error?)'}`);
     console.log(`⏳ Remaining API requests: ${remainingRequests || 'unknown'}`);
 
     if (!response.ok) {

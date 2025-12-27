@@ -45,8 +45,8 @@ export function BettingTrendsDashboard({ sport, gameId }: BettingTrendsDashboard
     )
   }
 
-  const marketSplits = trends.splits[selectedMarket]
-  const sharpIndicators = trends.sharpMoneyIndicators.filter(
+  const marketSplits = trends.splits?.[selectedMarket] || { public: [], sharp: [] }
+  const sharpIndicators = (trends.sharpMoneyIndicators || []).filter(
     ind => ind.betType === selectedMarket
   )
 
@@ -128,7 +128,7 @@ export function BettingTrendsDashboard({ sport, gameId }: BettingTrendsDashboard
                     </span>
                   </div>
                   <div className="text-2xl font-bold">
-                    {indicator.percentage.toFixed(1)}%
+                    {(indicator.percentage ?? 0).toFixed(1)}%
                   </div>
                 </div>
 
@@ -136,7 +136,7 @@ export function BettingTrendsDashboard({ sport, gameId }: BettingTrendsDashboard
                   <div>
                     <span className="text-gray-400">Line Movement: </span>
                     <span className="font-semibold">
-                      {indicator.lineMovement.direction} ({indicator.lineMovement.magnitude.toFixed(1)}%)
+                      {indicator.lineMovement?.direction ?? 'N/A'} ({(indicator.lineMovement?.magnitude ?? 0).toFixed(1)}%)
                     </span>
                   </div>
                   {indicator.reverseLineMovement && (
@@ -163,49 +163,61 @@ export function BettingTrendsDashboard({ sport, gameId }: BettingTrendsDashboard
           {/* Public money */}
           <div>
             <div className="text-sm font-semibold text-gray-400 mb-3">Public Bettors</div>
-            {marketSplits.public.map((split, index) => (
-              <div key={index} className="mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-300 uppercase">{split.side}</span>
-                  <span className="text-sm font-bold text-[#20B2AA]">
-                    {split.percentageOfMoney.toFixed(1)}%
-                  </span>
+            {marketSplits.public.length > 0 ? (
+              marketSplits.public.map((split, index) => (
+                <div key={index} className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-gray-300 uppercase">{split.side}</span>
+                    <span className="text-sm font-bold text-[#20B2AA]">
+                      {(split.percentageOfMoney ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#20B2AA] to-[#20B2AA]/70 rounded-full transition-all"
+                      style={{ width: `${split.percentageOfMoney ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {(split.percentageOfBets ?? 0).toFixed(1)}% of bets
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#20B2AA] to-[#20B2AA]/70 rounded-full transition-all"
-                    style={{ width: `${split.percentageOfMoney}%` }}
-                  />
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {split.percentageOfBets.toFixed(1)}% of bets
-                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500 p-4 bg-black/20 rounded-lg">
+                No public betting data available
               </div>
-            ))}
+            )}
           </div>
 
           {/* Sharp money */}
           <div>
             <div className="text-sm font-semibold text-gray-400 mb-3">Sharp/Professional</div>
-            {marketSplits.sharp.map((split, index) => (
-              <div key={index} className="mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-300 uppercase">{split.side}</span>
-                  <span className="text-sm font-bold text-[#FFD700]">
-                    {split.percentageOfMoney.toFixed(1)}%
-                  </span>
+            {marketSplits.sharp.length > 0 ? (
+              marketSplits.sharp.map((split, index) => (
+                <div key={index} className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-gray-300 uppercase">{split.side}</span>
+                    <span className="text-sm font-bold text-[#FFD700]">
+                      {(split.percentageOfMoney ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#FFD700] to-[#FFD700]/70 rounded-full transition-all"
+                      style={{ width: `${split.percentageOfMoney ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {(split.percentageOfBets ?? 0).toFixed(1)}% of bets
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#FFD700] to-[#FFD700]/70 rounded-full transition-all"
-                    style={{ width: `${split.percentageOfMoney}%` }}
-                  />
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {split.percentageOfBets.toFixed(1)}% of bets
-                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500 p-4 bg-black/20 rounded-lg">
+                No sharp betting data available
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -256,8 +268,8 @@ export function BettingTrendsDashboard({ sport, gameId }: BettingTrendsDashboard
                   </span>
                 </div>
                 <div className="text-xs text-gray-300">
-                  Line moved {move.oddsChange > 0 ? "+" : ""}{move.oddsChange.toFixed(1)}%
-                  - Triggered by {move.triggeredBy}
+                  Line moved {(move.oddsChange ?? 0) > 0 ? "+" : ""}{(move.oddsChange ?? 0).toFixed(1)}%
+                  - Triggered by {move.triggeredBy || 'Unknown'}
                 </div>
               </div>
             ))}

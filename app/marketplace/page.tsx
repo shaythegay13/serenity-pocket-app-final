@@ -145,13 +145,13 @@ export default function MarketplacePage() {
               {product.ai_picker_credits > 0 && (
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-500" />
-                  <span>AI Picker: <span className="font-medium">+{product.ai_picker_credits} use{product.ai_picker_credits > 1 ? 's' : ''}</span></span>
+                  <span>SmartSlip: <span className="font-medium">+{product.ai_picker_credits} use{product.ai_picker_credits > 1 ? 's' : ''}</span></span>
                 </div>
               )}
               {product.ai_bet_analyzer_credits > 0 && (
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-500" />
-                  <span>AI Bet Analyzer: <span className="font-medium">+{product.ai_bet_analyzer_credits} use{product.ai_bet_analyzer_credits > 1 ? 's' : ''}</span></span>
+                  <span>TiltLab: <span className="font-medium">+{product.ai_bet_analyzer_credits} use{product.ai_bet_analyzer_credits > 1 ? 's' : ''}</span></span>
                 </div>
               )}
             </div>

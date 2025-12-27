@@ -85,6 +85,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | "">("")
   const [sport, setSport] = useState<string>("")
   const [selectedBiases, setSelectedBiases] = useState<string[]>([])
+  const [stake, setStake] = useState<string>("")
+  const [odds, setOdds] = useState<string>("")
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
   const [challenges, setChallenges] = useState<any[]>([])
@@ -155,6 +157,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setOutcome("")
     setSelectedBiases([])
     setSport("")
+    setStake("")
+    setOdds("")
   }
 
   const handleLogEmotion = async () => {
@@ -198,6 +202,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         biasesIdentified: selectedBiases,
         confidenceLevel: 5,
         reasoning: context || "No context provided",
+        stake: stake ? parseFloat(stake) : undefined,
+        odds: odds ? parseFloat(odds) : undefined,
       }
       await storage.addTrade(newTrade)
       const updatedTrades = await storage.getTrades()
@@ -239,6 +245,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           postTradeIntensity: intensity[0],
           reflection: context,
           outcome: outcome || "breakeven", // Use selected outcome or default to breakeven
+          stake: stake ? parseFloat(stake) : pendingTrade.stake,
+          odds: odds ? parseFloat(odds) : pendingTrade.odds,
         })
         const updatedTrades = await storage.getTrades()
         setTrades(updatedTrades)
@@ -588,6 +596,36 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     value={sport}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setSport(e.target.value)}
                   />
+                </div>
+
+                {/* Stake Amount */}
+                <div className="space-y-3">
+                  <Label htmlFor="stake">Stake Amount ($) (optional)</Label>
+                  <Input
+                    id="stake"
+                    type="number"
+                    placeholder="100"
+                    value={stake}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setStake(e.target.value)}
+                    min="0.01"
+                    step="0.01"
+                  />
+                </div>
+
+                {/* Odds */}
+                <div className="space-y-3">
+                  <Label htmlFor="odds">Odds (American format) (optional)</Label>
+                  <Input
+                    id="odds"
+                    type="number"
+                    placeholder="e.g., -110 or +150"
+                    value={odds}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setOdds(e.target.value)}
+                    step="1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter American odds (e.g., -110 for favorites, +150 for underdogs)
+                  </p>
                 </div>
 
                 {/* Outcome (only for after betting) */}

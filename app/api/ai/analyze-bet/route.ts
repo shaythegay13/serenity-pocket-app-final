@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (!usageCheck.canUse) {
       return NextResponse.json(
         {
-          error: usageCheck.reason || "AI Bet Analyzer usage limit reached",
+          error: usageCheck.reason || "TiltLab usage limit reached",
           upgrade_required: usageCheck.limit === 0,
           usage_limit_reached: usageCheck.limit > 0,
           current_usage: {

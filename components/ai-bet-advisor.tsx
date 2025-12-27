@@ -8,8 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { SegmentedControl, YesNoControl } from "@/components/ui/segmented-control"
 import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
+import { AIResultScreen } from "@/components/ai-result-screen"
 import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
@@ -57,6 +60,7 @@ export default function AIBetAdvisor() {
   const [emotionCategory, setEmotionCategory] = useState<string>("")
   const [emotionMenuOpen, setEmotionMenuOpen] = useState(false)
   const [hoveredEmotionCategory, setHoveredEmotionCategory] = useState<string | null>(null)
+  const [step, setStep] = useState<"details" | "context" | "mindset">("details")
 
   const [formData, setFormData] = useState<BetScenario>({
     sport: "NFL",
@@ -69,8 +73,13 @@ export default function AIBetAdvisor() {
     underdogRecord: "",
     injuries: "",
     weather: "",
+    hasKeyInjuries: false,
+    hasAdverseWeather: false,
+    isLiveBet: false,
+    isFavoriteTeam: false,
+    isChasingLoss: false,
     currentEmotion: "Centered",
-    lastOutcome: "Haven't bet recently",
+    lastOutcome: "None",
     emotionalTriggers: "",
     bettingSlip: "",
     history: "",
@@ -199,22 +208,25 @@ export default function AIBetAdvisor() {
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
             const lastBetDate = new Date(lastCompletedTrade.timestamp)
 
-            let lastOutcome = "Haven't bet recently"
+            let lastOutcome: 'Won' | 'Lost' | 'Push' | 'None' = "None"
+            let isChasingLoss = false
 
             if (lastBetDate >= sevenDaysAgo) {
               // Last bet was within 7 days, use the outcome
               if (lastCompletedTrade.outcome === "profit") {
-                lastOutcome = "Won (feeling good)"
+                lastOutcome = "Won"
               } else if (lastCompletedTrade.outcome === "loss") {
-                lastOutcome = "Lost (feeling frustrated)"
+                lastOutcome = "Lost"
+                isChasingLoss = true // Auto-detect chasing behavior
               } else if (lastCompletedTrade.outcome === "breakeven") {
-                lastOutcome = "Push/Tie"
+                lastOutcome = "Push"
               }
             }
 
             setFormData(prev => ({
               ...prev,
-              lastOutcome
+              lastOutcome,
+              isChasingLoss
             }))
           }
         }
@@ -250,7 +262,22 @@ export default function AIBetAdvisor() {
         body: JSON.stringify(formData),
       })
 
-      const data = await response.json()
+      const rawText = await response.text()
+      let data: any
+      try {
+        data = rawText ? JSON.parse(rawText) : {}
+      } catch {
+        console.error("AI Bet Advisor: Non-JSON response from /api/ai/analyze-bet", {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get("content-type"),
+          bodyPreview: rawText.slice(0, 200),
+        })
+        setError(
+          `Analyze bet failed (non-JSON response, status ${response.status}). Try refreshing and signing in again.`,
+        )
+        return
+      }
 
       if (!response.ok) {
         if (data.upgrade_required) {
@@ -267,6 +294,11 @@ export default function AIBetAdvisor() {
 
       // Auto-persist every AI Bet Advisor run into bet_analyses (outcome starts as pending)
       try {
+        const analysisId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
         const selection = [
           formData.favoriteTeam,
           formData.underdogTeam,
@@ -277,7 +309,7 @@ export default function AIBetAdvisor() {
           : `${formData.sport}: ${formData.betType}`
 
         const betAnalysis: BetAnalysis = {
-          id: Date.now().toString(),
+          id: analysisId,
           timestamp: new Date(),
           betType:
             formData.betType === "Moneyline"
@@ -320,18 +352,71 @@ export default function AIBetAdvisor() {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const handlePlaceBet = () => {
+    // TODO: Implement bet tracking functionality
+    // This would save the bet to the database and track it
+    console.log("Place bet tracked:", formData)
+    // Reset form after placing bet
+    setAnalysis(null)
+    setStep("details")
+  }
+
+  const handleDiscard = () => {
+    // Clear the analysis and reset to form
+    setAnalysis(null)
+    setError(null)
+    setStep("details")
+  }
+
+  const ProgressIndicator = () => {
+    const stepValue = step === "details" ? 33 : step === "context" ? 67 : 100
+
+    return (
+      <div className="mb-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
+            step === "details" ? "text-primary" : "text-muted-foreground"
+          }`}>
+            Bet Details
+          </div>
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
+            step === "context" ? "text-primary" : "text-muted-foreground"
+          }`}>
+            Logic & Context
+          </div>
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
+            step === "mindset" ? "text-primary" : "text-muted-foreground"
+          }`}>
+            Mindset
+          </div>
+        </div>
+        <Progress value={stepValue} className="h-2" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>AI Bet Advisor</CardTitle>
+          <CardTitle>TiltLab</CardTitle>
           <CardDescription>
             Get comprehensive AI-powered analysis combining technical betting insights with emotional psychology
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ProgressIndicator />
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* STEP 1: BET DETAILS */}
+            {step === "details" && (
+              <Card className="fade-in">
+                <CardHeader>
+                  <CardTitle>Bet Details</CardTitle>
+                  <CardDescription>Enter your betting scenario and financial information</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="sport">Sport/Event</Label>
                 <Select value={formData.sport} onValueChange={(value) => updateFormData("sport", value)}>
@@ -347,19 +432,18 @@ export default function AIBetAdvisor() {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="betType">Bet Type</Label>
-                <Select value={formData.betType} onValueChange={(value: any) => updateFormData("betType", value)}>
-                  <SelectTrigger id="betType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Moneyline">Moneyline</SelectItem>
-                    <SelectItem value="Spread">Spread</SelectItem>
-                    <SelectItem value="Over/Under">Over/Under</SelectItem>
-                    <SelectItem value="Parlay">Parlay</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="md:col-span-2">
+                <Label>Bet Type</Label>
+                <SegmentedControl
+                  options={[
+                    { value: "Spread", label: "Spread" },
+                    { value: "Moneyline", label: "Moneyline" },
+                    { value: "Over/Under", label: "Total" },
+                    { value: "Parlay", label: "Parlay" },
+                  ]}
+                  value={formData.betType}
+                  onChange={(value) => updateFormData("betType", value)}
+                />
               </div>
 
               <div>
@@ -427,27 +511,87 @@ export default function AIBetAdvisor() {
                   placeholder="e.g., 5-5"
                 />
               </div>
+            </div>
+
+            <Button type="button" onClick={() => setStep("context")} className="w-full">
+              Next: Logic & Context
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 2: LOGIC & CONTEXT */}
+      {step === "context" && (
+        <Card className="fade-in">
+          <CardHeader>
+            <CardTitle>Logic & Context</CardTitle>
+            <CardDescription>Add analytical factors and your reasoning</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Are there key player injuries?</Label>
+              <YesNoControl
+                value={formData.hasKeyInjuries}
+                onChange={(value) => {
+                  updateFormData("hasKeyInjuries", value)
+                  updateFormData("injuries", value ? "Key injuries present" : "No major injuries")
+                }}
+              />
+            </div>
+
+            <div>
+              <Label>Is there adverse weather (Rain/Snow/Wind)?</Label>
+              <YesNoControl
+                value={formData.hasAdverseWeather}
+                onChange={(value) => {
+                  updateFormData("hasAdverseWeather", value)
+                  updateFormData("weather", value ? "Adverse weather conditions" : "Clear conditions")
+                }}
+              />
+            </div>
 
               <div>
-                <Label htmlFor="injuries">Key Injuries</Label>
-                <Input
-                  id="injuries"
-                  value={formData.injuries}
-                  onChange={(e) => updateFormData("injuries", e.target.value)}
-                  placeholder="e.g., No major injuries"
+                <Label htmlFor="bettingSlip">Betting Slip (optional)</Label>
+                <Textarea
+                  id="bettingSlip"
+                  value={formData.bettingSlip}
+                  onChange={(e) => updateFormData("bettingSlip", e.target.value)}
+                  placeholder="Paste your betting slip details or describe your bets..."
+                  rows={3}
                 />
               </div>
 
               <div>
-                <Label htmlFor="weather">Weather/Conditions</Label>
-                <Input
-                  id="weather"
-                  value={formData.weather}
-                  onChange={(e) => updateFormData("weather", e.target.value)}
-                  placeholder="e.g., Clear, 65°F"
+                <Label htmlFor="notes">User Notes/Reasoning</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => updateFormData("notes", e.target.value)}
+                  placeholder="e.g., Team has strong defense, great home record"
+                  rows={2}
                 />
               </div>
 
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => setStep("details")} className="flex-1">
+                  Back
+                </Button>
+                <Button type="button" onClick={() => setStep("mindset")} className="flex-1">
+                  Next: Mindset
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 3: MINDSET */}
+        {step === "mindset" && (
+          <Card className="fade-in">
+            <CardHeader>
+              <CardTitle>Mindset & Emotional State</CardTitle>
+              <CardDescription>Reflect on your emotional state and recent betting patterns</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="emotionCategory">How are you feeling right now?</Label>
                 <div className="relative">
@@ -535,70 +679,82 @@ export default function AIBetAdvisor() {
               </div>
 
               <div>
-                <Label htmlFor="lastOutcome">Last bet outcome</Label>
-                <Select value={formData.lastOutcome} onValueChange={(value) => updateFormData("lastOutcome", value)}>
-                  <SelectTrigger id="lastOutcome">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Won (feeling good)">Won (feeling good)</SelectItem>
-                    <SelectItem value="Lost (feeling frustrated)">Lost (feeling frustrated)</SelectItem>
-                    <SelectItem value="Push/Tie">Push/Tie</SelectItem>
-                    <SelectItem value="Haven't bet recently">Haven't bet recently</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Last bet outcome</Label>
+                <SegmentedControl
+                  options={[
+                    { value: "Won", label: "Win" },
+                    { value: "Lost", label: "Loss" },
+                    { value: "Push", label: "Push" },
+                    { value: "None", label: "None" },
+                  ]}
+                  value={formData.lastOutcome}
+                  onChange={(value) => updateFormData("lastOutcome", value)}
+                />
               </div>
-            </div>
 
-            <div>
-              <Label htmlFor="emotionalTriggers">Emotional triggers (what's making you want to bet?)</Label>
-              <Textarea
-                id="emotionalTriggers"
-                value={formData.emotionalTriggers}
-                onChange={(e) => updateFormData("emotionalTriggers", e.target.value)}
-                placeholder="e.g., I need to win back my losses, I'm feeling lucky..."
-                rows={3}
-              />
-            </div>
+              <div>
+                <Label htmlFor="emotionalTriggers">Emotional triggers (what's making you want to bet?)</Label>
+                <Textarea
+                  id="emotionalTriggers"
+                  value={formData.emotionalTriggers}
+                  onChange={(e) => updateFormData("emotionalTriggers", e.target.value)}
+                  placeholder="e.g., I need to win back my losses, I'm feeling lucky..."
+                  rows={3}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="bettingSlip">Betting Slip (optional)</Label>
-              <Textarea
-                id="bettingSlip"
-                value={formData.bettingSlip}
-                onChange={(e) => updateFormData("bettingSlip", e.target.value)}
-                placeholder="Paste your betting slip details or describe your bets..."
-                rows={3}
-              />
-            </div>
+              <div>
+                <Label htmlFor="history">Recent Betting History</Label>
+                <Textarea
+                  id="history"
+                  value={formData.history}
+                  onChange={(e) => updateFormData("history", e.target.value)}
+                  placeholder="e.g., Won $50 yesterday or Lost 3 bets this week"
+                  rows={2}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="history">Recent Betting History</Label>
-              <Textarea
-                id="history"
-                value={formData.history}
-                onChange={(e) => updateFormData("history", e.target.value)}
-                placeholder="e.g., Won $50 yesterday or Lost 3 bets this week"
-                rows={2}
-              />
-            </div>
+              <div className="pt-4 border-t space-y-4">
+                <h4 className="text-sm font-semibold text-foreground">Psychological Factors</h4>
 
-            <div>
-              <Label htmlFor="notes">User Notes/Reasoning</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => updateFormData("notes", e.target.value)}
-                placeholder="e.g., Team has strong defense, great home record"
-                rows={2}
-              />
-            </div>
+                <div>
+                  <Label>Is this a Live/In-Play bet?</Label>
+                  <YesNoControl
+                    value={formData.isLiveBet}
+                    onChange={(value) => updateFormData("isLiveBet", value)}
+                  />
+                </div>
 
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? "Analyzing..." : "Analyze Scenario"}
-            </Button>
-          </form>
+                <div>
+                  <Label>Are you betting on your favorite team?</Label>
+                  <YesNoControl
+                    value={formData.isFavoriteTeam}
+                    onChange={(value) => updateFormData("isFavoriteTeam", value)}
+                  />
+                </div>
+
+                <div>
+                  <Label>Are you chasing a previous loss?</Label>
+                  <YesNoControl
+                    value={formData.isChasingLoss}
+                    onChange={(value) => updateFormData("isChasingLoss", value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => setStep("context")} className="flex-1">
+                  Back
+                </Button>
+                <Button type="submit" disabled={loading} className="flex-1">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading ? "Analyzing..." : "Analyze Scenario"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </form>
         </CardContent>
       </Card>
 
@@ -617,7 +773,7 @@ export default function AIBetAdvisor() {
       )}
 
       {analysis && (
-        <div className="space-y-6">
+        <>
           {/* Enhanced AI Badge */}
           {usedEnhancedAI && (
             <Card className="bg-linear-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
@@ -637,98 +793,14 @@ export default function AIBetAdvisor() {
             </Card>
           )}
 
-          {/* Unified Recommendation */}
-          <Card
-            className={
-              analysis.recommendation.recommendation === "PLACE BET"
-                ? "border-green-500 bg-green-50 dark:bg-green-950"
-                : analysis.recommendation.recommendation === "DON'T PLACE BET"
-                  ? "border-red-500 bg-red-50 dark:bg-red-950"
-                  : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950"
-            }
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  {analysis.recommendation.recommendation === "PLACE BET" ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : analysis.recommendation.recommendation === "DON'T PLACE BET" ? (
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-yellow-600" />
-                  )}
-                  {analysis.recommendation.recommendation}
-                </CardTitle>
-                <Badge variant="outline">Confidence: {analysis.recommendation.confidence}%</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm mb-4">{analysis.recommendation.reason}</p>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-semibold">Risk Level:</span> {analysis.recommendation.riskLevel}
-                </div>
-                <div>
-                  <span className="font-semibold">Budget %:</span> {analysis.recommendation.budgetPercent}%
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <AIResultScreen
+            analysis={analysis}
+            scenario={formData}
+            onPlaceBet={handlePlaceBet}
+            onDiscard={handleDiscard}
+          />
 
-          {/* Emotional Psychology Analysis */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Emotional Psychology Analysis</CardTitle>
-              <CardDescription>
-                <Badge
-                  variant={
-                    analysis.recommendation.emotionalAnalysis.emotionalRisk === "HIGH"
-                      ? "destructive"
-                      : analysis.recommendation.emotionalAnalysis.emotionalRisk === "MODERATE"
-                        ? "default"
-                        : "secondary"
-                  }
-                >
-                  {analysis.recommendation.emotionalAnalysis.emotionalRisk} RISK
-                </Badge>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2">Emotional Factors</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {analysis.recommendation.emotionalAnalysis.emotionalFactors.map((factor, i) => (
-                    <li key={i}>{factor}</li>
-                  ))}
-                </ul>
-              </div>
-              {analysis.recommendation.emotionalAnalysis.shouldWait && (
-                <Card className="border-red-500 bg-red-50 dark:bg-red-950">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <div>
-                        <p className="font-semibold text-red-600">Waiting Period Recommended</p>
-                        <p className="text-sm text-red-600">
-                          Suggested waiting period: {analysis.recommendation.emotionalAnalysis.waitingPeriod}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              <div>
-                <h4 className="font-semibold mb-2">Recovery Recommendations</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {analysis.recommendation.emotionalAnalysis.recoveryRecommendations.map((rec, i) => (
-                    <li key={i}>{rec}</li>
-                  ))}
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Enhanced Insights from Claude */}
+          {/* Enhanced Insights from Claude - shown below result screen */}
           {enhancedInsights && enhancedInsights.length > 0 && (
             <Card className="bg-linear-to-br from-purple-500/5 to-pink-500/5 border-purple-500/20">
               <CardHeader>
@@ -752,89 +824,7 @@ export default function AIBetAdvisor() {
               </CardContent>
             </Card>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Analytical Assessment */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytical Assessment</CardTitle>
-                <CardDescription>Technical betting analysis</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Insights</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {analysis.analytical.insights.map((insight, i) => (
-                      <li key={i}>{insight}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Expected Value Considerations</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {analysis.analytical.evNotes.map((note, i) => (
-                      <li key={i}>{note}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Relevant Factors</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {analysis.analytical.factors.map((factor, i) => (
-                      <li key={i}>{factor}</li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Safety Check */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Safety Check</CardTitle>
-                <CardDescription>Harm reduction analysis</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <span className="font-semibold">Bet size vs budget:</span> {analysis.safety.percent}% of weekly budget
-                </div>
-                <div>
-                  <Badge
-                    variant={
-                      analysis.safety.risk === "HIGH"
-                        ? "destructive"
-                        : analysis.safety.risk === "MODERATE"
-                          ? "default"
-                          : "secondary"
-                    }
-                  >
-                    Risk: {analysis.safety.risk}
-                  </Badge>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Detected Patterns</h4>
-                  {analysis.safety.signals.length > 0 ? (
-                    <ul className="list-disc list-inside space-y-1 text-sm">
-                      {analysis.safety.signals.map((signal, i) => (
-                        <li key={i}>{signal.label}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No red flags detected</p>
-                  )}
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Recommendations</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {analysis.safety.recommendations.map((rec, i) => (
-                      <li key={i}>{rec}</li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        </>
       )}
     </div>
   )

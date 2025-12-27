@@ -230,12 +230,12 @@ export const SURVEY_B_QUESTIONS: readonly SurveyQuestion[] = [
   }
 ] as const;
 
-// Score interpretation helper (matching original system)
+// Score interpretation helper (0-100 scale)
 export function getScoreInterpretation(score: number): string {
-  if (score >= 1 && score <= 17) return 'Low risk';
-  if (score >= 18 && score <= 34) return 'Medium risk';
-  if (score >= 35 && score <= 50) return 'High risk';
-  return 'Low risk'; // Default for score of 0
+  if (score >= 0 && score <= 33) return 'Low risk';
+  if (score >= 34 && score <= 66) return 'Medium risk';
+  if (score >= 67 && score <= 100) return 'High risk';
+  return 'Low risk'; // Default
 }
 
 // Score interpretation for Survey B (max score: 150)

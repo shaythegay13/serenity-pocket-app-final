@@ -36,6 +36,12 @@ export interface SportsStoreState {
   /** Selected player detail (for player detail modal) */
   selectedPlayer: any | null
 
+  /** Refresh interval in seconds */
+  refreshInterval: number;
+
+  /** Preferred layout */
+  preferredLayout: 'default' | 'compact';
+
   /** Actions */
   setActiveSport: (sport: SupportedSportKey) => void
   setActiveFeature: (feature: SportsFeatureView | null) => void
@@ -45,6 +51,8 @@ export interface SportsStoreState {
   openPlayerDetail: (player: any) => void
   closePlayerDetail: () => void
   reset: () => void
+  setRefreshInterval: (interval: number) => void;
+  setPreferredLayout: (layout: 'default' | 'compact') => void;
 }
 
 /**
@@ -71,7 +79,9 @@ const initialState = {
     baseball_mlb: null,
     icehockey_nhl: null
   } as Record<SupportedSportKey, number | null>,
-  selectedPlayer: null
+  selectedPlayer: null,
+  refreshInterval: 30, // Default 30 seconds
+  preferredLayout: 'default',
 }
 
 /**
@@ -135,13 +145,18 @@ export const useSportsStore = create<SportsStoreState>()(
       closePlayerDetail: () =>
         set({ selectedPlayer: null }),
 
-      reset: () => set(initialState)
+      reset: () => set(initialState),
+
+      setRefreshInterval: (interval) => set({ refreshInterval: interval }),
+      setPreferredLayout: (layout) => set({ preferredLayout: layout }),
     }),
     {
       name: "sports-dashboard-storage",
       // Only persist activeSport to localStorage (not full odds data)
       partialize: (state) => ({
-        activeSport: state.activeSport
+        activeSport: state.activeSport,
+        refreshInterval: state.refreshInterval,
+        preferredLayout: state.preferredLayout
       })
     }
   )

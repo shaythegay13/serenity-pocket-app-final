@@ -172,6 +172,9 @@ export interface Trade {
   postTradeIntensity?: number
   reflection?: string
   emotionalImpact?: number
+  stake?: number
+  odds?: number
+  actualReturn?: number
 }
 
 export type AIServiceType = "ai_picker" | "ai_bet_analyzer"

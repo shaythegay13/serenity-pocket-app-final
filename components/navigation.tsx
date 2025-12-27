@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, TrendingUp, Target, Activity, Sparkles, User, History, RefreshCw, LogOut, BarChart3 } from "lucide-react"
+import { Home, TrendingUp, Target, Activity, Sparkles, History, RefreshCw, LogOut, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -15,9 +15,8 @@ const navItems = [
   { id: "odds", label: "Sports Dashboard", icon: TrendingUp },
   { id: "analyze", label: "Analyze (Basic)", icon: Target },
   { id: "behavior", label: "Behavior", icon: Activity },
-  { id: "ai-picks", label: "AI Picks", icon: Sparkles },
+  { id: "ai-picks", label: "Insight Hub", icon: Sparkles },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "account", label: "Account", icon: User },
 ]
 
 export function Navigation({ activeTab, onTabChange }: NavigationProps) {
@@ -41,7 +40,7 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
   return (
     <nav className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80">
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
-        <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center justify-center gap-0.5 sm:gap-1 w-full">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -61,30 +60,36 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
           })}
           
           {/* Retake Survey Button */}
-          <button
-            onClick={() => router.push('/gambling-survey')}
-            className={cn(
-              "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[60px] sm:min-w-0",
-              "hover:text-foreground active:scale-95 text-muted-foreground",
-            )}
-            title="Retake Survey"
-          >
-            <RefreshCw className="h-4 w-4 sm:h-4 sm:w-4" />
-            <span className="text-[10px] sm:text-sm">Retake</span>
-          </button>
+          {false && (
+            <button
+              onClick={() => router.push('/gambling-survey')}
+              className={cn(
+                "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[60px] sm:min-w-0",
+                "hover:text-foreground active:scale-95 text-muted-foreground",
+              )}
+              title="Retake Survey"
+              type="button"
+            >
+              <RefreshCw className="h-4 w-4 sm:h-4 sm:w-4" />
+              <span className="text-[10px] sm:text-sm">Retake</span>
+            </button>
+          )}
 
           {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            className={cn(
-              "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[60px] sm:min-w-0",
-              "hover:text-red-600 active:scale-95 text-muted-foreground",
-            )}
-            title="Logout"
-          >
-            <LogOut className="h-4 w-4 sm:h-4 sm:w-4" />
-            <span className="text-[10px] sm:text-sm">Logout</span>
-          </button>
+          {false && (
+            <button
+              onClick={handleLogout}
+              className={cn(
+                "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[60px] sm:min-w-0",
+                "hover:text-red-600 active:scale-95 text-muted-foreground",
+              )}
+              title="Logout"
+              type="button"
+            >
+              <LogOut className="h-4 w-4 sm:h-4 sm:w-4" />
+              <span className="text-[10px] sm:text-sm">Logout</span>
+            </button>
+          )}
         </div>
       </div>
     </nav>

@@ -1404,35 +1404,82 @@ function getDefaultChallenges(): Challenge[] {
 storageHybrid.addBetAnalysis = async function(analysis: BetAnalysis): Promise<void> {
   const userId = await this.getCurrentUserId()
 
+  console.log('addBetAnalysis: userId =', userId)
+
   if (userId) {
     try {
-      const { error } = await supabase
+      const payload = {
+        id: analysis.id,
+        user_id: userId,
+        bet_type: analysis.betType,
+        sport: analysis.sport,
+        description: analysis.description,
+        odds: analysis.odds,
+        stake: analysis.stake,
+        emotional_state: analysis.emotionalState,
+        emotional_intensity: analysis.emotionalIntensity,
+        bias_warnings: analysis.biasWarnings,
+        ai_recommendation: analysis.aiRecommendation,
+        expected_value: analysis.expectedValue,
+        probability_estimate: analysis.probabilityEstimate,
+        outcome: analysis.outcome,
+        actual_return: analysis.actualReturn,
+        timestamp: analysis.timestamp.toISOString(),
+      }
+
+      console.log('addBetAnalysis: Attempting insert with payload:', JSON.stringify(payload, null, 2))
+
+      const { data, error, status, statusText } = await supabase
         .from("bet_analyses")
-        .insert({
-          id: analysis.id,
-          user_id: userId,
-          bet_type: analysis.betType,
-          sport: analysis.sport,
-          description: analysis.description,
-          odds: analysis.odds,
-          stake: analysis.stake,
-          emotional_state: analysis.emotionalState,
-          emotional_intensity: analysis.emotionalIntensity,
-          bias_warnings: analysis.biasWarnings,
-          ai_recommendation: analysis.aiRecommendation,
-          expected_value: analysis.expectedValue,
-          probability_estimate: analysis.probabilityEstimate,
-          outcome: analysis.outcome,
-          actual_return: analysis.actualReturn,
-          timestamp: analysis.timestamp.toISOString(),
-        })
+        .insert(payload)
+        .select()
 
       if (error) {
-        console.error("Error saving bet analysis:", error)
+        const ownProps = Object.getOwnPropertyNames(error as any)
+        const safeError: Record<string, unknown> = {}
+        for (const k of ownProps) {
+          try {
+            ;(safeError as any)[k] = (error as any)[k]
+          } catch {
+            ;(safeError as any)[k] = "[unreadable]"
+          }
+        }
+
+        console.error("Error saving bet analysis to Supabase:", {
+          status,
+          statusText,
+          error,
+          safeError,
+          message: (error as any)?.message,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          code: (error as any)?.code,
+        })
+
+        console.error(
+          "Error saving bet analysis to Supabase (stringified):",
+          JSON.stringify(
+            {
+              status,
+              statusText,
+              message: (error as any)?.message,
+              details: (error as any)?.details,
+              hint: (error as any)?.hint,
+              code: (error as any)?.code,
+              safeError,
+            },
+            null,
+            2,
+          ),
+        )
+      } else {
+        console.log('✅ Successfully saved bet analysis to Supabase:', data)
       }
     } catch (error) {
-      console.error("Error saving bet analysis:", error)
+      console.error("Exception while saving bet analysis:", error)
     }
+  } else {
+    console.warn('⚠️ No user ID found, skipping Supabase insert. Saving to localStorage only.')
   }
 
   // Also save to localStorage as backup
@@ -1456,6 +1503,7 @@ storageHybrid.updateBetAnalysis = async function(analysis: BetAnalysis): Promise
         .update({
           outcome: analysis.outcome,
           actual_return: analysis.actualReturn,
+          stake: analysis.stake,
         })
         .eq("id", analysis.id)
         .eq("user_id", userId)

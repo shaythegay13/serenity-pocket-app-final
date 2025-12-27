@@ -209,6 +209,7 @@ export async function fetchESPNNBAStats(playerName: string): Promise<PlayerStats
     // Fetch league leaders and find the player
     const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/statistics`
     const response = await fetch(url)
+    console.log(`[ESPN API] NBA stats fetch - Status: ${response.status} ${response.ok ? '✓' : '✗'} - URL: ${url}`)
 
     if (!response.ok) {
       console.warn('ESPN NBA stats not available')
@@ -244,15 +245,17 @@ export async function fetchPlayerStatsByTeam(
 
     // Try to get team roster with stats
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const proxyUrl = '/api/espn'
     console.log(`[ESPN API] Fetching roster for ${teamName} (${sport}) using abbreviation "${teamAbbr}":`, espnUrl)
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
+
+    // Fetch directly from ESPN (no proxy needed)
+    const response = await fetch(espnUrl, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; SportsApp/1.0)',
       },
-      body: JSON.stringify({ endpoint: espnUrl }),
     })
+    console.log(`[ESPN API] Roster fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED'} - Team: ${teamAbbr} - ESPN URL: ${espnUrl}`)
 
     if (!response.ok) {
       console.warn(`[ESPN API] Failed to fetch roster: ${response.status} ${response.statusText}`)
@@ -350,15 +353,15 @@ export async function fetchPlayerStatsByTeam(
       console.log(`[ESPN API] Trying athlete detail endpoint via proxy:`, athleteUrl)
       
       try {
-        // Use proxy to bypass CORS
-        const proxyUrl = '/api/espn'
-        const athleteResponse = await fetch(proxyUrl, {
-          method: 'POST',
+        // Fetch directly from ESPN (no proxy needed)
+        const athleteResponse = await fetch(athleteUrl, {
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; SportsApp/1.0)',
           },
-          body: JSON.stringify({ endpoint: athleteUrl }),
         })
+        console.log(`[ESPN API] Athlete detail fetch - Status: ${athleteResponse.status} ${athleteResponse.ok ? '✓ SUCCESS' : '✗ FAILED'} - URL: ${athleteUrl}`)
         if (athleteResponse.ok) {
           const athleteData = await athleteResponse.json()
           console.log(`[ESPN API] Athlete data received via proxy:`, athleteData)
@@ -381,15 +384,15 @@ export async function fetchPlayerStatsByTeam(
       console.log(`[ESPN API] Trying statistics endpoint via proxy:`, statsUrl)
       
       try {
-        // Use proxy to bypass CORS
-        const proxyUrl = '/api/espn'
-        const statsResponse = await fetch(proxyUrl, {
-          method: 'POST',
+        // Fetch directly from ESPN (no proxy needed)
+        const statsResponse = await fetch(statsUrl, {
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; SportsApp/1.0)',
           },
-          body: JSON.stringify({ endpoint: statsUrl }),
         })
+        console.log(`[ESPN API] Statistics fetch - Status: ${statsResponse.status} ${statsResponse.ok ? '✓ SUCCESS' : '✗ FAILED'} - URL: ${statsUrl}`)
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           console.log(`[ESPN API] Stats data received via proxy:`, statsData)
@@ -770,6 +773,7 @@ export async function fetchRecentGameLogs(
     const url = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/athletes/${playerId}/gamelog`
 
     const response = await fetch(url)
+    console.log(`[ESPN API] Game logs fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED'} - Player ID: ${playerId}`)
     if (!response.ok) return null
 
     const data = await response.json()
@@ -796,15 +800,16 @@ export async function fetchESPNTeamRoster(
     const teamAbbr = getTeamAbbreviation(teamName)
 
     const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
-    const proxyUrl = '/api/espn'
 
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
+    // Fetch directly from ESPN public API (no proxy or authentication needed)
+    const response = await fetch(espnUrl, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; SportsApp/1.0)',
       },
-      body: JSON.stringify({ endpoint: espnUrl }),
     })
+    console.log(`[ESPN API] Team roster fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED'} - Team: ${teamAbbr} - URL: ${espnUrl}`)
     if (!response.ok) {
       console.warn(`[ESPN Roster] Failed to fetch: ${response.status}`)
       return []
@@ -812,15 +817,19 @@ export async function fetchESPNTeamRoster(
 
     const data: any = await response.json()
 
-    // Flatten athletes array
+    // Flatten athletes array - ONLY include active roster (offense, defense, specialTeam)
+    // Exclude practice squad, injured reserve, and suspended players
     let allAthletes: any[] = []
     if (data.athletes) {
       if (Array.isArray(data.athletes)) {
         const first = data.athletes[0]
         if (first && first.items && Array.isArray(first.items)) {
-          // Grouped format
+          // Grouped format - filter to active roster only
+          const activeGroups = ['offense', 'defense', 'specialTeam']
           for (const group of data.athletes) {
-            if (group.items) {
+            const groupPosition = group.position?.toLowerCase() || ''
+            // Only include active roster groups
+            if (group.items && activeGroups.includes(groupPosition)) {
               allAthletes = allAthletes.concat(group.items)
             }
           }

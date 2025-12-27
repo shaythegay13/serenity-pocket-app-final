@@ -430,17 +430,12 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                 </div>
 
                 <div className="space-y-2 mb-6">
-                  {tier.features.slice(0, 5).map((feature, index) => (
+                  {tier.features.map((feature, index) => (
                     <div key={index} className="flex items-start gap-2">
                       <Check className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                       <span className="text-sm text-foreground">{feature}</span>
                     </div>
                   ))}
-                  {tier.features.length > 5 && (
-                    <p className="text-xs text-muted-foreground pl-6">
-                      +{tier.features.length - 5} more features
-                    </p>
-                  )}
                 </div>
 
                 {isCurrentTier ? (

@@ -114,7 +114,7 @@ export function calculateSurveyScore(responses: SurveyAnswer[]): number {
     totalScore += question.weight[optionIndex];
   }
 
-  // Scale to 0-50 dynamically based on the theoretical maximum
+  // Scale to 0-100 dynamically based on the theoretical maximum
   const maxPossibleScore = SURVEY_QUESTIONS.reduce((acc, q) => {
     if (q.multi) {
       // Sum positive weights since multi-select can choose multiple options
@@ -124,8 +124,8 @@ export function calculateSurveyScore(responses: SurveyAnswer[]): number {
     return acc + Math.max(...q.weight);
   }, 0);
 
-  const scaledScore = Math.round((totalScore / Math.max(1, maxPossibleScore)) * 50);
-  return Math.min(50, Math.max(0, scaledScore));
+  const scaledScore = Math.round((totalScore / Math.max(1, maxPossibleScore)) * 100);
+  return Math.min(100, Math.max(0, scaledScore));
 }
 
 // Validate email format only

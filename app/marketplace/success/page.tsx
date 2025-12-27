@@ -84,11 +84,11 @@ export default function MarketplaceSuccessPage() {
 
 function formatProductName(productKey: string): string {
   const names: Record<string, string> = {
-    'single_picker': 'AI Picker - 1 Use',
-    'single_analyzer': 'AI Bet Analyzer - 1 Use',
+    'single_picker': 'SmartSlip - 1 Use',
+    'single_analyzer': 'TiltLab - 1 Use',
     'bundle_single': 'Bundle: Both Services - 1 Use Each',
-    'double_picker': 'AI Picker - 2 Uses',
-    'double_analyzer': 'AI Bet Analyzer - 2 Uses',
+    'double_picker': 'SmartSlip - 2 Uses',
+    'double_analyzer': 'TiltLab - 2 Uses',
     'bundle_double': 'Bundle: Both Services - 2 Uses Each'
   }
   return names[productKey] || 'AI Service Credits'

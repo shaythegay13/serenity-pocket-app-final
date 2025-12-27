@@ -40,119 +40,15 @@ import {
   YAxis,
 } from "recharts"
 
+// Extracted types, constants, and utilities
+import type { UnifiedBet, TimelineItem, EmotionOutcomePoint, DailyBucket } from "@/components/analytics/types"
+import { EMOTION_SCORE_LOOKUP, AVAILABLE_SPORTS } from "@/components/analytics/constants"
+import { calculateWinReturn, calculateBettingMetrics } from "@/components/analytics/utils/calculations"
+
 interface AnalyticsTabProps {
   userData: UserData
   onNavigateToTab?: (tab: string) => void
 }
-
-type UnifiedBetSource = "analysis" | "trade"
-
-type UnifiedBet = BetAnalysis & {
-  source: UnifiedBetSource
-}
-
-type TimelineItem =
-  | { kind: "bet"; ts: Date; bet: UnifiedBet }
-  | { kind: "ai"; ts: Date; usage: AIServiceUsage }
-  | { kind: "game"; ts: Date; game: GameLineRecord }
-
-type EmotionOutcomePoint = {
-  day: string
-  emotionScore?: number
-  outcomeScore?: number
-  betActivity?: number
-  expectedValue?: number
-  mentalHealthScore?: number
-}
-
-const EMOTION_SCORE_LOOKUP: Record<string, number> = {
-  // JOY (higher is better; happiest person = 100)
-  happy: 100,
-  excited: 96,
-  optimistic: 92,
-  grateful: 90,
-  confident: 88,
-  proud: 86,
-  hopeful: 84,
-  content: 82,
-  cheerful: 80,
-  inspired: 78,
-
-  // CALM (positive/stable)
-  peaceful: 85,
-  relaxed: 82,
-  centered: 80,
-  focused: 78,
-  balanced: 76,
-  serene: 74,
-  patient: 72,
-  composed: 70,
-  tranquil: 68,
-  stable: 66,
-
-  // FEAR (negative)
-  anxious: 35,
-  worried: 37,
-  nervous: 38,
-  scared: 33,
-  uncertain: 40,
-  panicked: 28,
-  hesitant: 42,
-  overwhelmed: 25,
-  tense: 36,
-  uneasy: 39,
-
-  // GREED (risk / impulse; negative leaning)
-  fomo: 30,
-  euphoric: 44,
-  impulsive: 26,
-  overconfident: 40,
-  eager: 52,
-  craving: 24,
-  obsessed: 20,
-  compulsive: 18,
-  restless: 34,
-  driven: 46,
-
-  // FRUSTRATION (lowest; maddest person = 0)
-  angry: 0,
-  irritated: 10,
-  disappointed: 22,
-  impatient: 14,
-  stressed: 12,
-  resentful: 6,
-  annoyed: 16,
-  agitated: 8,
-  bitter: 4,
-  exhausted: 18,
-
-  // SADNESS (sad person = 45)
-  down: 45,
-  discouraged: 42,
-  regretful: 40,
-  defeated: 34,
-  helpless: 28,
-  lonely: 32,
-  empty: 26,
-  hopeless: 20,
-  dejected: 30,
-  grief: 16,
-}
-
-interface DailyBucket {
-  label: string
-  wins: number
-  losses: number
-  breakeven: number
-}
-
-// Available sports (same as Live Odds tab)
-const AVAILABLE_SPORTS = [
-  { key: "basketball_nba", label: "NBA" },
-  { key: "americanfootball_nfl", label: "NFL" },
-  { key: "baseball_mlb", label: "MLB" },
-  { key: "icehockey_nhl", label: "NHL" },
-]
 
 export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"data" | "betting-history" | "emotional-history">("data")
@@ -180,6 +76,77 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [showActivityLine, setShowActivityLine] = useState(true)
   const [showEvLine, setShowEvLine] = useState(true)
   const [showMentalHealthLine, setShowMentalHealthLine] = useState(true)
+
+  // Bulk edit states
+  const [bulkEditMode, setBulkEditMode] = useState(false)
+  const [selectedBetIds, setSelectedBetIds] = useState<Set<string>>(new Set())
+  const [bulkStakeValue, setBulkStakeValue] = useState("")
+
+  // Date range for emotion vs outcomes graph
+  const [dateRange, setDateRange] = useState({
+    start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), // Default: 90 days ago
+    end: new Date()
+  })
+
+  // Bulk edit handlers
+  const toggleBetSelection = (betId: string) => {
+    setSelectedBetIds(prev => {
+      const next = new Set(prev)
+      if (next.has(betId)) {
+        next.delete(betId)
+      } else {
+        next.add(betId)
+      }
+      return next
+    })
+  }
+
+  const selectAllZeroStakeBets = () => {
+    const zeroStakeBets = analyses.filter(bet => bet.stake === 0 || bet.stake === undefined)
+    console.log('Found zero stake bets:', zeroStakeBets.length, 'out of', analyses.length, 'total analyses')
+    setSelectedBetIds(new Set(zeroStakeBets.map(bet => bet.id)))
+  }
+
+  const handleBulkUpdateStakes = async () => {
+    const stakeNum = parseFloat(bulkStakeValue)
+    if (isNaN(stakeNum) || stakeNum <= 0) {
+      toast.error("Please enter a valid stake amount greater than $0")
+      return
+    }
+
+    if (selectedBetIds.size === 0) {
+      toast.error("Please select at least one bet to update")
+      return
+    }
+
+    try {
+      // Update selected bets
+      const updatedAnalyses = analyses.map(bet => {
+        if (selectedBetIds.has(bet.id)) {
+          return { ...bet, stake: stakeNum }
+        }
+        return bet
+      })
+
+      // Save to storage
+      for (const bet of updatedAnalyses) {
+        if (selectedBetIds.has(bet.id)) {
+          // @ts-ignore - Method added dynamically to storageHybrid
+          await storage.updateBetAnalysis(bet)
+        }
+      }
+
+      setAnalyses(updatedAnalyses)
+      setSelectedBetIds(new Set())
+      setBulkStakeValue("")
+      setBulkEditMode(false)
+
+      toast.success(`Updated stakes for ${selectedBetIds.size} bet(s)`)
+    } catch (error) {
+      console.error('Error updating stakes:', error)
+      toast.error("Failed to update stakes. Please try again.")
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -231,14 +198,26 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         t.title?.trim() ||
         (t.reasoning ? String(t.reasoning).slice(0, 140) : "Emotion-tracked bet")
 
+      // Calculate actual return based on outcome, stake, and odds
+      let actualReturn: number | undefined = t.actualReturn
+      if (!actualReturn && t.stake && t.odds && t.outcome) {
+        if (t.outcome === "profit") {
+          actualReturn = calculateWinReturn(t.stake, t.odds)
+        } else if (t.outcome === "loss") {
+          actualReturn = 0
+        } else if (t.outcome === "breakeven") {
+          actualReturn = t.stake
+        }
+      }
+
       return {
         id: `trade:${t.id}`,
         timestamp: new Date(t.timestamp),
         betType: "straight",
         sport: (t.sport as any) || "Unknown",
         description,
-        odds: 0,
-        stake: 0,
+        odds: t.odds || 0,
+        stake: t.stake || 0,
         emotionalState: t.preTradeEmotion || "",
         emotionalIntensity: intensity10,
         biasWarnings: Array.isArray(t.biasesIdentified) ? t.biasesIdentified : [],
@@ -246,7 +225,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         expectedValue: undefined,
         probabilityEstimate: undefined,
         outcome: mappedOutcome,
-        actualReturn: undefined,
+        actualReturn,
         source: "trade" as const,
       }
     })
@@ -401,13 +380,6 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   }, [trades])
 
   // Betting history functions
-  const calculateWinReturn = (stake: number, odds: number): number => {
-    if (odds > 0) {
-      return stake + (stake * odds / 100)
-    } else {
-      return stake + (stake * 100 / Math.abs(odds))
-    }
-  }
 
   const handleUpdateOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
     try {
@@ -542,35 +514,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     return items.sort((a, b) => b.ts.getTime() - a.ts.getTime())
   }, [filteredAnalyses, aiUsage, gameLines, showUsageEvents, showGameLineEvents, filterOutcome, filterSport, searchTerm])
 
-  const calculateBettingMetrics = () => {
-    const completed = unifiedBets.filter(bet => bet.outcome && bet.outcome !== 'pending')
-    const wins = completed.filter(bet => bet.outcome === 'win')
-    const losses = completed.filter(bet => bet.outcome === 'loss')
-
-    const totalStaked = completed.reduce((sum, bet) => sum + bet.stake, 0)
-    const totalReturns = completed.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0)
-    const profit = totalReturns - totalStaked
-    const roi = totalStaked > 0 ? (profit / totalStaked) * 100 : 0
-    const winRate = completed.length > 0 ? (wins.length / completed.length) * 100 : 0
-
-    const avgEV = unifiedBets.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (unifiedBets.length || 1)
-
-    return {
-      totalBets: unifiedBets.length,
-      completedBets: completed.length,
-      pendingBets: unifiedBets.filter(bet => bet.outcome === 'pending').length,
-      wins: wins.length,
-      losses: losses.length,
-      winRate,
-      totalStaked,
-      totalReturns,
-      profit,
-      roi,
-      avgEV
-    }
-  }
-
-  const bettingMetrics = calculateBettingMetrics()
+  const bettingMetrics = calculateBettingMetrics(unifiedBets)
   const userSports = Array.from(new Set(unifiedBets.map(bet => bet.sport)))
   const allSportOptions = [
     ...AVAILABLE_SPORTS,
@@ -719,15 +663,23 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     // Game line records: included for recency and (optionally later) EV proxies.
     // We at least use them to keep the chart window anchored to the latest captured odds/game activity.
     for (const g of gameLines || []) {
-      const t = new Date((g as any).updatedAt ?? (g as any).updated_at ?? (g as any).createdAt ?? (g as any).created_at ?? (g as any).commenceTime ?? (g as any).commence_time ?? Date.now())
+      const t = new Date(
+        (g as any).updatedAt ??
+          (g as any).updated_at ??
+          (g as any).createdAt ??
+          (g as any).created_at ??
+          (g as any).commenceTime ??
+          (g as any).commence_time ??
+          Date.now(),
+      )
       if (Number.isNaN(t.getTime())) continue
       maxTs = Math.max(maxTs, t.getTime())
     }
 
-    const defaultWindowDays = 180
     const end = maxTs ? new Date(maxTs) : new Date()
     end.setHours(0, 0, 0, 0)
-    const start = new Date(end.getTime() - (defaultWindowDays - 1) * MS_DAY)
+    const start = dateRange.start
+    end.setTime(Math.min(end.getTime(), dateRange.end.getTime()))
 
     for (let ts = start.getTime(); ts <= end.getTime(); ts += MS_DAY) {
       const d = new Date(ts)
@@ -758,7 +710,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
 
     return points
-  }, [logs, unifiedBets, aiUsage, gameLines, userData])
+  }, [logs, unifiedBets, aiUsage, gameLines, userData, dateRange])
 
   if (loading) {
     return (
@@ -771,18 +723,29 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   return (
     <div className="space-y-6 fade-in">
       {/* Header with subtabs */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Analytics</h2>
-          <p className="text-muted-foreground text-sm">
-            Comprehensive view of your betting and emotional data
-          </p>
-        </div>
-        <Badge variant="outline" className="gap-1">
-          <BarChart3 className="w-4 h-4" />
-          Experimental
-        </Badge>
+      <div>
+        <h2 className="text-3xl font-bold text-foreground">Analytics</h2>
+        <p className="text-muted-foreground text-sm">
+          Comprehensive view of your betting and emotional data
+        </p>
       </div>
+
+      {/* Development Disclaimer */}
+      <Card className="p-4 bg-amber-500/10 border-amber-500/30">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">
+            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-foreground mb-1">Under Development</h3>
+            <p className="text-xs text-muted-foreground">
+              These sections are still under development currently - so there are still some functions that do not work correctly. This will be remedied in the future.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* Subtabs */}
       <div className="flex gap-2 border-b border-border">
@@ -1009,7 +972,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               </table>
 
               <p className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingDown className="w-3 h-3" />
+                <TrendingDown className="w-3" />
                 As this table fills in, look for higher win rates when your stability bucket is HIGH versus LOW.
               </p>
             </div>
@@ -1023,7 +986,78 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               <Activity className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">Emotion vs Betting Outcomes</h3>
             </div>
-            <p className="text-xs text-muted-foreground">Last 90 days · 0–100 emotion, -1/0/1 outcome</p>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                <div className="flex items-center gap-2 bg-muted/40 rounded-md p-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setDateRange({
+                      start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+                      end: new Date()
+                    })}
+                  >
+                    1W
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setDateRange({
+                      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+                      end: new Date()
+                    })}
+                  >
+                    1M
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setDateRange({
+                      start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+                      end: new Date()
+                    })}
+                  >
+                    3M
+                  </Button>
+                  <div className="flex items-center gap-1 px-2">
+                    <input 
+                      type="date" 
+                      className="bg-background text-xs w-28 rounded border p-1"
+                      onChange={(e) => {
+                        const newDate = new Date(e.target.value)
+                        if (!isNaN(newDate.getTime()) && newDate < dateRange.end) {
+                          setDateRange({...dateRange, start: newDate})
+                        } else {
+                          toast.error('Start date must be before end date')
+                        }
+                      }}
+                      max={dateRange.end.toISOString().split('T')[0]}
+                      value={dateRange.start.toISOString().split('T')[0]}
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <input 
+                      type="date" 
+                      className="bg-background text-xs w-28 rounded border p-1"
+                      onChange={(e) => {
+                        const newDate = new Date(e.target.value)
+                        if (!isNaN(newDate.getTime()) && newDate > dateRange.start) {
+                          setDateRange({...dateRange, end: newDate})
+                        } else {
+                          toast.error('End date must be after start date')
+                        }
+                      }}
+                      min={dateRange.start.toISOString().split('T')[0]}
+                      max={new Date().toISOString().split('T')[0]}
+                      value={dateRange.end.toISOString().split('T')[0]}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-4 mb-4 rounded-md border border-border bg-muted/40 p-3">
@@ -1275,6 +1309,78 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               </div>
             </Card>
 
+            {/* Bulk Edit Stakes */}
+            <Card className="p-4 bg-linear-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-amber-500" />
+                  Bulk Edit Stakes
+                </h3>
+                <Button
+                  size="sm"
+                  variant={bulkEditMode ? "default" : "outline"}
+                  onClick={() => {
+                    alert('Button clicked! Mode: ' + bulkEditMode)
+                    console.log('Bulk edit button clicked, current mode:', bulkEditMode)
+                    setBulkEditMode(!bulkEditMode)
+                    setSelectedBetIds(new Set())
+                    setBulkStakeValue("")
+                  }}
+                >
+                  {bulkEditMode ? "Cancel" : "Enable Bulk Edit"}
+                </Button>
+              </div>
+
+              {bulkEditMode && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Select bets with missing or zero stakes to update them all at once.
+                  </p>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        alert('Select All $0 Bets clicked!')
+                        console.log('Select All $0 Bets clicked!')
+                        selectAllZeroStakeBets()
+                      }}
+                    >
+                      Select All $0 Bets
+                    </Button>
+                    <span className="text-xs text-muted-foreground flex items-center">
+                      {selectedBetIds.size} bet(s) selected
+                    </span>
+                  </div>
+
+                  {selectedBetIds.size > 0 && (
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground mb-1 block">
+                          New Stake Amount ($)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="100"
+                          value={bulkStakeValue}
+                          onChange={(e) => setBulkStakeValue(e.target.value)}
+                          min="0.01"
+                          step="0.01"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleBulkUpdateStakes}
+                        disabled={!bulkStakeValue}
+                      >
+                        Update {selectedBetIds.size} Bet(s)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+
             {/* Filters and Search */}
             <Card className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1394,13 +1500,33 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                 {unifiedTimelineItems.map((item, idx) => {
                   if (item.kind === "bet") {
                     const bet = item.bet
+                    const isBetAnalysis = (bet as any).source === "analysis"
+                    const canSelectBet = bulkEditMode && isBetAnalysis && (bet.stake === 0 || bet.stake === undefined)
+
                     return (
                       <Card
                         key={`${item.kind}:${bet.id}:${idx}`}
                         className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => setSelectedBet(bet)}
+                        onClick={(e) => {
+                          if (bulkEditMode && canSelectBet) {
+                            e.stopPropagation()
+                            toggleBetSelection(bet.id)
+                          } else if (!bulkEditMode) {
+                            setSelectedBet(bet)
+                          }
+                        }}
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          {bulkEditMode && canSelectBet && (
+                            <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedBetIds.has(bet.id)}
+                                onCheckedChange={() => toggleBetSelection(bet.id)}
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex flex-1 items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline" className="text-xs">
@@ -1419,11 +1545,11 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                               )}
                               {bet.outcome && (
                                 <Badge
-                                  className={`text-xs ${
-                                    bet.outcome === 'win' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
-                                    bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
-                                    bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500 border-gray-500/30' :
-                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
+                                  className={`${
+                                    bet.outcome === 'win' ? 'bg-green-500/20 text-green-500' :
+                                    bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500' :
+                                    bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500' :
+                                    'bg-yellow-500/20 text-yellow-500'
                                   }`}
                                 >
                                   {bet.outcome.toUpperCase()}
@@ -1451,17 +1577,18 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
                                 <>Odds: <span className="text-muted-foreground">(not logged)</span></>
                               )}
                             </div>
-                            {bet.expectedValue !== undefined && (
+                            {bet.expectedValue !== undefined && bet.expectedValue !== null && (
                               <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 EV: {bet.expectedValue >= 0 ? '+' : ''}${bet.expectedValue.toFixed(2)}
                               </div>
                             )}
-                            {bet.actualReturn !== undefined && bet.outcome !== 'pending' && (
+                            {bet.actualReturn !== undefined && bet.actualReturn !== null && bet.outcome !== 'pending' && (
                               <div className={`text-xs font-medium ${bet.actualReturn >= bet.stake ? 'text-green-500' : 'text-red-500'}`}>
                                 Return: ${bet.actualReturn.toFixed(2)}
                               </div>
                             )}
                           </div>
+                        </div>
                         </div>
 
                         {bet.biasWarnings && bet.biasWarnings.length > 0 && (

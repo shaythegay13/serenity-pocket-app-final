@@ -30,6 +30,7 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
   try {
     // @ts-ignore
     const res = await fetch(url, { ...init, signal: controller.signal })
+    console.log(`[Odds API] Fetch - Status: ${res.status} ${res.ok ? '✓ SUCCESS' : '✗ FAILED'} - URL: ${url.substring(0, 100)}...`)
     return res
   } finally {
     clearTimeout(id)
@@ -199,6 +200,7 @@ export async function fetchAvailableSports() {
   try {
     const url = `https://api.the-odds-api.com/v4/sports?apiKey=${apiKey}`
     const response = await fetch(url)
+    console.log(`[Odds API] Available sports fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED (Auth Error?)'}`)
 
     if (!response.ok) {
       throw new Error(`API responded with status: ${response.status}`)

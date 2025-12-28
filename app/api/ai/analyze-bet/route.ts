@@ -21,7 +21,7 @@ import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracke
 
 /**
  * AI Bet Analysis API Route
- * Requires Elite subscription tier
+ * Requires a paid subscription tier (Premium or higher)
  * Uses enhanced Claude analysis via AWS Bedrock when available
  */
 export async function POST(request: NextRequest) {
@@ -105,6 +105,10 @@ export async function POST(request: NextRequest) {
 
       try {
         if (isPerplexityAvailable()) {
+          const perplexityStartedAt = Date.now()
+          if (process.env.NODE_ENV !== "production") {
+            console.log("🧠 [TiltLab Analyze Bet] Perplexity: starting")
+          }
           const [ctx, feats] = await Promise.all([
             getCurrentGameContext({ league: leagueKey, teamA: homeTeam, teamB: awayTeam }),
             // Historical features are optional here; can be extended later
@@ -114,9 +118,13 @@ export async function POST(request: NextRequest) {
           if (ctx) context = ctx
           if (feats) features = feats
           if (ctx || feats) usedPerplexity = true
+
+          if (process.env.NODE_ENV !== "production") {
+            console.log(`🧠 [TiltLab Analyze Bet] Perplexity: done in ${Date.now() - perplexityStartedAt}ms`)
+          }
         }
       } catch (e) {
-        console.warn("[Elite Analyze Bet] Perplexity research failed", e)
+        console.warn("[TiltLab Analyze Bet] Perplexity research failed", e)
       }
 
       // Fallback context if Perplexity missing
@@ -161,10 +169,18 @@ export async function POST(request: NextRequest) {
 
       // 2) SageMaker numeric prediction and risk scoring
       try {
+        const smStartedAt = Date.now()
+        if (process.env.NODE_ENV !== "production") {
+          console.log("🤖 [TiltLab Analyze Bet] SageMaker: starting")
+        }
         prediction = await predictGameOutcomes(features)
         usedSageMaker = true
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`🤖 [TiltLab Analyze Bet] SageMaker: done in ${Date.now() - smStartedAt}ms`)
+        }
       } catch (e) {
-        console.warn("[Elite Analyze Bet] SageMaker prediction failed", e)
+        console.warn("[TiltLab Analyze Bet] SageMaker prediction failed", e)
         prediction = {
           winProbabilityHome: 0.5,
           winProbabilityAway: 0.5,
@@ -183,13 +199,14 @@ export async function POST(request: NextRequest) {
 
         betRiskAssessment = await scoreUserBet({
           features,
+          prediction: prediction!,
           betType: payload.betType,
           stake: payload.betAmount,
           odds: effectiveOdds,
           userProfile,
         })
       } catch (e) {
-        console.warn("[Elite Analyze Bet] scoreUserBet failed", e)
+        console.warn("[TiltLab Analyze Bet] scoreUserBet failed", e)
       }
 
       // 3) Claude reasoning layer
@@ -222,9 +239,17 @@ export async function POST(request: NextRequest) {
       let reasoning: BetAnalyzerReasoningOutput
 
       try {
+        const claudeStartedAt = Date.now()
+        if (process.env.NODE_ENV !== "production") {
+          console.log("🧠 [TiltLab Analyze Bet] Claude: starting")
+        }
         reasoning = await analyzeUserBet(baseInput)
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`🧠 [TiltLab Analyze Bet] Claude: done in ${Date.now() - claudeStartedAt}ms`)
+        }
       } catch (e) {
-        console.error("[Elite Analyze Bet] Claude reasoning failed, falling back to legacy enhanced route", e)
+        console.error("[TiltLab Analyze Bet] Claude reasoning failed, falling back to legacy enhanced route", e)
         reasoning = {
           betSafetyCategory: "CAUTION",
           stakeRecommendation: {
@@ -281,7 +306,7 @@ export async function POST(request: NextRequest) {
 
       usedEnhancedAI = true
     } catch (engineError) {
-      console.error("[Elite Analyze Bet] New 3-layer engine failed, falling back to legacy enhanced analysis:", engineError)
+      console.error("[TiltLab Analyze Bet] New 3-layer engine failed, falling back to legacy enhanced analysis:", engineError)
 
       // Legacy enhanced flow with Claude via getEnhancedBetAnalysis
       if (isEnhancedAIAvailable()) {
@@ -455,7 +480,7 @@ async function getEffectiveOdds(payload: BetScenario): Promise<{
       }
     }
   } catch (e) {
-    console.warn("[Elite Analyze Bet] Failed to source odds from APIs:", e)
+    console.warn("[TiltLab Analyze Bet] Failed to source odds from APIs:", e)
   }
 
   // 3) Perplexity approximate odds via current game context
@@ -477,7 +502,7 @@ async function getEffectiveOdds(payload: BetScenario): Promise<{
       }
     }
   } catch (e) {
-    console.warn("[Elite Analyze Bet] Failed to source odds from Perplexity:", e)
+    console.warn("[TiltLab Analyze Bet] Failed to source odds from Perplexity:", e)
   }
 
   // 4) Default fallback odds with explicit low-confidence marker

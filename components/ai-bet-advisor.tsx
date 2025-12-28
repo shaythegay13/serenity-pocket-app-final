@@ -281,7 +281,7 @@ export default function AIBetAdvisor() {
 
       if (!response.ok) {
         if (data.upgrade_required) {
-          setError(`This feature requires an Elite subscription. Your current tier: ${data.current_tier}`)
+          setError(`This feature requires a paid subscription (Premium or higher). Your current tier: ${data.current_tier}`)
         } else {
           setError(data.error || "Failed to analyze bet")
         }

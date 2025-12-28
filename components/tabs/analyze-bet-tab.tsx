@@ -380,7 +380,14 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       })
 
       if (!response.ok) {
-        throw new Error('Analysis failed')
+        let details = ''
+        try {
+          const err = await response.json()
+          details = err?.error || err?.message || ''
+        } catch {
+          // ignore
+        }
+        throw new Error(details ? `Analysis failed: ${details}` : `Analysis failed (HTTP ${response.status})`)
       }
 
       const data = await response.json()
@@ -434,15 +441,10 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
         setSaving(false)
       }
 
-      if (!data.usedAI) {
-        toast.info("Using mock analysis", {
-          description: "Add OPENAI_API_KEY to .env.local for real AI analysis"
-        })
-      }
     } catch (error) {
       console.error('Error analyzing bet:', error)
       toast.error("Analysis failed", {
-        description: "Please try again"
+        description: error instanceof Error ? error.message : "Please try again"
       })
     } finally {
       setAnalyzing(false)
@@ -1117,21 +1119,27 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
               Data Analysis
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 rounded-lg bg-background/50">
+              <div className="p-4 rounded-lg bg-background/50 min-w-0">
                 <p className="text-xs text-muted-foreground mb-1">Win Probability</p>
-                <p className="text-3xl font-bold text-blue-500">{analysis.probability}%</p>
+                <p className="text-3xl font-bold text-blue-500 tabular-nums truncate overflow-hidden whitespace-nowrap">
+                  {(analysis.probability * 100).toFixed(2)}%
+                </p>
               </div>
-              <div className="p-4 rounded-lg bg-background/50">
+              <div className="p-4 rounded-lg bg-background/50 min-w-0">
                 <p className="text-xs text-muted-foreground mb-1">Expected Value</p>
-                <p className={`text-3xl font-bold ${analysis.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <p
+                  className={`text-3xl font-bold tabular-nums truncate overflow-hidden whitespace-nowrap ${analysis.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                >
                   {analysis.expectedValue >= 0 ? '+' : ''}${analysis.expectedValue.toFixed(2)}
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-background/50">
+              <div className="p-4 rounded-lg bg-background/50 min-w-0">
                 <p className="text-xs text-muted-foreground mb-1">Confidence</p>
-                <p className="text-3xl font-bold text-cyan-500">{analysis.confidenceScore || 75}%</p>
+                <p className="text-3xl font-bold text-cyan-500 tabular-nums truncate overflow-hidden whitespace-nowrap">
+                  {Math.round((analysis.confidenceScore ?? 0.75) * 100)}%
+                </p>
               </div>
-              <div className="p-4 rounded-lg bg-background/50">
+              <div className="p-4 rounded-lg bg-background/50 min-w-0">
                 <p className="text-xs text-muted-foreground mb-1">Risk Level</p>
                 <Badge 
                   variant="outline" 
@@ -1184,9 +1192,22 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
                 <div className="p-4 rounded-lg bg-background/50">
                   <p className="text-sm font-medium text-foreground mb-2">Detected Biases</p>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.biasWarnings.map((bias: string) => (
-                      <Badge key={bias} variant="destructive">{bias}</Badge>
-                    ))}
+                    {analysis.biasWarnings.map((bias: any, idx: number) => {
+                      const label =
+                        typeof bias === "string"
+                          ? bias
+                          : typeof bias?.type === "string"
+                            ? bias.type
+                            : typeof bias?.message === "string"
+                              ? bias.message
+                              : "Bias warning"
+
+                      return (
+                        <Badge key={`${label}-${idx}`} variant="destructive">
+                          {label}
+                        </Badge>
+                      )
+                    })}
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-background/50">

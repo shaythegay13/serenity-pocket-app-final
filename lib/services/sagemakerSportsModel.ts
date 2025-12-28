@@ -38,6 +38,11 @@ export async function predictGameOutcomes(
 
   const payload = serializeFeatures(features)
 
+  const startedAt = Date.now()
+  if (process.env.NODE_ENV !== "production") {
+    console.log("🤖 [SageMaker] Invoking endpoint:", SAGEMAKER_ENDPOINT_NAME)
+  }
+
   const command = new InvokeEndpointCommand({
     EndpointName: SAGEMAKER_ENDPOINT_NAME,
     Body: Buffer.from(payload, "utf-8"),
@@ -47,6 +52,10 @@ export async function predictGameOutcomes(
 
   const res = await client.send(command)
   const body = res.Body ? Buffer.from(res.Body as Uint8Array).toString("utf-8") : ""
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`✅ [SageMaker] Response received in ${Date.now() - startedAt}ms`)
+  }
 
   // Expect something like: "pLoss,pPush,pWin" (multiclass probabilities) or a single line.
   const line = body.trim().split(/\r?\n/)[0] || ""
@@ -84,9 +93,10 @@ export async function scoreUserBet(input: {
   stake: number
   odds: number
   userProfile: UserPsychProfile
+  prediction?: ModelPrediction
 }): Promise<BetRiskAssessment> {
   // Simple placeholder scoring logic that combines model output and user profile.
-  const prediction = await predictGameOutcomes(input.features)
+  const prediction = input.prediction ?? (await predictGameOutcomes(input.features))
 
   // Approximate implied probability from American odds
   const odds = input.odds

@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/bottom-nav"
 import { supabase } from "@/lib/supabase"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { initializeUserData } from "@/lib/init-user"
+import { ErrorBoundary } from "@/components/error-boundary"
 // Auth rate limit debug utilities (loads global debug functions)
 import "@/lib/auth-rate-limit-utils"
 
@@ -344,38 +345,42 @@ export function HomeContent() {
 
   // Main dashboard
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
-      
-      <div className="hidden md:block">
-        <Navigation activeTab={activeTab} onTabChange={handleNavigateToTab} />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background">
+        <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
+        
+        <div className="hidden md:block">
+          <Navigation activeTab={activeTab} onTabChange={handleNavigateToTab} />
+        </div>
+        
+        <main className="pb-20 md:pb-0">
+          <ErrorBoundary>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
+              <div className="animate-pulse text-muted-foreground">Loading...</div>
+            </div>}>
+              {activeTab === "home" && (
+                <HomeTab 
+                  key={refreshKey}
+                  userData={userData} 
+                  onEmotionCheckInComplete={handleEmotionCheckInComplete}
+                  showEmotionCheckIn={showEmotionCheckIn}
+                />
+              )}
+              {activeTab === "odds" && <OddsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "analyze" && <AnalyzeTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "behavior" && <BehaviorTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "ai-picks" && <AiPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "analytics" && <AnalyticsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "account" && <AccountTab userData={userData} />}
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+        
+        <div className="md:hidden">
+          <BottomNav activeTab={activeTab} onTabChange={handleNavigateToTab} />
+        </div>
       </div>
-      
-      <main className="pb-20 md:pb-0">
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Loading...</div>
-        </div>}>
-          {activeTab === "home" && (
-            <HomeTab 
-              key={refreshKey}
-              userData={userData} 
-              onEmotionCheckInComplete={handleEmotionCheckInComplete}
-              showEmotionCheckIn={showEmotionCheckIn}
-            />
-          )}
-          {activeTab === "odds" && <OddsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-          {activeTab === "analyze" && <AnalyzeTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-          {activeTab === "behavior" && <BehaviorTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-          {activeTab === "ai-picks" && <AiPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-          {activeTab === "analytics" && <AnalyticsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-          {activeTab === "account" && <AccountTab userData={userData} />}
-        </Suspense>
-      </main>
-      
-      <div className="md:hidden">
-        <BottomNav activeTab={activeTab} onTabChange={handleNavigateToTab} />
-      </div>
-    </div>
+    </ErrorBoundary>
   )
 }
 

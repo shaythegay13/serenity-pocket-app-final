@@ -6,7 +6,6 @@
  */
 
 import { fetchPlayerStatsByTeam } from './espn-api'
-import { isPerplexityAvailable, invokePerplexity } from './perplexity'
 import { storageHybrid } from './storage-hybrid'
 import type { SupportedSportKey } from './types'
 import {
@@ -167,44 +166,13 @@ interface TheSportsDBEventResponse {
   results?: TheSportsDBEvent[] // v1 API uses 'results' instead of 'events'
 }
 
-interface PerplexityRosterResponse {
-  players: Array<{
-    name: string
-    position?: string
-    number?: string
-  }>
-}
-
-interface PerplexityRecentResultsResponse {
-  recentForm: string[]
-}
-
-interface PerplexityPlayerDetailResponse {
-  name: string
-  team?: string
-  position?: string
-  bio?: string
-  height?: string
-  weight?: string
-  dateOfBirth?: string
-  nationality?: string
-  stats?: PlayerStats
-}
-
-interface PerplexityTeamBettingInsightsResponse {
-  team: string
-  sport?: string
-  overUnderRecord?: string
-  performanceAgainstSpread?: string
-}
-
 /**
  * Fetch team roster from TheSportsDB
  */
 export async function fetchTeamRoster(teamName: string, sport: string): Promise<Player[]> {
   try {
     if (!isTheSportsDBConfigured()) {
-      return await getPerplexityRosterOrMock(teamName, sport)
+      return getMockRosterForTeam(teamName, sport)
     }
 
     // Search for team using v1 API
@@ -227,7 +195,7 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
 
     if (!teamData.teams || teamData.teams.length === 0) {
       console.warn(`Team not found: ${teamName}`)
-      return await getPerplexityRosterOrMock(teamName, sport)
+      return getMockRosterForTeam(teamName, sport)
     }
 
     const teamId = teamData.teams[0].idTeam
@@ -239,20 +207,20 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
     // Check if response is OK and is JSON before parsing
     if (!playersResponse.ok) {
       console.warn(`Failed to fetch players data: ${playersResponse.status} ${playersResponse.statusText}`)
-      return await getPerplexityRosterOrMock(teamName, sport)
+      return getMockRosterForTeam(teamName, sport)
     }
 
     const playersContentType = playersResponse.headers.get('content-type')
     if (!playersContentType || !playersContentType.includes('application/json')) {
       console.warn(`Invalid response type for players: ${playersContentType}`)
-      return await getPerplexityRosterOrMock(teamName, sport)
+      return getMockRosterForTeam(teamName, sport)
     }
 
     const playersData: TheSportsDBResponse = await playersResponse.json()
 
     if (!playersData.player || playersData.player.length === 0) {
       console.warn(`No players found for team: ${teamName}`)
-      return await getPerplexityRosterOrMock(teamName, sport)
+      return getMockRosterForTeam(teamName, sport)
     }
 
     // Transform to our Player interface
@@ -266,7 +234,7 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
     }))
   } catch (error) {
     console.error('Error fetching roster:', error)
-    return await getPerplexityRosterOrMock(teamName, sport)
+    return getMockRosterForTeam(teamName, sport)
   }
 }
 
@@ -276,7 +244,7 @@ export async function fetchTeamRoster(teamName: string, sport: string): Promise<
 export async function fetchTeamRecentResults(teamName: string, limit: number = 5): Promise<string[]> {
   try {
     if (!isTheSportsDBConfigured()) {
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     // Search for team using v1 API
@@ -286,20 +254,20 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
     // Check if response is OK and is JSON before parsing
     if (!teamResponse.ok) {
       console.warn(`[Team Form] Failed to fetch team data: ${teamResponse.status} ${teamResponse.statusText}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const contentType = teamResponse.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       console.warn(`[Team Form] Invalid response type: ${contentType}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const teamData = await teamResponse.json()
 
     if (!teamData.teams || teamData.teams.length === 0) {
       console.warn(`[Team Form] Team not found: ${teamName}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const teamId = teamData.teams[0].idTeam
@@ -311,13 +279,13 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
     // Check if response is OK and is JSON before parsing
     if (!scheduleResponse.ok) {
       console.warn(`[Team Form] Failed to fetch schedule data: ${scheduleResponse.status} ${scheduleResponse.statusText}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const scheduleContentType = scheduleResponse.headers.get('content-type')
     if (!scheduleContentType || !scheduleContentType.includes('application/json')) {
       console.warn(`[Team Form] Invalid schedule response type: ${scheduleContentType}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const scheduleData: TheSportsDBEventResponse = await scheduleResponse.json()
@@ -326,7 +294,7 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
     const eventsArray = scheduleData.results || scheduleData.events
     if (!eventsArray || eventsArray.length === 0) {
       console.warn(`[Team Form] No previous events for team: ${teamName}`)
-      return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+      return []
     }
 
     const events = eventsArray.slice(0, limit)
@@ -347,7 +315,7 @@ export async function fetchTeamRecentResults(teamName: string, limit: number = 5
     })
   } catch (error) {
     console.error('[Team Form] Error fetching recent results:', error)
-    return await getPerplexityRecentResultsOrEmpty(teamName, limit)
+    return []
   }
 }
 
@@ -359,7 +327,7 @@ export async function fetchPlayerDetails(playerId: string, playerName: string, t
   try {
     if (!isTheSportsDBConfigured()) {
       console.warn(`[Player Details] TheSportsDB not configured, using mock profile for ${playerName}`)
-      return await getPerplexityPlayerOrMock(playerName, teamName, sport)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
     // Search for player using v1 API
     const searchUrl = buildV1SearchPlayerUrl(playerName)
@@ -368,20 +336,20 @@ export async function fetchPlayerDetails(playerId: string, playerName: string, t
     // Check if response is OK and is JSON before parsing
     if (!response.ok) {
       console.warn(`[Player Details] Failed to fetch player data: ${response.status} ${response.statusText}`)
-      return await getPerplexityPlayerOrMock(playerName, teamName, sport)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
 
     const contentType = response.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       console.warn(`[Player Details] Invalid response type: ${contentType}`)
-      return await getPerplexityPlayerOrMock(playerName, teamName, sport)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
 
     const data: TheSportsDBResponse = await response.json()
 
     if (!data.player || data.player.length === 0) {
       console.warn(`[Player Details] No data from TheSportsDB for ${playerName}, using mock profile`)
-      return await getPerplexityPlayerOrMock(playerName, teamName, sport)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
 
     // Select the best matching player by name rather than blindly taking the first
@@ -408,7 +376,7 @@ export async function fetchPlayerDetails(playerId: string, playerName: string, t
 
     if (!player) {
       console.warn(`[Player Details] No close name match in TheSportsDB for "${playerName}", using mock profile`)
-      return await getPerplexityPlayerOrMock(playerName, teamName, sport)
+      return createMockPlayerProfile(playerName, teamName, sport)
     }
 
     // Try to get real-time stats from ESPN if team and sport are provided
@@ -420,43 +388,12 @@ export async function fetchPlayerDetails(playerId: string, playerName: string, t
       console.warn(`[Player Details] No team/sport provided for ${playerName}, will use alternative data sources`)
     }
 
-    // Fallback to Perplexity-derived stats if ESPN fails or no team/sport provided
-    if (!stats && teamName && sport && isPerplexityAvailable()) {
-      try {
-        const system = 'You are a sports data assistant. Return strictly JSON only.'
-        const user = `Return concise season-average stats for the player "${playerName}" on team "${teamName}" in sport "${sport}".
-
-Focus on core box score metrics only (games played, points, assists, rebounds, passing/rushing/receiving yards and touchdowns, etc. depending on sport).
-Respond ONLY with JSON in the shape: { "stats": { ...numeric fields... } }`
-
-        let raw = await invokePerplexity({
-          system,
-          messages: [{ role: 'user', content: user }],
-          max_tokens: 600,
-          temperature: 0.2,
-        })
-
-        raw = raw.trim()
-        if (raw.startsWith('```')) {
-          raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-        }
-
-        const parsed = JSON.parse(raw) as { stats?: PlayerStats }
-        if (parsed.stats && Object.keys(parsed.stats).length > 0) {
-          stats = { ...parsed.stats, isMockData: false }
-          console.log(`[Player Details] ✓ Using Perplexity-derived stats for ${playerName}`)
-        }
-      } catch (e) {
-        console.warn('[Perplexity] Failed to fetch player stats, leaving stats undefined:', e)
-      }
-    }
-
     if (!stats) {
       console.warn(`[Player Details] No reliable stats available for ${playerName}`)
     }
 
     // Enhance betting-related stats (over/under and ATS) using real game history
-    // and Perplexity as a fallback when odds providers can't supply data.
+    // and fallback values when odds providers can't supply data.
     if (stats && teamName && sport) {
       try {
         const sportKey = sport as SupportedSportKey
@@ -478,39 +415,6 @@ Respond ONLY with JSON in the shape: { "stats": { ...numeric fields... } }`
           atsText = formatATSRecord(atsRecord)
         }
 
-        // If we don't have enough history (e.g., odds API limits), try Perplexity
-        if ((!overUnderText || !atsText) && isPerplexityAvailable()) {
-          try {
-            const system = 'You are a sports betting statistics assistant. Return strictly JSON only.'
-            const user = `For the team "${teamName}" in sport "${sport}", return their season betting performance.
-
-Return overall over/under record and performance against the spread based on real historical game results and closing lines.
-Respond ONLY with JSON in the shape: { "team": string, "sport"?: string, "overUnderRecord"?: string, "performanceAgainstSpread"?: string }`
-
-            let raw = await invokePerplexity({
-              system,
-              messages: [{ role: 'user', content: user }],
-              max_tokens: 400,
-              temperature: 0.1,
-            })
-
-            raw = raw.trim()
-            if (raw.startsWith('```')) {
-              raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-            }
-
-            const parsed = JSON.parse(raw) as PerplexityTeamBettingInsightsResponse
-            if (!overUnderText && parsed.overUnderRecord) {
-              overUnderText = parsed.overUnderRecord
-            }
-            if (!atsText && parsed.performanceAgainstSpread) {
-              atsText = parsed.performanceAgainstSpread
-            }
-          } catch (e) {
-            console.warn('[Perplexity] Failed to fetch team betting insights, leaving fields empty:', e)
-          }
-        }
-
         if (overUnderText) {
           stats.overUnderRecord = overUnderText
         }
@@ -518,7 +422,7 @@ Respond ONLY with JSON in the shape: { "team": string, "sport"?: string, "overUn
           stats.performanceAgainstSpread = atsText
         }
       } catch (err) {
-        console.warn('[Player Details] Failed to enrich betting metrics from history/Perplexity:', err)
+        console.warn('[Player Details] Failed to enrich betting metrics from history:', err)
       }
     }
 
@@ -539,160 +443,7 @@ Respond ONLY with JSON in the shape: { "team": string, "sport"?: string, "overUn
   } catch (error) {
     console.error('Error fetching player details:', error)
     console.warn(`[Player Details] Error occurred, using mock profile for ${playerName}`)
-    return await getPerplexityPlayerOrMock(playerName, teamName, sport)
-  }
-}
-
-async function getPerplexityRosterOrMock(teamName: string, sport: string): Promise<Player[]> {
-  if (!isPerplexityAvailable()) {
-    return getMockRosterForTeam(teamName, sport)
-  }
-
-  try {
-    const system = 'You are a sports data assistant. Return strictly JSON only.'
-    const user = `Return a concise JSON roster for the team "${teamName}" in sport "${sport}".
-
-Include an array players with fields: name, position, number (string).
-Respond ONLY with JSON in the shape: { "players": [{ "name": string, "position"?: string, "number"?: string }] }`
-
-    let raw = await invokePerplexity({
-      system,
-      messages: [{ role: 'user', content: user }],
-      max_tokens: 800,
-      temperature: 0.2,
-    })
-
-    raw = raw.trim()
-    if (raw.startsWith('```')) {
-      raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-    }
-
-    const parsed = JSON.parse(raw) as PerplexityRosterResponse
-    if (!parsed.players || !Array.isArray(parsed.players) || parsed.players.length === 0) {
-      return getMockRosterForTeam(teamName, sport)
-    }
-
-    return parsed.players.slice(0, 15).map((p, idx) => ({
-      id: `ppx-${teamName}-${idx}`,
-      name: p.name,
-      position: p.position,
-      number: p.number,
-      team: teamName,
-    }))
-  } catch (e) {
-    console.warn('[Perplexity] Failed to fetch roster, falling back to mock:', e)
-    return getMockRosterForTeam(teamName, sport)
-  }
-}
-
-async function getPerplexityRecentResultsOrEmpty(teamName: string, limit: number): Promise<string[]> {
-  if (!isPerplexityAvailable()) {
-    return []
-  }
-
-  try {
-    const system = 'You are a sports data assistant. Return strictly JSON only.'
-    const user = `For the team "${teamName}", return recent form over the last ${limit} games as an array of results.
-
-Each element must be one of 'W', 'L', 'D', or '-' if unknown.
-Respond ONLY with JSON in the shape: { "recentForm": string[] }`
-
-    let raw = await invokePerplexity({
-      system,
-      messages: [{ role: 'user', content: user }],
-      max_tokens: 400,
-      temperature: 0.2,
-    })
-
-    raw = raw.trim()
-    if (raw.startsWith('```')) {
-      raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-    }
-
-    const parsed = JSON.parse(raw) as PerplexityRecentResultsResponse
-    if (!parsed.recentForm || !Array.isArray(parsed.recentForm) || parsed.recentForm.length === 0) {
-      return []
-    }
-
-    return parsed.recentForm.slice(0, limit)
-  } catch (e) {
-    console.warn('[Perplexity] Failed to fetch recent results, returning empty array:', e)
-    return []
-  }
-}
-
-async function getPerplexityPlayerOrMock(playerName: string, teamName?: string, sport?: string): Promise<PlayerDetail> {
-  if (!isPerplexityAvailable()) {
-    return {
-      id: `ppx-fallback-${Date.now()}`,
-      name: playerName,
-      position: undefined,
-      number: undefined,
-      imageUrl: undefined,
-      team: teamName || 'Unknown Team',
-      height: undefined,
-      weight: undefined,
-      dateOfBirth: undefined,
-      nationality: undefined,
-      bio: `Profile data is currently unavailable for ${playerName}.`,
-      stats: undefined,
-    }
-  }
-
-  try {
-    const system = 'You are a sports data assistant. Return strictly JSON only.'
-    const user = `Return a concise player profile for "${playerName}"${teamName ? ` on team "${teamName}"` : ''}${sport ? ` in sport "${sport}"` : ''}.
-
-Include: name, team (if known), position, bio, height, weight, dateOfBirth, nationality, and a stats object with high-level per-game stats.
-Respond ONLY with JSON in the shape:
-{ "name": string, "team"?: string, "position"?: string, "bio"?: string, "height"?: string, "weight"?: string, "dateOfBirth"?: string, "nationality"?: string, "stats"?: { ...numeric or string fields } }`
-
-    let raw = await invokePerplexity({
-      system,
-      messages: [{ role: 'user', content: user }],
-      max_tokens: 800,
-      temperature: 0.3,
-    })
-
-    raw = raw.trim()
-    if (raw.startsWith('```')) {
-      raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-    }
-
-    const parsed = JSON.parse(raw) as PerplexityPlayerDetailResponse
-
-    const detail: PlayerDetail = {
-      id: `ppx-${Date.now()}`,
-      name: parsed.name || playerName,
-      position: parsed.position,
-      number: undefined,
-      imageUrl: undefined,
-      team: parsed.team || teamName || 'Unknown Team',
-      height: parsed.height,
-      weight: parsed.weight,
-      dateOfBirth: parsed.dateOfBirth,
-      nationality: parsed.nationality,
-      bio: parsed.bio,
-      stats: parsed.stats ? { ...parsed.stats, isMockData: false } : undefined,
-    }
-
-    return detail
-  } catch (e) {
-    console.warn('[Perplexity] Failed to fetch player profile, returning minimal profile:', e)
-    return {
-      id: `ppx-fallback-${Date.now()}`,
-      name: playerName,
-      position: undefined,
-      number: undefined,
-      imageUrl: undefined,
-      team: teamName || 'Unknown Team',
-      height: undefined,
-      weight: undefined,
-      dateOfBirth: undefined,
-      nationality: undefined,
-      bio: `Profile data is currently unavailable for ${playerName}.`,
-      stats: undefined,
-    }
+    return createMockPlayerProfile(playerName, teamName, sport)
   }
 }
 

@@ -7,6 +7,24 @@ import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsD
 import { TabSkeleton } from "../shared/LoadingSkeleton"
 import { BarChart3, TrendingUp, Target, AlertTriangle, Users, Activity } from "lucide-react"
 
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashToSeed(input: string): number {
+  let h = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
 export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
   const { data, loading, error } = useEnhancedOdds(sport)
   const [selectedMarkets, setSelectedMarkets] = useState<Record<string, "moneyline" | "spread" | "total">>({})
@@ -35,16 +53,18 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
     const awayOdds = game.awayOdds?.best?.odds ?? 0
     const homeOdds = game.homeOdds?.best?.odds ?? 0
 
+    const rand = mulberry32(hashToSeed(`${game.id}:${awayOdds}:${homeOdds}`))
+
     // Calculate implied probabilities
     const awayProb = awayOdds > 0 ? 100 / (awayOdds + 100) : Math.abs(awayOdds) / (Math.abs(awayOdds) + 100)
     const homeProb = homeOdds > 0 ? 100 / (homeOdds + 100) : Math.abs(homeOdds) / (Math.abs(homeOdds) + 100)
 
     // Public tends to bet favorites, so skew toward team with better odds
-    const publicAwayPercent = awayProb > homeProb ? 35 + Math.random() * 20 : 45 + Math.random() * 20
+    const publicAwayPercent = awayProb > homeProb ? 35 + rand() * 20 : 45 + rand() * 20
     const publicHomePercent = 100 - publicAwayPercent
 
     // Sharp money often opposes public (contrarian), but not always
-    const sharpAwayPercent = publicAwayPercent < 50 ? 55 + Math.random() * 15 : 35 + Math.random() * 15
+    const sharpAwayPercent = publicAwayPercent < 50 ? 55 + rand() * 15 : 35 + rand() * 15
     const sharpHomePercent = 100 - sharpAwayPercent
 
     return {
@@ -73,12 +93,12 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
         },
         total: {
           public: [
-            { side: "Over", percentageOfBets: 52 + Math.random() * 8, percentageOfMoney: 50 + Math.random() * 10 },
-            { side: "Under", percentageOfBets: 48 - Math.random() * 8, percentageOfMoney: 50 - Math.random() * 10 }
+            { side: "Over", percentageOfBets: 52 + rand() * 8, percentageOfMoney: 50 + rand() * 10 },
+            { side: "Under", percentageOfBets: 48 - rand() * 8, percentageOfMoney: 50 - rand() * 10 }
           ],
           sharp: [
-            { side: "Over", percentageOfBets: 45 + Math.random() * 10, percentageOfMoney: 47 + Math.random() * 6 },
-            { side: "Under", percentageOfBets: 55 - Math.random() * 10, percentageOfMoney: 53 - Math.random() * 6 }
+            { side: "Over", percentageOfBets: 45 + rand() * 10, percentageOfMoney: 47 + rand() * 6 },
+            { side: "Under", percentageOfBets: 55 - rand() * 10, percentageOfMoney: 53 - rand() * 6 }
           ]
         }
       },

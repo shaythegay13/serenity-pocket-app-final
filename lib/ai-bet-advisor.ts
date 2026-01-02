@@ -9,7 +9,6 @@
  */
 
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './aws-bedrock'
-import { isPerplexityAvailable, invokePerplexity } from './perplexity'
 export interface BetScenario {
   sport: string
   betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay'
@@ -100,14 +99,12 @@ export interface ComprehensiveAnalysis {
 export interface AIEnhancedAnalysis extends ComprehensiveAnalysis {
   ai?: {
     usedClaude: boolean
-    usedPerplexity: boolean
     claudeAnalysis?: {
       enhancedReasoning: string
       refinedRecommendation: 'PLACE BET' | 'DON\'T PLACE BET' | 'PROCEED WITH CAUTION'
       confidenceScore: number
       keyInsights: string[]
     }
-    perplexitySummary?: string
   }
 }
 
@@ -397,11 +394,18 @@ export function unifiedRecommendationAgent(
   const dogRecord = payload.underdogRecord || ''
   const favWins = parseInt(favRecord.split('-')[0]) || 0
   const favLosses = parseInt(favRecord.split('-')[1]) || 0
+
   const dogWins = parseInt(dogRecord.split('-')[0]) || 0
   const dogLosses = parseInt(dogRecord.split('-')[1]) || 0
 
-  const favWinPct = favWins + favLosses > 0 ? (favWins / (favWins + favLosses)) : 0.5
-  const dogWinPct = dogWins + dogLosses > 0 ? (dogWins / (dogWins + dogLosses)) : 0.5
+  const favSeasonWinPct = favWins + favLosses > 0 ? (favWins / (favWins + favLosses)) : 0.5
+  const dogSeasonWinPct = dogWins + dogLosses > 0 ? (dogWins / (dogWins + dogLosses)) : 0.5
+
+  // Convert season win rates into a single matchup win probability.
+  // This keeps favoriteWinPct + underdogWinPct = 100 for UI display.
+  const denom = favSeasonWinPct + dogSeasonWinPct
+  const favWinPct = denom > 0 ? favSeasonWinPct / denom : 0.5
+  const dogWinPct = 1 - favWinPct
 
   // Game analysis factors
   const hasKeyInjuries = /star|key|starting|main/i.test(payload.injuries || '')
@@ -505,7 +509,6 @@ export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnh
   const base = analyzeScenario(payload)
 
   const hasClaude = isEnhancedAIAvailable()
-  const hasPerplexity = isPerplexityAvailable()
 
   let claudeAnalysis:
     | {
@@ -515,46 +518,6 @@ export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnh
         keyInsights: string[]
       }
     | undefined
-  let perplexitySummary: string | undefined
-
-  if (hasPerplexity) {
-    try {
-      const researchPrompt = `You are assisting with research for a responsible betting advisor.
-
-Please provide concise, factual context for this betting scenario.
-
-Sport: ${payload.sport}
-Bet Type: ${payload.betType}
-Bet Amount: $${payload.betAmount}
-Weekly Budget: $${payload.budget}
-Favorite: ${payload.favoriteTeam} (${payload.favoriteRecord})
-Underdog: ${payload.underdogTeam} (${payload.underdogRecord})
-Injuries: ${payload.injuries || 'None reported'}
-Weather: ${payload.weather || 'N/A'}
-Current Emotion: ${payload.currentEmotion}
-Last Outcome: ${payload.lastOutcome}
-
-User notes: ${payload.notes || 'n/a'}
-
-Focus on data that could impact responsible betting decisions (schedule spots, injuries, trends, etc.).
-Respond with 3-8 bullet points.`
-
-      perplexitySummary = await invokePerplexity({
-        system: 'You are a neutral research assistant supporting a responsible gambling advisor.',
-        messages: [
-          {
-            role: 'user',
-            content: researchPrompt,
-          },
-        ],
-        max_tokens: 900,
-        temperature: 0.3,
-      })
-    } catch (error) {
-      console.error('Perplexity research failed (analyzeScenarioWithAI):', error)
-    }
-  }
-
   if (hasClaude) {
     try {
       claudeAnalysis = await getEnhancedBetAnalysis({
@@ -596,9 +559,7 @@ Respond with 3-8 bullet points.`
     ...base,
     ai: {
       usedClaude: !!claudeAnalysis,
-      usedPerplexity: !!perplexitySummary,
       claudeAnalysis,
-      perplexitySummary,
     },
   }
 }

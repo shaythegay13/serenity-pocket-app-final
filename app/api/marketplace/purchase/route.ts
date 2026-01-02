@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { flowglad } from '@/lib/flowglad'
 
+export const runtime = 'nodejs'
+
 /**
  * POST /api/marketplace/purchase
  * 
@@ -62,7 +64,24 @@ export async function POST(request: NextRequest) {
 
     // Create Flowglad checkout session for one-time payment
     try {
-      const flowgladClient = flowglad(user.id)
+      const hasFlowgladConfig =
+        process.env.FLOWGLAD_SECRET_KEY && process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
+
+      if (!hasFlowgladConfig) {
+        return NextResponse.json(
+          { success: false, error: 'Flowglad not configured' },
+          { status: 500 }
+        )
+      }
+
+      const flowgladClient = flowglad(user.id, {
+        email: user.email,
+        name: (user.user_metadata as any)?.full_name || (user.user_metadata as any)?.name,
+      })
+
+      // Flowglad product checkouts require an existing customer.
+      // Ensure the customer exists (creates if missing) before starting checkout.
+      await flowgladClient.findOrCreateCustomer()
       
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
       
@@ -97,10 +116,38 @@ export async function POST(request: NextRequest) {
       })
     } catch (flowgladError) {
       console.error('[Marketplace Purchase] Flowglad checkout creation failed:', flowgladError)
+
+      let details: string | undefined
+      if (process.env.NODE_ENV === 'development') {
+        const errAny = flowgladError as any
+        const message = errAny?.message ? String(errAny.message) : String(flowgladError)
+        const stack = errAny?.stack ? String(errAny.stack) : undefined
+        const code = errAny?.code ? String(errAny.code) : undefined
+        const status = errAny?.status ? String(errAny.status) : undefined
+        const name = errAny?.name ? String(errAny.name) : undefined
+        const errorCode = errAny?.error?.code ? String(errAny.error.code) : undefined
+        const errorMessage = errAny?.error?.message ? String(errAny.error.message) : undefined
+
+        details = JSON.stringify(
+          {
+            name,
+            message,
+            code,
+            status,
+            errorCode,
+            errorMessage,
+            stack,
+          },
+          null,
+          2
+        )
+      }
+
       return NextResponse.json(
         { 
           success: false,
-          error: 'Failed to create checkout session' 
+          error: 'Failed to create checkout session',
+          ...(details ? { details } : {})
         },
         { status: 500 }
       )

@@ -5,6 +5,8 @@ import type { SupportedSportKey } from "@/lib/types"
 import { useEnhancedOdds } from "../hooks/useEnhancedOdds"
 import { TabSkeleton } from "../shared/LoadingSkeleton"
 import { X, Users, BarChart3, TrendingUp, Activity, Target } from "lucide-react"
+import { PlayerModal } from "@/components/player-modal"
+import { TeamModal } from "@/components/team-modal"
 
 export function TeamPlayerAnalyticsPanel({ sport }: { sport: SupportedSportKey }) {
   const { data, loading, error } = useEnhancedOdds(sport)
@@ -821,432 +823,39 @@ export function TeamPlayerAnalyticsPanel({ sport }: { sport: SupportedSportKey }
         })}
       </div>
 
-      {/* Team Details Modal */}
-      {selectedTeam && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedTeam(null)}
-        >
-          <div
-            className="bg-[#0B0E14] border border-[#00FF41]/30 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-[#0B0E14] border-b border-white/10 p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-white/5 border-2 border-[#00FF41]/30 flex items-center justify-center overflow-hidden">
-                  {(() => {
-                    const logoUrl = getTeamLogoUrl(selectedTeam, sport)
-                    const hasLogoError = logoErrors.has(selectedTeam)
-                    const initials = selectedTeam.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase()
+      {/* Team Details Modal - Using v0 component */}
+      {selectedTeam && (() => {
+        const stats = generateTeamStats(selectedTeam)
+        return (
+          <TeamModal
+            team={{
+              name: selectedTeam,
+              record: stats.record,
+              recentForm: stats.form,
+              pointsPerGame: stats.stats.pointsPerGame || stats.stats.runsPerGame || stats.stats.goalsPerGame || '0',
+              pointsAllowed: stats.stats.pointsAllowed || stats.stats.runsAllowed || stats.stats.goalsAllowed || '0',
+              totalYards: stats.stats.totalYards?.toString() || stats.stats.battingAvg || stats.stats.powerPlayPct || 'N/A',
+              turnovers: stats.stats.turnovers?.toString() || stats.stats.era || stats.stats.penaltyKillPct || 'N/A'
+            }}
+            roster={teamRoster}
+            loadingRoster={loadingRoster}
+            onClose={() => setSelectedTeam(null)}
+            onPlayerClick={(player) => setSelectedPlayer(player)}
+          />
+        )
+      })()}
 
-                    return logoUrl && !hasLogoError ? (
-                      <img
-                        src={logoUrl}
-                        alt={`${selectedTeam} logo`}
-                        className="w-12 h-12 object-contain"
-                        onError={() => handleLogoError(selectedTeam)}
-                      />
-                    ) : (
-                      <span className="text-xl font-bold text-[#00FF41]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {initials}
-                      </span>
-                    )
-                  })()}
-                </div>
-                <h2 className="text-2xl font-bold text-white">{selectedTeam}</h2>
-              </div>
-              <button
-                onClick={() => setSelectedTeam(null)}
-                className="text-gray-400 hover:text-white transition-colors p-2"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Team Statistics */}
-            <div className="p-6 border-b border-white/10">
-              <h3 className="text-lg font-semibold text-[#00FF41] mb-4 flex items-center gap-2">
-                <Target className="w-5 h-5" />
-                Team Statistics
-              </h3>
-
-              {(() => {
-                const stats = generateTeamStats(selectedTeam)
-                const isNFL = sport === 'americanfootball_nfl'
-                const isNBA = sport === 'basketball_nba'
-                const isMLB = sport === 'baseball_mlb'
-
-                return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                      <div className="text-xs text-gray-400 mb-1">Record</div>
-                      <div className="text-2xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {stats.record}
-                      </div>
-                    </div>
-                    <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                      <div className="text-xs text-gray-400 mb-1">Recent Form (L5)</div>
-                      <div className="flex gap-1 mt-2">
-                        {stats.form.map((result, i) => (
-                          <div
-                            key={i}
-                            className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${
-                              result === 'W' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                            }`}
-                          >
-                            {result}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {isNFL && (
-                      <>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Points/Game</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.pointsPerGame}
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Points Allowed</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.pointsAllowed}
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Total Yards/Game</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.totalYards}
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Turnovers</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.turnovers}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    {isNBA && (
-                      <>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Points/Game</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.pointsPerGame}
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Points Allowed</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.pointsAllowed}
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">FG%</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.fieldGoalPct}%
-                          </div>
-                        </div>
-                        <div className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                          <div className="text-xs text-gray-400 mb-1">Rebounds/Game</div>
-                          <div className="text-2xl font-bold text-[#00D1FF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            {stats.stats.reboundsPerGame}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* Full Team Roster */}
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-[#00FF41] flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Full Roster
-                </h3>
-                {/* Live ESPN Data Badge */}
-                <div className="px-3 py-1 rounded-md bg-[#00FF41]/10 border border-[#00FF41]/30">
-                  <span className="text-xs font-semibold text-[#00FF41] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                    Live ESPN Data
-                  </span>
-                </div>
-              </div>
-
-              {loadingRoster ? (
-                <div className="text-center py-8 text-gray-400">Loading roster...</div>
-              ) : teamRoster.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[...teamRoster].sort((a, b) => {
-                      const lastNameA = getLastName(a.playerName || a.name || a.displayName || '')
-                      const lastNameB = getLastName(b.playerName || b.name || b.displayName || '')
-                      return lastNameA.localeCompare(lastNameB)
-                    }).map((player: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedPlayer(player)}
-                        className="bg-[#161B22] hover:bg-[#1f2937] border border-white/5 hover:border-[#00D1FF]/30 rounded-lg p-4 transition-all duration-200 text-left group"
-                      >
-                        <div className="flex items-center gap-3">
-                          {/* Player Avatar with Jersey Number Badge */}
-                          <div className="relative flex-shrink-0">
-                            <img
-                              src={getPlayerHeadshot(player.playerName || player.name || player.displayName)}
-                              alt={player.playerName || player.name || player.displayName}
-                              className="w-12 h-12 rounded-full border-2 border-[#00FF41]/30 bg-[#00FF41]/5 object-cover"
-                              loading="lazy"
-                            />
-                            {/* Jersey Number Badge */}
-                            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#00D1FF] border border-[#0B0E14] flex items-center justify-center">
-                              <span className="text-[9px] font-bold text-[#0B0E14]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                                {player.jerseyNumber || player.number || '?'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white group-hover:text-[#00D1FF] transition-colors truncate">
-                              {player.playerName || player.name || player.displayName}
-                            </div>
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              {player.position || 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-400">
-                  No roster data available. Roster information will be displayed here once loaded.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Player Details Modal */}
+      {/* Player Details Modal - Using v0 component */}
       {selectedPlayer && (
-        <div
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-          style={{ zIndex: 60 }}
-          onClick={() => setSelectedPlayer(null)}
-        >
-          <div
-            className="bg-[#0B0E14] border border-[#00D1FF]/30 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Player Modal Header */}
-            <div className="sticky top-0 bg-[#0B0E14] border-b border-white/10 p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {/* Player Headshot - Electric Green Avatar */}
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={getPlayerHeadshot(selectedPlayer.playerName || selectedPlayer.name || selectedPlayer.displayName)}
-                    alt={`${selectedPlayer.playerName || selectedPlayer.name || selectedPlayer.displayName}`}
-                    className="w-24 h-24 rounded-full border-4 border-[#00FF41]/40 shadow-[0_0_20px_rgba(0,255,65,0.25)] bg-[#161B22] object-cover"
-                    loading="eager"
-                    crossOrigin="anonymous"
-                  />
-                  {/* Jersey Number Badge */}
-                  <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#00D1FF] border-2 border-[#0B0E14] flex items-center justify-center">
-                    <span className="text-xs font-bold text-[#0B0E14]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {selectedPlayer.jerseyNumber || selectedPlayer.number || '#'}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-2xl font-bold text-white truncate">
-                    {selectedPlayer.playerName || selectedPlayer.name || selectedPlayer.displayName}
-                  </h2>
-                  <p className="text-sm text-gray-400 mt-1">
-                    {selectedPlayer.position} • #{selectedPlayer.jerseyNumber || selectedPlayer.number} • {selectedTeam}
-                  </p>
-                  {/* Position Badge */}
-                  <div className="mt-2 inline-flex items-center px-2 py-1 rounded-md bg-[#00FF41]/10 border border-[#00FF41]/30">
-                    <span className="text-xs font-semibold text-[#00FF41] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {selectedPlayer.position}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedPlayer(null)}
-                className="text-gray-400 hover:text-white transition-colors p-2 flex-shrink-0"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Player Betting Statistics */}
-            <div className="p-6 space-y-6">
-              {(() => {
-                const bettingStats = generatePlayerBettingStats(selectedPlayer)
-                const isNFL = sport === 'americanfootball_nfl'
-                const isNBA = sport === 'basketball_nba'
-
-                return (
-                  <>
-                    {/* Season Averages */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-[#00D1FF] mb-3 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        Season Averages
-                      </h3>
-                      <div className="grid grid-cols-3 gap-3">
-                        {Object.entries(bettingStats.seasonAvg).map(([key, value]) => (
-                          <div key={key} className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                            <div className="text-xs text-gray-400 mb-1 capitalize">
-                              {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </div>
-                            <div className="text-xl font-bold text-white" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                              {value}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Home/Away/Matchup Splits */}
-                    {bettingStats.splits && Object.keys(bettingStats.splits).length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#00D1FF] mb-3 flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5" />
-                          Performance Splits
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {Object.entries(bettingStats.splits).map(([key, value]: [string, any]) => (
-                            <div key={key} className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                              <div className="text-xs text-gray-400 mb-2 capitalize">
-                                {key.replace(/([A-Z])/g, ' $1').replace(/vs/gi, 'vs.').trim()}
-                              </div>
-                              <div className="space-y-1">
-                                {Object.entries(value).map(([statKey, statValue]) => (
-                                  <div key={statKey} className="flex justify-between items-center">
-                                    <span className="text-xs text-gray-500 uppercase">{statKey}</span>
-                                    <span className="text-sm font-bold text-[#00FF41]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                                      {statValue == null
-                                        ? '—'
-                                        : typeof statValue === 'string' || typeof statValue === 'number'
-                                          ? statValue
-                                          : String(statValue)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Last 10 Games */}
-                    {bettingStats.last10Games && bettingStats.last10Games.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#00D1FF] mb-3 flex items-center gap-2">
-                          <Activity className="w-5 h-5" />
-                          Last 10 Games
-                        </h3>
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
-                          {bettingStats.last10Games.map((game: any, idx: number) => (
-                            <div key={idx} className="bg-[#161B22] rounded-lg p-3 border border-white/5 flex items-center justify-between">
-                              <div className="flex items-center gap-4 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                                <span className="text-gray-400">Game {bettingStats.last10Games.length - idx}</span>
-                                {isNFL && selectedPlayer.position === 'QB' && (
-                                  <span className="text-white">{game.yards} YDS • {game.tds} TD</span>
-                                )}
-                                {isNFL && selectedPlayer.position === 'RB' && (
-                                  <span className="text-white">{game.yards} YDS • {game.tds} TD</span>
-                                )}
-                                {isNFL && selectedPlayer.position !== 'QB' && selectedPlayer.position !== 'RB' && (
-                                  <span className="text-white">{game.rec} REC • {game.yards} YDS • {game.tds} TD</span>
-                                )}
-                                {isNBA && (
-                                  <span className="text-white">{game.pts} PTS • {game.reb} REB • {game.ast} AST</span>
-                                )}
-                              </div>
-                              <div className={`px-2 py-1 rounded text-xs font-bold ${
-                                game.result === 'W' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                              }`}>
-                                {game.result}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Prop Bet Hit Rates */}
-                    {Object.keys(bettingStats.propHitRates).length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#00D1FF] mb-3 flex items-center gap-2">
-                          <Target className="w-5 h-5" />
-                          Prop Bet Hit Rates
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {Object.entries(bettingStats.propHitRates).map(([key, value]) => (
-                            <div key={key} className="bg-[#161B22] rounded-lg p-4 border border-white/5">
-                              <div className="text-xs text-gray-400 mb-1 capitalize">
-                                {key.replace(/([A-Z])/g, ' $1').replace('_', ' ').trim()}
-                              </div>
-                              <div className="text-xl font-bold text-[#00FF41]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                                {value}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Trends & Insights */}
-                    {bettingStats.trends && Object.keys(bettingStats.trends).length > 0 && (
-                      <div className="bg-[#00FF41]/5 border border-[#00FF41]/30 rounded-lg p-5">
-                        <h4 className="text-lg font-semibold text-[#00FF41] mb-3 flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5" />
-                          Recent Trends & Insights
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {Object.entries(bettingStats.trends).map(([key, value]) => (
-                            <div key={key} className="bg-[#161B22] rounded-lg p-3 border border-white/5">
-                              <div className="text-xs text-gray-400 mb-1 capitalize">
-                                {key.replace(/([A-Z])/g, ' $1').replace('Trend', '').trim()}
-                              </div>
-                              <div className="text-lg font-bold text-white" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                                {value}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-4 text-xs text-gray-400 space-y-1.5">
-                          <div className="flex items-start gap-2">
-                            <span className="text-[#00FF41] mt-0.5">•</span>
-                            <span>Use these trends alongside current matchup analysis for informed betting decisions</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <span className="text-[#00FF41] mt-0.5">•</span>
-                            <span>Consider home/away splits and opponent strength when evaluating prop bets</span>
-                          </div>
-                          {(isNFL || sport === 'baseball_mlb') && (
-                            <div className="flex items-start gap-2">
-                              <span className="text-[#00FF41] mt-0.5">•</span>
-                              <span>Weather conditions can significantly impact outdoor performance</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
+        <PlayerModal
+          player={{
+            name: selectedPlayer.playerName || selectedPlayer.name || selectedPlayer.displayName,
+            position: selectedPlayer.position || 'N/A',
+            team: selectedTeam || 'Unknown Team',
+            number: selectedPlayer.jerseyNumber || selectedPlayer.number || '0'
+          }}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </div>
   )

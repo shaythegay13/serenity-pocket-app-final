@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabaseServiceKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+const supabaseServiceKeyRaw = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -18,7 +18,23 @@ const isValidServiceKey = supabaseServiceKeyRaw &&
   !supabaseServiceKeyRaw.includes('placeholder') &&
   supabaseServiceKeyRaw.length > 20; // Supabase keys are typically much longer
 
-const supabaseServiceKey = isValidServiceKey ? supabaseServiceKeyRaw : undefined;
+// Server-side routes frequently need to bypass RLS for internal bookkeeping (tiers/usage/marketplace).
+// Default to using the service role key when present, unless explicitly disabled.
+const allowServiceRole = process.env.USE_SUPABASE_SERVICE_ROLE !== 'false'
+
+const supabaseServiceKey = allowServiceRole && isValidServiceKey ? supabaseServiceKeyRaw : undefined;
+
+if (process.env.NODE_ENV === 'development') {
+  const using = supabaseServiceKey ? 'service_role' : 'anon'
+  console.log(
+    `🔐 Supabase server client using ${using} key (${supabaseServiceKey ? supabaseServiceKey.length : supabaseAnonKey.length} chars)`
+  )
+  if (!supabaseServiceKeyRaw) {
+    // no-op
+  } else if (!allowServiceRole) {
+    console.log('ℹ️  USE_SUPABASE_SERVICE_ROLE=false; using anon key for server client')
+  }
+}
 
 if (supabaseServiceKeyRaw && !isValidServiceKey) {
   console.warn('⚠️  Invalid SUPABASE_SERVICE_ROLE_KEY detected (placeholder value). Using anon key instead.');

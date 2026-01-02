@@ -105,9 +105,9 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             <Image
               src="/logo.png"
               alt="Serenity Pocket"
-              width={72}
-              height={72}
-              className="h-12 w-12 sm:h-14 sm:w-14"
+              width={162}
+              height={162}
+              className="h-[108px] w-[108px] sm:h-[126px] sm:w-[126px]"
               priority
             />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">

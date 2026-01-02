@@ -1,7 +1,3 @@
-import {
-  SageMakerRuntimeClient,
-  InvokeEndpointCommand,
-} from "@aws-sdk/client-sagemaker-runtime"
 import type {
   HistoricalFeatureVector,
   ModelPrediction,
@@ -10,67 +6,29 @@ import type {
   RiskLevel,
 } from "../types/ai-models"
 
-const SAGEMAKER_REGION = process.env.AWS_REGION || "us-west-2"
-const SAGEMAKER_ENDPOINT_NAME =
-  process.env.SAGEMAKER_SPORTS_ENDPOINT_NAME || "serenity-pocket-xgb-endpoint-v4"
-
-let sagemakerClient: SageMakerRuntimeClient | null = null
-
-function getClient(): SageMakerRuntimeClient {
-  if (!sagemakerClient) {
-    sagemakerClient = new SageMakerRuntimeClient({ region: SAGEMAKER_REGION })
-  }
-  return sagemakerClient
+function clamp(v: number, min: number, max: number): number {
+  if (!Number.isFinite(v)) return min
+  if (v < min) return min
+  if (v > max) return max
+  return v
 }
 
-function serializeFeatures(features: HistoricalFeatureVector): string {
-  // Convert to CSV format expected by the endpoint.
-  // This endpoint is trained on a numeric CSV row; categorical features are not safely coercible here.
-  return features.numericFeatures
-    .map((v) => (Number.isFinite(v) ? String(v) : "0"))
-    .join(",")
+function sanitizeEv(ev: number): number {
+  if (!Number.isFinite(ev)) return 0
+  return Math.abs(ev) < 1e-9 ? 0 : ev
 }
 
 export async function predictGameOutcomes(
   features: HistoricalFeatureVector,
 ): Promise<ModelPrediction> {
-  const client = getClient()
+  // Local heuristic in place of SageMaker:
+  // When numericFeatures includes [impliedProb, odds], we treat impliedProb as winProb.
+  // Otherwise we fall back to 0.5.
+  const implied = clamp(features.numericFeatures?.[0] ?? 0.5, 0.05, 0.95)
 
-  const payload = serializeFeatures(features)
-
-  const startedAt = Date.now()
-  if (process.env.NODE_ENV !== "production") {
-    console.log("🤖 [SageMaker] Invoking endpoint:", SAGEMAKER_ENDPOINT_NAME)
-  }
-
-  const command = new InvokeEndpointCommand({
-    EndpointName: SAGEMAKER_ENDPOINT_NAME,
-    Body: Buffer.from(payload, "utf-8"),
-    ContentType: "text/csv",
-    Accept: "text/csv",
-  })
-
-  const res = await client.send(command)
-  const body = res.Body ? Buffer.from(res.Body as Uint8Array).toString("utf-8") : ""
-
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`✅ [SageMaker] Response received in ${Date.now() - startedAt}ms`)
-  }
-
-  // Expect something like: "pLoss,pPush,pWin" (multiclass probabilities) or a single line.
-  const line = body.trim().split(/\r?\n/)[0] || ""
-  const parts = line
-    .split(",")
-    .map((s) => parseFloat(s.trim()))
-    .filter((n) => Number.isFinite(n))
-
-  const [pLoss, pPush, pWin] = parts
-
-  // Map model outputs into our generic ModelPrediction shape.
-  // We treat pWin as the "home" win probability for downstream logic.
-  const winHome = Number.isFinite(pWin) ? (pWin as number) : 0.5
-  const winAway = Number.isFinite(pLoss) ? (pLoss as number) : 1 - winHome
-  const confidence = Math.max(winHome, winAway, Number.isFinite(pPush) ? (pPush as number) : 0)
+  const winHome = implied
+  const winAway = 1 - implied
+  const confidence = Math.max(winHome, winAway)
 
   const prediction: ModelPrediction = {
     winProbabilityHome: winHome,
@@ -105,7 +63,7 @@ export async function scoreUserBet(input: {
   const winProb = prediction.winProbabilityHome // placeholder; real impl would depend on side
   const stake = input.stake
   const potentialWin = odds > 0 ? (stake * odds) / 100 : (stake * 100) / Math.abs(odds)
-  const ev = winProb * potentialWin - (1 - winProb) * stake
+  const ev = sanitizeEv(winProb * potentialWin - (1 - winProb) * stake)
 
   // Basic risk category from riskScore and stake fraction
   const stakeFraction = input.userProfile.weeklyBudget

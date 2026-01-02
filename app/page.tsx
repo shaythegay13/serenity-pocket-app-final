@@ -1,40 +1,66 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, lazy, Suspense } from "react"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
-import { HomeTab } from "@/components/tabs/home-tab"
-import { LiveOddsTab } from "@/components/tabs/live-odds-tab"
-import { AnalyzeBetTab } from "@/components/tabs/analyze-bet-tab"
-import { BehaviorTab } from "@/components/tabs/behavior-tab"
-import { AnalyticsTab } from "@/components/tabs/analytics-tab"
-import { AIPicksTab } from "@/components/tabs/ai-picks-tab"
-import { HistoryTab } from "@/components/tabs/history-tab"
-import { AccountTab } from "@/components/tabs/account-tab"
+
+// Lazy load all tab components for better performance
+const HomeTab = dynamic(() => import("@/components/tabs/home-tab").then(mod => ({ default: mod.HomeTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const LiveOddsTab = dynamic(() => import("@/components/tabs/live-odds-tab").then(mod => ({ default: mod.LiveOddsTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const AnalyzeBetTab = dynamic(() => import("@/components/tabs/analyze-bet-tab").then(mod => ({ default: mod.AnalyzeBetTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const BehaviorTab = dynamic(() => import("@/components/tabs/behavior-tab").then(mod => ({ default: mod.BehaviorTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const AnalyticsTab = dynamic(() => import("@/components/tabs/analytics-tab").then(mod => ({ default: mod.AnalyticsTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const AIPicksTab = dynamic(() => import("@/components/tabs/ai-picks-tab").then(mod => ({ default: mod.AIPicksTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const HistoryTab = dynamic(() => import("@/components/tabs/history-tab").then(mod => ({ default: mod.HistoryTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const AccountTab = dynamic(() => import("@/components/tabs/account-tab").then(mod => ({ default: mod.AccountTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
 // Legacy imports (kept for reference)
-import { EmotionsTab } from "@/components/tabs/emotions-tab"
-import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
+const EmotionsTab = dynamic(() => import("@/components/tabs/emotions-tab").then(mod => ({ default: mod.EmotionsTab })), {
+  loading: () => <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>
+})
+const EmotionCheckInDialog = dynamic(() => import("@/components/emotion-check-in-dialog").then(mod => ({ default: mod.EmotionCheckInDialog })), {
+  ssr: false
+})
+// Lazy load auth and onboarding components
+const SignIn = dynamic(() => import("@/components/auth/sign-in").then(mod => ({ default: mod.SignIn })), { ssr: false })
+const ForgotPassword = dynamic(() => import("@/components/auth/forgot-password").then(mod => ({ default: mod.ForgotPassword })), { ssr: false })
+const ResendConfirmation = dynamic(() => import("@/components/auth/resend-confirmation").then(mod => ({ default: mod.ResendConfirmation })), { ssr: false })
+const IntegratedSurveyWrapper = dynamic(() => import("@/components/integrated-survey-flow/IntegratedSurveyWrapper").then(mod => ({ default: mod.IntegratedSurveyWrapper })), { ssr: false })
+const TermsAgreement = dynamic(() => import("@/components/terms-agreement").then(mod => ({ default: mod.TermsAgreement })), { ssr: false })
+const OnboardingGate = dynamic(() => import("@/components/onboarding-gate").then(mod => ({ default: mod.OnboardingGate })), { ssr: false })
+const InstantProfileQuiz = dynamic(() => import("@/components/onboarding/InstantProfileQuiz").then(mod => ({ default: mod.InstantProfileQuiz })), { ssr: false })
+const ProfilePreview = dynamic(() => import("@/components/onboarding/ProfilePreview").then(mod => ({ default: mod.ProfilePreview })), { ssr: false })
+const SoftGate = dynamic(() => import("@/components/onboarding/SoftGate").then(mod => ({ default: mod.SoftGate })), { ssr: false })
+const LandingPage = dynamic<any>(() => import("@/src/pages"), { ssr: false })
+
 // Gamification imports removed - system no longer used
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { calculateMindfulDecisionPercentage, calculateBiasRecognitionScore, getTotalBiasesIdentified } from "@/lib/bias-calculations"
 import { Toaster } from "sonner"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase"
-import { SignIn } from "@/components/auth/sign-in"
-import { ForgotPassword } from "@/components/auth/forgot-password"
-import { ResendConfirmation } from "@/components/auth/resend-confirmation"
-import { IntegratedSurveyWrapper } from "@/components/integrated-survey-flow/IntegratedSurveyWrapper"
-import { TermsAgreement } from "@/components/terms-agreement"
-import { OnboardingGate } from "@/components/onboarding-gate"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { initializeUserData } from "@/lib/init-user"
-import { InstantProfileQuiz } from "@/components/onboarding/InstantProfileQuiz"
 // Auth rate limit debug utilities (loads global debug functions)
 import "@/lib/auth-rate-limit-utils"
-import { ProfilePreview } from "@/components/onboarding/ProfilePreview"
-import { SoftGate } from "@/components/onboarding/SoftGate"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("home")
@@ -51,42 +77,46 @@ export default function Home() {
     | "terms"
     | "forgot-password"
     | "resend-confirmation"
-  >("survey")
+    | "landing"
+  >("landing")
   const [surveyData, setSurveyData] = useState<SurveyData | null>(null)
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
   const [instantProfile, setInstantProfile] = useState<any | null>(null)
 
   const syncBiasMetricsIfNeeded = async (base: UserData) => {
-    try {
-      const trades = await storage.getTrades()
-      const biasesCount = getTotalBiasesIdentified(trades)
-      const biasProfile = await storage.getBiasProfile()
-      const mindfulDecisionPercentage = calculateMindfulDecisionPercentage(trades)
-      const biasRecognitionScore = calculateBiasRecognitionScore(
-        biasProfile,
-        biasesCount,
-        trades.length,
-      )
+    // Defer this to run after initial render to improve load time
+    setTimeout(async () => {
+      try {
+        const trades = await storage.getTrades()
+        const biasesCount = getTotalBiasesIdentified(trades)
+        const biasProfile = await storage.getBiasProfile()
+        const mindfulDecisionPercentage = calculateMindfulDecisionPercentage(trades)
+        const biasRecognitionScore = calculateBiasRecognitionScore(
+          biasProfile,
+          biasesCount,
+          trades.length,
+        )
 
-      const needsSync =
-        base.mindfulDecisionPercentage !== mindfulDecisionPercentage ||
-        base.biasRecognitionScore !== biasRecognitionScore ||
-        base.totalBiasesIdentified !== biasesCount
+        const needsSync =
+          base.mindfulDecisionPercentage !== mindfulDecisionPercentage ||
+          base.biasRecognitionScore !== biasRecognitionScore ||
+          base.totalBiasesIdentified !== biasesCount
 
-      if (!needsSync) return
+        if (!needsSync) return
 
-      const updated: UserData = {
-        ...base,
-        mindfulDecisionPercentage,
-        biasRecognitionScore,
-        totalBiasesIdentified: biasesCount,
+        const updated: UserData = {
+          ...base,
+          mindfulDecisionPercentage,
+          biasRecognitionScore,
+          totalBiasesIdentified: biasesCount,
+        }
+
+        await storage.setUserData(updated)
+        setUserData(updated)
+      } catch (e) {
+        console.error("Error syncing bias metrics:", e)
       }
-
-      await storage.setUserData(updated)
-      setUserData(updated)
-    } catch (e) {
-      console.error("Error syncing bias metrics:", e)
-    }
+    }, 1000) // Defer by 1 second to prioritize initial render
   }
 
   useEffect(() => {
@@ -393,6 +423,15 @@ export default function Home() {
       )
     }
 
+    if (authFlow === "landing") {
+      return (
+        <LandingPage 
+          onStart={() => setAuthFlow("survey")} 
+          onLogin={() => setAuthFlow("signin")} 
+        />
+      )
+    }
+
     // Survey Flow (Survey C only)
     if (authFlow === "survey") {
       return (
@@ -496,20 +535,6 @@ export default function Home() {
       <div className="hidden md:block">
         <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
-      {activeTab === "home" && (
-        <div className="border-b border-border bg-card">
-          <div className="container mx-auto px-3 sm:px-4 py-4 max-w-7xl">
-            <Image
-              src="/home-hero.jpg"
-              alt="Bet smarter, protect your mind"
-              width={1024}
-              height={517}
-              className="w-full h-auto rounded-lg"
-              priority
-            />
-          </div>
-        </div>
-      )}
       
       {/* Pending Emotion Completion Banner */}
       {userData?.pendingEmotionTradeId && (

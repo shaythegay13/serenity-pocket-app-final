@@ -7,6 +7,24 @@ import { LineMovementChart } from "@/components/live-betting/LineMovementChart"
 import { TabSkeleton } from "../shared/LoadingSkeleton"
 import { LineChart, TrendingUp } from "lucide-react"
 
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashToSeed(input: string): number {
+  let h = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
 export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
   const { data, loading, error } = useEnhancedOdds(sport)
 
@@ -59,11 +77,16 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
   // Helper function to generate historical data points (simulated)
   const generateHistoricalPoints = (currentOdds: number, gameTime: Date) => {
     const points: { time: number; odds: number }[] = []
-    const now = Date.now()
-    const timeUntilGame = gameTime.getTime() - now
+
+    const rand = mulberry32(hashToSeed(`${currentOdds}:${gameTime.toISOString()}`))
+
+    // Use deterministic timestamps based on gameTime to keep rendering pure.
+    // This chart is simulated, so we anchor "now" to the game's commence time.
+    const now = gameTime.getTime()
+    const timeUntilGame = 0
 
     // Calculate lookback period (max 48 hours, min 4 hours)
-    const hoursBack = Math.min(48, Math.max(4, timeUntilGame / (1000 * 60 * 60)))
+    const hoursBack = Math.min(48, Math.max(4, timeUntilGame / (1000 * 60 * 60))) || 24
     const startTime = now - (hoursBack * 60 * 60 * 1000)
 
     // Convert current odds to probability for realistic bounds
@@ -82,7 +105,7 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
       // Simulate realistic probability movement (max ±10% probability shift)
       // Lines typically don't move more than 10 percentage points in probability space
       const maxProbShift = 0.10
-      const variance = (1 - progress) * maxProbShift * (Math.random() - 0.5)
+      const variance = (1 - progress) * maxProbShift * (rand() - 0.5)
       const probAtTime = Math.max(0.05, Math.min(0.95, currentProb + variance))
 
       // Convert back to American odds

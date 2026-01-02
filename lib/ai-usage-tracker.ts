@@ -1,7 +1,7 @@
 /**
  * AI Service Usage Tracker
  * 
- * Manages usage limits and tracking for AI Picker and AI Bet Analyzer services.
+ * Manages usage limits and tracking for SmartSlip and TiltLab services.
  * Supports tier-based weekly limits + purchased credits from marketplace.
  */
 
@@ -16,6 +16,7 @@ export interface UsageCheckResult {
   usedThisWeek: number
   purchasedCredits: number
   totalAvailable: number
+  tier?: string
   reason?: string
 }
 
@@ -68,6 +69,7 @@ export async function checkAIServiceUsage(
         usedThisWeek: 0,
         purchasedCredits: 0,
         totalAvailable: 0,
+        tier: undefined,
         reason: 'Profile not found'
       }
     }
@@ -90,6 +92,7 @@ export async function checkAIServiceUsage(
         usedThisWeek: 0,
         purchasedCredits: 0,
         totalAvailable: 0,
+        tier,
         reason: 'Tier limits not configured'
       }
     }
@@ -157,10 +160,11 @@ export async function checkAIServiceUsage(
       usedThisWeek,
       purchasedCredits,
       totalAvailable,
-      reason
+      tier,
+      reason: canUse ? undefined : purchasedCredits > 0 ? 'Weekly limit reached (use purchased credits)' : 'Weekly limit reached'
     }
   } catch (error) {
-    console.error('[AI Usage Tracker] Unexpected error in checkAIServiceUsage:', error)
+    console.error('[AI Usage Tracker] Exception:', error)
     return {
       canUse: false,
       remaining: 0,
@@ -168,7 +172,8 @@ export async function checkAIServiceUsage(
       usedThisWeek: 0,
       purchasedCredits: 0,
       totalAvailable: 0,
-      reason: 'An error occurred while checking usage limits'
+      tier: undefined,
+      reason: 'Usage check failed'
     }
   }
 }

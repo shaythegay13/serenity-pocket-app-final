@@ -20,10 +20,24 @@ export const FLOWGLAD_CONFIG = {
  * Creates a FlowgladServer instance for a specific user
  * @param customerExternalId - The user ID from our database (NOT Flowglad's customer ID)
  */
-export const flowglad = (customerExternalId: string) => {
+export const flowglad = (
+  customerExternalId: string,
+  customer?: { email?: string | null; name?: string | null }
+) => {
   return new FlowgladServer({
-    customerExternalId,
-    getCustomerDetails: async (externalId) => {
+    apiKey: FLOWGLAD_CONFIG.apiKey,
+    getRequestingCustomer: async () => {
+      if (customer?.email && customer.email.trim().length > 0) {
+        const email = customer.email.trim()
+        const name = customer.name?.trim() || email.split('@')[0] || 'User'
+
+        return {
+          externalId: customerExternalId,
+          email,
+          name,
+        }
+      }
+
       // Fetch customer details from Supabase using our user ID
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,24 +45,25 @@ export const flowglad = (customerExternalId: string) => {
         {
           auth: {
             autoRefreshToken: false,
-            persistSession: false
-          }
+            persistSession: false,
+          },
         }
       )
 
       const { data: user, error } = await supabase
         .from('user_profiles')
         .select('id, email, full_name')
-        .eq('id', externalId)
+        .eq('id', customerExternalId)
         .single()
 
-      if (error || !user) {
+      if (error || !user?.email) {
         throw new Error('Customer not found')
       }
 
       return {
-        email: user.email || '',
-        name: user.full_name || user.email?.split('@')[0] || 'User',
+        externalId: customerExternalId,
+        email: user.email,
+        name: user.full_name || user.email.split('@')[0] || 'User',
       }
     },
   })

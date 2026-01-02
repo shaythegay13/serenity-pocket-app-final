@@ -4,17 +4,7 @@
  * Predicts: LOSS (0), PUSH (1), or WIN (2)
  */
 
-import { SageMakerRuntimeClient, InvokeEndpointCommand } from '@aws-sdk/client-sagemaker-runtime'
 import type { BetScenario } from './ai-bet-advisor'
-
-// Initialize SageMaker Runtime client
-const sagemakerClient = new SageMakerRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-})
 
 export interface SageMakerPredictionInput {
   sport: string
@@ -48,6 +38,13 @@ export interface SageMakerPredictionInput {
   biasConfirmation: boolean
   last5WinRate: number
   userAge: '18-25' | '26-35' | '36-45' | '46+'
+}
+
+function clamp(v: number, min: number, max: number): number {
+  if (!Number.isFinite(v)) return min
+  if (v < min) return min
+  if (v > max) return max
+  return v
 }
 
 export interface SageMakerPredictionResult {
@@ -211,35 +208,20 @@ function calculateExpectedValue(
  * Call SageMaker endpoint for prediction (3-Class)
  */
 export async function predictBetOutcome(input: SageMakerPredictionInput): Promise<SageMakerPredictionResult> {
-  const endpointName = process.env.AWS_SAGEMAKER_ENDPOINT
-
-  if (!endpointName) {
-    throw new Error('AWS_SAGEMAKER_ENDPOINT environment variable not set')
-  }
-
   try {
-    // Convert input to feature vector
-    const features = scenarioToFeatureVector(input)
+    // Local heuristic in place of SageMaker endpoint.
+    // Base win probability on implied probability from odds.
+    const impliedProbability = calculateImpliedProbability(input.oddsAmerican)
 
-    // Format as CSV (SageMaker XGBoost expects CSV input)
-    const csvData = features.join(',')
+    // Push probability is small but non-zero to avoid overconfidence.
+    const pushProbability = 0.02
 
-    // Invoke SageMaker endpoint
-    const command = new InvokeEndpointCommand({
-      EndpointName: endpointName,
-      ContentType: 'text/csv',
-      Body: csvData,
-    })
+    // Emotional risk nudges the effective win probability downward.
+    const emotionPenalty =
+      input.emotionalRisk === 'HIGH' ? 0.08 : input.emotionalRisk === 'MODERATE' ? 0.04 : 0
 
-    const response = await sagemakerClient.send(command)
-
-    // Parse response - XGBoost multiclass returns array of 3 probabilities
-    const responseBody = JSON.parse(new TextDecoder().decode(response.Body))
-
-    // responseBody is [P(class0), P(class1), P(class2)] = [P(LOSS), P(PUSH), P(WIN)]
-    const lossProbability = responseBody[0] || 0
-    const pushProbability = responseBody[1] || 0
-    const winProbability = responseBody[2] || 0
+    const winProbability = clamp(impliedProbability - emotionPenalty, 0.05, 0.95) * (1 - pushProbability)
+    const lossProbability = (1 - pushProbability) - winProbability
 
     // Determine predicted outcome (highest probability)
     const probabilities = [lossProbability, pushProbability, winProbability]
@@ -269,8 +251,8 @@ export async function predictBetOutcome(input: SageMakerPredictionInput): Promis
       expectedValue,
     }
   } catch (error) {
-    console.error('SageMaker prediction error:', error)
-    throw new Error('Failed to get prediction from SageMaker')
+    console.error('Prediction heuristic error:', error)
+    throw new Error('Failed to compute prediction')
   }
 }
 
@@ -348,11 +330,8 @@ export function betScenarioToSageMakerInput(
  * Check if SageMaker is available
  */
 export function isSageMakerAvailable(): boolean {
-  return !!(
-    process.env.AWS_SAGEMAKER_ENDPOINT &&
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY
-  )
+  // Kept for backward compatibility; predictions are now computed locally.
+  return true
 }
 
 /**

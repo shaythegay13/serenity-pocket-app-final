@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { invokeClaude, isEnhancedAIAvailable, type ClaudeMessage } from "@/lib/aws-bedrock"
-import { invokePerplexity, isPerplexityAvailable } from "@/lib/perplexity"
 
 type BiasWarning = {
   type: string
@@ -48,12 +47,8 @@ async function callClaudeAsJson(system: string, userPrompt: string, maxTokens: n
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isPerplexityAvailable()) {
-      return NextResponse.json({ error: "Perplexity is not configured" }, { status: 503 })
-    }
-
     if (!isEnhancedAIAvailable()) {
-      return NextResponse.json({ error: "Claude (AWS Bedrock) is not configured" }, { status: 503 })
+      return NextResponse.json({ error: "Gemini is not configured" }, { status: 503 })
     }
 
     const body = await request.json()
@@ -74,26 +69,19 @@ export async function POST(request: NextRequest) {
     const profitIfWin = stakeNum * (decimalOdds - 1)
     const breakEvenEV = impliedProbability * profitIfWin - (1 - impliedProbability) * stakeNum
 
-    const messages: ClaudeMessage[] = [
-      {
-        role: "user",
-        content:
-          `Extract the matchup, teams, league/sport, and any relevant real-world context for this bet description. ` +
-          `If the description is ambiguous, say so.\n\nBET DESCRIPTION:\n${description}`,
-      },
-    ]
-
-    const research = await invokePerplexity({
-      system:
-        "You are a sports research assistant. Do not invent facts. If you cannot verify, say 'unknown'. Keep it concise.",
-      messages,
-      max_tokens: 700,
-      temperature: 0.2,
-    })
-
-    const system = `You are a responsible sports betting advisor.
-You must prioritize emotional and financial safety over profit.
-You must NOT hallucinate statistics. Only use the bet details provided plus the Perplexity research text.
+    const system = `You are a Betting Risk Analyst and reasoning engine for a responsible sports betting advisor.
+You must prioritize emotional and financial safety over potential profit.
+You must NOT hallucinate statistics. Only use the bet details provided.
+You must perform an 'Enhanced Analysis'.
+STRICT LOGIC RULES:
+- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH' and recommendation as 'DON'T PLACE BET'.
+- **Devigged EV Calculation**:
+  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
+  2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
+  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$.
+- The expectedValue must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
+- If expectedValue is negative, the reasoning must explain that the user is paying 'juice' and has no mathematical edge.
+- If riskLevel is 'HIGH' or 'VERY_HIGH', the reasoning must start with a bold cautionary warning.
 Return STRICT JSON matching the schema exactly.`
 
     const userPrompt = `BET INPUT:
@@ -112,9 +100,6 @@ ${JSON.stringify(
       2,
     )}
 
-PERPLEXITY RESEARCH (may include unknowns):
-${research}
-
 Return ONLY JSON in this TypeScript shape:
 {
   "estimatedWinProbability": number,
@@ -132,7 +117,7 @@ Rules:
 - Keep reasoning concise (2-6 sentences).
 - If info is missing/uncertain, prefer PROCEED WITH CAUTION or DON'T PLACE BET and explain why.`
 
-    const parsed = await callClaudeAsJson(system, userPrompt, 900)
+    const parsed = await callClaudeAsJson(system, userPrompt, 2000)
 
     const biasWarnings: BiasWarning[] = Array.isArray(parsed?.biasWarnings) ? parsed.biasWarnings : []
 

@@ -1,24 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Heart, 
-  Brain, 
-  TrendingUp, 
-  AlertTriangle, 
-  Shield, 
-  Sparkles,
-  TrendingDown,
+import { Progress } from "@/components/ui/progress"
+import type { UserData } from "@/lib/types"
+import {
+  Brain,
+  TrendingUp,
   Activity,
-  Clock
+  Target,
+  Zap,
+  ArrowRight,
+  BarChart3,
+  Heart,
+  Shield,
+  Award,
+  Flame,
 } from "lucide-react"
-import type { UserData, TiltAlert } from "@/lib/types"
-import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import { canAccessFeature } from "@/lib/subscription-tiers"
-import { ActivityRing } from "@/components/activity-ring"
 
 interface HomeTabProps {
   userData: UserData
@@ -28,266 +27,319 @@ interface HomeTabProps {
 }
 
 export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey }: HomeTabProps) {
-  const [tiltAlerts, setTiltAlerts] = useState<TiltAlert[]>([])
-  const [recentBets, setRecentBets] = useState<any[]>([])
-  const [emotionalScore, setEmotionalScore] = useState(75)
-  const [showCooldown, setShowCooldown] = useState(false)
+  // Calculate progress percentage for level
+  const levelProgress = (userData.xp / userData.xpToNextLevel) * 100
 
-  useEffect(() => {
-    const init = async () => {
-      // Load recent emotion logs to calculate emotional score
-      const emotionLogs = await storage.getEmotionLogs()
-      const recentEmotions = emotionLogs.slice(-5)
-      
-      // Calculate emotional stability score (0-100)
-      // Higher intensity negative emotions = lower score
-      if (recentEmotions.length > 0) {
-        const negativeEmotions = ["anxious", "frustrated", "angry", "fearful", "stressed"]
-
-        const avgScore = recentEmotions.reduce((sum, log) => {
-          const isNegative = negativeEmotions.includes(log.emotion.toLowerCase())
-          // Map 1-5 intensity to 0-100 scale
-          const scaledIntensity = (log.intensity / 5) * 100
-          // Negative: high intensity lowers score; Positive/neutral: high intensity raises score
-          const entryScore = isNegative ? 100 - scaledIntensity : scaledIntensity
-          return sum + entryScore
-        }, 0) / recentEmotions.length
-
-        setEmotionalScore(Math.round(avgScore))
-      }
-
-      // Check for tilt conditions
-      const trades = await storage.getTrades()
-      const recentTrades = trades.slice(-5)
-      setRecentBets(recentTrades)
-      
-      // Detect tilt patterns
-      const alerts: TiltAlert[] = []
-      const recentLosses = recentTrades.filter(t => t.outcome === "loss").length
-      
-      if (recentLosses >= 3) {
-        alerts.push({
-          id: "losing-streak",
-          timestamp: new Date(),
-          severity: "high",
-          triggers: ["3+ consecutive losses detected"],
-          recommendation: "Take a 24-hour break to reset emotionally",
-          cooldownSuggested: true
-        })
-        setShowCooldown(true)
-      }
-
-      if (emotionalScore < 40) {
-        alerts.push({
-          id: "emotional-volatility",
-          timestamp: new Date(),
-          severity: "critical",
-          triggers: ["High emotional volatility", "Recent negative emotions"],
-          recommendation: "Avoid betting until emotional state stabilizes",
-          cooldownSuggested: true
-        })
-        setShowCooldown(true)
-      }
-
-      setTiltAlerts(alerts)
-    }
-    init()
-  }, [userData, refreshKey])
-
-  const getEmotionalScoreColor = (score: number) => {
-    if (score >= 70) return "text-green-500"
-    if (score >= 40) return "text-yellow-500"
-    return "text-red-500"
-  }
-
-  const getEmotionalScoreLabel = (score: number) => {
-    if (score >= 70) return "Stable"
-    if (score >= 40) return "Moderate"
-    return "Volatile"
-  }
-
-  const getGaugeColor = (score: number) => {
-    if (score >= 70) return "#22c55e"
-    if (score >= 40) return "#eab308"
-    return "#ef4444"
-  }
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical": return "bg-red-500/10 border-red-500/30 text-red-500"
-      case "high": return "bg-orange-500/10 border-orange-500/30 text-orange-500"
-      case "medium": return "bg-yellow-500/10 border-yellow-500/30 text-yellow-500"
-      default: return "bg-blue-500/10 border-blue-500/30 text-blue-500"
-    }
-  }
+  // Get subscription tier display
+  const tierDisplay = {
+    free: { name: "Free", color: "text-gray-400", bg: "bg-gray-500/10" },
+    premium: { name: "Premium", color: "text-blue-400", bg: "bg-blue-500/10" },
+    premium_plus: { name: "Premium+", color: "text-purple-400", bg: "bg-purple-500/10" },
+    elite: { name: "Elite", color: "text-amber-400", bg: "bg-amber-500/10" },
+  }[userData.subscriptionTier || "free"]
 
   return (
-    <div className="space-y-6 fade-in">
-      {/* Welcome Section */}
-      <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">
-          Welcome back, {userData.name}
-        </h2>
-        <p className="text-muted-foreground">
-          Your behavioral betting companion is here to help you make smarter decisions
-        </p>
-      </div>
-
-      {/* Mission Statement */}
-      <div className="px-4">
-        <p className="text-sm text-foreground leading-relaxed">
-          Serenity Pocket by PlayMindLabs applies behavioral science and data analytics to betting performance. Using real‑time mood tracking and decision‑pattern modeling, our system identifies when psychological factors—such as stress, confidence, or loss‑chasing—are influencing your wagers. By correlating emotional states with outcome data, Serenity Pocket helps you quantify risk, minimize volatility, and optimize long‑term performance through self‑awareness and evidence‑based insights.
-        </p>
-        <p className="text-sm text-foreground leading-relaxed mt-4 font-medium">
-          Thank you for being part of a movement toward smarter, data‑driven play.
-        </p>
-      </div>
-
-      {/* What Sets Us Apart */}
-      <div className="px-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-full bg-purple-500/20">
-            <Sparkles className="h-6 w-6 text-purple-500" />
-          </div>
-          <h3 className="text-xl font-semibold text-foreground">What Sets Serenity Pocket Apart</h3>
-        </div>
-        <p className="text-sm text-foreground leading-relaxed">
-          What sets Serenity Pocket apart is the fusion of psychology and predictive analytics. Our AI systems don't just process sports data — they learn from your behavioral patterns, emotional responses, and historical outcomes to deliver truly personalized insights. By combining cognitive modeling, real‑time performance tracking, and recovery recommendations, we help users transform betting into a skill‑based, self‑aware process. Serenity Pocket isn't just another betting tool — it's the first system designed to help you win with both data and discipline.
-        </p>
-      </div>
-
-      {/* Cooldown Mode Alert */}
-      {showCooldown && (
-        <Card className="p-6 bg-linear-to-br from-red-500/10 to-orange-500/10 border-red-500/30">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-red-500/20">
-              <Shield className="h-8 w-8 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-                Cooldown Mode Activated
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Your betting patterns suggest you need a break. Taking time off helps reset emotional volatility.
+    <div className="space-y-6">
+      {/* Welcome Hero Section */}
+      <div className="relative overflow-hidden rounded-2xl glass p-8 md:p-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10" />
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold md:text-5xl">
+                Welcome back, {userData.name}!
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                Your emotional awareness companion for smarter, safer betting
               </p>
             </div>
-            <Button variant="outline" onClick={() => setShowCooldown(false)}>
-              Dismiss
-            </Button>
+            <Badge className={`${tierDisplay.bg} ${tierDisplay.color} border-0 px-4 py-2 text-sm font-semibold`}>
+              {tierDisplay.name}
+            </Badge>
           </div>
-        </Card>
-      )}
 
-      {/* Tilt Alerts */}
-      {tiltAlerts.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
-            Tilt Alerts
-          </h3>
-          {tiltAlerts.map((alert) => (
-            <Card key={alert.id} className={`p-4 ${getSeverityColor(alert.severity)}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="text-xs">
-                      {alert.severity.toUpperCase()}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {alert.timestamp.toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <ul className="space-y-1 mb-2">
-                    {alert.triggers.map((trigger, i) => (
-                      <li key={i} className="text-sm">• {trigger}</li>
-                    ))}
-                  </ul>
-                  <p className="text-sm font-medium">{alert.recommendation}</p>
-                </div>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => onNavigateToTab("behavior")}
-                >
-                  View Details
-                </Button>
+          {/* Level Progress */}
+          <div className="space-y-2 max-w-md">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Level {userData.level}</span>
+              <span className="text-muted-foreground">
+                {userData.xp} / {userData.xpToNextLevel} XP
+              </span>
+            </div>
+            <Progress value={levelProgress} className="h-2" />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Emotional Awareness Streak */}
+        <Card className="glass glass-hover">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10">
+                <Flame className="h-6 w-6 text-blue-400" />
               </div>
-            </Card>
-          ))}
+              <Badge variant="outline" className="text-xs">
+                {userData.longestStreak} best
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <p className="text-3xl font-bold">{userData.emotionalAwarenessStreak}</p>
+              <p className="text-sm text-muted-foreground">Day Streak</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Total Trades */}
+        <Card className="glass glass-hover">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10">
+                <BarChart3 className="h-6 w-6 text-purple-400" />
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {userData.mindfulTrades} mindful
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <p className="text-3xl font-bold">{userData.totalTrades}</p>
+              <p className="text-sm text-muted-foreground">Total Bets</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bias Recognition Score */}
+        <Card className="glass glass-hover">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/10">
+                <Brain className="h-6 w-6 text-green-400" />
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {userData.totalBiasesIdentified} found
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <p className="text-3xl font-bold">{userData.biasRecognitionScore}%</p>
+              <p className="text-sm text-muted-foreground">Bias Recognition</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Mindful Decision % */}
+        <Card className="glass glass-hover">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500/10 to-red-500/10">
+                <Target className="h-6 w-6 text-orange-400" />
+              </div>
+              <Badge variant="outline" className="text-xs">
+                +{Math.round(userData.mindfulDecisionPercentage * 0.1)}%
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <p className="text-3xl font-bold">{userData.mindfulDecisionPercentage}%</p>
+              <p className="text-sm text-muted-foreground">Mindful Decisions</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Daily Rings Progress */}
+      <Card className="glass">
+        <CardContent className="p-6">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold">Daily Progress Rings</h3>
+              <Badge variant="outline">
+                {userData.perfectDays} perfect days
+              </Badge>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Emotional Awareness Ring */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-blue-400" />
+                    <span className="font-medium">Emotional Awareness</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {userData.dailyRings.emotionalAwareness}%
+                  </span>
+                </div>
+                <Progress value={userData.dailyRings.emotionalAwareness} className="h-2" />
+              </div>
+
+              {/* Bias Recognition Ring */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-purple-400" />
+                    <span className="font-medium">Bias Recognition</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {userData.dailyRings.biasRecognition}%
+                  </span>
+                </div>
+                <Progress value={userData.dailyRings.biasRecognition} className="h-2" />
+              </div>
+
+              {/* Mindfulness Ring */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-green-400" />
+                    <span className="font-medium">Mindfulness</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {userData.dailyRings.mindfulness}%
+                  </span>
+                </div>
+                <Progress value={userData.dailyRings.mindfulness} className="h-2" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions Grid */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Quick Actions</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Analyze a Bet */}
+          <Card className="glass glass-hover group cursor-pointer" onClick={() => onNavigateToTab("analyze")}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10">
+                <BarChart3 className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Analyze a Bet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Get AI-powered insights on your next bet
+                </p>
+              </div>
+              <div className="flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform">
+                Start Analysis <ArrowRight className="ml-2 h-4 w-4" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Track Behavior */}
+          <Card className="glass glass-hover group cursor-pointer" onClick={() => onNavigateToTab("behavior")}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-success/10 to-emerald-500/10">
+                <Brain className="h-6 w-6 text-success" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Track Behavior</h3>
+                <p className="text-sm text-muted-foreground">
+                  Log emotions and identify biases
+                </p>
+              </div>
+              <div className="flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform">
+                Track Now <ArrowRight className="ml-2 h-4 w-4" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* View Analytics */}
+          <Card className="glass glass-hover group cursor-pointer" onClick={() => onNavigateToTab("analytics")}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-warning/10 to-orange-500/10">
+                <TrendingUp className="h-6 w-6 text-warning" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">View Analytics</h3>
+                <p className="text-sm text-muted-foreground">
+                  Review your performance and trends
+                </p>
+              </div>
+              <div className="flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform">
+                View Stats <ArrowRight className="ml-2 h-4 w-4" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </div>
+
+      {/* Recent Activity Summary */}
+      <Card className="glass">
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold">Activity Summary</h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-card/40">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                  <Heart className="h-5 w-5 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Emotions Logged</p>
+                  <p className="text-2xl font-bold">{userData.totalEmotionsLogged}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-card/40">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
+                  <Shield className="h-5 w-5 text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Biases Identified</p>
+                  <p className="text-2xl font-bold">{userData.totalBiasesIdentified}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-card/40">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                  <Activity className="h-5 w-5 text-green-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Breathing Exercises</p>
+                  <p className="text-2xl font-bold">{userData.totalBreathingExercises}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-card/40">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Award className="h-5 w-5 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Modules Completed</p>
+                  <p className="text-2xl font-bold">{userData.totalModulesCompleted}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Upgrade CTA (for free tier users) */}
+      {userData.subscriptionTier === "free" && (
+        <Card className="glass border-primary/20">
+          <CardContent className="p-8">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-shrink-0">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary">
+                  <Zap className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <div className="flex-1 text-center md:text-left space-y-2">
+                <h3 className="text-2xl font-bold">Unlock Premium Features</h3>
+                <p className="text-muted-foreground">
+                  Get unlimited AI analysis, advanced analytics, and personalized insights. We're the seatbelt, not the gas pedal.
+                </p>
+              </div>
+              <Button 
+                onClick={() => onNavigateToTab("account")}
+                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 shrink-0"
+              >
+                Upgrade Now <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
-
-      {/* Privacy & Ethics Statement */}
-      <div className="px-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-full bg-green-500/20">
-            <Shield className="h-6 w-6 text-green-500" />
-          </div>
-          <h3 className="text-xl font-semibold text-foreground">Your Privacy & Well-Being Come First</h3>
-        </div>
-        <p className="text-sm text-foreground leading-relaxed">
-          Your data and well‑being come first. Serenity Pocket is built on privacy, security, and ethical design principles that prioritize transparency at every step. All tracking features are optional and encrypted, giving you full control over what's recorded and how it's used. Our mission is to create a responsible betting companion that supports informed decisions — never exploits impulsive ones — ensuring that you stay in control of both your data and your play.
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("odds") }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-full bg-blue-500/10">
-              <TrendingUp className="h-6 w-6 text-blue-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Sports Dashboard</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Compare real-time odds across multiple sportsbooks
-          </p>
-          {!canAccessFeature(userData.subscriptionTier || "free", "premium") && (
-            <Badge variant="secondary" className="mt-3">Premium Feature</Badge>
-          )}
-          {(showCooldown || emotionalScore < 50) && (
-            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
-          )}
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("analyze") }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-full bg-purple-500/10">
-              <Brain className="h-6 w-6 text-purple-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Analyze Bet</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Get AI-powered analysis of your bet ideas
-          </p>
-          {!canAccessFeature(userData.subscriptionTier || "free", "premium") && (
-            <Badge variant="secondary" className="mt-3">Premium Feature</Badge>
-          )}
-          {(showCooldown || emotionalScore < 50) && (
-            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
-          )}
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { if (showCooldown || emotionalScore < 50) return; onNavigateToTab("ai-picks") }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-full bg-amber-500/10">
-              <Sparkles className="h-6 w-6 text-amber-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Insight Hub</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            AI-powered picks and bet analysis tools
-          </p>
-          {!canAccessFeature(userData.subscriptionTier || "free", "elite") && (
-            <Badge variant="secondary" className="mt-3">Elite Feature</Badge>
-          )}
-          {(showCooldown || emotionalScore < 50) && (
-            <Badge variant="destructive" className="mt-3">Cooldown Active</Badge>
-          )}
-        </Card>
-      </div>
-
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -26,5 +26,5 @@ if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
   console.error('⚠️ Invalid Supabase URL format:', supabaseUrl)
 }
 
-// Use createClientComponentClient for cookie-based auth that works with API routes
-export const supabase = createClientComponentClient()
+// Use createBrowserClient for client-side Supabase access
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)

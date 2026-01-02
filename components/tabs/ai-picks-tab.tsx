@@ -497,9 +497,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         if (mappedPicks.length > 0) {
           console.log(`AI Picks: Loaded ${mappedPicks.length} picks`)
           const meta = data.meta || {}
-          if (!meta.usedClaude && !meta.usedSageMaker && !meta.usedPerplexity) {
+          if (!meta.usedGemini && !meta.usedSageMaker) {
             toast.info('Using Fallback Picks', {
-              description: 'Real-time AI stack (Perplexity + SageMaker + Claude) is unavailable; using safer fallback logic.'
+              description: 'Real-time AI stack (heuristics + Gemini) is unavailable; using safer fallback logic.'
             })
           }
         } else {

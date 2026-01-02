@@ -38,7 +38,6 @@ console.log('📅 Today:', new Date().toISOString());
 console.log('🔑 Environment Check:');
 console.log('  - NEXT_PUBLIC_ODDS_API_KEY:', process.env.NEXT_PUBLIC_ODDS_API_KEY ? '✓ Set' : '✗ Missing');
 console.log('  - NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY:', process.env.NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY ? '✓ Set' : '✗ Missing');
-console.log('  - PERPLEXITY_API_KEY:', process.env.PERPLEXITY_API_KEY ? '✓ Set' : '✗ Missing');
 console.log('\n' + '='.repeat(80) + '\n');
 
 // Test 1: The Odds API - NFL

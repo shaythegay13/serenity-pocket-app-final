@@ -108,7 +108,14 @@ export async function POST(req: Request) {
     }
 
     // Flowglad is configured - create real checkout session
-    const flowgladServer = flowglad(user.id)
+    const flowgladServer = flowglad(user.id, {
+      email: user.email,
+      name: (user.user_metadata as any)?.full_name || (user.user_metadata as any)?.name,
+    })
+
+    // Ensure the customer exists before creating a checkout session.
+    await flowgladServer.findOrCreateCustomer()
+
     const checkoutSession = await flowgladServer.createCheckoutSession({
       priceId,
       successUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}?tab=account&success=true`,

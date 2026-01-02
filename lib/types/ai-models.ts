@@ -115,6 +115,9 @@ export interface PickerRecommendationItem {
   suggestedStakeFraction: number
   suggestedStakeAbsolute?: number
   riskLevel: RiskLevel
+  numericRisk?: {
+    ev: number
+  }
   shortExplanation: string
 }
 
@@ -158,5 +161,8 @@ export interface BetAnalyzerReasoningOutput {
   psychologyFlags: string[]
   summary: string
   detailedExplanation: string
+  numericRisk?: {
+    ev: number
+  }
   responsibleGamblingReminder?: string
 }

@@ -92,12 +92,12 @@ CREATE TABLE IF NOT EXISTS ai_marketplace_products (
 
 -- Seed marketplace products
 INSERT INTO ai_marketplace_products (product_key, display_name, description, price, ai_picker_credits, ai_bet_analyzer_credits, is_bundle, sort_order) VALUES
-  ('single_picker', 'AI Picker - 1 Use', 'One additional AI Picker analysis', 30.00, 1, 0, false, 1),
-  ('single_analyzer', 'AI Bet Analyzer - 1 Use', 'One additional AI Bet Analyzer session', 30.00, 0, 1, false, 2),
-  ('bundle_single', 'Bundle: Both Services - 1 Use Each', 'One use of AI Picker + One use of AI Bet Analyzer', 55.00, 1, 1, true, 3),
-  ('double_picker', 'AI Picker - 2 Uses', 'Two additional AI Picker analyses', 60.00, 2, 0, false, 4),
-  ('double_analyzer', 'AI Bet Analyzer - 2 Uses', 'Two additional AI Bet Analyzer sessions', 60.00, 0, 2, false, 5),
-  ('bundle_double', 'Bundle: Both Services - 2 Uses Each', 'Two uses of AI Picker + Two uses of AI Bet Analyzer', 105.00, 2, 2, true, 6)
+  ('single_picker', 'SmartSlip - 1 Use', 'One additional SmartSlip analysis', 30.00, 1, 0, false, 1),
+  ('single_analyzer', 'TiltLab - 1 Use', 'One additional TiltLab session', 30.00, 0, 1, false, 2),
+  ('bundle_single', 'Bundle: Both Services - 1 Use Each', 'One use of SmartSlip + One use of TiltLab', 55.00, 1, 1, true, 3),
+  ('double_picker', 'SmartSlip - 2 Uses', 'Two additional SmartSlip analyses', 60.00, 2, 0, false, 4),
+  ('double_analyzer', 'TiltLab - 2 Uses', 'Two additional TiltLab sessions', 60.00, 0, 2, false, 5),
+  ('bundle_double', 'Bundle: Both Services - 2 Uses Each', 'Two uses of SmartSlip + Two uses of TiltLab', 105.00, 2, 2, true, 6)
 ON CONFLICT (product_key) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   description = EXCLUDED.description,

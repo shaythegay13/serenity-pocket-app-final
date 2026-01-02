@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { AlertCircle, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Brain, CheckCircle2, ArrowRight, Sparkles, Mail, Lock, User } from 'lucide-react'
+import Image from 'next/image'
 import SurveyForm from '@/components/SurveyForm';
 import { SurveyAnswer } from '@/types/survey';
 import { SURVEY_C_SNAPSHOT_QUESTIONS } from '@/types/survey';
@@ -228,59 +229,59 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fadeIn">
-      <div className="relative w-full max-w-2xl bg-white dark:bg-gray-950 rounded-2xl shadow-2xl overflow-hidden animate-slideUp">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-2xl bg-[#020617] border border-white/5 rounded-[32px] shadow-2xl overflow-hidden animate-slideUp text-white">
         {/* Close button */}
         <button
           type="button"
           aria-label="Close survey"
-          className="absolute left-3 top-3 inline-flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+          className="absolute left-6 top-6 inline-flex items-center justify-center h-10 w-10 rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors z-10"
           onClick={() => {
             if (onClose) onClose(); else router.push('/');
           }}
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </button>
         
         {/* Welcome Screen */}
         {currentFlow === SurveyFlow.WELCOME && (
-          <div className="flex flex-col items-center justify-center space-y-5 p-8 bg-white">
-            <div className="flex flex-col items-center space-y-3">
+          <div className="flex flex-col items-center justify-center space-y-8 p-10 bg-[#020617]">
+            <div className="flex flex-col items-center space-y-4">
               <div className="flex items-center space-x-3">
-                <Image 
-                  src="/logo.png" 
-                  alt="Serenity Pocket Logo" 
-                  width={56} 
-                  height={56} 
-                  className="object-contain"
+                <Image
+                  src="/logo.png"
+                  alt="Serenity Pocket"
+                  width={108}
+                  height={108}
+                  className="h-27 w-27"
                 />
-                <span className="text-lg font-semibold text-gray-800">Serenity Survey</span>
+                <span className="text-2xl font-bold tracking-tight">Serenity Pocket</span>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 text-center max-w-2xl">
-                Make Smarter, Safer Betting Decisions
+              <h1 className="text-3xl md:text-4xl font-extrabold text-white text-center max-w-2xl tracking-tight leading-tight">
+                Make Smarter, <br />Safer Betting Decisions
               </h1>
             </div>
 
-            <p className="text-base text-gray-700 max-w-lg text-center">
+            <p className="text-lg text-gray-400 max-w-lg text-center leading-relaxed">
               Understand the real impact of your habits. Take our quick, confidential quiz to support your emotional health.
             </p>
 
-            <div className="bg-linear-to-r from-blue-50 to-green-50 rounded-lg p-4 max-w-lg">
-              <ul className="text-left space-y-1.5 text-sm text-gray-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+            <div className="w-full bg-[#0f172a]/50 border border-white/5 rounded-2xl p-6 max-w-lg">
+              <ul className="text-left space-y-3 text-base text-gray-300">
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Research-backed questions</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Get instant personalized results</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Track your progress over time</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>100% confidential and secure</span>
                 </li>
               </ul>
@@ -288,91 +289,113 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
 
             <Button 
               onClick={handleStartSurvey}
-              className="w-full md:w-auto px-8 py-3 text-base bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+              className="w-full md:w-auto px-10 py-4 h-14 text-lg font-bold rounded-xl bg-linear-to-r from-[#3b82f6] to-[#a855f7] hover:opacity-90 transition-opacity"
             >
               Start 20s Snapshot
             </Button>
 
             {hasPrevious && (
-              <div className="w-full max-w-lg space-y-2">
-                <div className="text-xs text-gray-600 text-center">We found your previous survey. Use it or retake.</div>
-                <div className="flex flex-col md:flex-row gap-2">
-                  <Button className="flex-1" variant="outline" onClick={handleUsePrevious}>
-                    Use Previous Results
+              <div className="w-full max-w-lg space-y-3">
+                <div className="text-xs text-gray-500 text-center uppercase tracking-widest font-semibold">Previous Survey Found</div>
+                <div className="flex flex-col md:flex-row gap-3">
+                  <Button className="flex-1 h-12 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 transition-colors" variant="outline" onClick={handleUsePrevious}>
+                    Use Previous
                   </Button>
-                  <Button className="flex-1" variant="secondary" onClick={handleStartSurvey}>
-                    Retake Survey
+                  <Button className="flex-1 h-12 rounded-xl bg-white/5 hover:bg-white/10 transition-colors" variant="secondary" onClick={handleStartSurvey}>
+                    Retake
                   </Button>
                 </div>
               </div>
             )}
 
-            <div className="max-w-2xl text-center space-y-2 pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-600">
-                <span className="font-semibold text-gray-800">Serenity Pocket</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools. Subscribers unlock even more features.
+            <div className="max-w-2xl text-center space-y-4 pt-6 border-t border-white/5">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                <span className="font-semibold text-gray-300">Serenity Pocket</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools.
               </p>
             </div>
             
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-blue-500 hover:underline text-sm"
+              className="text-[#3b82f6] hover:text-[#60a5fa] font-semibold text-sm transition-colors"
             >
-              I already have an account. Take me to login page.
+              Already have an account? Sign In
             </button>
           </div>
         )}
 
         {/* 4-question Snapshot */}
         {currentFlow === SurveyFlow.SNAPSHOT && (
-          <div className="p-8 bg-white">
-            <div className="mb-6 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Quick Psychological Snapshot</h2>
-              <p className="text-sm text-gray-700">4 questions • &lt; 20 seconds • Instant tag</p>
+          <div className="p-10 bg-[#020617]">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Quick Snapshot</h2>
+              <p className="text-gray-400 font-medium italic">4 questions • &lt; 20 seconds • Instant tag</p>
             </div>
-            <SurveyForm
-              onSubmit={handleSnapshotSubmit}
-              isSubmitting={false}
-              questions={SURVEY_C_SNAPSHOT_QUESTIONS}
-            />
+            <div className="survey-dark-theme">
+              <SurveyForm
+                onSubmit={handleSnapshotSubmit}
+                isSubmitting={false}
+                questions={SURVEY_C_SNAPSHOT_QUESTIONS}
+              />
+            </div>
           </div>
         )}
 
         {/* Instant Results Teaser */}
         {currentFlow === SurveyFlow.TEASER && (snapshotResult || snapshotArchetype) && (
-          <div className="p-8 text-center bg-white">
-            <div className="mb-6">
-              <h2 className="text-3xl font-bold text-gray-900">You’re a “{snapshotArchetype?.name || snapshotResult?.tag}”.</h2>
-              <div className="mt-3 text-gray-700">See your full breakdown →</div>
+          <div className="p-10 text-center bg-[#020617]">
+            <div className="mb-8">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+                You’re a <br />
+                <span className="gradient-data">“{snapshotArchetype?.name || snapshotResult?.tag}”</span>
+              </h2>
+              <div className="mt-4 text-gray-400 text-lg">Your full breakdown is ready →</div>
             </div>
-            <div className="relative mx-auto max-w-lg p-6 rounded-lg bg-linear-to-r from-blue-50 to-green-50">
-              <div className="filter blur-sm select-none">
-                <p className="text-gray-800 font-medium">What this means</p>
-                <p className="text-gray-700 mt-1">{snapshotArchetype?.description || snapshotResult?.blurb} Personalized insights, risk patterns, and recommended guardrails are ready.</p>
+            
+            <div className="relative mx-auto max-w-lg p-8 rounded-3xl bg-[#0f172a]/50 border border-white/5 overflow-hidden">
+              <div className="filter blur-md select-none opacity-50">
+                <p className="text-white font-bold text-xl mb-2">What this means</p>
+                <p className="text-gray-300 leading-relaxed">
+                  {snapshotArchetype?.description || snapshotResult?.blurb} 
+                  Personalized insights, risk patterns, and recommended guardrails are generated specifically for your style.
+                </p>
               </div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-semibold bg-white/80 rounded-md px-3 py-1 shadow">Create account to unlock</span>
+                <div className="bg-white text-[#020617] font-bold rounded-xl px-6 py-3 shadow-2xl transform -rotate-2">
+                  Create account to unlock
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 flex flex-col gap-3 max-w-md mx-auto">
-              <Button onClick={handleUnlockClick} className="w-full bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">Unlock Full Breakdown</Button>
-              <button type="button" onClick={() => setCurrentFlow(SurveyFlow.SNAPSHOT)} className="text-blue-500 hover:underline text-sm">Retake snapshot</button>
+            <div className="mt-10 flex flex-col gap-4 max-w-md mx-auto">
+              <Button 
+                onClick={handleUnlockClick} 
+                className="w-full h-14 text-lg font-bold rounded-xl bg-linear-to-r from-[#3b82f6] to-[#a855f7] hover:opacity-90 transition-opacity"
+              >
+                Unlock Full Breakdown
+              </Button>
+              <button 
+                type="button" 
+                onClick={() => setCurrentFlow(SurveyFlow.SNAPSHOT)} 
+                className="text-gray-400 hover:text-white text-sm font-medium transition-colors underline underline-offset-4"
+              >
+                Retake snapshot
+              </button>
             </div>
           </div>
         )}
 
         {/* Soft Gate: Email Capture */}
         {currentFlow === SurveyFlow.EMAIL_CAPTURE && (
-          <div className="p-8 bg-white">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Account</h2>
-              <p className="text-gray-700">Unlock your full breakdown and continue your profile</p>
+          <div className="p-10 bg-[#020617]">
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Save Your Results</h2>
+              <p className="text-gray-400 text-lg">Enter your email to unlock your full archetype profile</p>
             </div>
 
-            <div className="space-y-4 max-w-md mx-auto">
+            <div className="space-y-6 max-w-md mx-auto">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-800">Email Address</Label>
+                <Label htmlFor="email" className="text-gray-300 font-semibold ml-1 text-sm">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
@@ -384,19 +407,19 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
                       handleEmailSubmit();
                     }
                   }}
-                  className="border-gray-300 focus:border-blue-500"
+                  className="h-14 bg-white/5 border-white/10 rounded-xl focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] text-white placeholder:text-gray-600 transition-all"
                 />
                 {emailError && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-red-600">
-                      <AlertCircle className="h-4 w-4" />
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-center gap-2 text-sm text-[#f87171] bg-[#7f1d1d]/20 p-3 rounded-lg border border-[#ef4444]/20">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>{emailError}</span>
                     </div>
                     {emailError.includes('already have an account') && (
                       <button
                         type="button"
                         onClick={onSwitchToLogin}
-                        className="text-blue-500 hover:underline text-sm"
+                        className="text-[#3b82f6] hover:text-[#60a5fa] font-bold text-sm transition-colors w-full text-center"
                       >
                         Return to login screen
                       </button>
@@ -405,53 +428,56 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
                 )}
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-4">
                 <Button
                   variant="outline"
                   onClick={() => setCurrentFlow(SurveyFlow.WELCOME)}
                   disabled={isSubmitting}
-                  className="flex-1 text-gray-700 border-gray-300 hover:bg-gray-50"
+                  className="flex-1 h-14 rounded-xl text-gray-400 border-white/10 hover:bg-white/5 hover:text-white transition-all font-bold"
                 >
                   Back
                 </Button>
                 <Button
                   onClick={handleEmailSubmit}
                   disabled={isSubmitting}
-                  className="flex-1 bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                  className="flex-1 h-14 rounded-xl bg-linear-to-r from-[#3b82f6] to-[#a855f7] hover:opacity-90 transition-opacity font-bold text-lg"
                 >
-                  {isSubmitting ? 'Checking...' : 'Continue to Survey'}
+                  {isSubmitting ? 'Checking...' : 'Continue'}
                 </Button>
               </div>
 
-              <p className="text-xs text-gray-600 text-center">
-                Your email will only be used to save your results. 
-                You can create an account after completing the assessment.
+              <p className="text-xs text-gray-500 text-center leading-relaxed">
+                We'll only use your email to save your progress and send your results. 
+                Private, secure, and encrypted.
               </p>
             </div>
           </div>
         )}
 
+
         {/* Survey Questions (legacy path) */}
         {currentFlow === SurveyFlow.QUESTIONS && (
-          <div className="p-8 bg-white">
-            <div className="mb-6 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Assessment Questions</h2>
-              <p className="text-sm text-gray-700">
-                Answer honestly - your responses are completely confidential
+          <div className="p-10 bg-[#020617]">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Assessment Questions</h2>
+              <p className="text-gray-400 font-medium italic">
+                Answer honestly • responses are completely confidential
               </p>
             </div>
             
-            <SurveyForm 
-              onSubmit={handleSurveySubmit} 
-              isSubmitting={isSubmitting}
-            />
+            <div className="survey-dark-theme">
+              <SurveyForm 
+                onSubmit={handleSurveySubmit} 
+                isSubmitting={isSubmitting}
+              />
+            </div>
             
-            <div className="mt-6 text-center">
+            <div className="mt-8 text-center">
               <button
                 type="button"
                 onClick={() => setCurrentFlow(SurveyFlow.EMAIL_CAPTURE)}
                 disabled={isSubmitting}
-                className="text-blue-500 hover:underline text-sm"
+                className="text-gray-400 hover:text-white text-sm font-medium transition-colors underline underline-offset-4"
               >
                 Back to Email
               </button>
@@ -461,46 +487,46 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
 
         {/* Completion Screen */}
         {currentFlow === SurveyFlow.COMPLETE && surveyResult && (
-          <div className="p-8 text-center bg-white">
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Assessment Complete!</h2>
-              <div className="p-6 bg-linear-to-r from-blue-50 to-green-50 rounded-lg">
-                <div className="text-6xl mb-4">🎉</div>
-                <div className="text-xl text-gray-900 font-semibold mb-2">
+          <div className="p-10 text-center bg-[#020617]">
+            <div className="mb-10">
+              <h2 className="text-4xl font-extrabold text-white mb-6 tracking-tight">Assessment Complete!</h2>
+              <div className="p-8 bg-[#0f172a]/50 border border-white/5 rounded-[32px]">
+                <div className="text-7xl mb-6">🎉</div>
+                <div className="text-2xl text-white font-bold mb-3">
                   Your results are ready!
                 </div>
-                <div className="text-base text-gray-700">
+                <div className="text-lg text-gray-400 leading-relaxed">
                   Create an account to unlock your personalized assessment results
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4 max-w-md mx-auto">
-              <p className="text-gray-700 font-medium">
-                Create a free account to:
+            <div className="space-y-6 max-w-md mx-auto">
+              <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">
+                Account Benefits:
               </p>
-              <ul className="text-left text-gray-700 space-y-2 mb-6">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+              <ul className="text-left text-gray-400 space-y-3 mb-8">
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>View your detailed assessment results</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Get personalized insights and recommendations</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Track your progress over time</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-[#10b981] font-bold">✓</span>
                   <span>Access tools to develop healthier habits</span>
                 </li>
               </ul>
 
               <Button
                 onClick={handleCreateAccount}
-                className="w-full px-8 py-4 text-lg bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                className="w-full h-16 text-xl font-bold rounded-2xl bg-linear-to-r from-[#3b82f6] to-[#a855f7] hover:opacity-90 transition-opacity shadow-xl shadow-blue-500/20"
               >
                 Create Account to See Results
               </Button>
@@ -508,7 +534,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onEmailCa
               <button
                 type="button"
                 onClick={onSwitchToLogin}
-                className="text-blue-500 hover:underline text-base w-full"
+                className="text-gray-400 hover:text-white font-bold text-sm transition-colors w-full text-center"
               >
                 Already have an account? Sign In
               </button>

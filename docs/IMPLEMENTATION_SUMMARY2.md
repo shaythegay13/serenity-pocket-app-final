@@ -148,7 +148,7 @@ Rate Limiter (20/hour for picker, 15/hour for analyzer)
     ↓
 Usage Checker (tier limit + purchased credits)
     ↓
-AI Service (Perplexity + SageMaker + Claude)
+AI Service (SageMaker + Claude)
     ↓
 Usage Recorder (track in database)
     ↓

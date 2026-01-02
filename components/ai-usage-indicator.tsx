@@ -47,7 +47,13 @@ export function AIUsageIndicator() {
       })
       
       if (!res.ok) {
-        throw new Error('Failed to fetch usage stats')
+        let bodyText = ''
+        try {
+          bodyText = await res.text()
+        } catch {
+          // ignore
+        }
+        throw new Error(`Failed to fetch usage stats: ${res.status} ${res.statusText}${bodyText ? ` - ${bodyText}` : ''}`)
       }
 
       const data = await res.json()
@@ -102,7 +108,7 @@ export function AIUsageIndicator() {
         </Button>
       </div>
 
-      {/* AI Picker */}
+      {/* SmartSlip */}
       <div className="mb-4">
         <div className="flex justify-between text-sm mb-1">
           <span className="font-medium flex items-center gap-1">
@@ -127,7 +133,7 @@ export function AIUsageIndicator() {
         </div>
       </div>
 
-      {/* AI Bet Analyzer */}
+      {/* TiltLab */}
       <div>
         <div className="flex justify-between text-sm mb-1">
           <span className="font-medium flex items-center gap-1">

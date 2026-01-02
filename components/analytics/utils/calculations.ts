@@ -20,7 +20,21 @@ export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {
   const losses = completed.filter(bet => bet.outcome === 'loss')
 
   const totalStaked = completed.reduce((sum, bet) => sum + bet.stake, 0)
-  const totalReturns = completed.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0)
+  const totalReturns = completed.reduce((sum, bet) => {
+    // If actualReturn is not set, calculate it based on outcome, stake, and odds
+    if (bet.actualReturn !== undefined) {
+      return sum + bet.actualReturn
+    }
+    // Calculate missing actualReturn
+    if (bet.outcome === 'win' && bet.odds && bet.stake) {
+      return sum + calculateWinReturn(bet.stake, bet.odds)
+    } else if (bet.outcome === 'loss') {
+      return sum + 0
+    } else if (bet.outcome === 'push') {
+      return sum + bet.stake
+    }
+    return sum + 0
+  }, 0)
   const profit = totalReturns - totalStaked
   const roi = totalStaked > 0 ? (profit / totalStaked) * 100 : 0
   const winRate = completed.length > 0 ? (wins.length / completed.length) * 100 : 0

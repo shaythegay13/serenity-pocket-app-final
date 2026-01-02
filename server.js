@@ -18,12 +18,6 @@ const dev = process.env.NODE_ENV !== "production"
 const hostname = process.env.HOSTNAME || "localhost"
 const port = parseInt(process.env.PORT || "3000", 10)
 
-console.log('ENV PERPLEXITY_API_KEY PRESENT?', !!process.env.PERPLEXITY_API_KEY);
-console.log(
-  'ENV PERPLEXITY_API_KEY PREFIX:',
-  process.env.PERPLEXITY_API_KEY ? process.env.PERPLEXITY_API_KEY.slice(0, 12) : 'none',
-);
-
 // Initialize Next.js app
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()

@@ -63,12 +63,22 @@ export default function MarketplacePage() {
         body: JSON.stringify({ productKey })
       })
 
-      const data = await res.json()
+      const rawBody = await res.text()
+      let data: any
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null
+      } catch {
+        data = { error: 'Non-JSON response from server', rawBody }
+      }
       
       if (data.success && data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       } else {
-        console.error('Purchase failed:', data.error)
+        console.error('Purchase failed:', {
+          status: res.status,
+          statusText: res.statusText,
+          body: data,
+        })
         alert('Failed to start checkout. Please try again.')
       }
     } catch (error) {
@@ -109,7 +119,7 @@ export default function MarketplacePage() {
           Back to Dashboard
         </Button>
         
-        <h1 className="text-3xl font-bold mb-2">AI Services Marketplace</h1>
+        <h1 className="text-3xl font-bold mb-2">SmartSlip & TiltLab Marketplace</h1>
         <p className="text-muted-foreground">
           Need more AI analyses this week? Purchase additional uses here.
         </p>

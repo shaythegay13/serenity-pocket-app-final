@@ -26,10 +26,6 @@ Added status code logging to 2 fetch calls:
 Enhanced existing logging:
 - **Line 224**: Added explicit status code with auth/rate limit hints
 
-### Perplexity API ([lib/perplexity-client.ts](lib/perplexity-client.ts))
-Enhanced existing logging:
-- **Line 120**: Added explicit status code with auth/rate limit hints
-
 ---
 
 ## 2. Verified API Routes Properly Await Data
@@ -145,7 +141,6 @@ The Odds API uses `dateFormat: 'iso'` but doesn't filter by specific dates - it 
 All required API keys are present in `.env.local`:
 - ✓ NEXT_PUBLIC_ODDS_API_KEY
 - ✓ NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY
-- ✓ PERPLEXITY_API_KEY
 - ✓ NEXT_PUBLIC_THESPORTSDB_API_KEY
 
 ### ⚠️ Potential Supabase Caching Issue

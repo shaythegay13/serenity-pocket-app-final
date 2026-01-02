@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { supabaseServer } from '@/lib/supabase-server';
 import { migrateAnonymousSurveyToUser } from '@/lib/surveyService';
 
 export async function POST(request: NextRequest) {
@@ -8,8 +7,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Create server-side Supabase client
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = supabaseServer;
 
     // Verify authentication
     const {

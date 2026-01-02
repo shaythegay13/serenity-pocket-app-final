@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+export const runtime = 'nodejs'
+
 // TEMPORARY TEST ENDPOINT - Remove in production
 export async function POST(req: Request) {
   try {
@@ -34,9 +36,116 @@ export async function POST(req: Request) {
     
     // Use service role client to bypass RLS
     const { createClient } = await import('@supabase/supabase-js')
+
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Missing NEXT_PUBLIC_SUPABASE_URL on server' },
+        { status: 500 }
+      )
+    }
+
+    if (!serviceRoleKey) {
+      return NextResponse.json(
+        {
+          error:
+            'Missing SUPABASE_SERVICE_ROLE_KEY on server. Add it to .env.local and restart the dev server.',
+        },
+        { status: 500 }
+      )
+    }
+
+    // Basic validation to catch common misconfiguration early.
+    // Supabase keys are JWTs and the service role key should typically have HS256 in its header.
+    const jwtParts = serviceRoleKey.split('.')
+
+    const urlRef = (() => {
+      try {
+        return new URL(supabaseUrl).hostname.split('.')[0]
+      } catch {
+        return undefined
+      }
+    })()
+
+    const decodedPayload = (() => {
+      if (jwtParts.length !== 3) return undefined
+      try {
+        return JSON.parse(
+          Buffer.from(jwtParts[1], 'base64url').toString('utf8')
+        ) as Record<string, unknown>
+      } catch {
+        try {
+          return JSON.parse(
+            Buffer.from(jwtParts[1], 'base64').toString('utf8')
+          ) as Record<string, unknown>
+        } catch {
+          return undefined
+        }
+      }
+    })()
+
+    const keyRef =
+      decodedPayload && typeof decodedPayload.ref === 'string'
+        ? decodedPayload.ref
+        : undefined
+
+    if (jwtParts.length !== 3) {
+      return NextResponse.json(
+        {
+          error:
+            'SUPABASE_SERVICE_ROLE_KEY does not look like a JWT (expected 3 dot-separated parts). Please paste the exact service_role key from Supabase Dashboard → Settings → API.',
+        },
+        { status: 500 }
+      )
+    }
+
+    try {
+      // JWT uses base64url encoding for its parts.
+      const decodedHeader = (() => {
+        try {
+          return Buffer.from(jwtParts[0], 'base64url').toString('utf8')
+        } catch {
+          // Fallback for older Node/base64url edge cases
+          return Buffer.from(jwtParts[0], 'base64').toString('utf8')
+        }
+      })()
+
+      const headerJson = JSON.parse(decodedHeader) as { alg?: string; typ?: string }
+
+      if (headerJson?.alg && headerJson.alg !== 'HS256') {
+        return NextResponse.json(
+          {
+            error: `SUPABASE_SERVICE_ROLE_KEY appears malformed (JWT alg is ${headerJson.alg}, expected HS256). Re-copy the service_role key from Supabase Dashboard → Settings → API.`,
+            ...(process.env.NODE_ENV === 'development'
+              ? {
+                  details: {
+                    header: headerJson,
+                    keyPrefix: serviceRoleKey.slice(0, 24),
+                  },
+                }
+              : {}),
+          },
+          { status: 500 }
+        )
+      }
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            'SUPABASE_SERVICE_ROLE_KEY JWT header could not be decoded. Re-copy the service_role key from Supabase Dashboard → Settings → API.',
+          ...(process.env.NODE_ENV === 'development'
+            ? { details: { keyPrefix: serviceRoleKey.slice(0, 24) } }
+            : {}),
+        },
+        { status: 500 }
+      )
+    }
+
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      supabaseUrl,
+      serviceRoleKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -53,7 +162,23 @@ export async function POST(req: Request) {
 
     if (fetchError) {
       console.error('❌ Error fetching user profile:', fetchError)
-      return NextResponse.json({ error: 'Database error: ' + fetchError.message }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'Database error: ' + fetchError.message,
+          ...(process.env.NODE_ENV === 'development'
+            ? {
+                details: {
+                  hint: (fetchError as any)?.hint,
+                  urlRef,
+                  keyRef,
+                  keyPrefix: serviceRoleKey.slice(0, 24),
+                  url: supabaseUrl,
+                },
+              }
+            : {}),
+        },
+        { status: 500 }
+      )
     }
 
     console.log('✅ Found profiles:', existingProfiles?.length || 0)
@@ -104,7 +229,12 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('❌ Error updating subscription:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      const extra =
+        process.env.NODE_ENV === 'development'
+          ? { details: { message: error.message, code: (error as any).code } }
+          : {}
+
+      return NextResponse.json({ error: error.message, ...extra }, { status: 500 })
     }
 
     console.log('✅ Subscription updated successfully:', data)
@@ -125,7 +255,17 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error:', error)
     return NextResponse.json(
-      { error: 'Failed to update subscription' },
+      {
+        error: 'Failed to update subscription',
+        ...(process.env.NODE_ENV === 'development'
+          ? {
+              details:
+                error instanceof Error
+                  ? { message: error.message, stack: error.stack }
+                  : { message: String(error) },
+            }
+          : {}),
+      },
       { status: 500 }
     )
   }

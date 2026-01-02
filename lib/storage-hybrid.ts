@@ -316,6 +316,10 @@ export const storageHybrid = {
 
       if (!userId) {
         console.error('❌ No user ID found, cannot update profile')
+        // Still update local cache so anonymous users don't lose progress.
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data))
+        }
         return
       }
 
@@ -350,10 +354,16 @@ export const storageHybrid = {
       if (data.totalBreathingExercises !== undefined) updateData.total_breathing_exercises = data.totalBreathingExercises
       if (data.mostProductiveDay !== undefined) updateData.most_productive_day = data.mostProductiveDay
       if (data.lastEmotionCheckIn !== undefined) {
-        updateData.last_emotion_check_in =
+        // NOTE: The Supabase user_profiles table does not have a `last_emotion_check_in` column.
+        // Persist this recency marker locally only.
+        const iso =
           data.lastEmotionCheckIn instanceof Date
             ? data.lastEmotionCheckIn.toISOString()
             : new Date(data.lastEmotionCheckIn as any).toISOString()
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, iso)
+        }
       }
 
       // Add email if present
@@ -416,20 +426,88 @@ export const storageHybrid = {
       }
 
       console.log('📝 Attempting to update user profile with data:', updateData)
-      
-      const { data: result, error } = await supabase
-        .from("user_profiles")
-        .upsert(updateData)
-        .select()
+
+      const extractMissingColumn = (msg: string): string | null => {
+        const m = msg.match(/Could not find the '([^']+)' column/i)
+        return m?.[1] ?? null
+      }
+
+      let payload: any = { ...updateData }
+      let result: any = null
+      let error: any = null
+      let status: number | null = null
+
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const resp = await supabase
+          .from("user_profiles")
+          .upsert(payload, { onConflict: "id" })
+          .select()
+          .maybeSingle()
+
+        result = resp.data
+        error = resp.error
+        status = resp.status
+
+        const msg = error && typeof (error as any).message === "string" ? (error as any).message : ""
+        const missing = error && (error as any).code === "PGRST204" ? extractMissingColumn(msg) : null
+
+        if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
+          delete payload[missing]
+          continue
+        }
+
+        break
+      }
 
       if (error) {
-        console.error("❌ Error updating user profile:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          fullError: error
-        })
+        const { data: sessionData } = await supabase.auth.getSession()
+        const { data: userDataRes, error: getUserError } = await supabase.auth.getUser()
+
+        // Some error fields can be non-enumerable; include own property names to avoid logging `{}`.
+        const rawError = (() => {
+          try {
+            return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)))
+          } catch {
+            return error
+          }
+        })()
+
+        const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim()
+        const supabaseHost = (() => {
+          try {
+            return supabaseUrl ? new URL(supabaseUrl).host : undefined
+          } catch {
+            return undefined
+          }
+        })()
+
+        const debugPayload = {
+          status,
+          code: (error as any).code,
+          message: (error as any).message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+          rawError,
+          authed: !!sessionData.session?.user,
+          sessionUserId: sessionData.session?.user?.id,
+          getUserError: getUserError
+            ? {
+                name: getUserError.name,
+                message: getUserError.message,
+              }
+            : null,
+          getUserId: userDataRes.user?.id,
+          attemptedUserId: userId,
+          supabaseHost,
+        }
+
+        // Log both object and JSON string to ensure the console doesn't collapse to `{}`.
+        console.error("❌ Error updating user profile:", debugPayload)
+        try {
+          console.error("❌ Error updating user profile (json):", JSON.stringify(debugPayload))
+        } catch {
+          // ignore
+        }
       } else {
         console.log('✅ User profile updated successfully:', result)
       }

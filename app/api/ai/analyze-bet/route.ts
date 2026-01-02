@@ -4,7 +4,6 @@ import { analyzeScenario, type BetScenario } from "@/lib/ai-bet-advisor"
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from "@/lib/aws-bedrock"
 import { fetchTeamRecentResults } from "@/lib/sports-data-api"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
-import { getCurrentGameContext } from "@/lib/services/perplexitySportsResearcher"
 import { predictGameOutcomes, scoreUserBet } from "@/lib/services/sagemakerSportsModel"
 import { analyzeUserBet } from "@/lib/services/bedrockClaudeReasoner"
 import type {
@@ -16,13 +15,12 @@ import type {
   UserPsychologySnapshot,
   UserPsychProfile,
 } from "@/lib/types/ai-models"
-import { isPerplexityAvailable } from "@/lib/perplexity"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
 
 /**
  * AI Bet Analysis API Route
  * Requires a paid subscription tier (Premium or higher)
- * Uses enhanced Claude analysis via AWS Bedrock when available
+ * Uses enhanced Gemini analysis when available
  */
 export async function POST(request: NextRequest) {
   try {
@@ -56,6 +54,7 @@ export async function POST(request: NextRequest) {
           error: usageCheck.reason || "TiltLab usage limit reached",
           upgrade_required: usageCheck.limit === 0,
           usage_limit_reached: usageCheck.limit > 0,
+          current_tier: usageCheck.tier,
           current_usage: {
             used: usageCheck.usedThisWeek,
             limit: usageCheck.limit,
@@ -83,7 +82,7 @@ export async function POST(request: NextRequest) {
     // Run built-in AI analysis as a baseline
     const analysis = analyzeScenario(payload)
 
-    // --- New 3-layer engine: odds sourcing + Perplexity + SageMaker + Claude ---
+    // --- New 2-layer engine: odds sourcing + heuristic + Gemini ---
     let enhancedAnalysis: any = null
     let usedEnhancedAI = false
 
@@ -96,91 +95,54 @@ export async function POST(request: NextRequest) {
 
       const leagueKey = sportKey || payload.sport
 
-      // 1) Build context + features using Perplexity where possible
+      // 1) Build context + features from available odds and payload
       let context: CurrentGameContext | null = null
       let features: HistoricalFeatureVector | null = null
       let prediction: ModelPrediction | null = null
-      let usedPerplexity = false
       let usedSageMaker = false
 
-      try {
-        if (isPerplexityAvailable()) {
-          const perplexityStartedAt = Date.now()
-          if (process.env.NODE_ENV !== "production") {
-            console.log("🧠 [TiltLab Analyze Bet] Perplexity: starting")
-          }
-          const [ctx, feats] = await Promise.all([
-            getCurrentGameContext({ league: leagueKey, teamA: homeTeam, teamB: awayTeam }),
-            // Historical features are optional here; can be extended later
-            Promise.resolve<HistoricalFeatureVector | null>(null),
-          ])
-
-          if (ctx) context = ctx
-          if (feats) features = feats
-          if (ctx || feats) usedPerplexity = true
-
-          if (process.env.NODE_ENV !== "production") {
-            console.log(`🧠 [TiltLab Analyze Bet] Perplexity: done in ${Date.now() - perplexityStartedAt}ms`)
-          }
-        }
-      } catch (e) {
-        console.warn("[TiltLab Analyze Bet] Perplexity research failed", e)
+      const impliedFromOdds = (o: number): number => {
+        if (!o || Number.isNaN(o)) return 0.5
+        if (o > 0) return 100 / (o + 100)
+        return Math.abs(o) / (Math.abs(o) + 100)
       }
 
-      // Fallback context if Perplexity missing
-      if (!context) {
-        const impliedFromOdds = (o: number): number => {
-          if (!o || Number.isNaN(o)) return 0.5
-          if (o > 0) return 100 / (o + 100)
-          return Math.abs(o) / (Math.abs(o) + 100)
-        }
-
-        context = {
-          league: leagueKey,
-          homeTeam,
-          awayTeam,
-          currentOdds: {
-            moneylineHome: effectiveOdds,
-            moneylineAway: undefined,
-          },
-          impliedProbabilities: {
-            home: impliedFromOdds(effectiveOdds),
-          },
-        }
+      context = {
+        league: leagueKey,
+        homeTeam,
+        awayTeam,
+        currentOdds: {
+          moneylineHome: effectiveOdds,
+          moneylineAway: undefined,
+        },
+        impliedProbabilities: {
+          home: impliedFromOdds(effectiveOdds),
+        },
       }
 
-      // Fallback features if Perplexity missing
-      if (!features) {
-        const impliedFromOdds = (o: number): number => {
-          if (!o || Number.isNaN(o)) return 0.5
-          if (o > 0) return 100 / (o + 100)
-          return Math.abs(o) / (Math.abs(o) + 100)
-        }
-
-        features = {
-          league: leagueKey,
-          teamA: homeTeam,
-          teamB: awayTeam,
-          lookbackGames: 10,
-          numericFeatures: [impliedFromOdds(effectiveOdds), effectiveOdds],
-          categoricalFeatures: [leagueKey, payload.betType],
-        }
+      features = {
+        league: leagueKey,
+        teamA: homeTeam,
+        teamB: awayTeam,
+        lookbackGames: 10,
+        numericFeatures: [impliedFromOdds(effectiveOdds), effectiveOdds],
+        categoricalFeatures: [leagueKey, payload.betType],
       }
 
-      // 2) SageMaker numeric prediction and risk scoring
+      // 2) Heuristic numeric prediction and risk scoring
       try {
         const smStartedAt = Date.now()
         if (process.env.NODE_ENV !== "production") {
-          console.log("🤖 [TiltLab Analyze Bet] SageMaker: starting")
+          console.log("🤖 [TiltLab Analyze Bet] Heuristic model: starting")
         }
         prediction = await predictGameOutcomes(features)
         usedSageMaker = true
 
         if (process.env.NODE_ENV !== "production") {
-          console.log(`🤖 [TiltLab Analyze Bet] SageMaker: done in ${Date.now() - smStartedAt}ms`)
+          console.log(`🤖 [TiltLab Analyze Bet] Heuristic model: done in ${Date.now() - smStartedAt}ms`)
         }
       } catch (e) {
-        console.warn("[TiltLab Analyze Bet] SageMaker prediction failed", e)
+        console.warn("[TiltLab Analyze Bet] Heuristic model prediction failed", e)
         prediction = {
           winProbabilityHome: 0.5,
           winProbabilityAway: 0.5,
@@ -209,7 +171,7 @@ export async function POST(request: NextRequest) {
         console.warn("[TiltLab Analyze Bet] scoreUserBet failed", e)
       }
 
-      // 3) Claude reasoning layer
+      // 3) Gemini reasoning layer
       const userSnapshot: UserPsychologySnapshot = {
         currentEmotion: payload.currentEmotion || "neutral",
         currentEmotionIntensity: undefined,
@@ -237,19 +199,39 @@ export async function POST(request: NextRequest) {
       }
 
       let reasoning: BetAnalyzerReasoningOutput
+      let usedGemini = false
 
-      try {
-        const claudeStartedAt = Date.now()
-        if (process.env.NODE_ENV !== "production") {
-          console.log("🧠 [TiltLab Analyze Bet] Claude: starting")
-        }
-        reasoning = await analyzeUserBet(baseInput)
+      if (isEnhancedAIAvailable()) {
+        try {
+          const geminiStartedAt = Date.now()
+          if (process.env.NODE_ENV !== "production") {
+            console.log("🧠 [TiltLab Analyze Bet] Gemini: starting")
+          }
+          reasoning = await analyzeUserBet(baseInput)
+          usedGemini = true
 
-        if (process.env.NODE_ENV !== "production") {
-          console.log(`🧠 [TiltLab Analyze Bet] Claude: done in ${Date.now() - claudeStartedAt}ms`)
+          if (process.env.NODE_ENV !== "production") {
+            console.log(`🧠 [TiltLab Analyze Bet] Gemini: done in ${Date.now() - geminiStartedAt}ms`)
+          }
+        } catch (e) {
+          console.error("[TiltLab Analyze Bet] Gemini reasoning failed; continuing with heuristic-only analysis", e)
+          reasoning = {
+            betSafetyCategory: "CAUTION",
+            stakeRecommendation: {
+              amount: payload.betAmount,
+              fractionOfBudget: payload.budget ? payload.betAmount / payload.budget : 0,
+              explanation: "Base recommendation from rule-based advisor.",
+            },
+            psychologyFlags: [],
+            summary: analysis.recommendation.reason,
+            detailedExplanation: analysis.recommendation.reason,
+            responsibleGamblingReminder: undefined,
+          }
         }
-      } catch (e) {
-        console.error("[TiltLab Analyze Bet] Claude reasoning failed, falling back to legacy enhanced route", e)
+      } else {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("🧠 [TiltLab Analyze Bet] Gemini: skipped (not configured)")
+        }
         reasoning = {
           betSafetyCategory: "CAUTION",
           stakeRecommendation: {
@@ -270,9 +252,20 @@ export async function POST(request: NextRequest) {
       )
 
       // Derive a confidence score (rough heuristic from riskCategory + modelConfidence)
-      let confidenceScore = 70
-      if (betRiskAssessment?.riskCategory === "HIGH") confidenceScore = 55
-      else if (betRiskAssessment?.riskCategory === "LOW") confidenceScore = 80
+      const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+
+      const modelConf = clamp01(prediction?.modelConfidence ?? 0.5)
+      let confidenceScore = Math.round(modelConf * 100)
+
+      if (betRiskAssessment?.riskCategory === "HIGH") confidenceScore -= 20
+      else if (betRiskAssessment?.riskCategory === "LOW") confidenceScore += 10
+
+      const stakeFraction = payload.budget ? payload.betAmount / payload.budget : 0
+      if (stakeFraction > 0.1) confidenceScore -= 10
+      else if (stakeFraction <= 0.03) confidenceScore += 5
+
+      confidenceScore = clamp(confidenceScore, 45, 90)
 
       const keyInsights: string[] = []
       if (betRiskAssessment?.flags?.length) {
@@ -293,9 +286,8 @@ export async function POST(request: NextRequest) {
         oddsSource,
         numericRisk: betRiskAssessment,
         meta: {
-          usedPerplexity,
           usedSageMaker,
-          usedClaude: true,
+          usedGemini,
         },
       }
 
@@ -304,14 +296,14 @@ export async function POST(request: NextRequest) {
       analysis.recommendation.confidence = confidenceScore
       analysis.recommendation.reason = reasoning.summary || analysis.recommendation.reason
 
-      usedEnhancedAI = true
+      usedEnhancedAI = usedGemini
     } catch (engineError) {
       console.error("[TiltLab Analyze Bet] New 3-layer engine failed, falling back to legacy enhanced analysis:", engineError)
 
-      // Legacy enhanced flow with Claude via getEnhancedBetAnalysis
+      // Legacy enhanced flow (still backed by Gemini via lib/aws-bedrock.ts)
       if (isEnhancedAIAvailable()) {
         try {
-          console.log("🤖 Running legacy enhanced AI analysis with Claude...")
+          console.log("🤖 Running legacy enhanced AI analysis with Gemini...")
 
           let sportsDbContext:
             | { favoriteTeamForm?: string[]; underdogTeamForm?: string[] }
@@ -434,7 +426,7 @@ function mapHumanSportToKey(sport: string): string {
 
 async function getEffectiveOdds(payload: BetScenario): Promise<{
   effectiveOdds: number
-  oddsSource: "user" | "api" | "perplexity" | "default"
+  oddsSource: "user" | "api" | "default"
 }> {
   // 1) User-input odds
   const userOdds = parseAmericanOdds(payload.odds)
@@ -481,28 +473,6 @@ async function getEffectiveOdds(payload: BetScenario): Promise<{
     }
   } catch (e) {
     console.warn("[TiltLab Analyze Bet] Failed to source odds from APIs:", e)
-  }
-
-  // 3) Perplexity approximate odds via current game context
-  try {
-    if (isPerplexityAvailable() && (payload.favoriteTeam || payload.underdogTeam)) {
-      const homeTeam = payload.favoriteTeam || payload.underdogTeam
-      const awayTeam = payload.underdogTeam || payload.favoriteTeam
-      const ctx = await getCurrentGameContext({
-        league: sportKey,
-        teamA: homeTeam,
-        teamB: awayTeam,
-      })
-
-      if (ctx?.currentOdds?.moneylineHome || ctx?.currentOdds?.moneylineAway) {
-        const approx = ctx.currentOdds.moneylineHome ?? ctx.currentOdds.moneylineAway
-        if (typeof approx === "number" && Number.isFinite(approx) && approx !== 0) {
-          return { effectiveOdds: Math.round(approx), oddsSource: "perplexity" }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("[TiltLab Analyze Bet] Failed to source odds from Perplexity:", e)
   }
 
   // 4) Default fallback odds with explicit low-confidence marker

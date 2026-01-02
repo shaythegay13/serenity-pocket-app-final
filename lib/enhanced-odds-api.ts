@@ -14,7 +14,6 @@ import {
   type TransformedGame as SportsbookGame
 } from './sportsbook-api-v2';
 import { fetchSportsDBFixturesForSport } from './thesportsdb';
-import { fetchPerplexityGameInsights } from './perplexity-client';
 
 // Sport mapping utilities
 function mapSportToLeague(sport: string): string {
@@ -59,7 +58,7 @@ export interface EnhancedOddsResponse {
   success: boolean;
   // Rich odds objects compatible with LiveOddsTab (homeTeam/awayTeam/homeOdds/awayOdds)
   data: any[];
-  source: 'rapidapi' | 'theodds' | 'combined' | 'sportsdb' | 'perplexity' | 'mock';
+  source: 'rapidapi' | 'theodds' | 'combined' | 'sportsdb' | 'mock';
   advantageOpportunities?: AdvantageOpportunity[];
   remainingRequests?: {
     rapidapi?: number;
@@ -114,23 +113,12 @@ export async function fetchEnhancedLiveOdds(
         return rapidResult;
       }
 
-      // Both providers failed or are rate-limited, try TheSportsDB fixtures and then Perplexity research
+      // Both providers failed or are rate-limited, try TheSportsDB fixtures
       console.warn('⚠️ [AUTO] Both The Odds API and RapidAPI are unavailable or rate-limited, trying TheSportsDB fixtures');
       const sportsDBResult = await fetchFromSportsDB(sport);
 
       if (sportsDBResult.success && Array.isArray(sportsDBResult.data) && sportsDBResult.data.length > 0) {
-        console.log('✅ [AUTO] Using TheSportsDB fixtures as fallback, enriching with Perplexity');
-        const perplexityResult = await fetchFromPerplexity(sport, sportsDBResult.data);
-        if (perplexityResult.success) {
-          return perplexityResult;
-        }
         return sportsDBResult;
-      }
-
-      console.warn('⚠️ [AUTO] TheSportsDB returned no fixtures; falling back to Perplexity league-level insights');
-      const leagueOnlyPerplexity = await fetchFromPerplexity(sport, []);
-      if (leagueOnlyPerplexity.success && leagueOnlyPerplexity.data.length > 0) {
-        return leagueOnlyPerplexity;
       }
 
       return {
@@ -141,23 +129,12 @@ export async function fetchEnhancedLiveOdds(
       };
     }
 
-    // RapidAPI not configured and The Odds API yielded no useful data - try TheSportsDB, then Perplexity
+    // RapidAPI not configured and The Odds API yielded no useful data - try TheSportsDB
     console.warn('⚠️ [AUTO] The Odds API returned no data and RapidAPI is not configured, trying TheSportsDB fixtures');
     const sportsDBResult = await fetchFromSportsDB(sport);
 
     if (sportsDBResult.success && Array.isArray(sportsDBResult.data) && sportsDBResult.data.length > 0) {
-      console.log('✅ [AUTO] Using TheSportsDB fixtures as fallback, enriching with Perplexity');
-      const perplexityResult = await fetchFromPerplexity(sport, sportsDBResult.data);
-      if (perplexityResult.success) {
-        return perplexityResult;
-      }
       return sportsDBResult;
-    }
-
-    console.warn('⚠️ [AUTO] TheSportsDB returned no fixtures; falling back to Perplexity league-level insights');
-    const leagueOnlyPerplexity = await fetchFromPerplexity(sport, []);
-    if (leagueOnlyPerplexity.success && leagueOnlyPerplexity.data.length > 0) {
-      return leagueOnlyPerplexity;
     }
 
     return {
@@ -229,109 +206,6 @@ async function fetchFromRapidAPI(sport: string): Promise<EnhancedOddsResponse> {
       source: 'mock',
       error: error instanceof Error ? error.message : 'Unknown error'
     };
-  }
-}
-
-/**
- * Use Perplexity to enrich fixtures or, if fixtures are missing, to provide league-level qualitative insights.
- * Never fabricates odds; only attaches aiInsights metadata to game-like objects.
- */
-async function fetchFromPerplexity(
-  sport: string,
-  games: any[],
-): Promise<EnhancedOddsResponse> {
-  try {
-    const fixturesForAI = games.map(g => ({
-      id: String(g.id ?? ''),
-      homeTeam: String(g.homeTeam ?? ''),
-      awayTeam: String(g.awayTeam ?? ''),
-      commenceTime: g.commenceTime instanceof Date ? g.commenceTime : g.commenceTime ? new Date(g.commenceTime) : undefined,
-    }))
-
-    const aiResponse = await fetchPerplexityGameInsights(sport, fixturesForAI)
-
-    if (!aiResponse.success || !aiResponse.data) {
-      console.warn('⚠️ Perplexity failed or returned no data')
-      return {
-        success: false,
-        data: [],
-        source: 'mock',
-        error: aiResponse.error || 'Perplexity did not return insights',
-      }
-    }
-
-    if (games.length === 0) {
-      // League-level only: create a synthetic item containing narrative
-      const first = aiResponse.data[0]
-      if (!first) {
-        return {
-          success: false,
-          data: [],
-          source: 'mock',
-          error: 'Perplexity returned empty insights array',
-        }
-      }
-
-      return {
-        success: true,
-        source: 'perplexity',
-        data: [
-          {
-            id: first.id || `perplexity-${sport}`,
-            sport,
-            sportKey: sport,
-            homeTeam: first.homeTeam || 'N/A',
-            awayTeam: first.awayTeam || 'N/A',
-            commenceTime: first.commenceTime ? new Date(first.commenceTime) : new Date(),
-            homeOdds: undefined,
-            awayOdds: undefined,
-            bookmakers: [],
-            aiInsights: {
-              source: 'perplexity',
-              narrative: first.narrative,
-              keyFactors: first.keyFactors,
-              riskWarnings: first.riskWarnings,
-            },
-          },
-        ],
-      }
-    }
-
-    // Map insights back onto the provided games
-    const byId = new Map<string, ReturnType<typeof Object>>()
-    for (const ai of aiResponse.data) {
-      byId.set(String(ai.id), ai)
-    }
-
-    const enriched = games.map(g => {
-      const id = String(g.id ?? '')
-      const ai = byId.get(id)
-      if (!ai) return g
-
-      return {
-        ...g,
-        aiInsights: {
-          source: 'perplexity',
-          narrative: ai.narrative,
-          keyFactors: ai.keyFactors,
-          riskWarnings: ai.riskWarnings,
-        },
-      }
-    })
-
-    return {
-      success: true,
-      data: enriched,
-      source: 'perplexity',
-    }
-  } catch (error) {
-    console.error('❌ Error enriching with Perplexity:', error)
-    return {
-      success: false,
-      data: [],
-      source: 'mock',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
   }
 }
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { supabaseServer } from '@/lib/supabase-server';
 import { validateSurveySubmission, calculateSurveyScore } from '@/lib/surveyValidation';
 import { computeArchetype } from '@/lib/archetypes';
 import type { SurveyAnswer } from '@/types/survey';
@@ -24,9 +23,7 @@ export async function POST(request: NextRequest) {
     const { responses } = body;
 
     // Get authenticated user
-    const cookieStore = await cookies();
-    // @ts-ignore - Next.js 16 cookies() returns Promise but auth helpers expect sync
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = supabaseServer;
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 

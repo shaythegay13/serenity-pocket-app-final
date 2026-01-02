@@ -782,10 +782,10 @@ export default function AIBetAdvisor() {
                   <Sparkles className="h-5 w-5 text-purple-500" />
                   <div>
                     <p className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-                      Enhanced AI Analysis with Claude
+                      Enhanced AI Analysis with Gemini
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Powered by Anthropic Claude 3.5 Sonnet via AWS Bedrock
+                      Powered by Google Gemini
                     </p>
                   </div>
                 </div>
@@ -800,16 +800,16 @@ export default function AIBetAdvisor() {
             onDiscard={handleDiscard}
           />
 
-          {/* Enhanced Insights from Claude - shown below result screen */}
+          {/* Enhanced Insights from Gemini - shown below result screen */}
           {enhancedInsights && enhancedInsights.length > 0 && (
             <Card className="bg-linear-to-br from-purple-500/5 to-pink-500/5 border-purple-500/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-purple-500" />
-                  Claude's Key Insights
+                  Gemini's Key Insights
                 </CardTitle>
                 <CardDescription>
-                  Advanced reasoning from Anthropic Claude 3.5 Sonnet
+                  Advanced reasoning from Google Gemini
                 </CardDescription>
               </CardHeader>
               <CardContent>

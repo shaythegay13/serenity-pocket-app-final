@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server"
 import { getScoreInterpretation } from "@/types/survey"
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { supabaseServer } from '@/lib/supabase-server'
 
 export async function GET() {
   try {
-    // Create server-side Supabase client with cookies
-    const cookieStore = await cookies()
-    // @ts-ignore - Next.js 16 cookies() returns Promise but auth helpers expect sync
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = supabaseServer
 
     // Get the user from the current session
     const { data: { user }, error: authError } = await supabase.auth.getUser()

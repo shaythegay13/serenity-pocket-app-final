@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { supabaseServer } from '@/lib/supabase-server';
 import { migrateAnonymousSurveyToUser } from '@/lib/surveyService';
 
 export async function POST() {
   console.log('=== MANUAL SURVEY MIGRATION API CALLED ===');
 
   try {
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = supabaseServer;
 
     const {
       data: { user },

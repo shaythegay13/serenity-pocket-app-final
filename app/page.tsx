@@ -78,7 +78,7 @@ export default function Home() {
     | "forgot-password"
     | "resend-confirmation"
     | "landing"
-  >("landing")
+  >("survey")
   const [surveyData, setSurveyData] = useState<SurveyData | null>(null)
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
   const [instantProfile, setInstantProfile] = useState<any | null>(null)
@@ -445,7 +445,7 @@ export default function Home() {
               completedAt: new Date().toISOString()
             }
             setSurveyData(data as any)
-            setAuthFlow("signup")
+            setAuthFlow("landing")
           }}
           onSwitchToLogin={() => setAuthFlow("signin")}
           onClose={() => {

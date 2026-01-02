@@ -5,7 +5,12 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity } from "lucide-react"
 
-export function LandingPage() {
+interface LandingPageProps {
+  onStart?: () => void
+  onLogin: () => void
+}
+
+export function LandingPage({ onLogin }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a1a] via-[#0f0f23] to-[#0a0a1a]">
       {/* Hero Section */}
@@ -38,20 +43,14 @@ export function LandingPage() {
               Make smarter decisions backed by psychology and predictive modeling.
             </p>
 
-            {/* CTA Buttons */}
-            <div className="flex items-center justify-center gap-4 pt-4">
+            {/* CTA Button */}
+            <div className="flex items-center justify-center pt-4">
               <Button
                 size="lg"
+                onClick={onLogin}
                 className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-6 text-lg rounded-xl"
               >
-                Start Free Trial →
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-gray-700 hover:bg-gray-800/50 px-8 py-6 text-lg rounded-xl"
-              >
-                Watch Demo
+                Log In to Get Started →
               </Button>
             </div>
           </div>
@@ -190,20 +189,14 @@ export function LandingPage() {
               over your information. Our mission is to help you win with discipline, not exploit impulsive decisions.
             </p>
 
-            {/* CTA Buttons */}
-            <div className="flex items-center justify-center gap-4 pt-4">
+            {/* CTA Button */}
+            <div className="flex items-center justify-center pt-4">
               <Button
                 size="lg"
+                onClick={onLogin}
                 className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 rounded-xl"
               >
-                Start Your Journey
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-gray-700 hover:bg-gray-800/50 rounded-xl"
-              >
-                View Privacy Policy
+                Log In to Get Started
               </Button>
             </div>
           </div>

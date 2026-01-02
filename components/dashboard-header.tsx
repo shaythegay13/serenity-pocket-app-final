@@ -22,7 +22,12 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
   const { resolvedTheme, setTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [emotionalWellness, setEmotionalWellness] = useState<number | null>(null)
+  const [mounted, setMounted] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const initials = useMemo(() => {
     const name = (userData?.name || "").trim()
@@ -215,15 +220,16 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   role="menuitem"
                   type="button"
                   onClick={() => {
+                    setMenuOpen(false)
                     toggleTheme()
                   }}
                 >
-                  {resolvedTheme === "dark" ? (
+                  {mounted && resolvedTheme === "dark" ? (
                     <Sun className="h-4 w-4" aria-hidden="true" />
                   ) : (
                     <Moon className="h-4 w-4" aria-hidden="true" />
                   )}
-                  <span>{resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
+                  <span>{mounted && resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
                 </button>
 
                 <div className="h-px bg-border" />

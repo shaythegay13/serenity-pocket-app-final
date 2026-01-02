@@ -48,6 +48,17 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     ends: userData.subscriptionEndsAt
   })
 
+  const getApiBaseUrl = () => {
+    if (typeof window === 'undefined') return ''
+
+    // In Capacitor / mobile builds the origin may be file://, so relative fetch('/api/...') will fail.
+    if (window.location.protocol === 'file:') {
+      return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    }
+
+    return window.location.origin
+  }
+
   const handleSyncSubscription = async () => {
     try {
       setSyncing(true)
@@ -61,8 +72,10 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
         return
       }
 
+      const apiBaseUrl = getApiBaseUrl()
+
       // Call API to get fresh data (uses admin client)
-      const response = await fetch('/api/user/subscription', {
+      const response = await fetch(`${apiBaseUrl}/api/user/subscription`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -70,7 +83,20 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch subscription data')
+        let bodyText = ''
+        try {
+          bodyText = await response.text()
+        } catch {
+          // ignore
+        }
+
+        console.error('Subscription sync failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: bodyText,
+        })
+
+        throw new Error(bodyText || 'Failed to fetch subscription data')
       }
 
       const { profile } = await response.json()
@@ -530,8 +556,29 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
             </thead>
             <tbody>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">Archetype Snapshot</td>
+                <td className="py-3 px-2">DSM-5 Based Assessment</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Emotion Tracking & Check-ins</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Betting History & Performance</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Basic Analytics Dashboard</td>
+                <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
@@ -544,35 +591,77 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">Analyze Your Bet</td>
+                <td className="py-3 px-2">Line Movement Charts</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">Line Movement Timeline</td>
+                <td className="py-3 px-2">SmartSlip AI Picks</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">Bias Detection</td>
+                <td className="py-3 px-2">TiltLab Emotional Analysis</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Advanced Bias Detection</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">Expert Commentary</td>
+                <td className="py-3 px-2">Emotional Volatility Warnings</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                 <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-3 px-2">AI-Generated Picks</td>
+                <td className="py-3 px-2">Behavior-Performance Correlation</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">AI Marketplace Access</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Daily AI Access (7x/week)</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Emotionally-Aware AI Recommendations</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">EV-Ranked Picks with Confidence Scores</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2">—</td>
+                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-3 px-2">Priority Support & Early Feature Access</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2">—</td>
                 <td className="text-center py-3 px-2">—</td>

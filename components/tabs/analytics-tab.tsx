@@ -24,7 +24,11 @@ import {
   Trophy,
   AlertTriangle,
   CheckCircle2,
-  Clock
+  Clock,
+  Thermometer,
+  Smile,
+  Frown,
+  Meh
 } from "lucide-react"
 import { EmotionHistory } from "@/components/emotion-history"
 import { EmotionInsights } from "@/components/emotion-insights"
@@ -38,12 +42,20 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Bar,
+  BarChart,
+  Cell,
+  ReferenceArea,
+  ComposedChart,
+  Area
 } from "recharts"
 
 // Extracted types, constants, and utilities
 import type { UnifiedBet, TimelineItem, EmotionOutcomePoint, DailyBucket } from "@/components/analytics/types"
 import { EMOTION_SCORE_LOOKUP, AVAILABLE_SPORTS } from "@/components/analytics/constants"
 import { calculateWinReturn, calculateBettingMetrics } from "@/components/analytics/utils/calculations"
+import { canAccessFeature } from "@/lib/subscription-tiers"
+import { Lock, Crown } from "lucide-react"
 
 interface AnalyticsTabProps {
   userData: UserData
@@ -51,19 +63,78 @@ interface AnalyticsTabProps {
 }
 
 export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"data" | "betting-history" | "emotional-history">("data")
+  const hasAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
+  
+  // Show paywall for free tier users
+  if (!hasAccess) {
+    return (
+      <div className="space-y-6 fade-in">
+        <div className="text-center space-y-2">
+          <h2 className="text-3xl font-bold text-foreground">Analytics Dashboard</h2>
+          <p className="text-muted-foreground">
+            Advanced analytics and performance tracking
+          </p>
+        </div>
+
+        <Card className="p-8 text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="p-4 rounded-full bg-primary/10">
+              <Lock className="h-12 w-12 text-primary" />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-2xl font-bold text-foreground">Premium Feature</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              The Analytics Dashboard is available to Premium subscribers and above. Upgrade to unlock detailed performance tracking, emotion-outcome correlations, and advanced betting analytics.
+            </p>
+          </div>
+
+          <div className="space-y-3 max-w-sm mx-auto">
+            <div className="flex items-start gap-3 text-left">
+              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <span className="text-sm text-foreground">Emotion vs. Outcome Correlation Charts</span>
+            </div>
+            <div className="flex items-start gap-3 text-left">
+              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <span className="text-sm text-foreground">Betting Performance Metrics & ROI Tracking</span>
+            </div>
+            <div className="flex items-start gap-3 text-left">
+              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <span className="text-sm text-foreground">Mental Health Score Timeline</span>
+            </div>
+            <div className="flex items-start gap-3 text-left">
+              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <span className="text-sm text-foreground">Detailed Betting History with Filters</span>
+            </div>
+          </div>
+
+          <Button 
+            size="lg" 
+            className="gap-2"
+            onClick={() => onNavigateToTab?.('account')}
+          >
+            <Crown className="h-5 w-5" />
+            Upgrade to Premium
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+  const [activeSubTab, setActiveSubTab] = useState<"correlation" | "performance" | "mental-health">("correlation")
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
 
   // Betting history states
   const [analyses, setAnalyses] = useState<BetAnalysis[]>([])
-  const [filteredAnalyses, setFilteredAnalyses] = useState<BetAnalysis[]>([])
+  const [filteredAnalyses, setFilteredAnalyses] = useState<UnifiedBet[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filterOutcome, setFilterOutcome] = useState<string>("all")
   const [filterSport, setFilterSport] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<"date" | "ev" | "stake">("date")
-  const [selectedBet, setSelectedBet] = useState<BetAnalysis | null>(null)
+  const [sortBy, setSortBy] = useState<string>("date")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [selectedBet, setSelectedBet] = useState<UnifiedBet | null>(null)
   const [gameLines, setGameLines] = useState<GameLineRecord[]>([])
   const [aiUsage, setAiUsage] = useState<AIServiceUsage[]>([])
   const [emotionViewTab, setEmotionViewTab] = useState<"by-bets" | "all-checkins">("by-bets")
@@ -200,7 +271,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
       // Calculate actual return based on outcome, stake, and odds
       let actualReturn: number | undefined = t.actualReturn
-      if (!actualReturn && t.stake && t.odds && t.outcome) {
+      if (actualReturn === undefined && t.stake && t.odds && t.outcome) {
         if (t.outcome === "profit") {
           actualReturn = calculateWinReturn(t.stake, t.odds)
         } else if (t.outcome === "loss") {
@@ -254,130 +325,92 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const winRate = totalBets ? Math.round((wins / totalBets) * 100) : 0
   const netResult = wins - losses
 
-  const overallStability = useMemo(() => {
-    const { score } = calculateEmotionalStability(logs)
-    return score
-  }, [logs])
-
-  const emotionCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    logs.forEach(l => {
-      const key = l.emotion
-      counts[key] = (counts[key] || 0) + 1
-    })
-    return counts
-  }, [logs])
-
-  const mostCommonEmotion = useMemo(() => {
-    const entries = Object.entries(emotionCounts)
-    if (!entries.length) return null
-    return entries.sort((a, b) => b[1] - a[1])[0]
-  }, [emotionCounts])
-
-  const avgIntensity = logs.length
-    ? (logs.reduce((sum, l) => sum + l.intensity, 0) / logs.length).toFixed(1)
-    : "-"
-
-  const sportStats = useMemo(() => {
-    const bySport: Record<string, { bets: number; wins: number }> = {}
-
-    const ensureSport = (sport: string) => {
-      const key = (sport || "Unknown").toString()
-      if (!bySport[key]) bySport[key] = { bets: 0, wins: 0 }
-      return key
-    }
-
-    // Trades (logged bets with outcomes)
-    trades.forEach(t => {
-      const key = ensureSport(t.sport as string)
-      bySport[key].bets += 1
-      if (t.outcome === "profit") bySport[key].wins += 1
-    })
-
-    // Saved bet analyses (from Analyze My Bet flows, including AI-powered ones)
-    analyses.forEach(bet => {
-      const key = ensureSport(bet.sport as string)
-      bySport[key].bets += 1
-    })
-
-    // Game lines / interest from Live Odds & related flows
-    gameLines.forEach(game => {
-      const key = ensureSport(game.sport as string)
-      bySport[key].bets += 1
-    })
-
-    return bySport
-  }, [trades, analyses, gameLines])
-
-  const topSports = useMemo(() => {
-    const entries = Object.entries(sportStats)
-    return entries
-      .sort((a, b) => b[1].bets - a[1].bets)
-      .slice(0, 5)
-  }, [sportStats])
-
-  // Build daily outcomes for last 14 days
-  const dailyBuckets: DailyBucket[] = useMemo(() => {
-    const days: DailyBucket[] = []
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date()
-      d.setHours(0, 0, 0, 0)
-      d.setDate(d.getDate() - i)
-      const next = new Date(d)
-      next.setDate(d.getDate() + 1)
-
-      const dayTrades = trades.filter(t => {
-        const ts = new Date(t.timestamp)
-        return ts >= d && ts < next
-      })
-      const w = dayTrades.filter(t => t.outcome === "profit").length
-      const l = dayTrades.filter(t => t.outcome === "loss").length
-      const b = dayTrades.filter(t => t.outcome === "breakeven").length
-
-      days.push({
-        label: d.toLocaleDateString(undefined, { weekday: "short" }),
-        wins: w,
-        losses: l,
-        breakeven: b,
-      })
-    }
-    return days
-  }, [trades])
-
-  // Psychology vs outcomes: bucket trades by simple stability score
-  const psychBuckets = useMemo(() => {
-    const buckets: Record<string, { bets: number; wins: number }> = {
-      LOW: { bets: 0, wins: 0 },
-      MODERATE: { bets: 0, wins: 0 },
-      HIGH: { bets: 0, wins: 0 },
-    }
-
-    const negativeEmotions = ["anxious", "frustrated", "angry", "fearful", "stressed"]
-    const positiveEmotions = ["happy", "confident", "calm", "excited", "grateful", "relaxed", "joyful"]
-
-    trades.forEach(t => {
-      if (!t.preTradeEmotion) return
-      const emotion = t.preTradeEmotion.toLowerCase()
-      const intensity = t.preTradeIntensity || 3
-      const scaled = (intensity / 5) * 100
-
-      let score = 50
-      if (negativeEmotions.includes(emotion)) {
-        score = 100 - scaled
-      } else if (positiveEmotions.includes(emotion)) {
-        score = scaled
+  // Bridge Graph Data
+  const bridgeData = useMemo(() => {
+    const dataMap = new Map<string, { date: string; profit: number; mood: number; count: number; triggers: string[] }>()
+    
+    // Process bets for profit
+    unifiedBets.forEach(bet => {
+      if (bet.outcome === 'pending') return
+      const dateKey = new Date(bet.timestamp).toISOString().split('T')[0]
+      const profit = (bet.actualReturn || 0) - bet.stake
+      
+      // Debug logging
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Bridge Data] Bet: ${bet.description}, Stake: $${bet.stake}, ActualReturn: $${bet.actualReturn || 0}, Profit: $${profit}, Outcome: ${bet.outcome}`)
       }
-
-      let bucket: keyof typeof buckets = "MODERATE"
-      if (score < 40) bucket = "LOW"
-      else if (score >= 70) bucket = "HIGH"
-
-      buckets[bucket].bets += 1
-      if (t.outcome === "profit") buckets[bucket].wins += 1
+      
+      const existing = dataMap.get(dateKey) || { date: dateKey, profit: 0, mood: 0, count: 0, triggers: [] }
+      existing.profit += profit
+      dataMap.set(dateKey, existing)
     })
 
-    return buckets
-  }, [trades])
+    // Process logs for mood
+    logs.forEach(log => {
+      const dateKey = new Date(log.timestamp).toISOString().split('T')[0]
+      const score = EMOTION_SCORE_LOOKUP[log.emotion.toLowerCase()] || 50
+      // Normalize to 1-10
+      const moodScore = (score / 10)
+      
+      const existing = dataMap.get(dateKey) || { date: dateKey, profit: 0, mood: 0, count: 0, triggers: [] }
+      existing.mood += moodScore
+      existing.count += 1
+      
+      // Check for triggers
+      if (log.intensity >= 4) {
+        if (['stressed', 'anxious', 'angry', 'frustrated'].includes(log.emotion.toLowerCase())) {
+          existing.triggers.push('😰')
+        } else if (['excited', 'euphoric', 'confident', 'happy'].includes(log.emotion.toLowerCase())) {
+          existing.triggers.push('🔥')
+        }
+      }
+      dataMap.set(dateKey, existing)
+    })
+
+    return Array.from(dataMap.values())
+      .map(d => ({
+        ...d,
+        mood: d.count > 0 ? Number((d.mood / d.count).toFixed(1)) : null,
+        displayDate: new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30) // Last 30 days
+  }, [unifiedBets, logs])
+
+  // Mental Health Tab Data
+  const mentalHealthData = useMemo(() => {
+    const emotionsByPhase = {
+      before: {} as Record<string, number>,
+      during: {} as Record<string, number>,
+      after: {} as Record<string, number>
+    }
+
+    logs.forEach(log => {
+      const phase = log.phase || 'before'
+      const emotion = log.emotion.toLowerCase()
+      emotionsByPhase[phase][emotion] = (emotionsByPhase[phase][emotion] || 0) + 1
+    })
+
+    const topPreBetEmotions = Object.entries(emotionsByPhase.before)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([name, value]) => ({ name, value }))
+
+    // ROI Correlation for Top Emotion
+    const topEmotion = topPreBetEmotions[0]?.name
+    let topEmotionROI = 0
+    if (topEmotion) {
+      const emotionBets = unifiedBets.filter(b => 
+        b.outcome !== 'pending' && 
+        b.emotionalState?.toLowerCase().includes(topEmotion)
+      )
+      const totalStaked = emotionBets.reduce((sum, b) => sum + b.stake, 0)
+      const totalReturn = emotionBets.reduce((sum, b) => sum + (b.actualReturn || 0), 0)
+      topEmotionROI = totalStaked > 0 ? ((totalReturn - totalStaked) / totalStaked) * 100 : 0
+    }
+
+    return { emotionsByPhase, topPreBetEmotions, topEmotion, topEmotionROI }
+  }, [logs, unifiedBets])
 
   // Betting history functions
 
@@ -393,14 +426,15 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         outcome === 'push' ? bet.stake :
         0
 
-      const updatedBet = {
+      const updatedBet: UnifiedBet = {
         ...bet,
         outcome,
-        actualReturn
+        actualReturn,
+        source: "analysis"
       }
 
       const updatedAnalyses = [...analyses]
-      updatedAnalyses[betIndex] = updatedBet
+      updatedAnalyses[betIndex] = updatedBet as any
       setAnalyses(updatedAnalyses)
       setSelectedBet(updatedBet)
 
@@ -750,1217 +784,407 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       {/* Subtabs */}
       <div className="flex gap-2 border-b border-border">
         <Button
-          variant={activeSubTab === "data" ? "default" : "ghost"}
-          onClick={() => setActiveSubTab("data")}
+          variant={activeSubTab === "correlation" ? "default" : "ghost"}
+          onClick={() => setActiveSubTab("correlation")}
+          className="rounded-b-none"
+        >
+          <TrendingUp className="h-4 w-4 mr-2" />
+          Correlation
+        </Button>
+        <Button
+          variant={activeSubTab === "performance" ? "default" : "ghost"}
+          onClick={() => setActiveSubTab("performance")}
           className="rounded-b-none"
         >
           <BarChart3 className="h-4 w-4 mr-2" />
-          Data
+          Performance
         </Button>
         <Button
-          variant={activeSubTab === "betting-history" ? "default" : "ghost"}
-          onClick={() => setActiveSubTab("betting-history")}
-          className="rounded-b-none"
-        >
-          <Target className="h-4 w-4 mr-2" />
-          Betting History
-        </Button>
-        <Button
-          variant={activeSubTab === "emotional-history" ? "default" : "ghost"}
-          onClick={() => setActiveSubTab("emotional-history")}
+          variant={activeSubTab === "mental-health" ? "default" : "ghost"}
+          onClick={() => setActiveSubTab("mental-health")}
           className="rounded-b-none"
         >
           <Brain className="h-4 w-4 mr-2" />
-          Emotional History
+          Mental Health
         </Button>
       </div>
 
-      {/* Data Tab */}
-      {activeSubTab === "data" && (
+      {/* Tab 1: Behavioral Correlation (The 'Bridge' Graph) */}
+      {activeSubTab === "correlation" && (
         <div className="space-y-6">
-        {/* Emotional Tracking Analytics */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Emotional Tracking</h3>
-            </div>
-            {mostCommonEmotion && (
-              <span className="text-xs text-muted-foreground">
-                Most common: <span className="font-medium text-foreground">{mostCommonEmotion[0]}</span>
-              </span>
-            )}
-          </div>
-
-          {logs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No emotion logs yet. Start tracking your emotions to unlock this analytics view.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Emotion frequency */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <p className="text-xs text-muted-foreground mb-2">Most frequent emotions</p>
-                <div className="space-y-2">
-                  {Object.entries(emotionCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 6)
-                    .map(([emotion, count]) => {
-                      const pct = Math.round((count / logs.length) * 100)
-                      return (
-                        <div key={emotion} className="flex items-center gap-2 text-sm">
-                          <span className="w-24 truncate text-foreground">{emotion}</span>
-                          <div className="flex-1 h-2 rounded bg-muted overflow-hidden">
-                            <div
-                              className="h-full bg-primary/70"
-                              style={{ width: `${Math.max(5, pct)}%` }}
-                            />
-                          </div>
-                          <span className="w-10 text-right text-xs text-muted-foreground">{pct}%</span>
-                        </div>
-                      )
-                    })}
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  The Behavioral Bridge
+                </h3>
+                <p className="text-sm text-muted-foreground">Correlation between your profit/loss and daily mood</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <span>Profit/Loss ($)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-purple-500" />
+                  <span>Mood (1-10)</span>
                 </div>
               </div>
+            </div>
 
-              {/* Intensity summary */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-primary" />
-                  <p className="text-sm text-foreground font-medium">Average Intensity</p>
-                </div>
-                <p className="text-3xl font-bold text-foreground">{avgIntensity} / 5</p>
-                <p className="text-xs text-muted-foreground">
-                  Higher values mean your emotions tend to be more intense when you log them.
+            <div className="h-[400px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={bridgeData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    tick={{ fontSize: 12 }} 
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    yAxisId="left" 
+                    tick={{ fontSize: 12 }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    tickFormatter={(value) => `$${value}`}
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    domain={[0, 10]} 
+                    tick={{ fontSize: 12 }} 
+                    axisLine={false} 
+                    tickLine={false}
+                  />
+                  <Tooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-background border border-border p-3 rounded-lg shadow-xl text-sm">
+                            <p className="font-bold mb-2">{label}</p>
+                            <div className="space-y-1">
+                              <p className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Net P/L:</span>
+                                <span className={data.profit >= 0 ? "text-emerald-500" : "text-red-500"}>
+                                  {data.profit >= 0 ? '+' : ''}${data.profit.toFixed(2)}
+                                </span>
+                              </p>
+                              <p className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Avg Mood:</span>
+                                <span className="text-purple-500 font-medium">{data.mood || 'N/A'}</span>
+                              </p>
+                              {data.triggers.length > 0 && (
+                                <div className="pt-2 border-t border-border mt-2">
+                                  <p className="text-xs text-muted-foreground mb-1">Triggers:</p>
+                                  <div className="flex gap-1">
+                                    {data.triggers.map((t: string, i: number) => (
+                                      <span key={i} title={t === '😰' ? 'High Stress' : 'High Excitement'}>{t}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="profit"
+                    fill="url(#colorProfit)"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="mood"
+                    stroke="#8b5cf6"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 2, stroke: "#fff" }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <defs>
+                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  {/* Trigger Overlays */}
+                  {bridgeData.map((entry, index) => (
+                    entry.triggers.length > 0 ? (
+                      <ReferenceArea
+                        key={index}
+                        x1={entry.displayDate}
+                        x2={entry.displayDate}
+                        yAxisId="right"
+                        fill="transparent"
+                        label={{
+                          position: 'bottom',
+                          value: entry.triggers[0],
+                          fontSize: 16,
+                          fill: '#000',
+                          offset: 10
+                        }}
+                      />
+                    ) : null
+                  ))}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-6 p-4 bg-muted/30 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium">Insight: Behavioral Patterns</p>
+                <p className="text-muted-foreground">
+                  The chart above maps your financial performance directly against your emotional state. 
+                  Emoji markers indicate days where <span className="text-foreground font-medium">High Stress (😰)</span> or 
+                  <span className="text-foreground font-medium">High Excitement (🔥)</span> were logged. 
+                  Watch for profit drops following these triggers.
                 </p>
               </div>
             </div>
-          )}
-        </Card>
-
-        {/* Betting Outcomes over time */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-lg font-semibold text-foreground">Betting Outcomes</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">Last 14 days</p>
-          </div>
-
-          {totalBets === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No bets recorded yet. Use the behavior and analysis tools to log your decisions.
-            </p>
-          ) : (
-            <div className="grid grid-cols-14 gap-1 items-end h-32">
-              {dailyBuckets.map((day, idx) => {
-                const dayTotal = day.wins + day.losses + day.breakeven
-                const winHeight = dayTotal ? (day.wins / dayTotal) * 100 : 0
-                const lossHeight = dayTotal ? (day.losses / dayTotal) * 100 : 0
-                const breakevenHeight = dayTotal ? (day.breakeven / dayTotal) * 100 : 0
-
-                return (
-                  <div key={idx} className="flex flex-col items-center gap-1">
-                    <div className="w-full flex flex-col justify-end h-24 bg-muted/40 rounded overflow-hidden">
-                      <div
-                        className="w-full bg-emerald-500/80"
-                        style={{ height: `${winHeight}%` }}
-                      />
-                      <div
-                        className="w-full bg-yellow-400/80"
-                        style={{ height: `${breakevenHeight}%` }}
-                      />
-                      <div
-                        className="w-full bg-red-500/80"
-                        style={{ height: `${lossHeight}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{day.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Sports & Leagues */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Sports & Leagues</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">Top 5 by volume</p>
-          </div>
-
-          {topSports.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No sport data yet. When you log trades with a sport, they will appear here.
-            </p>
-          ) : (
-            <div className="space-y-2 text-sm">
-              {topSports.map(([sport, stats]) => {
-                const sportWinRate = stats.bets ? Math.round((stats.wins / stats.bets) * 100) : 0
-                return (
-                  <div key={sport} className="flex items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground truncate">{sport}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {stats.bets} bets · {sportWinRate}% win rate
-                      </p>
-                    </div>
-                    <div className="w-32 h-2 rounded bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-primary/80"
-                        style={{ width: `${sportWinRate}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Psychology vs Outcomes */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Psychology vs Outcomes</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Based on pre-trade emotions and bet outcomes
-            </p>
-          </div>
-
-          {trades.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Once you log trades with pre-trade emotions and outcomes, you'll see how stability relates to performance.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="py-2 text-left">Stability Bucket</th>
-                    <th className="py-2 text-right">Bets</th>
-                    <th className="py-2 text-right">Win Rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(["HIGH", "MODERATE", "LOW"] as const).map(bucket => {
-                    const stats = psychBuckets[bucket]
-                    const wr = stats.bets ? Math.round((stats.wins / stats.bets) * 100) : 0
-                    return (
-                      <tr key={bucket} className="border-b border-border/60 last:border-0">
-                        <td className="py-2">
-                          <span className="font-medium text-foreground">{bucket}</span>
-                        </td>
-                        <td className="py-2 text-right">{stats.bets}</td>
-                        <td className="py-2 text-right">
-                          {wr}%
-                          {stats.bets === 0 && (
-                            <span className="ml-1 text-[11px] text-muted-foreground">(no data yet)</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-
-              <p className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingDown className="w-3" />
-                As this table fills in, look for higher win rates when your stability bucket is HIGH versus LOW.
-              </p>
-            </div>
-          )}
-        </Card>
-
-        {/* Emotion vs Betting Outcomes (Time Series) */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Emotion vs Betting Outcomes</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                <div className="flex items-center gap-2 bg-muted/40 rounded-md p-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setDateRange({
-                      start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-                      end: new Date()
-                    })}
-                  >
-                    1W
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setDateRange({
-                      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-                      end: new Date()
-                    })}
-                  >
-                    1M
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setDateRange({
-                      start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
-                      end: new Date()
-                    })}
-                  >
-                    3M
-                  </Button>
-                  <div className="flex items-center gap-1 px-2">
-                    <input 
-                      type="date" 
-                      className="bg-background text-xs w-28 rounded border p-1"
-                      onChange={(e) => {
-                        const newDate = new Date(e.target.value)
-                        if (!isNaN(newDate.getTime()) && newDate < dateRange.end) {
-                          setDateRange({...dateRange, start: newDate})
-                        } else {
-                          toast.error('Start date must be before end date')
-                        }
-                      }}
-                      max={dateRange.end.toISOString().split('T')[0]}
-                      value={dateRange.start.toISOString().split('T')[0]}
-                    />
-                    <span className="text-muted-foreground">to</span>
-                    <input 
-                      type="date" 
-                      className="bg-background text-xs w-28 rounded border p-1"
-                      onChange={(e) => {
-                        const newDate = new Date(e.target.value)
-                        if (!isNaN(newDate.getTime()) && newDate > dateRange.start) {
-                          setDateRange({...dateRange, end: newDate})
-                        } else {
-                          toast.error('End date must be after start date')
-                        }
-                      }}
-                      min={dateRange.start.toISOString().split('T')[0]}
-                      max={new Date().toISOString().split('T')[0]}
-                      value={dateRange.end.toISOString().split('T')[0]}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-4 mb-4 rounded-md border border-border bg-muted/40 p-3">
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={showEmotionLine} onCheckedChange={(v) => setShowEmotionLine(!!v)} />
-              Emotion (0-100)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={showOutcomeLine} onCheckedChange={(v) => setShowOutcomeLine(!!v)} />
-              Outcome (-1/0/1)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={showActivityLine} onCheckedChange={(v) => setShowActivityLine(!!v)} />
-              Bet activity (0/1)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={showEvLine} onCheckedChange={(v) => setShowEvLine(!!v)} />
-              Expected value (EV)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <Checkbox checked={showMentalHealthLine} onCheckedChange={(v) => setShowMentalHealthLine(!!v)} />
-              Mental health score
-            </label>
-          </div>
-
-          {(
-            (!showEmotionLine || emotionOutcomeSeries.every((p) => p.emotionScore == null)) &&
-            (!showOutcomeLine || emotionOutcomeSeries.every((p) => p.outcomeScore == null)) &&
-            (!showActivityLine || emotionOutcomeSeries.every((p) => (p.betActivity ?? 0) === 0)) &&
-            (!showEvLine || emotionOutcomeSeries.every((p) => p.expectedValue == null)) &&
-            (!showMentalHealthLine || emotionOutcomeSeries.every((p) => p.mentalHealthScore == null))
-          ) ? (
-            <p className="text-sm text-muted-foreground">
-              Log emotions and complete bets (win/loss/push) to see how your emotional state tracks with outcomes.
-            </p>
-          ) : (
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={emotionOutcomeSeries} margin={{ top: 10, right: 30, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground) / 0.15)" />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontSize: 12 }}
-                    interval="preserveStartEnd"
-                    minTickGap={16}
-                  />
-                  {(showEmotionLine || showMentalHealthLine) && (
-                    <YAxis
-                      yAxisId="left"
-                      domain={[0, 100]}
-                      tick={{ fontSize: 12 }}
-                      tickCount={6}
-                      label={{ value: "Emotion (0-100)", angle: -90, position: "insideLeft" }}
-                    />
-                  )}
-                  {(showOutcomeLine || showActivityLine) && (
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      domain={[-1, 1]}
-                      ticks={[-1, 0, 1]}
-                      tick={{ fontSize: 12 }}
-                      label={{ value: "Outcome/Activity", angle: 90, position: "insideRight" }}
-                    />
-                  )}
-                  {showEvLine && (
-                    <YAxis
-                      yAxisId="ev"
-                      orientation="right"
-                      tick={{ fontSize: 12 }}
-                      width={56}
-                      label={{ value: "EV ($)", angle: 90, position: "insideRight" }}
-                    />
-                  )}
-                  <Tooltip
-                    formatter={(value: any, name: any) => {
-                      if (name === "Emotion (0-100)") return [value, "Emotion (0-100)"]
-                      if (name === "Outcome (-1/0/1)") return [value, "Outcome (-1/0/1)"]
-                      if (name === "Bet activity (0/1)") return [value, "Bet activity (0/1)"]
-                      if (name === "EV ($)") return [value, "EV ($)"]
-                      if (name === "Mental health score") return [value, "Mental health score"]
-                      return [value, name]
-                    }}
-                  />
-                  <Legend />
-                  {showEmotionLine && (
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="emotionScore"
-                      name="Emotion (0-100)"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  )}
-                  {showOutcomeLine && (
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="outcomeScore"
-                      name="Outcome (-1/0/1)"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  )}
-                  {showActivityLine && (
-                    <Line
-                      yAxisId="right"
-                      type="stepAfter"
-                      dataKey="betActivity"
-                      name="Bet activity (0/1)"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  )}
-                  {showEvLine && (
-                    <Line
-                      yAxisId="ev"
-                      type="monotone"
-                      dataKey="expectedValue"
-                      name="EV ($)"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  )}
-                  {showMentalHealthLine && (
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="mentalHealthScore"
-                      name="Mental health score"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          <p className="mt-3 text-xs text-muted-foreground">
-            Emotion score uses the stable 60-emotion lookup table (0–100). Outcome score is daily average of wins (1),
-            losses (-1), and pushes (0). Bet activity is 1 when any bet exists that day. EV is daily average EV from analyses.
-            Mental health score is a blended proxy: emotion score minus recent AI usage load.
-          </p>
-        </Card>
-      </div>
-    )}
-
-    {/* Betting History Tab */}
-    {activeSubTab === "betting-history" && (
-      <div className="space-y-6">
-        {unifiedBets.length === 0 ? (
-          <Card className="p-12 text-center">
-            <History className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-foreground mb-2">No Bets Yet</h3>
-            <p className="text-muted-foreground mb-6">
-              Start analyzing bets to build your history and track your performance.
-            </p>
-            {onNavigateToTab && (
-              <Button onClick={() => onNavigateToTab("analyze")}>
-                <Target className="h-4 w-4 mr-2" />
-                Analyze Your First Bet
-              </Button>
-            )}
           </Card>
-        ) : (
-          <>
-            {/* Performance Metrics Dashboard */}
-            <Card className="p-6 bg-linear-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30">
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-blue-500" />
-                Performance Overview
-              </h3>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg bg-background/50 text-center">
-                  <Trophy className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground mb-1">Win Rate</p>
-                  <p className="text-2xl font-bold text-foreground">{bettingMetrics.winRate.toFixed(1)}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {bettingMetrics.wins}W - {bettingMetrics.losses}L
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-lg bg-background/50 text-center">
-                  <DollarSign className={`h-6 w-6 mx-auto mb-2 ${bettingMetrics.profit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-                  <p className="text-xs text-muted-foreground mb-1">Total P/L</p>
-                  <p className={`text-2xl font-bold ${bettingMetrics.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {bettingMetrics.profit >= 0 ? '+' : ''}${bettingMetrics.profit.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ${bettingMetrics.totalStaked.toFixed(0)} staked
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-lg bg-background/50 text-center">
-                  {bettingMetrics.roi >= 0 ? (
-                    <TrendingUp className="h-6 w-6 text-green-500 mx-auto mb-2" />
-                  ) : (
-                    <TrendingDown className="h-6 w-6 text-red-500 mx-auto mb-2" />
-                  )}
-                  <p className="text-xs text-muted-foreground mb-1">ROI</p>
-                  <p className={`text-2xl font-bold ${bettingMetrics.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {bettingMetrics.roi >= 0 ? '+' : ''}{bettingMetrics.roi.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Return on investment
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-lg bg-background/50 text-center">
-                  <Target className="h-6 w-6 text-blue-500 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground mb-1">Avg EV</p>
-                  <p className={`text-2xl font-bold ${bettingMetrics.avgEV >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {bettingMetrics.avgEV >= 0 ? '+' : ''}${bettingMetrics.avgEV.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Expected value
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span className="text-muted-foreground">Completed: {bettingMetrics.completedBets}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-yellow-500" />
-                    <span className="text-muted-foreground">Pending: {bettingMetrics.pendingBets}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <History className="h-4 w-4 text-blue-500" />
-                    <span className="text-muted-foreground">Total: {bettingMetrics.totalBets}</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Bulk Edit Stakes */}
-            <Card className="p-4 bg-linear-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-amber-500" />
-                  Bulk Edit Stakes
-                </h3>
-                <Button
-                  size="sm"
-                  variant={bulkEditMode ? "default" : "outline"}
-                  onClick={() => {
-                    alert('Button clicked! Mode: ' + bulkEditMode)
-                    console.log('Bulk edit button clicked, current mode:', bulkEditMode)
-                    setBulkEditMode(!bulkEditMode)
-                    setSelectedBetIds(new Set())
-                    setBulkStakeValue("")
-                  }}
-                >
-                  {bulkEditMode ? "Cancel" : "Enable Bulk Edit"}
-                </Button>
-              </div>
-
-              {bulkEditMode && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Select bets with missing or zero stakes to update them all at once.
-                  </p>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        alert('Select All $0 Bets clicked!')
-                        console.log('Select All $0 Bets clicked!')
-                        selectAllZeroStakeBets()
-                      }}
-                    >
-                      Select All $0 Bets
-                    </Button>
-                    <span className="text-xs text-muted-foreground flex items-center">
-                      {selectedBetIds.size} bet(s) selected
-                    </span>
-                  </div>
-
-                  {selectedBetIds.size > 0 && (
-                    <div className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <label className="text-xs text-muted-foreground mb-1 block">
-                          New Stake Amount ($)
-                        </label>
-                        <Input
-                          type="number"
-                          placeholder="100"
-                          value={bulkStakeValue}
-                          onChange={(e) => setBulkStakeValue(e.target.value)}
-                          min="0.01"
-                          step="0.01"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleBulkUpdateStakes}
-                        disabled={!bulkStakeValue}
-                      >
-                        Update {selectedBetIds.size} Bet(s)
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
-
-            {/* Filters and Search */}
-            <Card className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search bets..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <select
-                    value={filterOutcome}
-                    onChange={(e) => setFilterOutcome(e.target.value)}
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  >
-                    <option value="all">All Outcomes</option>
-                    <option value="win">Wins</option>
-                    <option value="loss">Losses</option>
-                    <option value="push">Pushes</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </div>
-
-                <div>
-                  <select
-                    value={filterSport}
-                    onChange={(e) => setFilterSport(e.target.value)}
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  >
-                    <option value="all">All Sports</option>
-                    {allSportOptions.map(sport => (
-                      <option key={sport.key} value={sport.key}>{sport.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-4 rounded-md border border-border bg-muted/40 p-3">
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <Checkbox checked={showUsageEvents} onCheckedChange={(v) => setShowUsageEvents(!!v)} />
-                  Include AI usage events
-                </label>
-                <label className="flex items-center gap-2 text-xs text-foreground">
-                  <Checkbox checked={showGameLineEvents} onCheckedChange={(v) => setShowGameLineEvents(!!v)} />
-                  Include game line events
-                </label>
-                {(showUsageEvents || showGameLineEvents) && sortBy !== "date" && (
-                  <span className="text-xs text-muted-foreground">
-                    Unified timeline view is always sorted by date.
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Sort by:</span>
-                <div className="flex gap-2">
-                  <Button
-                    variant={sortBy === 'date' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSortBy('date')}
-                  >
-                    <Calendar className="h-4 w-4 mr-1" />
-                    Date
-                  </Button>
-                  <Button
-                    variant={sortBy === 'ev' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSortBy('ev')}
-                  >
-                    <Target className="h-4 w-4 mr-1" />
-                    EV
-                  </Button>
-                  <Button
-                    variant={sortBy === 'stake' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSortBy('stake')}
-                  >
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    Stake
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            {/* Results Count */}
-            {filteredAnalyses.length !== unifiedBets.length && (
-              <div className="text-center text-sm text-muted-foreground">
-                Showing {filteredAnalyses.length} of {unifiedBets.length} bets
-              </div>
-            )}
-
-            {/* Bet List */}
-            {unifiedTimelineItems.length === 0 ? (
-              <Card className="p-8 text-center">
-                <Filter className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No bets match your filters</p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => {
-                    setSearchTerm("")
-                    setFilterOutcome("all")
-                    setFilterSport("all")
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {unifiedTimelineItems.map((item, idx) => {
-                  if (item.kind === "bet") {
-                    const bet = item.bet
-                    const isBetAnalysis = (bet as any).source === "analysis"
-                    const canSelectBet = bulkEditMode && isBetAnalysis && (bet.stake === 0 || bet.stake === undefined)
-
-                    return (
-                      <Card
-                        key={`${item.kind}:${bet.id}:${idx}`}
-                        className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={(e) => {
-                          if (bulkEditMode && canSelectBet) {
-                            e.stopPropagation()
-                            toggleBetSelection(bet.id)
-                          } else if (!bulkEditMode) {
-                            setSelectedBet(bet)
-                          }
-                        }}
-                      >
-                        <div className="flex items-start gap-4">
-                          {bulkEditMode && canSelectBet && (
-                            <div className="pt-1" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={selectedBetIds.has(bet.id)}
-                                onCheckedChange={() => toggleBetSelection(bet.id)}
-                              />
-                            </div>
-                          )}
-
-                          <div className="flex flex-1 items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-xs">
-                                Bet
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {bet.sport}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {bet.betType}
-                              </Badge>
-                              {(bet as any).source && (
-                                <Badge variant="outline" className="text-xs">
-                                  {(bet as any).source}
-                                </Badge>
-                              )}
-                              {bet.outcome && (
-                                <Badge
-                                  className={`${
-                                    bet.outcome === 'win' ? 'bg-green-500/20 text-green-500' :
-                                    bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500' :
-                                    bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500' :
-                                    'bg-yellow-500/20 text-yellow-500'
-                                  }`}
-                                >
-                                  {bet.outcome.toUpperCase()}
-                                </Badge>
-                              )}
-                            </div>
-                            <h4 className="font-semibold text-foreground mb-1 truncate">
-                              {bet.description}
-                            </h4>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(bet.timestamp).toLocaleDateString()} at {new Date(bet.timestamp).toLocaleTimeString()}
-                            </p>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <div className="text-sm font-semibold text-foreground mb-1">
-                              {bet.stake > 0 ? `$${bet.stake.toFixed(2)}` : (
-                                <span className="text-xs text-muted-foreground">(stake not logged)</span>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground mb-1">
-                              {bet.odds !== 0 ? (
-                                <>Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}</>
-                              ) : (
-                                <>Odds: <span className="text-muted-foreground">(not logged)</span></>
-                              )}
-                            </div>
-                            {bet.expectedValue !== undefined && bet.expectedValue !== null && (
-                              <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                EV: {bet.expectedValue >= 0 ? '+' : ''}${bet.expectedValue.toFixed(2)}
-                              </div>
-                            )}
-                            {bet.actualReturn !== undefined && bet.actualReturn !== null && bet.outcome !== 'pending' && (
-                              <div className={`text-xs font-medium ${bet.actualReturn >= bet.stake ? 'text-green-500' : 'text-red-500'}`}>
-                                Return: ${bet.actualReturn.toFixed(2)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        </div>
-
-                        {bet.biasWarnings && bet.biasWarnings.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border">
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
-                              <div className="flex flex-wrap gap-1">
-                                {bet.biasWarnings.slice(0, 2).map((warning, idx2) => (
-                                  <span key={idx2} className="text-xs text-muted-foreground">
-                                    {warning}{idx2 < Math.min(bet.biasWarnings.length, 2) - 1 ? ',' : ''}
-                                  </span>
-                                ))}
-                                {bet.biasWarnings.length > 2 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    +{bet.biasWarnings.length - 2} more
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    )
-                  }
-
-                  if (item.kind === "ai") {
-                    const u = item.usage
-                    const title = `AI: ${(u.serviceType || "AI service").toString().replace(/_/g, " ")}`
-                    return (
-                      <Card key={`${item.kind}:${u.id}:${idx}`} className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-xs">AI usage</Badge>
-                            </div>
-                            <h4 className="font-semibold text-foreground mb-1 truncate">{title}</h4>
-                            <p className="text-xs text-muted-foreground">
-                              {item.ts.toLocaleDateString()} at {item.ts.toLocaleTimeString()}
-                            </p>
-                          </div>
-                        </div>
-                      </Card>
-                    )
-                  }
-
-                  const g = item.game
-                  const matchup = `${g.homeTeam || ""} vs ${g.awayTeam || ""}`.trim() || "Game line update"
-                  const status = (g.finalStatus || "").toString().replace(/_/g, " ")
-                  return (
-                    <Card key={`${item.kind}:${g.id}:${idx}`} className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="text-xs">Game lines</Badge>
-                            {g.sport && (
-                              <Badge variant="outline" className="text-xs">{g.sport as any}</Badge>
-                            )}
-                            {status && (
-                              <Badge variant="outline" className="text-xs">{status}</Badge>
-                            )}
-                          </div>
-                          <h4 className="font-semibold text-foreground mb-1 truncate">{matchup}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {item.ts.toLocaleDateString()} at {item.ts.toLocaleTimeString()}
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-
-              {/* Bet Detail Modal */}
-              {selectedBet && (
-                <div
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-                  onClick={() => setSelectedBet(null)}
-                >
-                  <Card
-                    className="max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-foreground mb-2">
-                            {selectedBet.description}
-                          </h3>
-                          <div className="flex gap-2">
-                            <Badge variant="outline">{selectedBet.sport}</Badge>
-                            <Badge variant="outline">{selectedBet.betType}</Badge>
-                            {selectedBet.outcome && (
-                              <Badge
-                                className={`${
-                                  selectedBet.outcome === 'win' ? 'bg-green-500/20 text-green-500' :
-                                  selectedBet.outcome === 'loss' ? 'bg-red-500/20 text-red-500' :
-                                  selectedBet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500' :
-                                  'bg-yellow-500/20 text-yellow-500'
-                                }`}
-                              >
-                                {selectedBet.outcome.toUpperCase()}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedBet(null)}>
-                          ✕
-                        </Button>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Stake</p>
-                            <p className="text-lg font-semibold">${selectedBet.stake.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Odds</p>
-                            <p className="text-lg font-semibold">
-                              {selectedBet.odds > 0 ? '+' : ''}{selectedBet.odds}
-                            </p>
-                          </div>
-                          {selectedBet.expectedValue !== undefined && (
-                            <div>
-                              <p className="text-sm text-muted-foreground">Expected Value</p>
-                              <p className={`text-lg font-semibold ${selectedBet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {selectedBet.expectedValue >= 0 ? '+' : ''}${selectedBet.expectedValue.toFixed(2)}
-                              </p>
-                            </div>
-                          )}
-                          {selectedBet.probabilityEstimate !== undefined && (
-                            <div>
-                              <p className="text-sm text-muted-foreground">Win Probability</p>
-                              <p className="text-lg font-semibold">{selectedBet.probabilityEstimate}%</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {selectedBet.emotionalState && (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">Emotional State</p>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{selectedBet.emotionalState}</Badge>
-                              {selectedBet.emotionalIntensity && (
-                                <span className="text-sm text-muted-foreground">
-                                  Intensity: {selectedBet.emotionalIntensity}/10
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedBet.aiRecommendation && (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">AI Recommendation</p>
-                            <p className="text-sm text-foreground">{selectedBet.aiRecommendation}</p>
-                          </div>
-                        )}
-
-                        {selectedBet.biasWarnings && selectedBet.biasWarnings.length > 0 && (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-2">Bias Warnings</p>
-                            <div className="space-y-1">
-                              {selectedBet.biasWarnings.map((warning, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-sm">
-                                  <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
-                                  <span className="text-muted-foreground">{warning}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="pt-4 border-t border-border">
-                          <p className="text-sm font-medium text-foreground mb-3">Update Bet Outcome</p>
-                          {(selectedBet as any).source === 'trade' ? (
-                            <div className="rounded-md border border-border bg-muted/40 p-3">
-                              <p className="text-sm text-foreground font-medium">Outcome tracked via Emotion Tracker</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                To change this result, update it from the Behavior / emotion-tracking flow.
-                              </p>
-                            </div>
-                          ) : selectedBet.outcome === 'pending' ? (
-                            <div className="space-y-2">
-                              <p className="text-xs text-muted-foreground mb-2">
-                                Mark this bet as won, lost, or pushed to track your performance
-                              </p>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="flex-1 bg-green-500 hover:bg-green-600"
-                                  onClick={() => handleUpdateOutcome(selectedBet.id, 'win')}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                                  Won
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="flex-1"
-                                  onClick={() => handleUpdateOutcome(selectedBet.id, 'loss')}
-                                >
-                                  ✕ Lost
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1"
-                                  onClick={() => handleUpdateOutcome(selectedBet.id, 'push')}
-                                >
-                                  Push
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div>
-                              <div className="grid grid-cols-2 gap-4 mb-3">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Result</p>
-                                  <p className={`text-lg font-semibold ${
-                                    selectedBet.outcome === 'win' ? 'text-green-500' :
-                                    selectedBet.outcome === 'loss' ? 'text-red-500' :
-                                    'text-gray-500'
-                                  }`}>
-                                    {(selectedBet.outcome?.toUpperCase()) ?? ''}
-                                  </p>
-                                </div>
-                                {selectedBet.actualReturn !== undefined && (
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Return</p>
-                                    <p className={`text-lg font-semibold ${
-                                      selectedBet.actualReturn >= selectedBet.stake ? 'text-green-500' : 'text-red-500'
-                                    }`}>
-                                      ${selectedBet.actualReturn.toFixed(2)}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="pt-4 border-t border-border">
-                          <p className="text-xs text-muted-foreground">
-                            Analyzed on {new Date(selectedBet.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              )}
-            </>
-          )}
         </div>
       )}
 
-      {/* Emotional History Tab */}
-      {activeSubTab === "emotional-history" && (
+      {/* Tab 2: Betting History & Performance */}
+      {activeSubTab === "performance" && (
         <div className="space-y-6">
-          <EmotionInsights logs={logs} />
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Emotion Tracker</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  View your emotions linked to specific bets or explore every check-in you have logged.
-                </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-4 flex flex-col items-center text-center justify-center bg-linear-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20">
+              <div className="p-2 rounded-full bg-emerald-500/10 mb-2">
+                <DollarSign className="h-5 w-5 text-emerald-500" />
               </div>
-              <div className="inline-flex rounded-md border border-border bg-muted p-1 text-xs">
-                <button
-                  type="button"
-                  className={`px-3 py-1 rounded-md transition-colors ${
-                    emotionViewTab === "by-bets" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                  }`}
-                  onClick={() => setEmotionViewTab("by-bets")}
-                >
-                  By Bets
-                </button>
-                <button
-                  type="button"
-                  className={`px-3 py-1 rounded-md transition-colors ${
-                    emotionViewTab === "all-checkins" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                  }`}
-                  onClick={() => setEmotionViewTab("all-checkins")}
-                >
-                  All Check-ins
-                </button>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Total P/L</p>
+              <p className={`text-2xl font-bold ${bettingMetrics.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {bettingMetrics.profit >= 0 ? '+' : ''}${bettingMetrics.profit.toFixed(2)}
+              </p>
+            </Card>
+
+            <Card className="p-4 flex flex-col items-center text-center justify-center bg-linear-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
+              <div className="p-2 rounded-full bg-blue-500/10 mb-2">
+                <TrendingUp className="h-5 w-5 text-blue-500" />
+              </div>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">ROI</p>
+              <p className={`text-2xl font-bold ${bettingMetrics.roi >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {bettingMetrics.roi.toFixed(1)}%
+              </p>
+            </Card>
+
+            <Card className="p-4 flex flex-col items-center text-center justify-center bg-linear-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
+              <div className="p-2 rounded-full bg-amber-500/10 mb-2">
+                <Trophy className="h-5 w-5 text-amber-500" />
+              </div>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Win Rate</p>
+              <p className="text-2xl font-bold">{bettingMetrics.winRate.toFixed(1)}%</p>
+            </Card>
+
+            <Card className="p-4 flex flex-col items-center text-center justify-center bg-linear-to-br from-purple-500/5 to-purple-500/10 border-purple-500/20">
+              <div className="p-2 rounded-full bg-purple-500/10 mb-2">
+                <Target className="h-5 w-5 text-purple-500" />
+              </div>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Total EV</p>
+              <p className={`text-2xl font-bold ${bettingMetrics.avgEV * bettingMetrics.totalBets >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                ${(bettingMetrics.avgEV * bettingMetrics.totalBets).toFixed(2)}
+              </p>
+            </Card>
+          </div>
+
+          <Card className="overflow-hidden">
+            <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Performance History
+              </h3>
+              <div className="flex gap-2">
+                <Input 
+                  placeholder="Filter games..." 
+                  className="h-8 w-64 text-xs"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20">
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Date</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Game</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Result</th>
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Odds</th>
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Stake</th>
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground uppercase tracking-wider text-[10px]">EV ($)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredAnalyses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground italic">
+                        No betting records found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAnalyses.map((bet: UnifiedBet) => (
+                      <tr 
+                        key={bet.id} 
+                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => setSelectedBet(bet)}
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
+                          {new Date(bet.timestamp).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 font-medium truncate max-w-[200px]">
+                          {bet.description}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {bet.outcome && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[10px] uppercase font-bold py-0 h-5 px-2 ${
+                                bet.outcome === 'win' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' :
+                                bet.outcome === 'loss' ? 'border-red-500 text-red-500 bg-red-500/5' :
+                                'border-muted-foreground text-muted-foreground'
+                              }`}
+                            >
+                              {bet.outcome}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                          {bet.odds > 0 ? '+' : ''}{bet.odds}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">
+                          ${bet.stake.toFixed(2)}
+                        </td>
+                        <td className={`px-4 py-3 text-right tabular-nums font-semibold ${
+                          (bet.expectedValue || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'
+                        }`}>
+                          ${(bet.expectedValue || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
-            {emotionViewTab === "by-bets" ? (
-              <div className="space-y-3">
-                <p className="text-[11px] text-muted-foreground mb-1">
-                  Each card below shows a single bet with your emotional intensity before and after (and during, if you logged it).
-                </p>
-                <EmotionHistory logs={logs} trades={trades} />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[11px] text-muted-foreground">
-                    Every emotion check-in you have recorded, visualized by phase and intensity.
-                  </p>
-                  <span className="text-[11px] text-muted-foreground">{logs.length} total</span>
-                </div>
-
-                {logs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No emotion check-ins yet. Use the Behavior tab or the quick check-in dialog to start tracking how you feel.
-                  </p>
-                ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {[...logs]
-                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                      .map((log) => {
-                        const barWidth = Math.max(6, (log.intensity / 5) * 100)
-                        const phaseColor =
-                          log.phase === "before"
-                            ? "bg-emerald-400/80"
-                            : log.phase === "during"
-                            ? "bg-amber-400/80"
-                            : "bg-sky-400/80"
-
-                        return (
-                          <div
-                            key={log.id}
-                            className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 px-3 py-2"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium text-foreground truncate max-w-40">
-                                  {log.emotion}
-                                </span>
-                                <span className="text-[11px] inline-flex items-center rounded-full border px-2 py-0.5 text-muted-foreground capitalize">
-                                  {log.phase} bet
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="relative flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className={`h-full ${phaseColor}`}
-                                    style={{ width: `${barWidth}%` }}
-                                  />
-                                </div>
-                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                  {log.intensity}/5
-                                </span>
-                              </div>
-                              {log.context && (
-                                <p className="mt-1 text-[11px] text-muted-foreground line-clamp-1">
-                                  {log.context}
-                                </p>
-                              )}
+      {/* Tab 3: Mental Health & Triggers */}
+      {activeSubTab === "mental-health" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Thermometer className="h-5 w-5 text-purple-500" />
+                Emotional Heatmap
+              </h3>
+              <div className="space-y-6">
+                {['before', 'during', 'after'].map((phase) => (
+                  <div key={phase} className="space-y-2">
+                    <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">{phase} bet</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(mentalHealthData.emotionsByPhase[phase as keyof typeof mentalHealthData.emotionsByPhase]).length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No data logged</p>
+                      ) : (
+                        Object.entries(mentalHealthData.emotionsByPhase[phase as keyof typeof mentalHealthData.emotionsByPhase])
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([emotion, count]) => (
+                            <div 
+                              key={emotion} 
+                              className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-2 border ${
+                                phase === 'before' ? 'bg-blue-500/10 border-blue-500/20' :
+                                phase === 'during' ? 'bg-amber-500/10 border-amber-500/20' :
+                                'bg-emerald-500/10 border-emerald-500/20'
+                              }`}
+                            >
+                              <span className="font-medium capitalize">{emotion}</span>
+                              <Badge variant="secondary" className="h-4 px-1 min-w-[1.2rem] flex justify-center text-[10px]">{count}</Badge>
                             </div>
-                            <div className="text-right shrink-0 ml-1">
-                              <p className="text-[11px] text-muted-foreground">
-                                {new Date(log.timestamp).toLocaleDateString()}
-                              </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {new Date(log.timestamp).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      })}
+                          ))
+                      )}
+                    </div>
                   </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-500" />
+                Top 5 Pre-Bet Emotions
+              </h3>
+              {mentalHealthData.topPreBetEmotions.length === 0 ? (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground italic text-sm">
+                  Start logging your emotions before bets to see insights here.
+                </div>
+              ) : (
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mentalHealthData.topPreBetEmotions} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        tick={{ fontSize: 12 }} 
+                        width={80} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+                      />
+                      <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                        {mentalHealthData.topPreBetEmotions.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe'][index % 5]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              
+              <div className="mt-6 p-4 bg-linear-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-1.5 rounded-md bg-primary/20 text-primary">
+                    <Brain className="h-4 w-4" />
+                  </div>
+                  <h4 className="font-semibold text-sm">Behavioral Correlation</h4>
+                </div>
+                {mentalHealthData.topEmotion ? (
+                  <div className="space-y-2">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      Your primary betting trigger is <span className="text-foreground font-bold capitalize">{mentalHealthData.topEmotion}</span>. 
+                    </p>
+                    <div className="flex items-center justify-between p-2 bg-background/50 rounded-md">
+                      <span className="text-xs font-medium">ROI while {mentalHealthData.topEmotion}:</span>
+                      <span className={`text-sm font-bold ${mentalHealthData.topEmotionROI >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {mentalHealthData.topEmotionROI >= 0 ? '+' : ''}{mentalHealthData.topEmotionROI.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground italic mt-2 text-center">
+                      Tip: Use the Cool-Off tool if your ROI drops while feeling {mentalHealthData.topEmotion}.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    Log more emotional data to unlock your personalized ROI correlation insight.
+                  </p>
                 )}
               </div>
-            )}
-          </Card>
+            </Card>
+          </div>
         </div>
       )}
     </div>

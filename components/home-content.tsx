@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { initializeUserData } from "@/lib/init-user"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
 // Auth rate limit debug utilities (loads global debug functions)
 import "@/lib/auth-rate-limit-utils"
 
@@ -41,13 +42,22 @@ export function HomeContent() {
   const [loading, setLoading] = useState(true)
 
   // Dynamic imports for tab components
-  const HomeTab = lazy(() => import("@/components/tabs/home-tab"))
-  const OddsTab = lazy(() => import("@/components/tabs/live-odds-tab"))
-  const AnalyzeTab = lazy(() => import("@/components/tabs/analyze-bet-tab"))
-  const BehaviorTab = lazy(() => import("@/components/tabs/behavior-tab"))
-  const AiPicksTab = lazy(() => import("@/components/tabs/ai-picks-tab"))
-  const AnalyticsTab = lazy(() => import("@/components/tabs/analytics-tab"))
-  const AccountTab = lazy(() => import("@/components/tabs/account-tab"))
+  const HomeTab = lazy(() => import("@/components/tabs/home-tab").then((m) => ({ default: m.HomeTab })))
+  const OddsTab = lazy(() => import("@/components/tabs/live-odds-tab").then((m) => ({ default: m.LiveOddsTab })))
+  const AnalyzeTab = lazy(() => import("@/components/tabs/analyze-bet-tab").then((m) => ({ default: m.AnalyzeBetTab })))
+  const BehaviorTab = lazy(() => import("@/components/tabs/behavior-tab").then((m) => ({ default: m.BehaviorTab })))
+  const AiPicksTab = lazy(() => import("@/components/tabs/ai-picks-tab").then((m) => ({ default: m.AIPicksTab })))
+  const AnalyticsTab = lazy(() => import("@/components/tabs/analytics-tab").then((m) => ({ default: m.AnalyticsTab })))
+  const AccountTab = lazy(() => import("@/components/tabs/account-tab").then((m) => ({ default: m.AccountTab })))
+
+  const updateUserData = async (updates: Partial<UserData>) => {
+    setUserData((prev) => {
+      if (!prev) return prev
+      const merged = { ...prev, ...updates }
+      void storage.setUserData(merged)
+      return merged
+    })
+  }
 
   // Read tab parameter from URL
   useEffect(() => {
@@ -219,7 +229,11 @@ export function HomeContent() {
   }
 
   if (showSurvey) {
-    const SurveyComponent = lazy(() => import("@/components/integrated-survey-flow/IntegratedSurveyWrapper"))
+    const SurveyComponent = lazy(() =>
+      import("@/components/integrated-survey-flow/IntegratedSurveyWrapper").then((m) => ({
+        default: m.IntegratedSurveyWrapper,
+      }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -238,37 +252,45 @@ export function HomeContent() {
   }
 
   if (showInstantProfile) {
-    const InstantProfileComponent = lazy(() => import("@/components/tabs/profile-tab"))
+    const InstantProfileComponent = lazy(() =>
+      import("@/components/tabs/profile-tab").then((m) => ({ default: m.ProfileTab }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
         <InstantProfileComponent 
-          userData={userData || null}
-          updateUserData={async () => {}}
-          forceRefresh={() => {}}
+          userData={userData as any}
+          updateUserData={updateUserData}
+          forceRefresh={() => setRefreshKey((k) => k + 1)}
         />
       </Suspense>
     )
   }
 
   if (showProfilePreview) {
-    const ProfilePreviewComponent = lazy(() => import("@/components/tabs/profile-tab"))
+    const ProfilePreviewComponent = lazy(() =>
+      import("@/components/tabs/profile-tab").then((m) => ({ default: m.ProfileTab }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
         <ProfilePreviewComponent 
-          userData={userData || null}
-          updateUserData={async () => {}}
-          forceRefresh={() => {}}
+          userData={userData as any}
+          updateUserData={updateUserData}
+          forceRefresh={() => setRefreshKey((k) => k + 1)}
         />
       </Suspense>
     )
   }
 
   if (showSoftGate) {
-    const SoftGateComponent = lazy(() => import("@/components/integrated-survey-flow/IntegratedSurveyWrapper"))
+    const SoftGateComponent = lazy(() =>
+      import("@/components/integrated-survey-flow/IntegratedSurveyWrapper").then((m) => ({
+        default: m.IntegratedSurveyWrapper,
+      }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -287,7 +309,9 @@ export function HomeContent() {
   }
 
   if (showSignup) {
-    const SignupComponent = lazy(() => import("@/components/auth/sign-in"))
+    const SignupComponent = lazy(() =>
+      import("@/components/auth/sign-in").then((m) => ({ default: m.SignIn }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -302,7 +326,9 @@ export function HomeContent() {
   }
 
   if (showSignin) {
-    const SigninComponent = lazy(() => import("@/components/auth/sign-in"))
+    const SigninComponent = lazy(() =>
+      import("@/components/auth/sign-in").then((m) => ({ default: m.SignIn }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -317,7 +343,9 @@ export function HomeContent() {
   }
 
   if (showTerms) {
-    const TermsComponent = lazy(() => import("@/components/terms-agreement"))
+    const TermsComponent = lazy(() =>
+      import("@/components/terms-agreement").then((m) => ({ default: m.TermsAgreement }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -331,7 +359,9 @@ export function HomeContent() {
   }
 
   if (showLanding) {
-    const LandingComponent = lazy(() => import("@/components/landing-page"))
+    const LandingComponent = lazy(() =>
+      import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
+    )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -361,17 +391,20 @@ export function HomeContent() {
               {activeTab === "home" && (
                 <HomeTab 
                   key={refreshKey}
-                  userData={userData} 
-                  onEmotionCheckInComplete={handleEmotionCheckInComplete}
-                  showEmotionCheckIn={showEmotionCheckIn}
+                  userData={userData as any}
+                  updateUserData={updateUserData}
+                  onNavigateToTab={handleNavigateToTab}
+                  refreshKey={refreshKey}
                 />
               )}
-              {activeTab === "odds" && <OddsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "analyze" && <AnalyzeTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "behavior" && <BehaviorTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "ai-picks" && <AiPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "analytics" && <AnalyticsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "account" && <AccountTab userData={userData} />}
+              {activeTab === "odds" && <OddsTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "analyze" && <AnalyzeTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "behavior" && (
+                <BehaviorTab userData={userData as any} updateUserData={updateUserData} refreshKey={refreshKey} />
+              )}
+              {activeTab === "ai-picks" && <AiPicksTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "analytics" && <AnalyticsTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
+              {activeTab === "account" && <AccountTab userData={userData as any} updateUserData={updateUserData} />}
             </Suspense>
           </ErrorBoundary>
         </main>

@@ -223,7 +223,15 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SurveyComponent onComplete={handleSurveyComplete} />
+        <SurveyComponent 
+          onComplete={(score, level, email) => {
+            handleSurveyComplete({ score, level } as any)
+          }}
+          onSwitchToLogin={() => {
+            setShowSurvey(false)
+            setShowSignin(true)
+          }}
+        />
       </Suspense>
     )
   }
@@ -234,7 +242,11 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <InstantProfileComponent onComplete={handleInstantProfileComplete} />
+        <InstantProfileComponent 
+          userData={userData || null}
+          updateUserData={async () => {}}
+          forceRefresh={() => {}}
+        />
       </Suspense>
     )
   }
@@ -245,7 +257,11 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <ProfilePreviewComponent onComplete={handleProfilePreviewComplete} />
+        <ProfilePreviewComponent 
+          userData={userData || null}
+          updateUserData={async () => {}}
+          forceRefresh={() => {}}
+        />
       </Suspense>
     )
   }
@@ -256,7 +272,15 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SoftGateComponent onComplete={handleSoftGateComplete} />
+        <SoftGateComponent 
+          onComplete={(score, level, email) => {
+            handleSoftGateComplete()
+          }}
+          onSwitchToLogin={() => {
+            setShowSoftGate(false)
+            setShowSignin(true)
+          }}
+        />
       </Suspense>
     )
   }
@@ -267,7 +291,11 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SignupComponent onComplete={handleSignupComplete} />
+        <SignupComponent 
+          onSwitchToSignUp={() => {}}
+          onForgotPassword={() => {}}
+          onResendConfirmation={() => {}}
+        />
       </Suspense>
     )
   }
@@ -278,7 +306,11 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SigninComponent onComplete={handleSigninComplete} />
+        <SigninComponent 
+          onSwitchToSignUp={() => {}}
+          onForgotPassword={() => {}}
+          onResendConfirmation={() => {}}
+        />
       </Suspense>
     )
   }
@@ -289,7 +321,10 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <TermsComponent onComplete={handleTermsComplete} />
+        <TermsComponent 
+          onAccept={handleTermsComplete}
+          onDecline={() => {}}
+        />
       </Suspense>
     )
   }
@@ -300,7 +335,9 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <LandingComponent onGetStarted={handleLandingGetStarted} />
+        <LandingComponent 
+          onLogin={() => {}}
+        />
       </Suspense>
     )
   }

@@ -363,11 +363,11 @@ export function HomeContent() {
               showEmotionCheckIn={showEmotionCheckIn}
             />
           )}
-          {activeTab === "odds" && <OddsTab />}
-          {activeTab === "analyze" && <AnalyzeTab />}
-          {activeTab === "behavior" && <BehaviorTab />}
-          {activeTab === "ai-picks" && <AiPicksTab />}
-          {activeTab === "analytics" && <AnalyticsTab />}
+          {activeTab === "odds" && <OddsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+          {activeTab === "analyze" && <AnalyzeTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+          {activeTab === "behavior" && <BehaviorTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+          {activeTab === "ai-picks" && <AiPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
+          {activeTab === "analytics" && <AnalyticsTab userData={userData} onNavigateToTab={handleNavigateToTab} />}
           {activeTab === "account" && <AccountTab userData={userData} />}
         </Suspense>
       </main>

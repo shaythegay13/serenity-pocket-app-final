@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { FlowgladProviderWrapper } from "@/components/flowglad-provider-wrapper"
 import { Analytics } from "@vercel/analytics/next"
+import { Footer } from "@/components/footer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -37,7 +38,12 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <FlowgladProviderWrapper>
-              {children}
+              <div className="min-h-screen flex flex-col">
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </div>
             </FlowgladProviderWrapper>
           </ThemeProvider>
         </ErrorBoundary>

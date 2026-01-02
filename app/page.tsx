@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, lazy, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import dynamic from "next/dynamic"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -63,6 +64,7 @@ import { initializeUserData } from "@/lib/init-user"
 import "@/lib/auth-rate-limit-utils"
 
 export default function Home() {
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState("home")
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -82,6 +84,14 @@ export default function Home() {
   const [surveyData, setSurveyData] = useState<SurveyData | null>(null)
   const [showEmotionCheckIn, setShowEmotionCheckIn] = useState(false)
   const [instantProfile, setInstantProfile] = useState<any | null>(null)
+
+  // Read tab parameter from URL and set active tab
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['home', 'odds', 'analyze', 'behavior', 'ai-picks', 'analytics', 'account'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   const syncBiasMetricsIfNeeded = async (base: UserData) => {
     // Defer this to run after initial render to improve load time
@@ -227,9 +237,9 @@ export default function Home() {
 
             void syncBiasMetricsIfNeeded(data)
             
-            // Only show emotion check-in on first login (when lastEmotionCheckIn is undefined)
+            // Only show emotion check-in on first login AND when user is on home tab
             // After that, user can manually trigger it from the dashboard
-            if (!data.lastEmotionCheckIn) {
+            if (!data.lastEmotionCheckIn && activeTab === "home") {
               // Delay showing the dialog slightly for better UX
               setTimeout(() => setShowEmotionCheckIn(true), 500)
             }
@@ -305,8 +315,10 @@ export default function Home() {
             
             setUserData(defaultUserData)
             
-            // Check if user needs emotion check-in (will show for default data too)
-            setTimeout(() => setShowEmotionCheckIn(true), 500)
+            // Check if user needs emotion check-in (will show for default data too, but only on home tab)
+            if (activeTab === "home") {
+              setTimeout(() => setShowEmotionCheckIn(true), 500)
+            }
           }
         } else {
           console.log('No user authenticated')

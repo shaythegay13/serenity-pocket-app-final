@@ -4,9 +4,8 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Crown, Check, Lock, Loader2 } from "lucide-react"
+import { User, Crown, Lock, Loader2 } from "lucide-react"
 import type { UserData } from "@/lib/types"
-import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import { toast } from "sonner"
 
 interface AccountTabProps {
@@ -28,7 +27,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
     userData.maxStakeLimit != null ? String(userData.maxStakeLimit) : ''
   )
   const currentTier = userData.subscriptionTier || "free"
-  const currentTierData = SUBSCRIPTION_TIERS.find((t) => t.id === currentTier)
 
   // Update local state when userData changes
   useEffect(() => {
@@ -286,10 +284,10 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
             )}
             <div>
               <p className="font-semibold text-lg text-foreground">
-                {currentTierData?.displayName || 'Free Plan'}
+                {currentTier === 'free' ? 'Free Plan' : 'Premium Plan'}
               </p>
               <p className="text-sm text-muted-foreground">
-                {currentTierData?.description || 'Basic features'}
+                {currentTier === 'free' ? 'Basic features' : 'Premium features'}
               </p>
             </div>
           </div>
@@ -299,7 +297,7 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Price:</span>
                 <span className="font-medium text-foreground">
-                  ${currentTierData?.price}/month
+                  Premium
                 </span>
               </div>
               {userData.subscriptionStartedAt && (
@@ -320,71 +318,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                   </span>
                 </div>
               )}
-              
-              {/* Downgrade Options */}
-              <div className="pt-2 space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">Change Plan:</p>
-                <div className="flex flex-col gap-2">
-                  {/* Show downgrade options for lower tiers */}
-                  {SUBSCRIPTION_TIERS.filter(tier => {
-                    const tierOrder = { free: 0, premium: 1, premium_plus: 2, elite: 3 }
-                    return tierOrder[tier.id as keyof typeof tierOrder] < tierOrder[currentTier as keyof typeof tierOrder]
-                  }).map((tier) => (
-                    <Button
-                      key={tier.id}
-                      size="sm"
-                      variant="outline"
-                      className="w-full justify-between"
-                      onClick={async () => {
-                        const action = tier.id === 'free' ? 'cancel' : 'downgrade'
-                        const message = tier.id === 'free' 
-                          ? 'Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period.'
-                          : `Downgrade to ${tier.displayName} ($${tier.price}/month)? This will take effect at the end of your current billing period.`
-                        
-                        if (confirm(message)) {
-                          try {
-                            const { supabase } = await import('@/lib/supabase')
-                            const { data: { session } } = await supabase.auth.getSession()
-                            if (!session) return
-                            
-                            const res = await fetch('/api/test-subscription', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${session.access_token}`
-                              },
-                              body: JSON.stringify({ tier: tier.id })
-                            })
-                            
-                            const result = await res.json()
-                            
-                            if (res.ok && result.success) {
-                              const successMessage = tier.id === 'free'
-                                ? 'Subscription canceled. You will retain access until the end of your billing period.'
-                                : `Plan changed to ${tier.displayName}. Changes will take effect at the end of your billing period.`
-                              toast.success(successMessage)
-                              
-                              // Wait a moment for database to commit
-                              await new Promise(resolve => setTimeout(resolve, 500))
-                              await handleSyncSubscription()
-                            } else {
-                              const errorMsg = result.error || `Failed to ${action} subscription`
-                              console.error('Subscription change error:', errorMsg)
-                              toast.error(errorMsg)
-                            }
-                          } catch (e) {
-                            console.error('Subscription change exception:', e)
-                            toast.error(`Failed to ${action} subscription: ${e instanceof Error ? e.message : 'Unknown error'}`)
-                          }
-                        }
-                      }}
-                    >
-                      <span>{tier.id === 'free' ? 'Cancel Subscription' : `Downgrade to ${tier.displayName}`}</span>
-                      {tier.id !== 'free' && <span className="text-xs">${tier.price}/mo</span>}
-                    </Button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -402,273 +335,16 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
               )}
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-foreground">{currentTierData?.displayName}</h3>
-              <p className="text-sm text-muted-foreground">{currentTierData?.name}</p>
+              <h3 className="text-2xl font-bold text-foreground">{currentTier === 'free' ? 'Free Plan' : 'Premium Plan'}</h3>
+              <p className="text-sm text-muted-foreground">{currentTier === 'free' ? 'Basic features' : 'Premium features'}</p>
             </div>
           </div>
           {currentTier !== "free" && (
             <div className="text-right">
-              <p className="text-3xl font-bold text-primary">${currentTierData?.price}</p>
-              <p className="text-xs text-muted-foreground">/month</p>
+              <p className="text-3xl font-bold text-primary">Premium</p>
+              <p className="text-xs text-muted-foreground">Active</p>
             </div>
           )}
-        </div>
-      </Card>
-
-      {/* Subscription Tiers */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-foreground">Available Plans</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {SUBSCRIPTION_TIERS.map((tier) => {
-            const isCurrentTier = tier.id === currentTier
-            const isUpgrade = SUBSCRIPTION_TIERS.findIndex((t) => t.id === tier.id) > 
-                             SUBSCRIPTION_TIERS.findIndex((t) => t.id === currentTier)
-
-            return (
-              <Card
-                key={tier.id}
-                className={`p-6 ${
-                  isCurrentTier
-                    ? "border-primary/50 bg-primary/5"
-                    : "hover:shadow-lg transition-shadow"
-                }`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h4 className="text-xl font-bold text-foreground">{tier.displayName}</h4>
-                    <p className="text-sm text-muted-foreground">{tier.name}</p>
-                  </div>
-                  {isCurrentTier && (
-                    <Badge variant="default">Current Plan</Badge>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  {tier.price === 0 ? (
-                    <p className="text-3xl font-bold text-foreground">Free</p>
-                  ) : (
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold text-foreground">${tier.price}</span>
-                      <span className="text-sm text-muted-foreground">/month</span>
-                    </div>
-                  )}
-                  <p className="text-sm text-muted-foreground mt-2">{tier.description}</p>
-                </div>
-
-                <div className="space-y-2 mb-6">
-                  {tier.features.map((feature, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                      <span className="text-sm text-foreground">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {isCurrentTier ? (
-                  <Button className="w-full" variant="outline" disabled>
-                    Current Plan
-                  </Button>
-                ) : isUpgrade ? (
-                  <Button 
-                    className="w-full" 
-                    onClick={() => handleUpgrade(tier.id)}
-                    disabled={upgrading}
-                  >
-                    {upgrading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>Upgrade to {tier.displayName}</>
-                    )}
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full" 
-                    variant="outline"
-                    onClick={async () => {
-                      const message = tier.id === 'free' 
-                        ? 'Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period.'
-                        : `Downgrade to ${tier.displayName} ($${tier.price}/month)? This will take effect at the end of your current billing period.`
-                      
-                      if (confirm(message)) {
-                        try {
-                          const { supabase } = await import('@/lib/supabase')
-                          const { data: { session } } = await supabase.auth.getSession()
-                          if (!session) return
-                          
-                          const res = await fetch('/api/test-subscription', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${session.access_token}`
-                            },
-                            body: JSON.stringify({ tier: tier.id })
-                          })
-                          
-                          const result = await res.json()
-                          
-                          if (res.ok && result.success) {
-                            const successMessage = tier.id === 'free'
-                              ? 'Subscription canceled. You will retain access until the end of your billing period.'
-                              : `Plan changed to ${tier.displayName}. Changes will take effect at the end of your billing period.`
-                            toast.success(successMessage)
-                            
-                            // Wait a moment for database to commit
-                            await new Promise(resolve => setTimeout(resolve, 500))
-                            await handleSyncSubscription()
-                          } else {
-                            const errorMsg = result.error || 'Failed to change subscription'
-                            console.error('Subscription change error:', errorMsg)
-                            toast.error(errorMsg)
-                          }
-                        } catch (e) {
-                          console.error('Subscription change exception:', e)
-                          toast.error(`Failed to change subscription: ${e instanceof Error ? e.message : 'Unknown error'}`)
-                        }
-                      }
-                    }}
-                  >
-                    {tier.id === 'free' ? 'Cancel Subscription' : `Downgrade to ${tier.displayName}`}
-                  </Button>
-                )}
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Feature Comparison */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Feature Comparison</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-2">Feature</th>
-                {SUBSCRIPTION_TIERS.map((tier) => (
-                  <th key={tier.id} className="text-center py-3 px-2">
-                    {tier.displayName}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">DSM-5 Based Assessment</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Emotion Tracking & Check-ins</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Betting History & Performance</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Basic Analytics Dashboard</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Live Odds Comparison</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Line Movement Charts</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">SmartSlip AI Picks</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">TiltLab Emotional Analysis</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Advanced Bias Detection</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Emotional Volatility Warnings</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Behavior-Performance Correlation</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">AI Marketplace Access</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Daily AI Access (7x/week)</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Emotionally-Aware AI Recommendations</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">EV-Ranked Picks with Confidence Scores</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-3 px-2">Priority Support & Early Feature Access</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2">—</td>
-                <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </Card>
 
@@ -1038,15 +714,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
         </div>
       </Card>
 
-      {/* Responsible Gambling Message */}
-      <Card className="p-6 bg-muted">
-        <h3 className="text-lg font-semibold text-foreground mb-2">Our Mission</h3>
-        <p className="text-sm text-muted-foreground">
-          Serenity Pocket exists to make betting smarter, not bigger. We're the seatbelt, not the gas pedal. 
-          Our goal is to help you understand your psychology, recognize harmful patterns, and make more informed decisions. 
-          Always bet responsibly and never wager more than you can afford to lose.
-        </p>
-      </Card>
-    </div>
+      </div>
   )
 }

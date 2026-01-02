@@ -6,10 +6,10 @@ import Image from "next/image"
 
 const navItems = [
   { tab: "home", label: "Home", icon: Home },
-  { tab: "odds", label: "Live Odds", icon: TrendingUp },
+  { tab: "odds", label: "Sports", icon: TrendingUp },
   { tab: "analyze", label: "Analyze", icon: Target },
   { tab: "behavior", label: "Behavior", icon: Activity },
-  { tab: "ai-picks", label: "AI Picks", icon: Sparkles },
+  { tab: "ai-picks", label: "Insights", icon: Sparkles },
   { tab: "analytics", label: "Analytics", icon: BarChart3 },
 ]
 

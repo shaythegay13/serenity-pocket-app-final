@@ -49,7 +49,7 @@ const OnboardingGate = dynamic(() => import("@/components/onboarding-gate").then
 const InstantProfileQuiz = dynamic(() => import("@/components/onboarding/InstantProfileQuiz").then(mod => ({ default: mod.InstantProfileQuiz })), { ssr: false })
 const ProfilePreview = dynamic(() => import("@/components/onboarding/ProfilePreview").then(mod => ({ default: mod.ProfilePreview })), { ssr: false })
 const SoftGate = dynamic(() => import("@/components/onboarding/SoftGate").then(mod => ({ default: mod.SoftGate })), { ssr: false })
-const LandingPage = dynamic<any>(() => import("@/components/landing-page"), { ssr: false })
+const LandingPage = dynamic<any>(() => import("@/components/landing-page").then(mod => ({ default: mod.LandingPage })), { ssr: false })
 
 // Gamification imports removed - system no longer used
 import { storageHybrid as storage } from "@/lib/storage-hybrid"

@@ -196,6 +196,11 @@ export async function POST(request: NextRequest) {
     // If enhanced AI stack (Gemini) is not available, return a safe
     // neutral response instead of attempting to generate AI picks.
     if (!isEnhancedAIAvailable()) {
+      console.error("[SmartSlip] Enhanced AI not available. Env check:", {
+        hasGeminiKey: Boolean(process.env.GOOGLE_GEMINI_API_KEY),
+        hasEnhancedFlag: Boolean(process.env.ENABLE_ENHANCED_AI_ANALYSIS),
+        enhancedFlagValue: process.env.ENABLE_ENHANCED_AI_ANALYSIS,
+      })
       return NextResponse.json({
         success: false,
         shouldBet: false,

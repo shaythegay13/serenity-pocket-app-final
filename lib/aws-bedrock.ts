@@ -3,42 +3,32 @@
  * Provides enhanced AI analysis for the Bet Advisor feature
  */
 
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-  InvokeModelCommandInput,
-} from "@aws-sdk/client-bedrock-runtime"
+import { geminiGenerateText } from "./gemini"
 
-// Check if enhanced AI is enabled
-const isEnhancedAIEnabled = process.env.ENABLE_ENHANCED_AI_ANALYSIS === "true"
+// Check if enhanced AI is enabled.
+// Backward-compatible with old Bedrock flag, but Gemini-first:
+// - If ENABLE_ENHANCED_AI_ANALYSIS is explicitly set, respect it.
+// - Otherwise default to enabled when a Gemini key is present.
+const enhancedFlag = (process.env.ENABLE_ENHANCED_AI_ANALYSIS || "").trim().toLowerCase()
+const hasExplicitEnhancedFlag = enhancedFlag === "true" || enhancedFlag === "false"
 
-// AWS Bedrock configuration
-const AWS_REGION = process.env.AWS_REGION || "us-east-1"
-// Default to Claude Sonnet 4.5 model ID unless overridden via AWS_BEDROCK_MODEL_ID.
-// You may set AWS_BEDROCK_MODEL_ID to EITHER a raw model ID OR an inference profile ARN
-// provisioned in your AWS account.
-const AWS_BEDROCK_MODEL_ID =
-  process.env.AWS_BEDROCK_MODEL_ID || "anthropic.claude-sonnet-4-5-20250929-v1:0"
+// Gemini configuration
+// - Default model: GOOGLE_GEMINI_MODEL
+// - Enhanced AI model (TiltLab/SmartSlip): GOOGLE_GEMINI_MODEL_AI (optional)
+const hasGeminiKey = Boolean((process.env.GOOGLE_GEMINI_API_KEY || "").trim())
 
-// Initialize Bedrock client (only if credentials are available)
-let bedrockClient: BedrockRuntimeClient | null = null
+const isEnhancedAIEnabled = hasExplicitEnhancedFlag ? enhancedFlag === "true" : hasGeminiKey
 
-if (
-  isEnhancedAIEnabled &&
-  process.env.AWS_ACCESS_KEY_ID &&
-  process.env.AWS_SECRET_ACCESS_KEY
-) {
-  bedrockClient = new BedrockRuntimeClient({
-    region: AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-  })
-  console.log("✅ AWS Bedrock client initialized for enhanced AI analysis")
-  if (process.env.NODE_ENV !== "production") {
-    console.log("🧠 Using AWS Bedrock Claude model:", AWS_BEDROCK_MODEL_ID)
-  }
+console.log("[Gemini Init] Environment check:", {
+  hasGeminiKey,
+  hasExplicitEnhancedFlag,
+  enhancedFlag,
+  isEnhancedAIEnabled,
+  nodeEnv: process.env.NODE_ENV
+})
+
+if (isEnhancedAIEnabled && hasGeminiKey) {
+  console.log("✅ Gemini client available for enhanced AI analysis")
 } else {
   console.log("ℹ️  Enhanced AI analysis disabled - using built-in algorithms")
 }
@@ -54,6 +44,8 @@ export interface ClaudeRequest {
   temperature?: number
   top_p?: number
   system?: string
+  response_mime_type?: string
+  response_schema?: any
 }
 
 export interface ClaudeResponse {
@@ -72,59 +64,74 @@ export interface ClaudeResponse {
  * Check if enhanced AI analysis is available
  */
 export function isEnhancedAIAvailable(): boolean {
-  return bedrockClient !== null && isEnhancedAIEnabled
+  return isEnhancedAIEnabled && hasGeminiKey
 }
 
 /**
  * Invoke Claude via AWS Bedrock
  */
 export async function invokeClaude(request: ClaudeRequest): Promise<string> {
-  if (!bedrockClient) {
-    throw new Error("AWS Bedrock client not initialized. Check your environment variables.")
-  }
-
   try {
-    const input: InvokeModelCommandInput = {
-      // AWS_BEDROCK_MODEL_ID may be a raw model ID OR an inference profile ARN
-      modelId: AWS_BEDROCK_MODEL_ID,
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: request.max_tokens,
-        // Claude on Bedrock does not allow specifying both temperature and top_p.
-        // We prioritize temperature and omit top_p to avoid ValidationException.
-        temperature: request.temperature ?? 0.7,
-        system: request.system,
-        messages: request.messages,
-      }),
+    if (!isEnhancedAIAvailable()) {
+      throw new Error(
+        "Enhanced AI not configured. Set ENABLE_ENHANCED_AI_ANALYSIS=true and GOOGLE_GEMINI_API_KEY.",
+      )
     }
 
-    const command = new InvokeModelCommand(input)
-    const response = await bedrockClient.send(command)
+    const modelOverride = (process.env.GOOGLE_GEMINI_MODEL_AI || "").trim() || undefined
+    let text: string
+    try {
+      text = await geminiGenerateText({
+        system: request.system,
+        messages: request.messages,
+        temperature: request.temperature ?? 0.7,
+        maxOutputTokens: request.max_tokens,
+        model: modelOverride,
+        responseMimeType: request.response_mime_type,
+        responseSchema: request.response_schema,
+      })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      const isThrottlingOrQuota =
+        message.includes("ThrottlingException") ||
+        message.includes("Too many requests") ||
+        message.includes("RESOURCE_EXHAUSTED") ||
+        message.includes("Quota exceeded") ||
+        message.includes("Gemini API error (429)")
 
-    // Parse response
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body)) as ClaudeResponse
-
-    // Extract text from first content block
-    const text = responseBody.content[0]?.text || ""
-
-    console.log(`✅ Claude response received (${responseBody.usage.input_tokens} in, ${responseBody.usage.output_tokens} out)`)
+      // If the premium/enhanced model is rate limited, retry once with the default model.
+      if (isThrottlingOrQuota && modelOverride) {
+        text = await geminiGenerateText({
+          system: request.system,
+          messages: request.messages,
+          temperature: request.temperature ?? 0.7,
+          maxOutputTokens: request.max_tokens,
+          model: undefined,
+          responseMimeType: request.response_mime_type,
+          responseSchema: request.response_schema,
+        })
+      } else {
+        throw e
+      }
+    }
 
     return text
   } catch (error) {
-    console.error("❌ Error invoking Claude via Bedrock:", error)
+    console.error("❌ Error invoking Gemini:", error)
 
     const message = error instanceof Error ? error.message : String(error)
     const isThrottling =
       message.includes("ThrottlingException") ||
-      message.includes("Too many requests, please wait before trying again")
+      message.includes("Too many requests, please wait before trying again") ||
+      message.includes("RESOURCE_EXHAUSTED") ||
+      message.includes("Quota exceeded") ||
+      message.includes("Gemini API error (429)")
 
     if (isThrottling) {
-      throw new Error(`CLAUDE_THROTTLED: ${message}`)
+      throw new Error(`GEMINI_THROTTLED: ${message}`)
     }
 
-    throw new Error(`Failed to invoke Claude: ${message}`)
+    throw new Error(`Failed to invoke Gemini: ${message}`)
   }
 }
 
@@ -167,6 +174,9 @@ export async function getEnhancedBetAnalysis(params: {
   refinedRecommendation: "PLACE BET" | "DON'T PLACE BET" | "PROCEED WITH CAUTION"
   confidenceScore: number
   keyInsights: string[]
+  numericRisk?: {
+    ev: number
+  }
 }> {
   if (!isEnhancedAIAvailable()) {
     throw new Error("Enhanced AI analysis not available")
@@ -179,6 +189,17 @@ export async function getEnhancedBetAnalysis(params: {
 3. Identify and warn about harmful betting patterns
 4. Give clear, actionable recommendations
 5. Use empathy while being direct about risks
+
+You must perform an 'Enhanced Analysis'. 
+STRICT LOGIC RULES:
+- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the refinedRecommendation as 'PROCEED WITH CAUTION'. 
+- **Devigged EV Calculation**:
+  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
+  2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
+  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$.
+- The numericRisk.ev must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
+- If EV is negative, the enhancedReasoning must explain that the user is paying 'juice' and has no mathematical edge.
+- If risk is HIGH or recommendation is 'PROCEED WITH CAUTION', the enhancedReasoning must start with a bold cautionary warning.
 
 You have access to both analytical data AND the user's emotional state. Always consider both.`
 
@@ -243,6 +264,33 @@ Format your response as JSON:
 
 Remember: Prioritize the user's emotional and financial wellbeing. If there are red flags, be direct about them.`
 
+  const responseSchema = {
+    type: "object",
+    properties: {
+      enhancedReasoning: { type: "string" },
+      refinedRecommendation: {
+        type: "string",
+        enum: ["PLACE BET", "DON'T PLACE BET", "PROCEED WITH CAUTION"],
+      },
+      confidenceScore: { type: "number" },
+      keyInsights: {
+        type: "array",
+        items: { type: "string" },
+      },
+      numericRisk: {
+        type: "object",
+        properties: {
+          ev: { 
+            type: "number",
+            description: "Expected Value as a standard decimal (no scientific notation)" 
+          },
+        },
+        required: ["ev"],
+      },
+    },
+    required: ["enhancedReasoning", "refinedRecommendation", "confidenceScore", "keyInsights", "numericRisk"],
+  }
+
   try {
     const response = await invokeClaude({
       system: systemPrompt,
@@ -254,27 +302,25 @@ Remember: Prioritize the user's emotional and financial wellbeing. If there are 
       ],
       max_tokens: 2000,
       temperature: 0.7,
+      response_mime_type: "application/json",
+      response_schema: responseSchema,
     })
 
-    // Parse JSON response
-    // Claude sometimes wraps JSON in markdown code blocks, so we need to extract it
-    let jsonText = response.trim()
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "")
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/```\n?/g, "")
-    }
-
-    const parsed = JSON.parse(jsonText)
+    const parsed = JSON.parse(response)
 
     return {
       enhancedReasoning: parsed.enhancedReasoning || parsed.enhanced_reasoning || "",
-      refinedRecommendation: parsed.refinedRecommendation || parsed.refined_recommendation || params.builtInAnalysis.recommendation,
-      confidenceScore: parsed.confidenceScore || parsed.confidence_score || params.builtInAnalysis.confidence,
+      refinedRecommendation:
+        parsed.refinedRecommendation ||
+        parsed.refined_recommendation ||
+        params.builtInAnalysis.recommendation,
+      confidenceScore:
+        parsed.confidenceScore || parsed.confidence_score || params.builtInAnalysis.confidence,
       keyInsights: parsed.keyInsights || parsed.key_insights || [],
+      numericRisk: parsed.numericRisk || { ev: 0 },
     }
   } catch (error) {
-    console.error("Error parsing Claude response:", error)
+    console.error("Error parsing Gemini response:", error)
     // Return a safe fallback using built-in analysis
     throw error
   }

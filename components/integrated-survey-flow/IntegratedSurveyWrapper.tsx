@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Brain, CheckCircle2, ArrowRight, Sparkles, Mail, Lock, User } from 'lucide-react'
+import { Brain, CheckCircle2, ArrowRight, Sparkles, Mail, Lock, User, X } from 'lucide-react'
 import Image from 'next/image'
 import SurveyForm from '@/components/SurveyForm';
 import { SurveyAnswer } from '@/types/survey';

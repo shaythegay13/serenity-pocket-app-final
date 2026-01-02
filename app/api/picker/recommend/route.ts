@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
-import { getCurrentGameContext, getHistoricalGameFeatures } from "@/lib/services/perplexitySportsResearcher"
 import { generatePickerRecommendations } from "@/lib/services/bedrockClaudeReasoner"
 import type {
   CurrentGameContext,
@@ -11,7 +10,6 @@ import type {
   PickerReasoningOutput,
   UserPsychologySnapshot,
 } from "@/lib/types/ai-models"
-import { isPerplexityAvailable } from "@/lib/perplexity"
 import { isEnhancedAIAvailable } from "@/lib/aws-bedrock"
 import {
   buildFeaturesCsv,
@@ -195,15 +193,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // If enhanced AI stack (Claude via Bedrock) is not available, return a safe
+    // If enhanced AI stack (Gemini) is not available, return a safe
     // neutral response instead of attempting to generate AI picks.
     if (!isEnhancedAIAvailable()) {
       return NextResponse.json({
         success: false,
         shouldBet: false,
         message:
-          "Enhanced AI picks are not configured in this environment. Set AWS and Bedrock env vars to enable SmartSlip.",
-        error: "Enhanced AI unavailable",
+          "SmartSlip AI is not configured. Please contact support or check your environment configuration (GOOGLE_GEMINI_API_KEY required).",
+        error: "SmartSlip AI unavailable",
         recommendations: [],
         emotionalScore,
       })
@@ -266,7 +264,6 @@ export async function POST(request: NextRequest) {
 
     const limitedGames = sortedGames.slice(0, 6)
 
-    const usedPerplexityFlags: boolean[] = []
     const serenityUsedFlags: boolean[] = []
 
     const enrichedGames = await Promise.all(
@@ -278,37 +275,8 @@ export async function POST(request: NextRequest) {
 
         let context: CurrentGameContext | null = null
         let features: HistoricalFeatureVector | null = null
-        let usedPerplexityForGame = false
 
-        // Best-effort Perplexity research for current context and historical features
-        try {
-          if (isPerplexityAvailable()) {
-            const [ctx, feats] = await Promise.all([
-              getCurrentGameContext({ league, teamA: homeTeam, teamB: awayTeam }),
-              getHistoricalGameFeatures({
-                league,
-                teamA: homeTeam,
-                teamB: awayTeam,
-                lookbackGames: 10,
-              }),
-            ])
-
-            if (ctx) {
-              context = ctx
-            }
-            if (feats) {
-              features = feats
-            }
-
-            if (ctx || feats) {
-              usedPerplexityForGame = true
-            }
-          }
-        } catch (e) {
-          console.warn("[Picker] Perplexity research failed for game", gameId, e)
-        }
-
-        // Fallback context from live odds if Perplexity not available or incomplete
+        // Context from live odds
         if (!context) {
           const homeOdds =
             game.homeOdds?.best?.odds ?? game.home_odds?.best?.odds ?? undefined
@@ -340,7 +308,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fallback features if Perplexity did not return historical vector
+        // Features derived from odds + league
         if (!features) {
           const homeOdds =
             game.homeOdds?.best?.odds ?? game.home_odds?.best?.odds ?? 0
@@ -368,7 +336,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Serenity SageMaker multiclass probabilities for this game
+        // Serenity heuristic probabilities for this game
         let serenityProbs: { pLoss: number; pPush: number; pWin: number } = {
           pLoss: 0.33,
           pPush: 0.34,
@@ -525,7 +493,7 @@ export async function POST(request: NextRequest) {
           const csvRow = buildFeaturesCsv(featureInput)
           serenityProbs = await predictSerenityBet(csvRow)
 
-          console.log("[Picker] Serenity SageMaker prediction succeeded for game", gameId, serenityProbs)
+          console.log("[Picker] Serenity heuristic prediction computed for game", gameId, serenityProbs)
 
           const pWin = serenityProbs.pWin
           const pLoss = serenityProbs.pLoss
@@ -544,7 +512,7 @@ export async function POST(request: NextRequest) {
 
           serenityUsedFlags.push(true)
         } catch (e) {
-          console.warn("[Picker] Serenity SageMaker prediction failed for game", gameId, e)
+          console.warn("[Picker] Serenity heuristic prediction failed for game", gameId, e)
           prediction = {
             winProbabilityHome: 0.5,
             winProbabilityAway: 0.5,
@@ -553,8 +521,6 @@ export async function POST(request: NextRequest) {
           }
           serenityUsedFlags.push(false)
         }
-
-        usedPerplexityFlags.push(usedPerplexityForGame)
 
         return {
           id: gameId,
@@ -592,8 +558,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const anyPerplexityUsed = usedPerplexityFlags.some(Boolean)
-
     // Build a simple map of Serenity probabilities keyed by gameId for the frontend
     const probsByGameId: Record<
       string,
@@ -611,30 +575,30 @@ export async function POST(request: NextRequest) {
       emotionalScore,
       riskTolerance,
       recommendations_count: reasoningOutput.recommendations.length,
-      used_perplexity: anyPerplexityUsed,
       used_sagemaker: serenityUsedFlags.some(Boolean)
     })
 
+    const shouldBet = reasoningOutput.recommendations.length > 0
+    const shouldBetMessage = shouldBet
+      ? "Recommended bets are available based on your current emotional stability and risk tolerance."
+      : "No recommended bets found right now based on your emotional stability and risk tolerance."
+
     return NextResponse.json({
       success: true,
-      shouldBet: reasoningOutput.recommendations.length > 0,
-      message:
-        reasoningOutput.recommendations.length > 0
-          ? `Found ${reasoningOutput.recommendations.length} recommendations tailored to your risk profile and emotional state.`
-          : "No high-quality recommendations at this time. Staying patient is often the best decision.",
+      shouldBet,
+      message: shouldBetMessage,
       recommendations: reasoningOutput.recommendations,
       emotionalScore,
       meta: {
         sport,
         oddsSource: oddsResult.source,
-        usedPerplexity: anyPerplexityUsed,
         usedSageMaker: serenityUsedFlags.some(Boolean),
-        usedClaude: true,
+        usedGemini: true,
       },
       probsByGameId,
     })
   } catch (error) {
-    console.error("[Picker] FATAL ERROR in /api/picker/recommend:", error)
+    console.error("[Picker] Failed to generate picker recommendations", error)
     return NextResponse.json({
       success: false,
       shouldBet: false,

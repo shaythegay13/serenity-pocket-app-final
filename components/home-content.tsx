@@ -119,7 +119,7 @@ export function HomeContent() {
         } else if (!profile.onboardingComplete) {
           setAuthFlow("instant-profile")
           setShowInstantProfile(true)
-        } else if (!profile.hasCompletedFirstBet) {
+        } else if ((profile.totalTrades || 0) < 1) {
           setAuthFlow("profile-preview")
           setShowProfilePreview(true)
         } else {

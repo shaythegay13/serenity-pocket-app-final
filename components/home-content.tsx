@@ -128,7 +128,7 @@ export function HomeContent() {
           setShowProfilePreview(true)
         } else {
           setAuthFlow("landing")
-          setShowLanding(true)
+          setShowLanding(false)
         }
         
       } catch (error) {
@@ -154,6 +154,7 @@ export function HomeContent() {
             const userData = await initializeUserData()
             setUserData(userData)
             setAuthed(true)
+            setShowLanding(false)
           } catch (error) {
             console.error('Error getting user data after sign in:', error)
             setAuthed(true)
@@ -367,7 +368,9 @@ export function HomeContent() {
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
         <LandingComponent 
-          onLogin={() => {}}
+          onLogin={() => {
+            window.location.href = "/login"
+          }}
         />
       </Suspense>
     )

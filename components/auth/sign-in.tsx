@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +21,7 @@ const COOLDOWN_MINUTES = 10
 const DEV_BYPASS_KEY = 'dev_bypass_rate_limit' // Set to 'true' in localStorage to bypass
 
 export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmation }: SignInProps) {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -191,8 +193,8 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
         console.log('Sign in successful')
         // Clear rate limit tracking on success
         localStorage.removeItem(RATE_LIMIT_KEY)
-        // Reload page to show authenticated state
-        window.location.reload()
+        // Navigate into the app
+        router.replace("/")
       }
     } catch (e: any) {
       console.error('Full error:', e)

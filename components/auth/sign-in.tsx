@@ -193,8 +193,8 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
         console.log('Sign in successful')
         // Clear rate limit tracking on success
         localStorage.removeItem(RATE_LIMIT_KEY)
-        // Navigate into the app
-        router.replace("/")
+        // Navigate into the app (hard redirect is most reliable across deployments)
+        window.location.href = "/"
       }
     } catch (e: any) {
       console.error('Full error:', e)
@@ -308,6 +308,7 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
               onClick={onForgotPassword}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
               disabled={loading}
+              type="button"
             >
               <span className="underline">Forgot password?</span>
             </button>
@@ -315,6 +316,7 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
               onClick={onSwitchToSignUp}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
               disabled={loading}
+              type="button"
             >
               Don't have an account? <span className="underline">Sign up</span>
             </button>

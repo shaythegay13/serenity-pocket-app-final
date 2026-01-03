@@ -11,16 +11,22 @@ export default function LoginPage() {
   useEffect(() => {
     const check = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session) router.replace("/")
+      if (session) window.location.href = "/"
     }
     check()
   }, [router])
 
   return (
     <SignIn
-      onSwitchToSignUp={() => router.replace("/")}
-      onForgotPassword={() => router.push("/auth/reset-password")}
-      onResendConfirmation={() => router.replace("/")}
+      onSwitchToSignUp={() => {
+        window.location.href = "/"
+      }}
+      onForgotPassword={() => {
+        window.location.href = "/auth/reset-password"
+      }}
+      onResendConfirmation={() => {
+        window.location.href = "/"
+      }}
     />
   )
 }

@@ -111,21 +111,18 @@ export function HomeContent() {
         
         const profile = await storage.getUserData()
         setUserData(profile)
-        
-        // Determine auth flow
-        if (!profile.surveyData) {
-          setAuthFlow("survey")
-          setShowSurvey(true)
-        } else if (!profile.onboardingComplete) {
-          setAuthFlow("instant-profile")
-          setShowInstantProfile(true)
-        } else if ((profile.totalTrades || 0) < 1) {
-          setAuthFlow("profile-preview")
-          setShowProfilePreview(true)
-        } else {
-          setAuthFlow("landing")
-          setShowLanding(false)
-        }
+
+        // Authenticated users should land in the main dashboard.
+        // Onboarding/survey flows should be entered explicitly, not auto-forced here.
+        setAuthFlow("landing")
+        setShowSurvey(false)
+        setShowInstantProfile(false)
+        setShowProfilePreview(false)
+        setShowSoftGate(false)
+        setShowSignup(false)
+        setShowSignin(false)
+        setShowTerms(false)
+        setShowLanding(false)
         
       } catch (error) {
         console.error('Auth initialization error:', error)
@@ -150,6 +147,14 @@ export function HomeContent() {
             const profile = await storage.getUserData()
             setUserData(profile)
             setAuthed(true)
+            setAuthFlow("landing")
+            setShowSurvey(false)
+            setShowInstantProfile(false)
+            setShowProfilePreview(false)
+            setShowSoftGate(false)
+            setShowSignup(false)
+            setShowSignin(false)
+            setShowTerms(false)
             setShowLanding(false)
           } catch (error) {
             console.error('Error getting user data after sign in:', error)

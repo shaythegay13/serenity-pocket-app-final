@@ -202,64 +202,6 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-800/50 bg-black/40 py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
-            {/* Brand */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                  <Brain className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">Serenity Pocket</span>
-              </div>
-              <p className="text-sm text-gray-400">
-                AI-powered sports betting analytics platform for smarter decisions.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="font-semibold text-white mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Demo</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">API</a></li>
-              </ul>
-            </div>
-
-            {/* Resources */}
-            <div>
-              <h4 className="font-semibold text-white mb-4">Resources</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Guides</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Support</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">FAQ</a></li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="font-semibold text-white mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-blue-400 transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Privacy</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Terms</a></li>
-                <li><a href="#" className="hover:text-blue-400 transition-colors">Contact</a></li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Copyright */}
-          <div className="border-t border-gray-800/50 mt-12 pt-8 text-center text-sm text-gray-400">
-            © 2025 Serenity Pocket. All rights reserved. Bet responsibly.
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

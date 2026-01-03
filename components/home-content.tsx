@@ -8,7 +8,6 @@ import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
 import { supabase } from "@/lib/supabase"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
-import { initializeUserData } from "@/lib/init-user"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 // Auth rate limit debug utilities (loads global debug functions)
@@ -73,22 +72,19 @@ export function HomeContent() {
       if (!userData || activeTab !== "home") return
       
       try {
-        const emotionLogs = await (await import('@/lib/storage-hybrid')).storageHybrid.getEmotionLogs()
-        const data = await (await import('@/lib/storage-hybrid')).storageHybrid.getUserData()
-        
-        if (!data.lastEmotionCheckIn || !data.lastEmotionCheckIn.date) {
-          const recentLogs = emotionLogs?.slice(-5) || []
-          const hasRecentBets = recentLogs.some(log => log.type === 'bet' && 
-            new Date(log.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
-          
-          if (hasRecentBets) {
-            setShowEmotionCheckIn(true)
-          }
-        } else {
-          const daysSinceCheckIn = Math.floor((Date.now() - new Date(data.lastEmotionCheckIn.date).getTime()) / (24 * 60 * 60 * 1000))
-          if (daysSinceCheckIn >= 1) {
-            setShowEmotionCheckIn(true)
-          }
+        const data = await storage.getUserData()
+
+        // lastEmotionCheckIn is stored as a Date (or may be missing)
+        const last = data.lastEmotionCheckIn
+        if (!last) {
+          setShowEmotionCheckIn(true)
+          return
+        }
+
+        const lastTime = last instanceof Date ? last.getTime() : new Date(last as any).getTime()
+        const daysSinceCheckIn = Math.floor((Date.now() - lastTime) / (24 * 60 * 60 * 1000))
+        if (daysSinceCheckIn >= 1) {
+          setShowEmotionCheckIn(true)
         }
       } catch (error) {
         console.error('Error checking emotion trigger:', error)
@@ -113,17 +109,17 @@ export function HomeContent() {
 
         setAuthed(true)
         
-        const userData = await initializeUserData()
-        setUserData(userData)
+        const profile = await storage.getUserData()
+        setUserData(profile)
         
         // Determine auth flow
-        if (!userData.surveyData) {
+        if (!profile.surveyData) {
           setAuthFlow("survey")
           setShowSurvey(true)
-        } else if (!userData.onboardingComplete) {
+        } else if (!profile.onboardingComplete) {
           setAuthFlow("instant-profile")
           setShowInstantProfile(true)
-        } else if (!userData.hasCompletedFirstBet) {
+        } else if (!profile.hasCompletedFirstBet) {
           setAuthFlow("profile-preview")
           setShowProfilePreview(true)
         } else {
@@ -151,8 +147,8 @@ export function HomeContent() {
           setShowLanding(true)
         } else if (session && event === 'SIGNED_IN') {
           try {
-            const userData = await initializeUserData()
-            setUserData(userData)
+            const profile = await storage.getUserData()
+            setUserData(profile)
             setAuthed(true)
             setShowLanding(false)
           } catch (error) {
@@ -222,6 +218,14 @@ export function HomeContent() {
 
   // Render different auth flows
   if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  if (authed && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -380,7 +384,7 @@ export function HomeContent() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
+        <DashboardHeader userData={userData ?? undefined} onNavigateToTab={handleNavigateToTab} />
         
         <div className="hidden md:block">
           <Navigation activeTab={activeTab} onTabChange={handleNavigateToTab} />
@@ -419,5 +423,3 @@ export function HomeContent() {
     </ErrorBoundary>
   )
 }
-
-export { HomeContent }

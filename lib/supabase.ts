@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -26,5 +26,11 @@ if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
   console.error('⚠️ Invalid Supabase URL format:', supabaseUrl)
 }
 
-// Use createBrowserClient for client-side Supabase access
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+// Browser Supabase client (persist session in localStorage)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+})

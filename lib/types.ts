@@ -162,6 +162,7 @@ export interface Trade {
   timestamp: Date
   title?: string
   sport?: string
+  betType?: "moneyline" | "spread" | "total" | "parlay" | "prop" | "future" | "live"
   preTradeEmotion: string
   preTradeIntensity: number
   biasesIdentified: string[]
@@ -175,6 +176,9 @@ export interface Trade {
   stake?: number
   odds?: number
   actualReturn?: number
+  // Add status and result for compatibility with dashboard
+  status?: "pending" | "open" | "settled"
+  result?: "win" | "loss" | "push"
 }
 
 export type AIServiceType = "ai_picker" | "ai_bet_analyzer"
@@ -253,6 +257,9 @@ export interface BetAnalysis {
   probabilityEstimate?: number
   outcome?: "win" | "loss" | "push" | "pending"
   actualReturn?: number
+  // Add status and result for compatibility with dashboard
+  status?: "pending" | "open" | "settled"
+  result?: "win" | "loss" | "push"
 }
 
 export interface TiltAlert {

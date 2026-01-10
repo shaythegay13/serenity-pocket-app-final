@@ -12,10 +12,12 @@ import { Progress } from "@/components/ui/progress"
 import { SegmentedControl, YesNoControl } from "@/components/ui/segmented-control"
 import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
+import type { SupportedSportKey } from "@/lib/types"
 import { AIResultScreen } from "@/components/ai-result-screen"
 import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
+import { BetTrackingService } from "@/lib/bet-tracking-service"
 
 // Core emotions with 10 sub-emotions each (matching behavior check-in)
 const coreEmotions = [
@@ -63,27 +65,48 @@ export default function AIBetAdvisor() {
   const [step, setStep] = useState<"details" | "context" | "mindset">("details")
 
   const [formData, setFormData] = useState<BetScenario>({
-    sport: "NFL",
+    // Core bet details
+    sport: "americanfootball_nfl",
+    homeTeam: "",
+    awayTeam: "",
     betType: "Moneyline",
-    betAmount: 0,
-    budget: 0,
+    line: 0,
+    selection: "home", // "home" or "away"
+    odds: 0,
+    betAmount: 50,
+    budget: 500,
+    
+    // Legacy fields (kept for backward compatibility)
     favoriteTeam: "",
     underdogTeam: "",
     favoriteRecord: "",
     underdogRecord: "",
     injuries: "",
     weather: "",
+    
+    // New boolean fields for UI
     hasKeyInjuries: false,
     hasAdverseWeather: false,
     isLiveBet: false,
     isFavoriteTeam: false,
     isChasingLoss: false,
+    
+    // Emotional data
     currentEmotion: "Centered",
+    currentEmotionIntensity: 5,
     lastOutcome: "None",
     emotionalTriggers: "",
     bettingSlip: "",
     history: "",
     notes: "",
+    
+    // Psychological factors
+    biasesIdentified: [],
+    confidenceLevel: 5,
+    reasoning: "",
+    
+    // Metadata
+    sportsbook: "DraftKings",
   })
 
   // Prefill from Live Odds "Analyze This Bet (Advanced)" flow
@@ -106,18 +129,31 @@ export default function AIBetAdvisor() {
       }
 
       // Map internal sport keys from odds API to human-readable labels
-      const sportMap: Record<string, string> = {
-        basketball_nba: "NBA",
-        americanfootball_nfl: "NFL",
-        baseball_mlb: "MLB",
-        icehockey_nhl: "NHL",
+      const sportMap: Record<string, SupportedSportKey> = {
+        basketball_nba: "basketball_nba",
+        americanfootball_nfl: "americanfootball_nfl", 
+        baseball_mlb: "baseball_mlb",
+        icehockey_nhl: "icehockey_nhl",
+        NBA: "basketball_nba",
+        NFL: "americanfootball_nfl",
+        MLB: "baseball_mlb", 
+        NHL: "icehockey_nhl",
       }
 
-      const mappedSport = payload.sport && sportMap[payload.sport]
+      const mappedSport = payload.sport ? sportMap[payload.sport] || "americanfootball_nfl" : "americanfootball_nfl"
 
       // Infer favorite vs underdog from moneyline odds
       const homeOdds = typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : NaN
       const awayOdds = typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : NaN
+
+      // Calculate implied probabilities
+      const implied = (odds: number) => {
+        if (!odds || Number.isNaN(odds)) return 0.5
+        return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+      }
+
+      const homeImp = implied(homeOdds)
+      const awayImp = implied(awayOdds)
 
       let favoriteTeam = payload.homeTeam || ""
       let underdogTeam = payload.awayTeam || ""
@@ -125,14 +161,6 @@ export default function AIBetAdvisor() {
       let underdogRecord = payload.awayRecord || ""
 
       if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
-        const implied = (odds: number) => {
-          if (!odds || Number.isNaN(odds)) return 0.5
-          return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
-        }
-
-        const homeImp = implied(homeOdds)
-        const awayImp = implied(awayOdds)
-
         if (awayImp > homeImp) {
           favoriteTeam = payload.awayTeam || favoriteTeam
           underdogTeam = payload.homeTeam || underdogTeam
@@ -150,8 +178,12 @@ export default function AIBetAdvisor() {
 
         return {
           ...prev,
-          sport: mappedSport || prev.sport,
+          sport: mappedSport,
+          homeTeam: payload.homeTeam || prev.homeTeam,
+          awayTeam: payload.awayTeam || prev.awayTeam,
           betType: "Moneyline",
+          selection: awayImp > homeImp ? "away" : "home",
+          odds: awayImp > homeImp ? (typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : prev.odds) : (typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : prev.odds),
           betAmount: effectiveBetAmount,
           budget: effectiveBudget,
           favoriteTeam: favoriteTeam || prev.favoriteTeam,
@@ -165,6 +197,36 @@ export default function AIBetAdvisor() {
       window.localStorage.removeItem("pendingBetAnalysis")
     } catch (err) {
       console.warn("AI Bet Advisor: Failed to prefill from pendingBetAnalysis", err)
+    }
+  }, [])
+
+  // Check for pre-filled game data from live scores
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const prefillData = sessionStorage.getItem('tiltLabPrefillData')
+      if (prefillData) {
+        const gameData = JSON.parse(prefillData)
+        console.log('TiltLab: Using pre-filled game data from live scores:', gameData)
+        
+        // Map the game data to form fields
+        setFormData(prev => ({
+          ...prev,
+          homeTeam: gameData.homeTeam || prev.homeTeam,
+          awayTeam: gameData.awayTeam || prev.awayTeam,
+          sport: gameData.sport || prev.sport,
+          odds: gameData.odds?.home || prev.odds,
+        }))
+        
+        // Clear the pre-fill data after using it
+        sessionStorage.removeItem('tiltLabPrefillData')
+        sessionStorage.removeItem('pendingBetGame')
+        
+        // Show success message
+        console.log(`Game pre-filled: ${gameData.awayTeam} @ ${gameData.homeTeam}`)
+      }
+    } catch (e) {
+      console.error('Error loading pre-filled game data from live scores:', e)
     }
   }, [])
 
@@ -253,6 +315,11 @@ export default function AIBetAdvisor() {
         console.warn("AI Bet Advisor: Failed to get Supabase session for JWT auth", err)
       }
 
+      console.log('AI Bet Advisor: Sending form data:', formData)
+      console.log('AI Bet Advisor: Access token exists:', !!accessToken)
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000)
       const response = await fetch("/api/ai/analyze-bet", {
         method: "POST",
         headers: {
@@ -260,12 +327,23 @@ export default function AIBetAdvisor() {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       const rawText = await response.text()
       let data: any
+      
+      console.log('AI Bet Advisor: Raw response:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get("content-type"),
+        body: rawText.slice(0, 500) // First 500 chars
+      })
+      
       try {
         data = rawText ? JSON.parse(rawText) : {}
+        console.log('AI Bet Advisor: Parsed response data:', data)
       } catch {
         console.error("AI Bet Advisor: Non-JSON response from /api/ai/analyze-bet", {
           status: response.status,
@@ -276,15 +354,23 @@ export default function AIBetAdvisor() {
         setError(
           `Analyze bet failed (non-JSON response, status ${response.status}). Try refreshing and signing in again.`,
         )
+        setLoading(false) // Reset loading state before returning
         return
       }
 
       if (!response.ok) {
+        console.log('AI Bet Advisor: Response not OK:', response.status, response.statusText)
         if (data.upgrade_required) {
+          console.log('AI Bet Advisor: Upgrade required error')
           setError(`This feature requires a paid subscription (Premium or higher). Your current tier: ${data.current_tier}`)
+        } else if (data.usage_limit_reached) {
+          console.log('AI Bet Advisor: Usage limit reached error')
+          setError(`TiltLab usage limit reached. You've used ${data.current_usage?.used || 0} of ${data.current_usage?.limit || 0} analyses this week.`)
         } else {
-          setError(data.error || "Failed to analyze bet")
+          console.log('AI Bet Advisor: General API error:', data)
+          setError(data.error || `Failed to analyze bet (${response.status})`)
         }
+        setLoading(false) // Reset loading state before returning
         return
       }
 
@@ -292,7 +378,21 @@ export default function AIBetAdvisor() {
       setUsedEnhancedAI(data.usedEnhancedAI || false)
       setEnhancedInsights(data.enhanced?.keyInsights || null)
 
-      // Auto-persist every AI Bet Advisor run into bet_analyses (outcome starts as pending)
+      // Save comprehensive bet data using new tracking service
+      try {
+        const comprehensiveBet = await BetTrackingService.saveTiltLabBet(
+          formData,
+          data.analysis,
+          data.usedEnhancedAI || false,
+          data.enhanced?.keyInsights
+        )
+        
+        console.log('Comprehensive bet saved:', comprehensiveBet)
+      } catch (e) {
+        console.warn("AI Bet Advisor: Failed to save comprehensive bet data", e)
+      }
+
+      // Keep legacy bet analysis save for backward compatibility
       try {
         const analysisId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -324,7 +424,7 @@ export default function AIBetAdvisor() {
           odds: formData.odds ? Number(formData.odds) || 0 : 0,
           stake: Number(formData.betAmount) || 0,
           emotionalState: formData.currentEmotion || "neutral",
-          emotionalIntensity: 5,
+          emotionalIntensity: formData.currentEmotionIntensity || 5,
           biasWarnings: [],
           aiRecommendation:
             data.analysis?.recommendation?.reason ||
@@ -338,10 +438,11 @@ export default function AIBetAdvisor() {
         // @ts-ignore - Method added dynamically to storageHybrid
         await storage.addBetAnalysis(betAnalysis)
       } catch (e) {
-        console.warn("AI Bet Advisor: auto-save bet analysis failed", e)
+        console.warn("AI Bet Advisor: legacy bet analysis save failed", e)
       }
     } catch (err) {
-      setError("An unexpected error occurred")
+      const isAbort = (err as any)?.name === 'AbortError'
+      setError(isAbort ? 'TiltLab timed out. Please try again.' : "An unexpected error occurred")
       console.error(err)
     } finally {
       setLoading(false)
@@ -419,17 +520,37 @@ export default function AIBetAdvisor() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="sport">Sport/Event</Label>
-                <Select value={formData.sport} onValueChange={(value) => updateFormData("sport", value)}>
+                <Select value={formData.sport} onValueChange={(value) => updateFormData("sport", value as SupportedSportKey)}>
                   <SelectTrigger id="sport">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NFL">NFL</SelectItem>
-                    <SelectItem value="NBA">NBA</SelectItem>
-                    <SelectItem value="MLB">MLB</SelectItem>
-                    <SelectItem value="NHL">NHL</SelectItem>
+                    <SelectItem value="americanfootball_nfl">NFL</SelectItem>
+                    <SelectItem value="basketball_nba">NBA</SelectItem>
+                    <SelectItem value="baseball_mlb">MLB</SelectItem>
+                    <SelectItem value="icehockey_nhl">NHL</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="homeTeam">Home Team</Label>
+                <Input
+                  id="homeTeam"
+                  value={formData.homeTeam}
+                  onChange={(e) => updateFormData("homeTeam", e.target.value)}
+                  placeholder="e.g., Warriors"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="awayTeam">Away Team</Label>
+                <Input
+                  id="awayTeam"
+                  value={formData.awayTeam}
+                  onChange={(e) => updateFormData("awayTeam", e.target.value)}
+                  placeholder="e.g., Lakers"
+                />
               </div>
 
               <div className="md:col-span-2">
@@ -443,6 +564,85 @@ export default function AIBetAdvisor() {
                   ]}
                   value={formData.betType}
                   onChange={(value) => updateFormData("betType", value)}
+                />
+              </div>
+
+              {formData.betType === "Spread" && (
+                <>
+                  <div>
+                    <Label htmlFor="line">Line</Label>
+                    <Input
+                      id="line"
+                      type="number"
+                      step="0.5"
+                      value={formData.line || ""}
+                      onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                      placeholder="e.g., -3.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Selection</Label>
+                    <SegmentedControl
+                      options={[
+                        { value: "home", label: "Home" },
+                        { value: "away", label: "Away" },
+                      ]}
+                      value={formData.selection}
+                      onChange={(value) => updateFormData("selection", value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.betType === "Over/Under" && (
+                <>
+                  <div>
+                    <Label htmlFor="totalLine">Total Line</Label>
+                    <Input
+                      id="totalLine"
+                      type="number"
+                      step="0.5"
+                      value={formData.line || ""}
+                      onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                      placeholder="e.g., 225.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Selection</Label>
+                    <SegmentedControl
+                      options={[
+                        { value: "over", label: "Over" },
+                        { value: "under", label: "Under" },
+                      ]}
+                      value={formData.selection}
+                      onChange={(value) => updateFormData("selection", value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.betType === "Moneyline" && (
+                <div>
+                  <Label>Selection</Label>
+                  <SegmentedControl
+                    options={[
+                      { value: "home", label: formData.homeTeam || "Home" },
+                      { value: "away", label: formData.awayTeam || "Away" },
+                    ]}
+                    value={formData.selection}
+                    onChange={(value) => updateFormData("selection", value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="odds">Odds (American)</Label>
+                <Input
+                  id="odds"
+                  type="number"
+                  value={formData.odds || ""}
+                  onChange={(e) => updateFormData("odds", parseInt(e.target.value) || undefined)}
+                  placeholder="e.g., -110"
                 />
               </div>
 

@@ -109,6 +109,7 @@ interface SportsbookAPIResponse {
 export interface TransformedGame {
   id: string;
   sport: string;
+  sportKey?: string;
   homeTeam: string;
   awayTeam: string;
   commenceTime: string;
@@ -237,10 +238,10 @@ export async function fetchAdvantages(sport?: string): Promise<{
 
     const data: SportsbookAPIResponse = await response.json();
 
-    // Transform advantages into game data
-    const games = transformAdvantages(data.advantages);
+    // Transform advantages into game data, filtering by requested sport
+    const games = transformAdvantages(data.advantages, sport);
 
-    console.log(`✅ Sportsbook API success - Retrieved ${games.length} games from ${data.advantages.length} advantages`);
+    console.log(`✅ Sportsbook API success - Retrieved ${games.length} games from ${data.advantages.length} advantages for sport: ${sport}`);
 
     return {
       success: true,
@@ -259,8 +260,20 @@ export async function fetchAdvantages(sport?: string): Promise<{
 /**
  * Transform advantages response into game data
  * Groups advantages by event and extracts team names, odds, etc.
+ * @param advantages - Array of advantage objects from the API
+ * @param requestedSport - The sport key that was requested (e.g., 'americanfootball_nfl')
  */
-function transformAdvantages(advantages: Advantage[]): TransformedGame[] {
+function transformAdvantages(advantages: Advantage[], requestedSport?: string): TransformedGame[] {
+  // Map requested sport to league name for strict filtering
+  const sportToLeague: Record<string, string> = {
+    'americanfootball_nfl': 'NFL',
+    'basketball_nba': 'NBA',
+    'baseball_mlb': 'MLB',
+    'icehockey_nhl': 'NHL'
+  };
+
+  const requestedLeague = requestedSport ? sportToLeague[requestedSport] : null;
+
   // Only keep advantages from the core US leagues we currently support in the dashboard
   const allowedLeagues = new Set(["NFL", "NBA", "MLB", "NHL"]);
 
@@ -276,9 +289,24 @@ function transformAdvantages(advantages: Advantage[]): TransformedGame[] {
 
     const leagueId = (comp?.shortName || comp?.name || comp?.category || "").toUpperCase();
 
-    // If we cannot clearly identify this as NFL/NBA/MLB/NHL, skip it so we don't confuse users
-    const isAllowedLeague = Array.from(allowedLeagues).some(league => leagueId.includes(league));
-    if (!isAllowedLeague) {
+    // Detect which league this event belongs to
+    const detectedLeague = leagueId.includes("NBA")
+      ? "NBA"
+      : leagueId.includes("NFL") || leagueId.includes("AMERICAN_FOOTBALL")
+        ? "NFL"
+        : leagueId.includes("MLB") || leagueId.includes("BASEBALL")
+          ? "MLB"
+          : leagueId.includes("NHL") || leagueId.includes("ICE_HOCKEY")
+            ? "NHL"
+            : null;
+
+    // If we cannot clearly identify this as NFL/NBA/MLB/NHL, skip it
+    if (!detectedLeague || !allowedLeagues.has(detectedLeague)) {
+      continue;
+    }
+
+    // STRICT FILTER: If a specific sport was requested, only include games from that league
+    if (requestedLeague && detectedLeague !== requestedLeague) {
       continue;
     }
 
@@ -299,6 +327,30 @@ function transformAdvantages(advantages: Advantage[]): TransformedGame[] {
   const games: TransformedGame[] = [];
 
   for (const [eventKey, { event, outcomes }] of eventMap.entries()) {
+    const comp = event.competitionInstance?.competition;
+    const leagueId = (comp?.shortName || comp?.name || comp?.category || "").toUpperCase();
+
+    // Detect league using the same logic as the filter above
+    const detectedLeague = leagueId.includes("NBA")
+      ? "NBA"
+      : leagueId.includes("NFL") || leagueId.includes("AMERICAN_FOOTBALL")
+        ? "NFL"
+        : leagueId.includes("MLB") || leagueId.includes("BASEBALL")
+          ? "MLB"
+          : leagueId.includes("NHL") || leagueId.includes("ICE_HOCKEY")
+            ? "NHL"
+            : null;
+
+    const sportKey = detectedLeague === "NBA"
+      ? "basketball_nba"
+      : detectedLeague === "NFL"
+        ? "americanfootball_nfl"
+        : detectedLeague === "MLB"
+          ? "baseball_mlb"
+          : detectedLeague === "NHL"
+            ? "icehockey_nhl"
+            : undefined;
+
     // Get home and away teams
     const homeParticipant = event.participants.find(p => p.key === event.homeParticipantKey);
     const awayParticipant = event.participants.find(p => p.key !== event.homeParticipantKey);
@@ -362,7 +414,8 @@ function transformAdvantages(advantages: Advantage[]): TransformedGame[] {
 
     games.push({
       id: eventKey,
-      sport: event.competitionInstance.competition.sport,
+      sport: detectedLeague || event.competitionInstance.competition.sport,
+      sportKey,
       homeTeam: homeParticipant.name,
       awayTeam: awayParticipant.name,
       commenceTime: event.startTime,

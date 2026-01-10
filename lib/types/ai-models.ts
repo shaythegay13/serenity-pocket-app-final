@@ -43,6 +43,11 @@ export interface CurrentGameContext {
     totalOverOdds?: number
     totalUnderOdds?: number
   }
+  spreadLines?: {
+    home: number
+    away: number
+  }
+  totalLine?: number
   impliedProbabilities?: {
     home?: number
     away?: number

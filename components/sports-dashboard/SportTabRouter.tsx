@@ -11,6 +11,10 @@ import type { SupportedSportKey } from "@/lib/types"
 export interface SportTabRouterProps {
   /** Currently active sport ID */
   activeSport: SupportedSportKey
+  /** User data for subscription-based features */
+  userData?: {
+    subscriptionTier?: string
+  }
 }
 
 /**
@@ -53,14 +57,14 @@ const NHLTab = dynamic(() => import("./tabs/NHLTab"), {
  * @example
  * <SportTabRouter activeSport="basketball_nba" />
  */
-export function SportTabRouter({ activeSport }: SportTabRouterProps) {
+export function SportTabRouter({ activeSport, userData }: SportTabRouterProps) {
   return (
     <Suspense fallback={<TabSkeleton cardCount={9} />}>
       <div role="tabpanel" aria-label={`${activeSport} content`}>
-        {activeSport === "americanfootball_nfl" && <NFLTab />}
-        {activeSport === "basketball_nba" && <NBATab />}
-        {activeSport === "baseball_mlb" && <MLBTab />}
-        {activeSport === "icehockey_nhl" && <NHLTab />}
+        {activeSport === "americanfootball_nfl" && <NFLTab userData={userData} />}
+        {activeSport === "basketball_nba" && <NBATab userData={userData} />}
+        {activeSport === "baseball_mlb" && <MLBTab userData={userData} />}
+        {activeSport === "icehockey_nhl" && <NHLTab userData={userData} />}
         
         {/* Fallback for unknown sport */}
         {!["americanfootball_nfl", "basketball_nba", "baseball_mlb", "icehockey_nhl"].includes(activeSport) && (

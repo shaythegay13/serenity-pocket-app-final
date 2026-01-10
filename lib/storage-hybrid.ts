@@ -11,6 +11,7 @@ import type {
   GameLineRecord,
   AIServiceUsage,
 } from "./types"
+import type { ComprehensiveBet } from "./types/bet-tracking"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
@@ -22,12 +23,71 @@ const STORAGE_KEYS = {
   CHALLENGES: "serenity_challenges",
   LAST_CHECK_IN: "serenity_last_check_in",
   BET_ANALYSES: "serenity_bet_analyses",
+  COMPREHENSIVE_BETS: "serenity_comprehensive_bets",
   GAME_LINES: "serenity_game_lines",
   AI_USAGE: "serenity_ai_service_usage",
 }
 
 // Hybrid storage that uses Supabase for authenticated users and localStorage as fallback
-export const storageHybrid = {
+export const storageHybrid: {
+  // Get current user ID
+  getCurrentUserId(): Promise<string | null>
+  
+  // Bet Analyses Operations
+  getBetAnalyses(): Promise<BetAnalysis[]>
+  addBetAnalysis(bet: BetAnalysis): Promise<void>
+  updateBetAnalysis(bet: BetAnalysis): Promise<void>
+  
+  // Comprehensive Bet Operations
+  getComprehensiveBets(): Promise<ComprehensiveBet[]>
+  addComprehensiveBet(bet: ComprehensiveBet): Promise<void>
+  saveComprehensiveBets(bets: ComprehensiveBet[]): Promise<void>
+  updateComprehensiveBet(updated: ComprehensiveBet): Promise<void>
+  
+  // Trade Operations
+  getTrades(): Promise<Trade[]>
+  addTrade(trade: Trade): Promise<void>
+  updateTrade(tradeId: string, updates: Partial<Trade>): Promise<void>
+  
+  // Bias Profile Operations
+  getBiasProfile(): Promise<BiasProfile | null>
+  setBiasProfile(profile: BiasProfile): Promise<void>
+  
+  // Bias History Operations
+  getBiasHistory(): Promise<BiasQuizHistory[]>
+  addBiasHistory(history: BiasQuizHistory): Promise<void>
+  getBiasQuizHistory(): Promise<BiasQuizHistory[]>
+  addBiasQuizHistory(history: BiasQuizHistory): Promise<void>
+  
+  // Achievement Operations
+  getAchievements(): Promise<Achievement[]>
+  updateAchievements(achievements: Achievement[]): Promise<void>
+  
+  // Challenge Operations
+  getChallenges(): Promise<Challenge[]>
+  updateChallenges(challenges: Challenge[]): Promise<void>
+  
+  // Emotion Log Operations
+  getEmotionLogs(): Promise<EmotionLog[]>
+  addEmotionLog(log: EmotionLog): Promise<void>
+  
+  // User Data Operations
+  getUserData(): Promise<UserData | null>
+  setUserData(data: UserData): Promise<void>
+  
+  // Game Lines Operations
+  getGameLines(): Promise<GameLineRecord[]>
+  setGameLines(lines: GameLineRecord[]): Promise<void>
+  upsertGameLine(line: GameLineRecord): Promise<void>
+  bulkUpsertGameLines(lines: GameLineRecord[]): Promise<void>
+  
+  // AI Service Usage Operations
+  getAIServiceUsage(): Promise<AIServiceUsage[]>
+  
+  // Check-in Operations
+  getLastCheckIn(): Promise<Date | null>
+  setLastCheckIn(date: Date): Promise<void>
+} = {
   // Get current user ID
   async getCurrentUserId(): Promise<string | null> {
     const {
@@ -864,7 +924,13 @@ export const storageHybrid = {
     }
 
     // Save to history
-    await this.addBiasQuizHistory(profile)
+    const historyEntry: BiasQuizHistory = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      profile,
+      averageScore: Math.round(Object.values(profile).reduce((a, b) => a + b, 0) / 6)
+    }
+    await this.addBiasQuizHistory(historyEntry)
   },
 
   async getBiasQuizHistory(): Promise<BiasQuizHistory[]> {
@@ -904,9 +970,8 @@ export const storageHybrid = {
     return data ? JSON.parse(data) : []
   },
 
-  async addBiasQuizHistory(profile: BiasProfile): Promise<void> {
+  async addBiasQuizHistory(history: BiasQuizHistory): Promise<void> {
     const userId = await this.getCurrentUserId()
-    const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / 6
 
     // Save to database if user is logged in
     if (userId) {
@@ -915,14 +980,14 @@ export const storageHybrid = {
           .from("bias_quiz_history")
           .insert({
             user_id: userId,
-            timestamp: new Date().toISOString(),
-            confirmation_bias: profile.confirmationBias,
-            loss_aversion: profile.lossAversion,
-            anchoring_bias: profile.anchoringBias,
-            recency_bias: profile.recencyBias,
-            overconfidence_bias: profile.overconfidenceBias,
-            herd_mentality: profile.herdMentality,
-            average_score: Math.round(avgScore),
+            timestamp: history.timestamp.toISOString(),
+            confirmation_bias: history.profile.confirmationBias,
+            loss_aversion: history.profile.lossAversion,
+            anchoring_bias: history.profile.anchoringBias,
+            recency_bias: history.profile.recencyBias,
+            overconfidence_bias: history.profile.overconfidenceBias,
+            herd_mentality: history.profile.herdMentality,
+            average_score: history.averageScore
           })
 
         if (error) {
@@ -937,17 +1002,9 @@ export const storageHybrid = {
 
     // Also save to localStorage as backup
     if (typeof window !== "undefined") {
-      const history = await this.getBiasQuizHistory()
-
-      const newEntry: BiasQuizHistory = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        profile,
-        averageScore: Math.round(avgScore)
-      }
-
-      history.push(newEntry)
-      const trimmedHistory = history.slice(-20)
+      const currentHistory = await this.getBiasQuizHistory()
+      currentHistory.push(history)
+      const trimmedHistory = currentHistory.slice(-20)
       localStorage.setItem(STORAGE_KEYS.BIAS_HISTORY, JSON.stringify(trimmedHistory))
     }
   },
@@ -1651,7 +1708,47 @@ storageHybrid.getBetAnalyses = async function(): Promise<BetAnalysis[]> {
   return []
 }
 
-// @ts-ignore - Adding methods dynamically
+// Comprehensive Bet Tracking Methods
+storageHybrid.getComprehensiveBets = async function(): Promise<ComprehensiveBet[]> {
+  if (typeof window === "undefined") return []
+  
+  // For now, use localStorage as the primary storage
+  // TODO: Add Supabase integration for authenticated users
+  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+  return data ? JSON.parse(data) : []
+}
+
+// Adding methods dynamically  
+storageHybrid.addComprehensiveBet = async function(bet: ComprehensiveBet): Promise<void> {
+  if (typeof window === "undefined") return
+  
+  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+  const list: ComprehensiveBet[] = data ? JSON.parse(data) : []
+  list.push(bet)
+  localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(list))
+}
+
+// Adding methods dynamically
+storageHybrid.saveComprehensiveBets = async function(bets: ComprehensiveBet[]): Promise<void> {
+  if (typeof window === "undefined") return
+  
+  localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(bets))
+}
+
+// Adding methods dynamically
+storageHybrid.updateComprehensiveBet = async function(updated: ComprehensiveBet): Promise<void> {
+  if (typeof window === "undefined") return
+  
+  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+  const list: ComprehensiveBet[] = data ? JSON.parse(data) : []
+  const idx = list.findIndex(b => b.id === updated.id)
+  if (idx !== -1) {
+    list[idx] = { ...list[idx], ...updated }
+    localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(list))
+  }
+}
+
+// Adding methods dynamically
 storageHybrid.getAIServiceUsage = async function(): Promise<AIServiceUsage[]> {
   const userId = await this.getCurrentUserId()
 

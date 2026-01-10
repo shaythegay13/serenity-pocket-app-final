@@ -60,7 +60,7 @@ export async function geminiGenerateText(args: {
       response_schema: args.responseSchema,
       thinking_config: {
         include_thoughts: false,
-        thinking_budget: 1024,
+        thinking_budget: 256, // Reduced for faster response (was 1024)
       },
     },
   })

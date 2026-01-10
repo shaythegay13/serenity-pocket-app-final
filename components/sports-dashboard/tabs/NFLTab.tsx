@@ -3,6 +3,7 @@
 import React, { Suspense } from "react"
 import { FeatureCard } from "../shared/FeatureCard"
 import { FeatureCardGrid } from "../shared/FeatureCardGrid"
+import { TiltLabBanner } from "../shared/TiltLabBanner"
 import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import {
   TrendingUp,
@@ -30,7 +31,13 @@ import {
  * 5. Betting Trends - Public betting percentages and sharp action
  * 6. Weather Conditions - Weather impact on game totals
  */
-export default function NFLTab() {
+interface NFLTabProps {
+  userData?: {
+    subscriptionTier?: string
+  }
+}
+
+export default function NFLTab({ userData }: NFLTabProps) {
   const activeSport = useSportsStore((state) => state.activeSport)
   const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
@@ -42,7 +49,8 @@ export default function NFLTab() {
 
   return (
     <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={6} />}>
-      <FeatureCardGrid isLoading={isLoading}>
+      <div className="px-4 md:px-6 pb-6">
+        <FeatureCardGrid isLoading={isLoading}>
         {/* 1. Live Scores */}
         <FeatureCard
           icon={<Zap className="h-10 w-10" />}
@@ -52,20 +60,21 @@ export default function NFLTab() {
           onClick={() => handleFeatureClick("live_scores")}
         />
 
-        {/* 2. Upcoming Games & Odds - CONSOLIDATED */}
+        {/* 2. Upcoming Games & Odds */}
         <FeatureCard
           icon={<TrendingUp className="h-10 w-10" />}
           title="Upcoming Games & Odds"
-          description="Live betting lines across all sportsbooks with complete schedule, matchup breakdowns, spreads, totals, and moneylines."
-          badge="POPULAR"
+          description="Consolidated live odds, schedule, matchups, and game dashboard for all upcoming NFL games."
+          badge="ODDS"
           onClick={() => handleFeatureClick("upcoming_games_odds")}
         />
 
-        {/* 3. Team & Player Analytics - CONSOLIDATED with Injuries */}
+        {/* 3. Team & Player Analytics */}
         <FeatureCard
           icon={<Users className="h-10 w-10" />}
           title="Team & Player Analytics"
-          description="Advanced team stats, player props, and injury reports. Offensive ratings, defensive metrics, and lineup confirmations."
+          description="Consolidated player props, team analytics, and injury reports for comprehensive NFL insights."
+          badge="ANALYTICS"
           onClick={() => handleFeatureClick("team_player_analytics")}
         />
 
@@ -73,27 +82,33 @@ export default function NFLTab() {
         <FeatureCard
           icon={<LineChart className="h-10 w-10" />}
           title="Line Movement"
-          description="Track how betting lines move from opening to kickoff. Identify sharp money and public action."
+          description="Historical line tracking and movement analysis to identify betting trends and value opportunities."
+          badge="TRENDS"
           onClick={() => handleFeatureClick("line_movement")}
         />
 
-        {/* 5. Betting Trends - NEW */}
+        {/* 5. Betting Trends */}
         <FeatureCard
           icon={<PieChart className="h-10 w-10" />}
           title="Betting Trends"
-          description="Public betting percentages, sharp vs public action, and consensus picks. See where the money is going."
-          badge="NEW"
+          description="Public betting percentages, sharp action indicators, and market sentiment analysis."
+          badge="INSIGHTS"
           onClick={() => handleFeatureClick("betting_trends")}
         />
 
-        {/* 6. Weather Impact */}
+        {/* 6. Weather Conditions */}
         <FeatureCard
           icon={<CloudRain className="h-10 w-10" />}
-          title="Weather Impact"
-          description="Real-time weather forecasts and historical data on how conditions affect scoring and game totals."
+          title="Weather Conditions"
+          description="Weather impact analysis on game totals and scoring expectations with detailed forecasts."
+          badge="WEATHER"
           onClick={() => handleFeatureClick("weather_conditions")}
         />
-      </FeatureCardGrid>
+        </FeatureCardGrid>
+
+        {/* TiltLab Banner */}
+        <TiltLabBanner />
+      </div>
     </Suspense>
   )
 }

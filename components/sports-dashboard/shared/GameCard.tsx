@@ -1,6 +1,6 @@
 import React from "react"
 import { StatBadge, StatBadgeGroup } from "./StatBadge"
-import { Clock, Zap, CheckCircle } from "lucide-react"
+import { Clock, Zap, CheckCircle, TrendingUp } from "lucide-react"
 
 /**
  * GameData Interface
@@ -54,6 +54,10 @@ export interface GameCardProps {
   onClick?: () => void
   /** Optional className for additional styling */
   className?: string
+  /** User subscription tier for bet button routing */
+  subscriptionTier?: string
+  /** Optional bet button click handler */
+  onBetClick?: (game: GameData) => void
 }
 
 /**
@@ -153,10 +157,43 @@ export function GameCard({
   game,
   sport,
   onClick,
-  className = ""
+  className = "",
+  subscriptionTier = "free",
+  onBetClick
 }: GameCardProps) {
   const statusInfo = statusConfig[game.status] || statusConfig.UPCOMING
   const StatusIcon = statusInfo.icon
+
+  const handleBetClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent card click
+    console.log('Bet button clicked!', { game, subscriptionTier })
+    
+    // Always navigate to TiltLab with game information
+    const gameData = {
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      sport: game.sport,
+      odds: game.moneyline || {
+        home: game.spread || 0,
+        away: game.spread ? -(game.spread) : 0
+      },
+      commenceTime: game.gameTime,
+      source: 'game-card' // Track where this came from
+    }
+    
+    sessionStorage.setItem('pendingBetGame', JSON.stringify(gameData))
+    localStorage.setItem('aiAdvisorFromLiveOdds', 'true') // Use existing flag
+    
+    // Navigate to AI Picks tab
+    window.location.href = "/?tab=ai-picks"
+    alert(`Opening TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
+    
+    if (onBetClick) {
+      onBetClick(game)
+    }
+  }
+
+  const canBet = subscriptionTier !== "free" && game.status !== "COMPLETED" && game.status !== "POSTPONED"
 
   return (
     <div
@@ -273,6 +310,20 @@ export function GameCard({
           )}
         </div>
       </div>
+
+      {/* Bet Button - Bottom */}
+      {canBet && (
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <button
+            onClick={handleBetClick}
+            className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+            style={{ minHeight: '48px', padding: '16px 24px' }}
+          >
+            <TrendingUp className="h-5 w-5 flex-shrink-0" />
+            <span className="font-semibold">Bet on This Game</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

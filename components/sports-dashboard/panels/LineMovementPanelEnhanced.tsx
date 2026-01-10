@@ -25,6 +25,77 @@ function hashToSeed(input: string): number {
   return h >>> 0
 }
 
+// Generate game-specific insights based on line movement
+function generateGameInsights(
+  game: any,
+  awayHistory: { time: number; odds: number }[],
+  homeHistory: { time: number; odds: number }[]
+) {
+  const insights: string[] = []
+
+  if (awayHistory.length === 0 || homeHistory.length === 0) {
+    return ["Insufficient data to generate insights"]
+  }
+
+  const awayOpening = awayHistory[0].odds
+  const awayCurrent = game.awayOdds?.best?.odds || awayOpening
+  const awayMovement = awayCurrent - awayOpening
+
+  const homeOpening = homeHistory[0].odds
+  const homeCurrent = game.homeOdds?.best?.odds || homeOpening
+  const homeMovement = homeCurrent - homeOpening
+
+  // Analyze away team movement
+  if (Math.abs(awayMovement) > 15) {
+    const direction = awayMovement > 0 ? "increased" : "decreased"
+    const implication = awayMovement > 0 ? "less favored" : "more favored"
+    insights.push(
+      `${game.awayTeam} odds have ${direction} by ${Math.abs(awayMovement)} points, indicating they are now ${implication} by the market`
+    )
+  }
+
+  // Analyze home team movement
+  if (Math.abs(homeMovement) > 15) {
+    const direction = homeMovement > 0 ? "increased" : "decreased"
+    const implication = homeMovement > 0 ? "less favored" : "more favored"
+    insights.push(
+      `${game.homeTeam} odds have ${direction} by ${Math.abs(homeMovement)} points, suggesting ${implication === "more favored" ? "sharp money" : "public fading"}`
+    )
+  }
+
+  // Check for reverse line movement (RLM)
+  if (awayMovement > 0 && homeMovement < 0) {
+    insights.push(
+      `Potential reverse line movement detected - public may be on ${game.awayTeam} while sharps favor ${game.homeTeam}`
+    )
+  } else if (homeMovement > 0 && awayMovement < 0) {
+    insights.push(
+      `Reverse line movement pattern - sharp action appears to be on ${game.awayTeam} against the public`
+    )
+  }
+
+  // Line stability
+  if (Math.abs(awayMovement) < 5 && Math.abs(homeMovement) < 5) {
+    insights.push(
+      `Lines have remained relatively stable, indicating balanced action across ${game.bookmakers?.length || 6} sportsbooks`
+    )
+  }
+
+  // Heavy movement indicator
+  if (Math.abs(awayMovement) > 30 || Math.abs(homeMovement) > 30) {
+    insights.push(
+      `Significant line movement detected - may indicate breaking news, injury updates, or heavy sharp action`
+    )
+  }
+
+  // Bookmaker count
+  insights.push(
+    `Currently tracking odds from ${game.bookmakers?.length || 6} sportsbooks to identify the best value`
+  )
+
+  return insights.slice(0, 4) // Return max 4 insights
+}
+
 export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
   const { data, loading, error } = useEnhancedOdds(sport)
 
@@ -211,11 +282,11 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
         return (
           <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
             {/* Game Header */}
-            <div className="mb-4 pb-4 border-b border-white/10">
-              <div className="text-lg font-bold text-[#F5F5F5] mb-2">
+            <div className="mb-6">
+              <div className="text-xl font-bold text-white mb-1">
                 {game.awayTeam} @ {game.homeTeam}
               </div>
-              <div className="text-xs text-gray-400">
+              <div className="text-sm text-gray-400">
                 {commence.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at {commence.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -224,17 +295,10 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
               <div className="space-y-6">
                 {/* Line Chart */}
                 <div className="p-6 bg-black/30 rounded-lg border border-white/5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-sm font-semibold text-gray-300">Moneyline Movement Over Time</div>
-                    <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-0.5 bg-[#20B2AA]"></div>
-                        <span className="text-gray-400">{game.awayTeam}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-0.5 bg-[#FFD700]"></div>
-                        <span className="text-gray-400">{game.homeTeam}</span>
-                      </div>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="text-sm font-medium text-gray-300">Moneyline Movement Over Time</div>
+                    <div className="px-3 py-1.5 bg-purple-500/20 border border-purple-500/40 rounded-full">
+                      <span className="text-xs font-semibold text-purple-300">6h</span>
                     </div>
                   </div>
 
@@ -328,8 +392,8 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
                       <path
                         d={awayPath}
                         fill="none"
-                        stroke="#20B2AA"
-                        strokeWidth="3"
+                        stroke="#FB923C"
+                        strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
@@ -338,8 +402,8 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
                       <path
                         d={homePath}
                         fill="none"
-                        stroke="#FFD700"
-                        strokeWidth="3"
+                        stroke="#22D3EE"
+                        strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
@@ -350,8 +414,8 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
                           key={`away-point-${i}`}
                           cx={scaleX(point.time)}
                           cy={scaleY(point.odds)}
-                          r="4"
-                          fill="#20B2AA"
+                          r="3"
+                          fill="#FB923C"
                           stroke="#1a1f2e"
                           strokeWidth="2"
                         />
@@ -363,8 +427,8 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
                           key={`home-point-${i}`}
                           cx={scaleX(point.time)}
                           cy={scaleY(point.odds)}
-                          r="4"
-                          fill="#FFD700"
+                          r="3"
+                          fill="#22D3EE"
                           stroke="#1a1f2e"
                           strokeWidth="2"
                         />
@@ -395,40 +459,46 @@ export function LineMovementPanelEnhanced({ sport }: { sport: SupportedSportKey 
                     </svg>
                   </div>
 
-                  {/* Current Values */}
-                  <div className="mt-6 pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-[#20B2AA]/10 border border-[#20B2AA]/30 rounded-lg">
-                      <div className="text-xs text-gray-400 mb-1">{game.awayTeam} Current</div>
-                      <div className="text-2xl font-bold text-[#20B2AA]">
-                        {game.awayOdds?.best && (game.awayOdds.best.odds > 0 ? '+' : '')}{game.awayOdds?.best?.odds}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Opening: {awayHistory[0] && (awayHistory[0].odds > 0 ? '+' : '')}{awayHistory[0]?.odds}
-                      </div>
+
+                </div>
+
+                {/* Current Odds Panels */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-6 bg-gradient-to-br from-blue-900/30 to-blue-950/20 border border-blue-500/30 rounded-xl">
+                    <div className="text-xs text-gray-400 mb-2">{game.awayTeam} Current</div>
+                    <div className="text-4xl font-bold text-blue-400 mb-3">
+                      {game.awayOdds?.best && (game.awayOdds.best.odds > 0 ? '+' : '')}{game.awayOdds?.best?.odds}
                     </div>
-                    <div className="p-3 bg-[#FFD700]/10 border border-[#FFD700]/30 rounded-lg">
-                      <div className="text-xs text-gray-400 mb-1">{game.homeTeam} Current</div>
-                      <div className="text-2xl font-bold text-[#FFD700]">
-                        {game.homeOdds?.best && (game.homeOdds.best.odds > 0 ? '+' : '')}{game.homeOdds?.best?.odds}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Opening: {homeHistory[0] && (homeHistory[0].odds > 0 ? '+' : '')}{homeHistory[0]?.odds}
-                      </div>
+                    <div className="text-xs text-gray-500">
+                      Opening: {awayHistory[0] && (awayHistory[0].odds > 0 ? '+' : '')}{awayHistory[0]?.odds}
+                    </div>
+                  </div>
+                  <div className="p-6 bg-gradient-to-br from-purple-900/30 to-purple-950/20 border border-purple-500/30 rounded-xl">
+                    <div className="text-xs text-gray-400 mb-2">{game.homeTeam} Current</div>
+                    <div className="text-4xl font-bold text-purple-400 mb-3">
+                      {game.homeOdds?.best && (game.homeOdds.best.odds > 0 ? '+' : '')}{game.homeOdds?.best?.odds}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Opening: {homeHistory[0] && (homeHistory[0].odds > 0 ? '+' : '')}{homeHistory[0]?.odds}
                     </div>
                   </div>
                 </div>
 
-                {/* Key Insights */}
-                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                    <span className="text-xs font-semibold text-blue-400">Understanding Line Movement</span>
+                {/* Game-Specific Insights */}
+                <div className="p-5 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <div className="flex items-start gap-2 mb-3">
+                    <div className="mt-0.5">
+                      <TrendingUp className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <span className="text-sm font-semibold text-blue-400">Line Movement Insights</span>
                   </div>
-                  <ul className="text-xs text-gray-400 space-y-1 ml-4 list-disc">
-                    <li>Lines move based on betting volume and sharp money activity</li>
-                    <li>Significant movement may indicate injuries, weather, or insider information</li>
-                    <li>Track across {game.bookmakers?.length || 0} sportsbooks to find value opportunities</li>
-                    <li>Reverse line movement (RLM) = public bets one side, line moves the other way</li>
+                  <ul className="text-xs text-gray-400 space-y-2 ml-1">
+                    {generateGameInsights(game, awayHistory, homeHistory).map((insight, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-gray-500 mt-0.5">•</span>
+                        <span>{insight}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </div>

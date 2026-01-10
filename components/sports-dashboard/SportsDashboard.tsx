@@ -4,6 +4,7 @@ import React from "react"
 import { SportTabs } from "./SportTabs"
 import { SportTabRouter } from "./SportTabRouter"
 import { FeaturePanels } from "./FeaturePanels"
+import { SportsDashboardSummary } from "./SportsDashboardSummary"
 import { useSportsStore } from "@/lib/stores/sports-store"
 import { BarChart3 } from "lucide-react"
 
@@ -25,10 +26,17 @@ import { BarChart3 } from "lucide-react"
  * import { SportsDashboard } from '@/components/sports-dashboard/SportsDashboard'
  * 
  * export default function DashboardPage() {
- *   return <SportsDashboard />
+ *   return <SportsDashboard userData={userData} />
  * }
  */
-export function SportsDashboard() {
+interface SportsDashboardProps {
+  /** User data for subscription-based features */
+  userData?: {
+    subscriptionTier?: string
+  }
+}
+
+export function SportsDashboard({ userData }: SportsDashboardProps) {
   const activeSport = useSportsStore((state) => state.activeSport)
   const setActiveSport = useSportsStore((state) => state.setActiveSport)
 
@@ -78,8 +86,11 @@ export function SportsDashboard() {
         role="main"
         aria-label="Sports data content"
       >
-        <SportTabRouter activeSport={activeSport} />
-        <FeaturePanels />
+        {/* Dashboard Summary */}
+        <SportsDashboardSummary />
+        
+        <SportTabRouter activeSport={activeSport} userData={userData} />
+        <FeaturePanels userData={userData} />
       </main>
     </div>
   )

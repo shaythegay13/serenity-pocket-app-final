@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Trophy, Sparkles, Brain, BarChart3 } from "lucide-react"
+import { Home, Trophy, Sparkles, Brain, BarChart3, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface BottomNavProps {
@@ -11,9 +11,10 @@ interface BottomNavProps {
 const navItems = [
   { id: "home", label: "Home", icon: Home },
   { id: "odds", label: "Sports", icon: Trophy },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "ai-picks", label: "Insight Hub", icon: Sparkles },
+  { id: "analyze", label: "Analyze", icon: Target },
   { id: "behavior", label: "My Mind", icon: Brain },
+  { id: "ai-picks", label: "Insight Hub", icon: Sparkles },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
 ]
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {

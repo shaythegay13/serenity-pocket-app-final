@@ -9,31 +9,52 @@
  */
 
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './aws-bedrock'
+import { SupportedSportKey, GameBetMarketType } from './types'
+
 export interface BetScenario {
-  sport: string
+  // Core bet details
+  sport: SupportedSportKey
+  homeTeam: string
+  awayTeam: string
+  gameDate?: Date
   betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay'
+  selection: "home" | "away" | "over" | "under" | "draw" | "other"
+  line?: number // Spread points, total points, etc.
+  odds?: number // American odds
   betAmount: number
   budget: number
+  
+  // Legacy fields (kept for backward compatibility)
   favoriteTeam: string
   underdogTeam: string
   favoriteRecord: string
   underdogRecord: string
-  // Legacy text fields (kept for backward compatibility)
   injuries: string
   weather: string
+  
   // New boolean fields for UI
   hasKeyInjuries: boolean
   hasAdverseWeather: boolean
   isLiveBet: boolean
   isFavoriteTeam: boolean
   isChasingLoss: boolean
+  
+  // Emotional data
   currentEmotion: string
+  currentEmotionIntensity: number
   lastOutcome: 'Won' | 'Lost' | 'Push' | 'None'
   emotionalTriggers: string
   bettingSlip: string
   history: string
   notes: string
-  odds?: string
+  
+  // Psychological factors
+  biasesIdentified: string[]
+  confidenceLevel: number // 1-10
+  reasoning: string
+  
+  // Metadata
+  sportsbook?: string
 }
 
 export interface HarmSignal {

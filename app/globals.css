@@ -5,16 +5,16 @@
 
 /* Premium dark theme with vibrant accents - inspired by modern fintech/data platforms */
 :root {
-  /* Deep blacks and rich dark grays for sophistication */
-  --background: oklch(0.08 0 0);
+  /* Dark grey background instead of pure black for better comfort */
+  --background: oklch(0.12 0.005 250);
   --foreground: oklch(0.98 0 0);
 
   /* Cards with subtle depth */
-  --card: oklch(0.12 0.01 250);
+  --card: oklch(0.16 0.01 250);
   --card-foreground: oklch(0.98 0 0);
 
   /* Popovers slightly lighter */
-  --popover: oklch(0.14 0.01 250);
+  --popover: oklch(0.18 0.01 250);
   --popover-foreground: oklch(0.98 0 0);
 
   /* Vibrant electric blue primary */
@@ -69,12 +69,12 @@
 }
 
 .dark {
-  /* Using same vibrant color scheme for dark mode */
-  --background: oklch(0.08 0 0);
+  /* Using same dark grey color scheme for dark mode */
+  --background: oklch(0.12 0.005 250);
   --foreground: oklch(0.98 0 0);
-  --card: oklch(0.12 0.01 250);
+  --card: oklch(0.16 0.01 250);
   --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.14 0.01 250);
+  --popover: oklch(0.18 0.01 250);
   --popover-foreground: oklch(0.98 0 0);
   --primary: oklch(0.65 0.25 260);
   --primary-foreground: oklch(0.98 0 0);

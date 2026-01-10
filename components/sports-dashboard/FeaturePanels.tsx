@@ -43,8 +43,33 @@ import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsD
 /**
  * Enhanced Live Scores Panel with WebSocket support
  */
-function LiveScoresPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
+export function LiveScoresPanelEnhanced({ sport, subscriptionTier }: { sport: SupportedSportKey; subscriptionTier: string }) {
   const { data, loading, error } = useEnhancedOdds(sport)
+
+  const handleBetClick = (game: any) => {
+    // Always navigate to TiltLab with game information
+    console.log('Bet clicked for game:', game, 'subscriptionTier:', subscriptionTier)
+    
+    // Store game data for pre-filling TiltLab
+    const gameData = {
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      sport: game.sport || sport,
+      odds: {
+        home: game.homeOdds?.best?.odds,
+        away: game.awayOdds?.best?.odds
+      },
+      commenceTime: game.commenceTime,
+      source: 'live-scores' // Track where this came from
+    }
+    
+    sessionStorage.setItem('pendingBetGame', JSON.stringify(gameData))
+    localStorage.setItem('aiAdvisorFromLiveOdds', 'true') // Use existing flag
+    
+    // Navigate to AI Picks tab
+    window.location.href = "/?tab=ai-picks"
+    alert(`Opening TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
+  }
 
   if (loading && !data) return <TabSkeleton cardCount={3} />
 
@@ -133,6 +158,20 @@ function LiveScoresPanelEnhanced({ sport }: { sport: SupportedSportKey }) {
                 )}
               </div>
             </div>
+
+            {/* Bet Button */}
+            {!isPast && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => handleBetClick(game)}
+                  className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+                  style={{ minHeight: '48px', padding: '16px 24px' }}
+                >
+                  <TrendingUp className="h-5 w-5 flex-shrink-0" />
+                  <span className="font-semibold">Bet on This Game</span>
+                </button>
+              </div>
+            )}
           </div>
         )
       })}
@@ -275,7 +314,7 @@ function UpcomingGamesOddsPanelEnhanced({ sport }: { sport: SupportedSportKey })
 // STANDARD PANELS
 // ============================================================================
 
-function LiveOddsPanel({ sport }: { sport: SupportedSportKey }) {
+function LiveOddsPanel({ sport, subscriptionTier }: { sport: SupportedSportKey; subscriptionTier: string }) {
   const { data, loading, error } = useEnhancedOdds(sport)
 
   if (loading && !data) {
@@ -340,8 +379,33 @@ function LiveOddsPanel({ sport }: { sport: SupportedSportKey }) {
   )
 }
 
-function LiveScoresPanel({ sport }: { sport: SupportedSportKey }) {
+function LiveScoresPanel({ sport, subscriptionTier }: { sport: SupportedSportKey; subscriptionTier: string }) {
   const { data, loading, error } = useEnhancedOdds(sport)
+
+  const handleBetClick = (game: any) => {
+    // Always navigate to TiltLab with game information
+    console.log('Bet clicked for game:', game, 'subscriptionTier:', subscriptionTier)
+    
+    // Store game data for pre-filling TiltLab
+    const gameData = {
+      awayTeam: game.awayTeam,
+      homeTeam: game.homeTeam,
+      sport: game.sport || sport,
+      odds: {
+        home: game.homeOdds?.best?.odds,
+        away: game.awayOdds?.best?.odds
+      },
+      commenceTime: game.commenceTime,
+      source: 'live-scores' // Track where this came from
+    }
+    
+    sessionStorage.setItem('pendingBetGame', JSON.stringify(gameData))
+    localStorage.setItem('aiAdvisorFromLiveOdds', 'true') // Use existing flag
+    
+    // Navigate to AI Picks tab
+    window.location.href = "/?tab=ai-picks"
+    alert(`Opening TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
+  }
 
   if (loading && !data) return <TabSkeleton cardCount={4} />
 
@@ -370,23 +434,38 @@ function LiveScoresPanel({ sport }: { sport: SupportedSportKey }) {
           : new Date(game.commenceTime)
 
         const statusLabel = commence > new Date() ? "UPCOMING" : "IN PROGRESS / FINAL"
+        const canBet = commence > new Date() // Can only bet on upcoming games
 
         return (
           <div
             key={game.id}
-            className="p-4 bg-black/20 border border-white/10 rounded-lg flex items-center justify-between"
+            className="p-4 bg-black/20 border border-white/10 rounded-lg"
           >
-            <div>
-              <div className="text-sm font-semibold text-[#F5F5F5]">
-                {game.awayTeam} @ {game.homeTeam}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-semibold text-[#F5F5F5]">
+                  {game.awayTeam} @ {game.homeTeam}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {commence.toLocaleString()}
+                </div>
               </div>
-              <div className="text-xs text-gray-400 mt-1">
-                {commence.toLocaleString()}
+              <div className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-100">
+                {statusLabel}
               </div>
             </div>
-            <div className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-100">
-              {statusLabel}
-            </div>
+            
+            {/* Bet Button */}
+            {canBet && (
+              <button
+                onClick={() => handleBetClick(game)}
+                className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+                style={{ minHeight: '48px', padding: '16px 24px' }}
+              >
+                <TrendingUp className="h-5 w-5 flex-shrink-0" />
+                <span className="font-semibold">Bet on This Game</span>
+              </button>
+            )}
           </div>
         )
       })}
@@ -395,7 +474,7 @@ function LiveScoresPanel({ sport }: { sport: SupportedSportKey }) {
 }
 
 function UpcomingGamesOddsPanel({ sport }: { sport: SupportedSportKey }) {
-  return <LiveOddsPanel sport={sport} />
+  return <LiveOddsPanel sport={sport} subscriptionTier="premium" />
 }
 
 function BettingTrendsPanel({ sport }: { sport: SupportedSportKey }) {
@@ -525,10 +604,38 @@ function PanelHeader({ feature }: { feature: SportsFeatureView | null }) {
   )
 }
 
-export function FeaturePanels() {
+export function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
   const activeSport = useSportsStore((state) => state.activeSport)
   const activeFeature = useSportsStore((state) => state.activeFeature)
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
+  const subscriptionTier = userData?.subscriptionTier || "free"
+
+  // Function to navigate to betting features
+  const navigateToBettingFeature = (feature: 'smartslip' | 'tiltlab', game: any) => {
+    // Store the game data for pre-filling
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('pendingBetGame', JSON.stringify({
+        awayTeam: game.awayTeam,
+        homeTeam: game.homeTeam,
+        sport: game.sport || activeSport,
+        odds: {
+          home: game.homeOdds?.best?.odds,
+          away: game.awayOdds?.best?.odds
+        },
+        commenceTime: game.commenceTime
+      }))
+    }
+    
+    // Navigate to AI Picks tab
+    window.location.hash = '#ai-picks'
+    
+    // Show toast notification
+    if (feature === 'smartslip') {
+      alert(`Navigating to SmartSlip for ${game.awayTeam} @ ${game.homeTeam}...`)
+    } else {
+      alert(`Navigating to TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
+    }
+  }
 
   if (!activeFeature) {
     return null
@@ -548,21 +655,17 @@ export function FeaturePanels() {
   const renderPanelContent = () => {
     switch (activeFeature) {
       case "live_scores":
-        return <LiveScoresPanelEnhanced sport={activeSport} />
+        return <LiveScoresPanelEnhanced sport={activeSport} subscriptionTier={subscriptionTier} />
       case "upcoming_games_odds":
         return <UpcomingGamesOddsPanelEnhanced sport={activeSport} />
       case "line_movement":
         return <LineMovementPanelEnhanced sport={activeSport} />
-      case "betting_trends":
-        return <BettingTrendsPanelEnhanced sport={activeSport} />
       case "team_player_analytics":
         return <TeamPlayerAnalyticsPanel sport={activeSport} />
+      case "betting_trends":
+        return <BettingTrendsPanelEnhanced sport={activeSport} />
       default:
-        return (
-          <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-            <p>Feature not available</p>
-          </div>
-        )
+        return null
     }
   }
 

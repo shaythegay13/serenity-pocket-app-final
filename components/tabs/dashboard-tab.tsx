@@ -14,6 +14,7 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 import { getLevelTitle, checkPerfectDay, shouldResetRings } from "@/lib/gamification"
 import { PerfectDayNotification } from "@/components/perfect-day-notification"
+import { AIPicksInsights } from "@/components/ai-picks-insights"
 
 interface DashboardTabProps {
   userData: UserData
@@ -29,6 +30,12 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
   const [showMeditation, setShowMeditation] = useState(false)
   const [trades, setTrades] = useState<any[]>([])
   const [challenges, setChallenges] = useState<any[]>([])
+  const [performanceTrends, setPerformanceTrends] = useState<{
+    winRate: { current: number; change: number; changePercent: number }
+    avgROI: { current: number; change: number; changePercent: number }
+    totalBets: { current: number; change: number; changePercent: number }
+    profitLoss: { current: number; change: number; changePercent: number }
+  } | null>(null)
   const pendingTrades = trades.filter((t: any) => !t.outcome)
 
   useEffect(() => {
@@ -45,6 +52,110 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
       
       const challengesData = await storage.getChallenges()
       setChallenges(challengesData)
+      
+      // Calculate performance trends
+      const calculatePerformanceTrends = () => {
+        const now = new Date()
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
+        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
+        
+        // Filter trades for current and last month
+        const currentMonthTrades = tradesData.filter(trade => {
+          const tradeDate = new Date(trade.timestamp)
+          return tradeDate.getMonth() === currentMonth && tradeDate.getFullYear() === currentYear
+        })
+        
+        const lastMonthTrades = tradesData.filter(trade => {
+          const tradeDate = new Date(trade.timestamp)
+          return tradeDate.getMonth() === lastMonth && tradeDate.getFullYear() === lastMonthYear
+        })
+        
+        // Calculate Win Rate
+        const calculateWinRate = (trades: any[]) => {
+          const completedTrades = trades.filter(t => t.outcome && t.outcome !== 'pending')
+          if (completedTrades.length === 0) return 0
+          const wins = completedTrades.filter(t => t.outcome === 'profit').length
+          return (wins / completedTrades.length) * 100
+        }
+        
+        const currentWinRate = calculateWinRate(currentMonthTrades)
+        const lastWinRate = calculateWinRate(lastMonthTrades)
+        const winRateChange = currentWinRate - lastWinRate
+        const winRateChangePercent = lastWinRate !== 0 ? (winRateChange / Math.abs(lastWinRate)) * 100 : 0
+        
+        // Calculate Average ROI
+        const calculateAvgROI = (trades: any[]) => {
+          const completedTrades = trades.filter(t => t.stake && t.outcome && t.outcome !== 'pending')
+          if (completedTrades.length === 0) return 0
+          const totalROI = completedTrades.reduce((sum, trade) => {
+            const stake = trade.stake || 0
+            if (trade.outcome === 'profit') return sum + (stake * 0.9) // Assuming 90% profit
+            if (trade.outcome === 'loss') return sum - stake
+            return sum // breakeven
+          }, 0)
+          const totalStaked = completedTrades.reduce((sum, trade) => sum + (trade.stake || 0), 0)
+          return totalStaked > 0 ? (totalROI / totalStaked) * 100 : 0
+        }
+        
+        const currentROI = calculateAvgROI(currentMonthTrades)
+        const lastROI = calculateAvgROI(lastMonthTrades)
+        const roiChange = currentROI - lastROI
+        const roiChangePercent = lastROI !== 0 ? (roiChange / Math.abs(lastROI)) * 100 : 0
+        
+        // Calculate Total Bets
+        const currentBets = currentMonthTrades.length
+        const lastBets = lastMonthTrades.length
+        const betsChange = currentBets - lastBets
+        const betsChangePercent = lastBets !== 0 ? (betsChange / Math.abs(lastBets)) * 100 : 0
+        
+        // Calculate Profit/Loss
+        const calculateProfitLoss = (trades: any[]) => {
+          return trades.reduce((sum, trade) => {
+            if (!trade.stake || !trade.outcome || trade.outcome === 'pending') return sum
+            const stake = trade.stake || 0
+            if (trade.outcome === 'profit') return sum + (stake * 0.9)
+            if (trade.outcome === 'loss') return sum - stake
+            return sum // breakeven
+          }, 0)
+        }
+        
+        const currentPL = calculateProfitLoss(currentMonthTrades)
+        const lastPL = calculateProfitLoss(lastMonthTrades)
+        const plChange = currentPL - lastPL
+        const plChangePercent = lastPL !== 0 ? (plChange / Math.abs(lastPL)) * 100 : 0
+        
+        // Only show trends if we have sufficient data
+        if (currentMonthTrades.length >= 5) {
+          setPerformanceTrends({
+            winRate: {
+              current: currentWinRate,
+              change: winRateChange,
+              changePercent: winRateChangePercent
+            },
+            avgROI: {
+              current: currentROI,
+              change: roiChange,
+              changePercent: roiChangePercent
+            },
+            totalBets: {
+              current: currentBets,
+              change: betsChange,
+              changePercent: betsChangePercent
+            },
+            profitLoss: {
+              current: currentPL,
+              change: plChange,
+              changePercent: plChangePercent
+            }
+          })
+        } else {
+          setPerformanceTrends(null)
+        }
+      }
+      
+      calculatePerformanceTrends()
     }
     init()
 
@@ -167,13 +278,107 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
             </div>
             <div className="text-center md:text-right flex flex-col gap-2">
               <p className="text-sm font-semibold text-amber">+{pendingTrades.length * 20} XP Available</p>
-              <Button 
+              <Button
                 onClick={onNavigateToEmotions}
                 size="sm"
                 className="bg-amber hover:bg-amber/90 text-white"
               >
                 Complete Now
               </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* AI Picks Insights */}
+      <div className="space-y-3">
+        <h2 className="text-xl sm:text-2xl font-bold">AI Picks Performance</h2>
+        <AIPicksInsights />
+      </div>
+
+      {/* Performance Trends */}
+      {performanceTrends && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-semibold text-foreground">Performance Trends</h3>
+              <p className="text-sm text-muted-foreground">Month-over-month comparison</p>
+            </div>
+            <div className="p-2 rounded-full bg-blue/10">
+              <TrendingUp className="h-5 w-5 text-blue" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Win Rate */}
+            <div className="p-4 rounded-lg bg-background/50 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Win Rate</span>
+                <span className={`text-xs font-medium ${
+                  performanceTrends.winRate.change >= 0 ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {performanceTrends.winRate.change >= 0 ? '+' : ''}{performanceTrends.winRate.changePercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-foreground">
+                {performanceTrends.winRate.current.toFixed(1)}%
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {performanceTrends.winRate.change >= 0 ? 'up' : 'down'} {Math.abs(performanceTrends.winRate.change).toFixed(1)}% from last month
+              </div>
+            </div>
+
+            {/* Avg. ROI */}
+            <div className="p-4 rounded-lg bg-background/50 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Avg. ROI</span>
+                <span className={`text-xs font-medium ${
+                  performanceTrends.avgROI.change >= 0 ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {performanceTrends.avgROI.change >= 0 ? '+' : ''}{performanceTrends.avgROI.changePercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-foreground">
+                {performanceTrends.avgROI.current >= 0 ? '+' : ''}{performanceTrends.avgROI.current.toFixed(1)}%
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {performanceTrends.avgROI.change >= 0 ? 'up' : 'down'} {Math.abs(performanceTrends.avgROI.change).toFixed(1)}% from last month
+              </div>
+            </div>
+
+            {/* Total Bets */}
+            <div className="p-4 rounded-lg bg-background/50 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Total Bets</span>
+                <span className={`text-xs font-medium ${
+                  performanceTrends.totalBets.change >= 0 ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {performanceTrends.totalBets.change >= 0 ? '+' : ''}{performanceTrends.totalBets.changePercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-foreground">
+                {performanceTrends.totalBets.current}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {performanceTrends.totalBets.change >= 0 ? 'up' : 'down'} {Math.abs(performanceTrends.totalBets.change)} from last month
+              </div>
+            </div>
+
+            {/* Profit/Loss */}
+            <div className="p-4 rounded-lg bg-background/50 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Profit/Loss</span>
+                <span className={`text-xs font-medium ${
+                  performanceTrends.profitLoss.change >= 0 ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {performanceTrends.profitLoss.change >= 0 ? '+' : ''}{performanceTrends.profitLoss.changePercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-foreground">
+                ${performanceTrends.profitLoss.current >= 0 ? '+' : ''}{Math.abs(performanceTrends.profitLoss.current).toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {performanceTrends.profitLoss.change >= 0 ? 'up' : 'down'} ${Math.abs(performanceTrends.profitLoss.change).toLocaleString()} from last month
+              </div>
             </div>
           </div>
         </Card>

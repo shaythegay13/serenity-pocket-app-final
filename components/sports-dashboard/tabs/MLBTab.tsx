@@ -3,6 +3,7 @@
 import React, { Suspense } from "react"
 import { FeatureCard } from "../shared/FeatureCard"
 import { FeatureCardGrid } from "../shared/FeatureCardGrid"
+import { TiltLabBanner } from "../shared/TiltLabBanner"
 import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
 import {
   TrendingUp,
@@ -27,7 +28,13 @@ import {
  * 5. Betting Trends - Public betting percentages and sharp action
  * 6. Weather Conditions - Weather impact on game totals
  */
-export default function MLBTab() {
+interface MLBTabProps {
+  userData?: {
+    subscriptionTier?: string
+  }
+}
+
+export default function MLBTab({ userData }: MLBTabProps) {
   const activeSport = useSportsStore((state) => state.activeSport)
   const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
@@ -38,58 +45,66 @@ export default function MLBTab() {
 
   return (
     <Suspense fallback={<FeatureCardGrid isLoading={true} skeletonCount={6} />}>
-      <FeatureCardGrid isLoading={isLoading}>
-        {/* 1. Live Scores */}
-        <FeatureCard
-          icon={<Zap className="h-10 w-10" />}
-          title="Live Scores"
-          description="In-game scores, live betting lines, and real-time updates. Track your action as games unfold."
-          badge="LIVE"
-          onClick={() => handleFeatureClick("live_scores")}
-        />
+      <div className="px-4 md:px-6 pb-6">
+        <FeatureCardGrid isLoading={isLoading}>
+          {/* 1. Live Scores */}
+          <FeatureCard
+            icon={<Zap className="h-10 w-10" />}
+            title="Live Scores"
+            description="In-game scores, live betting lines, and real-time updates. Track your action as games unfold."
+            badge="LIVE"
+            onClick={() => handleFeatureClick("live_scores")}
+          />
 
-        {/* 2. Upcoming Games & Odds - CONSOLIDATED */}
-        <FeatureCard
-          icon={<TrendingUp className="h-10 w-10" />}
-          title="Upcoming Games & Odds"
-          description="Live betting lines across all sportsbooks with complete schedule, matchup breakdowns, spreads, totals, and moneylines."
-          badge="POPULAR"
-          onClick={() => handleFeatureClick("upcoming_games_odds")}
-        />
+          {/* 2. Upcoming Games & Odds */}
+          <FeatureCard
+            icon={<TrendingUp className="h-10 w-10" />}
+            title="Upcoming Games & Odds"
+            description="Consolidated live odds, schedule, matchups, and game dashboard for all upcoming MLB games."
+            badge="ODDS"
+            onClick={() => handleFeatureClick("upcoming_games_odds")}
+          />
 
-        {/* 3. Team & Player Analytics - CONSOLIDATED with Injuries */}
-        <FeatureCard
-          icon={<Users className="h-10 w-10" />}
-          title="Team & Player Analytics"
-          description="Advanced team stats, player props, and injury reports. Offensive ratings, defensive metrics, and lineup confirmations."
-          onClick={() => handleFeatureClick("team_player_analytics")}
-        />
+          {/* 3. Team & Player Analytics */}
+          <FeatureCard
+            icon={<Users className="h-10 w-10" />}
+            title="Team & Player Analytics"
+            description="Consolidated player props, team analytics, and injury reports for comprehensive MLB insights."
+            badge="ANALYTICS"
+            onClick={() => handleFeatureClick("team_player_analytics")}
+          />
 
-        {/* 4. Line Movement */}
-        <FeatureCard
-          icon={<LineChart className="h-10 w-10" />}
-          title="Line Movement"
-          description="Track how betting lines move from opening to kickoff. Identify sharp money and public action."
-          onClick={() => handleFeatureClick("line_movement")}
-        />
+          {/* 4. Line Movement */}
+          <FeatureCard
+            icon={<LineChart className="h-10 w-10" />}
+            title="Line Movement"
+            description="Historical line tracking and movement analysis to identify betting trends and value opportunities."
+            badge="TRENDS"
+            onClick={() => handleFeatureClick("line_movement")}
+          />
 
-        {/* 5. Betting Trends - NEW */}
-        <FeatureCard
-          icon={<PieChart className="h-10 w-10" />}
-          title="Betting Trends"
-          description="Public betting percentages, sharp vs public action, and consensus picks. See where the money is going."
-          badge="NEW"
-          onClick={() => handleFeatureClick("betting_trends")}
-        />
+          {/* 5. Betting Trends */}
+          <FeatureCard
+            icon={<PieChart className="h-10 w-10" />}
+            title="Betting Trends"
+            description="Public betting percentages, sharp action indicators, and market sentiment analysis."
+            badge="INSIGHTS"
+            onClick={() => handleFeatureClick("betting_trends")}
+          />
 
-        {/* 6. Weather Impact */}
-        <FeatureCard
-          icon={<CloudRain className="h-10 w-10" />}
-          title="Weather Impact"
-          description="Real-time weather forecasts and historical data on how conditions affect scoring and game totals."
-          onClick={() => handleFeatureClick("weather_conditions")}
-        />
-      </FeatureCardGrid>
+          {/* 6. Weather Conditions */}
+          <FeatureCard
+            icon={<CloudRain className="h-10 w-10" />}
+            title="Weather Conditions"
+            description="Weather impact analysis on game totals and scoring expectations with detailed forecasts."
+            badge="WEATHER"
+            onClick={() => handleFeatureClick("weather_conditions")}
+          />
+        </FeatureCardGrid>
+
+        {/* TiltLab Banner */}
+        <TiltLabBanner />
+      </div>
     </Suspense>
   )
 }

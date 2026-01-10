@@ -1,12 +1,26 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useMemo } from "react"
 import type { SupportedSportKey } from "@/lib/types"
 import { useEnhancedOdds, type EnhancedOddsGame } from "../hooks/useEnhancedOdds"
-import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsDashboard"
 import { TabSkeleton } from "../shared/LoadingSkeleton"
-import { BarChart3, TrendingUp, Target, AlertTriangle, Users, Activity } from "lucide-react"
+import { BarChart3, Target, BookOpen } from "lucide-react"
 
+// Color constants for the new design
+const COLORS = {
+  public: {
+    primary: '#3B82F6',     // Blue-500
+    gradient: '#2563EB',     // Blue-600
+    light: '#DBEAFE',        // Blue-100
+  },
+  sharp: {
+    primary: '#8B5CF6',      // Purple-500
+    gradient: '#7C3AED',     // Purple-600
+    light: '#EDE9FE',        // Purple-100
+  }
+} as const
+
+// Deterministic random number generator for consistent data
 function mulberry32(seed: number) {
   return function () {
     let t = (seed += 0x6d2b79f5)
@@ -29,6 +43,27 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
   const { data, loading, error } = useEnhancedOdds(sport)
   const [selectedMarkets, setSelectedMarkets] = useState<Record<string, "moneyline" | "spread" | "total">>({})
 
+  // Filter games to show only those within the next 7 days
+  const filteredGames = useMemo(() => {
+    if (!data || data.length === 0) return []
+
+    const now = new Date()
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+    return data
+      .filter(game => {
+        const commence = game.commenceTime instanceof Date
+          ? game.commenceTime
+          : new Date(game.commenceTime)
+        return commence >= now && commence <= sevenDaysFromNow
+      })
+      .sort((a, b) => {
+        const aTime = a.commenceTime instanceof Date ? a.commenceTime : new Date(a.commenceTime)
+        const bTime = b.commenceTime instanceof Date ? b.commenceTime : new Date(b.commenceTime)
+        return aTime.getTime() - bTime.getTime()
+      })
+  }, [data])
+
   if (loading && !data) return <TabSkeleton cardCount={2} />
 
   if (error) {
@@ -43,7 +78,17 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
   if (!data || data.length === 0) {
     return (
       <div className="p-6 text-sm text-gray-300 bg-black/10 border border-white/10 rounded-xl">
-        <p>No betting trends data available.</p>
+        <p>No betting data available.</p>
+      </div>
+    )
+  }
+
+  if (filteredGames.length === 0) {
+    return (
+      <div className="p-8 text-center text-gray-300 bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/10 rounded-xl">
+        <BarChart3 className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+        <p className="text-lg font-semibold mb-2">No upcoming games in the next 7 days</p>
+        <p className="text-sm text-gray-400">Check back later for betting trends on upcoming {sport} games.</p>
       </div>
     )
   }
@@ -102,19 +147,6 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
           ]
         }
       },
-      sharpMoneyIndicators: sharpAwayPercent > 60 || sharpHomePercent > 60 ? [
-        {
-          betType: "moneyline" as const,
-          side: sharpAwayPercent > 60 ? game.awayTeam : game.homeTeam,
-          percentage: Math.max(sharpAwayPercent, sharpHomePercent),
-          confidence: Math.max(sharpAwayPercent, sharpHomePercent) > 70 ? "high" : "medium",
-          lineMovement: {
-            direction: sharpAwayPercent > 60 ? "away" : "home",
-            magnitude: Math.abs(sharpAwayPercent - publicAwayPercent)
-          },
-          reverseLineMovement: Math.abs(sharpAwayPercent - publicAwayPercent) > 20
-        }
-      ] : [],
       consensusPick: sharpAwayPercent > 55 || sharpHomePercent > 55 ? {
         side: sharpAwayPercent > 55 ? game.awayTeam : game.homeTeam,
         betType: "moneyline",
@@ -123,46 +155,43 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
     }
   }
 
-  const gamesToShow = data.slice(0, 3)
-
   return (
     <div className="space-y-6">
-      {gamesToShow.map((game) => {
+      {/* Single header for entire panel */}
+      <div className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
+        <h2 className="text-2xl font-bold text-[#F5F5F5] flex items-center gap-2">
+          <BarChart3 className="w-6 h-6 text-blue-400" />
+          Betting Trends &amp; Public Action
+        </h2>
+        <p className="text-sm text-gray-400 mt-2">
+          Games in the next 7 days • Public vs Professional money
+        </p>
+      </div>
+
+      {/* Game list */}
+      {filteredGames.map((game) => {
         const trends = generateBettingTrends(game)
         const selectedMarket = selectedMarkets[game.id] || "spread"
         const marketSplits = trends.splits[selectedMarket]
-        const sharpIndicators = trends.sharpMoneyIndicators.filter(ind => ind.betType === selectedMarket)
-
-        const getConfidenceColor = (confidence: string) => {
-          switch (confidence) {
-            case "extreme": return "text-red-400 bg-red-500/20 border-red-500/40"
-            case "high": return "text-orange-400 bg-orange-500/20 border-orange-500/40"
-            case "medium": return "text-yellow-400 bg-yellow-500/20 border-yellow-500/40"
-            default: return "text-gray-400 bg-gray-500/20 border-gray-500/40"
-          }
-        }
 
         return (
-          <div key={game.id} className="space-y-4">
-            {/* Header with market selector */}
-            <div className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-[#F5F5F5] mb-1">Betting Trends & Sharp Money</h3>
-                  <p className="text-sm text-gray-400">
-                    {trends.awayTeam} @ {trends.homeTeam}
-                  </p>
-                </div>
-              </div>
+          <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6 space-y-6">
+            {/* Game header with market selector */}
+            <div>
+              <h3 className="text-xl font-bold text-[#F5F5F5] mb-1">Betting Trends &amp; Sharp Money</h3>
+              <p className="text-sm text-gray-400 mb-4">
+                {trends.awayTeam} @ {trends.homeTeam}
+              </p>
 
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedMarkets(prev => ({ ...prev, [game.id]: "moneyline" }))}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     selectedMarket === "moneyline"
-                      ? "bg-[#20B2AA] text-white"
+                      ? `bg-[${COLORS.public.primary}] text-white`
                       : "bg-white/5 text-gray-400 hover:bg-white/10"
                   }`}
+                  style={selectedMarket === "moneyline" ? { backgroundColor: COLORS.public.primary } : {}}
                 >
                   Moneyline
                 </button>
@@ -170,9 +199,10 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
                   onClick={() => setSelectedMarkets(prev => ({ ...prev, [game.id]: "spread" }))}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     selectedMarket === "spread"
-                      ? "bg-[#20B2AA] text-white"
+                      ? `bg-[${COLORS.public.primary}] text-white`
                       : "bg-white/5 text-gray-400 hover:bg-white/10"
                   }`}
+                  style={selectedMarket === "spread" ? { backgroundColor: COLORS.public.primary } : {}}
                 >
                   Spread
                 </button>
@@ -180,150 +210,124 @@ export function BettingTrendsPanelEnhanced({ sport }: { sport: SupportedSportKey
                   onClick={() => setSelectedMarkets(prev => ({ ...prev, [game.id]: "total" }))}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     selectedMarket === "total"
-                      ? "bg-[#20B2AA] text-white"
+                      ? `bg-[${COLORS.public.primary}] text-white`
                       : "bg-white/5 text-gray-400 hover:bg-white/10"
                   }`}
+                  style={selectedMarket === "total" ? { backgroundColor: COLORS.public.primary } : {}}
                 >
                   Total
                 </button>
               </div>
             </div>
 
-            {/* Sharp money indicators */}
-            {sharpIndicators.length > 0 && (
-              <div className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
-                <h4 className="text-lg font-bold text-[#F5F5F5] mb-4 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-amber-400" />
-                  Sharp Money Indicators
-                </h4>
-
-                <div className="space-y-3">
-                  {sharpIndicators.map((indicator, index) => (
-                    <div
-                      key={index}
-                      className={`p-4 rounded-lg border ${getConfidenceColor(indicator.confidence)}`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Target className="w-4 h-4" />
-                          <span className="font-bold text-sm uppercase">
-                            {indicator.side} - {indicator.confidence} Confidence
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold">
-                          {indicator.percentage.toFixed(1)}%
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-xs">
-                        <div>
-                          <span className="text-gray-400">Sharp vs Public: </span>
-                          <span className="font-semibold">
-                            {indicator.lineMovement.magnitude.toFixed(1)}% difference
-                          </span>
-                        </div>
-                        {indicator.reverseLineMovement && (
-                          <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 rounded">
-                            <AlertTriangle className="w-3 h-3 text-amber-400" />
-                            <span className="font-semibold text-amber-400">Contrarian Signal</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Public vs Sharp splits */}
-            <div className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
+            {/* Public vs Sharp Money - Horizontal Bars */}
+            <div>
               <h4 className="text-lg font-bold text-[#F5F5F5] mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#20B2AA]" />
+                <BarChart3 className="w-5 h-5" style={{ color: COLORS.public.primary }} />
                 Public vs Sharp Money
               </h4>
 
-              <div className="grid grid-cols-2 gap-6">
-                {/* Public money */}
-                <div>
-                  <div className="text-sm font-semibold text-gray-400 mb-3">Public Bettors</div>
-                  {marketSplits.public.map((split, index) => (
-                    <div key={index} className="mb-3">
-                      <div className="flex items-center justify-between mb-1">
+              <div className="space-y-6">
+                {/* Public Money Bars */}
+                {marketSplits.public.map((split, index) => (
+                  <div key={`public-${index}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-400 uppercase">Public Bettors</span>
                         <span className="text-sm text-gray-300">{split.side}</span>
-                        <span className="text-sm font-bold text-[#20B2AA]">
-                          {split.percentageOfMoney.toFixed(1)}%
-                        </span>
                       </div>
-                      <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#20B2AA] to-[#20B2AA]/70 rounded-full transition-all"
-                          style={{ width: `${split.percentageOfMoney}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {split.percentageOfBets.toFixed(1)}% of bets
-                      </div>
+                      <span className="text-lg font-bold" style={{ color: COLORS.public.primary }}>
+                        {split.percentageOfMoney.toFixed(0)}%
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="relative w-full h-3 bg-black/30 rounded-full overflow-hidden">
+                      <div
+                        className="absolute h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${split.percentageOfMoney}%`,
+                          background: `linear-gradient(to right, ${COLORS.public.primary}, ${COLORS.public.gradient})`
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {split.percentageOfBets.toFixed(1)}% of bets
+                    </div>
+                  </div>
+                ))}
 
-                {/* Sharp money */}
-                <div>
-                  <div className="text-sm font-semibold text-gray-400 mb-3">Sharp/Professional</div>
-                  {marketSplits.sharp.map((split, index) => (
-                    <div key={index} className="mb-3">
-                      <div className="flex items-center justify-between mb-1">
+                {/* Sharp Money Bars */}
+                {marketSplits.sharp.map((split, index) => (
+                  <div key={`sharp-${index}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-400 uppercase">Sharp/Professional</span>
                         <span className="text-sm text-gray-300">{split.side}</span>
-                        <span className="text-sm font-bold text-[#FFD700]">
-                          {split.percentageOfMoney.toFixed(1)}%
-                        </span>
                       </div>
-                      <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#FFD700] to-[#FFD700]/70 rounded-full transition-all"
-                          style={{ width: `${split.percentageOfMoney}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {split.percentageOfBets.toFixed(1)}% of bets
-                      </div>
+                      <span className="text-lg font-bold" style={{ color: COLORS.sharp.primary }}>
+                        {split.percentageOfMoney.toFixed(0)}%
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="relative w-full h-3 bg-black/30 rounded-full overflow-hidden">
+                      <div
+                        className="absolute h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${split.percentageOfMoney}%`,
+                          background: `linear-gradient(to right, ${COLORS.sharp.primary}, ${COLORS.sharp.gradient})`
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {split.percentageOfBets.toFixed(1)}% of bets
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Consensus pick */}
+            {/* Market Consensus */}
             {trends.consensusPick && (
-              <div className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-[#20B2AA]/40 rounded-xl p-6">
-                <h4 className="text-lg font-bold text-[#F5F5F5] mb-3 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-[#20B2AA]" />
+              <div className="border rounded-xl p-6" style={{ borderColor: `${COLORS.sharp.primary}66` }}>
+                <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <Target className="w-4 h-4" style={{ color: COLORS.sharp.primary }} />
                   Market Consensus
                 </h4>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-gray-400 mb-1">Sharp Money Leaning</div>
-                    <div className="text-2xl font-bold text-[#20B2AA] uppercase">
-                      {trends.consensusPick.side}
-                    </div>
+                <div className="space-y-2">
+                  <div className="text-3xl font-bold text-white uppercase tracking-wide">
+                    {trends.consensusPick.side}
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-400 mb-1">Sharp %</div>
-                    <div className="text-3xl font-bold text-[#FFD700]">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm text-gray-400">Sharp Money:</span>
+                    <span className="text-4xl font-bold" style={{ color: COLORS.sharp.primary }}>
                       {trends.consensusPick.confidence}%
-                    </div>
+                    </span>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Reading the Trends - Educational Box */}
+            <div className="border rounded-lg p-4" style={{
+              backgroundColor: `${COLORS.public.primary}1A`,
+              borderColor: `${COLORS.public.primary}4D`
+            }}>
+              <div className="flex items-start gap-3">
+                <BookOpen className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: COLORS.public.primary }} />
+                <div className="space-y-2">
+                  <h5 className="text-sm font-bold" style={{ color: COLORS.public.primary }}>
+                    Reading the Trends
+                  </h5>
+                  <ul className="text-xs text-gray-400 space-y-1.5">
+                    <li>• Public betting percentages show where casual bettors are placing their money</li>
+                    <li>• Sharp money represents professional and informed betting action</li>
+                    <li>• When sharp money contradicts public betting, it often signals value</li>
+                    <li>• Track consensus across multiple sportsbooks for the most accurate picture</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         )
       })}
     </div>
   )
 }
-
-// ============================================================================
-// ORIGINAL BASIC PANELS (Kept for fallback)
-// ============================================================================
-

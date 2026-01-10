@@ -52,16 +52,40 @@ export async function generatePickerRecommendations(
   const system = `You are a Betting Risk Analyst and reasoning engine for a responsible sports betting coach.
 You never hallucinate statistics or odds.
 You must rely ONLY on the numeric model predictions and context passed in.
-You must perform an 'Enhanced Analysis'. 
+You must perform an 'Enhanced Analysis'.
+
 STRICT LOGIC RULES:
-- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH'. 
-- **Devigged EV Calculation**:
-  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
-  2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
-  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$.
+- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH'.
+
+**BET TYPE-SPECIFIC EV CALCULATION**:
+
+For **MONEYLINE** bets:
+  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100))
+  2. Calculate Profit: If odds > 0: Profit = Stake × (Odds/100); If odds < 0: Profit = Stake × (100/|Odds|)
+  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$
+  4. Calculate EV Percentage: $(EV / Stake) \times 100$
+
+For **SPREAD** bets:
+  1. Spreads typically have -110 odds (sometimes varying)
+  2. Calculate Profit: Usually Stake × (100/110) ≈ Stake × 0.909
+  3. Assess Win Probability: Does the AI model suggest the team will cover the spread?
+  4. Calculate True EV: $EV = (CoverProb \times Profit) - ((1-CoverProb) \times Stake)$
+  5. Calculate EV Percentage: $(EV / Stake) \times 100$
+
+For **TOTAL (Over/Under)** bets:
+  1. Similar to spreads, usually -110 odds on both Over and Under
+  2. Calculate Profit: Stake × (100/110) ≈ Stake × 0.909
+  3. Assess Probability: Based on team scoring trends, does Over or Under have value?
+  4. Calculate True EV: $EV = (OverProb \times Profit) - (UnderProb \times Stake)$
+  5. Calculate EV Percentage: $(EV / Stake) \times 100$
+
+GENERAL RULES:
 - The numericRisk.ev must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
 - If EV is negative, the shortExplanation must explain that the user is paying 'juice' and has no mathematical edge.
 - If riskLevel is 'HIGH', the shortExplanation must start with a cautionary warning.
+- PRIORITIZE recommendations with POSITIVE EV across all bet types.
+- Include the confidence level (0-100) for each recommendation.
+
 You output STRICT JSON matching the requested schema and keep explanations concise.`
 
   const userPrompt = `USER PSYCHOLOGY SNAPSHOT:
@@ -78,10 +102,38 @@ ${JSON.stringify(
     2,
   )}
 
-For each game, you must propose at most one recommended bet (or none) that:
-- Respects the user's riskTolerance and weeklyBudget
-- Uses the model's win probabilities, expected values, and riskScore
-- Considers emotional alignment from the psychology snapshot and narrative context`
+You must analyze each game and recommend the BEST bet types based on:
+- Team statistics, form, and matchup analysis
+- Injury reports and roster changes
+- Historical performance and trends
+- Model predictions and probabilities
+- Expected value calculations
+- User's risk tolerance and budget
+
+Available bet types:
+1. **Moneyline** - Betting on which team wins outright
+2. **Spread** - Betting on the point differential
+3. **Total (Over/Under)** - Betting on whether the combined score goes over or under a line
+
+**CRITICAL REQUIREMENTS**:
+1. You MUST return at least 3 recommendations (or as many games as available if less than 3)
+2. Bet type distribution should be FLEXIBLE based on what the data suggests:
+   - If spreads have the best value, recommend 2-3 spreads
+   - If totals look good, recommend multiple over/unders
+   - Don't force 1 moneyline, 1 spread, 1 total if that's not what the data supports
+3. Risk tolerance affects STAKE SIZE, not bet selection:
+   - Conservative: smaller stakes (4% of budget)
+   - Moderate: medium stakes (6% of budget)
+   - Aggressive: larger stakes (8% of budget)
+4. **NEVER** base recommendations solely on favorites vs underdogs or over vs under preferences
+5. Base ALL picks on actual statistics, model predictions, and expected value
+
+**NEGATIVE EV HANDLING**:
+- If EV is negative, you MUST include this exact warning in ALL CAPS in the shortExplanation:
+  "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
+- Still include these picks for educational purposes so users understand why to avoid them
+
+**DO NOT** return an empty recommendations array unless there are literally zero games with odds available.`
 
   const responseSchema = {
     type: "object",
@@ -94,9 +146,17 @@ For each game, you must propose at most one recommended bet (or none) that:
             gameId: { type: "string" },
             teams: { type: "string" },
             startTime: { type: "string" },
-            betType: { type: "string" },
+            betType: {
+              type: "string",
+              enum: ["moneyline", "spread", "total", "over", "under"],
+              description: "Type of bet: moneyline, spread, total (over), or total (under)"
+            },
             line: { type: "string" },
             odds: { type: "number" },
+            confidence: {
+              type: "number",
+              description: "Confidence level 0-100 for this pick based on model probability and data quality"
+            },
             emotionalAlignment: { type: "number" },
             suggestedStakeFraction: { type: "number" },
             suggestedStakeAbsolute: { type: "number" },
@@ -105,12 +165,16 @@ For each game, you must propose at most one recommended bet (or none) that:
             numericRisk: {
               type: "object",
               properties: {
-                ev: { 
+                ev: {
                   type: "number",
-                  description: "Expected Value as a standard decimal (no scientific notation)"
+                  description: "Expected Value in dollars as a standard decimal (no scientific notation)"
+                },
+                evPercentage: {
+                  type: "number",
+                  description: "Expected Value as a percentage of stake (EV/stake * 100)"
                 },
               },
-              required: ["ev"],
+              required: ["ev", "evPercentage"],
             },
           },
           required: [
@@ -120,6 +184,7 @@ For each game, you must propose at most one recommended bet (or none) that:
             "betType",
             "line",
             "odds",
+            "confidence",
             "emotionalAlignment",
             "suggestedStakeFraction",
             "suggestedStakeAbsolute",
@@ -134,7 +199,7 @@ For each game, you must propose at most one recommended bet (or none) that:
   }
 
   try {
-    const parsed = await callGeminiAsJson(system, userPrompt, 1200, responseSchema)
+    const parsed = await callGeminiAsJson(system, userPrompt, 2400, responseSchema)
 
     const output: PickerReasoningOutput = {
       recommendations: parsed.recommendations ?? [],

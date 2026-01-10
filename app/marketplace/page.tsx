@@ -131,8 +131,20 @@ export default function MarketplacePage() {
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => (
+      {products.length === 0 ? (
+        <Card className="p-12 text-center">
+          <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-xl font-semibold mb-2">No Products Available</h3>
+          <p className="text-muted-foreground mb-4">
+            The marketplace is currently being set up. Please check back soon or contact support if this issue persists.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Technical note: The ai_marketplace_products table may need to be seeded with products.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
           <Card 
             key={product.id} 
             className={`p-6 flex flex-col transition-all hover:shadow-lg ${
@@ -184,7 +196,8 @@ export default function MarketplacePage() {
             </div>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Info Section */}
       <Card className="mt-8 p-6 bg-muted/50">

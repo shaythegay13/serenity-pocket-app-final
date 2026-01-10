@@ -96,10 +96,13 @@ function getTop3Reasons(pick: any): { icon: any; title: string; explanation: str
 
   // Reason 2: Positive Expected Value
   if (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue > 0) {
+    const evText = typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage)
+      ? `+$${pick.expectedValue.toFixed(2)} (+${pick.evPercentage.toFixed(1)}%)`
+      : `+$${pick.expectedValue.toFixed(2)}`
     reasons.push({
       icon: TrendingUp,
       title: "Positive Expected Value",
-      explanation: `This bet has an expected value of +$${pick.expectedValue.toFixed(2)}, meaning over time, this type of bet should be profitable based on the current odds and win probability.`,
+      explanation: `This bet has an expected value of ${evText}, meaning over time, this type of bet should be profitable based on the current odds and win probability.`,
       priority: pick.expectedValue > 10 ? 3 : pick.expectedValue > 5 ? 2 : 1
     })
   }
@@ -176,12 +179,10 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [marketplaceLoading, setMarketplaceLoading] = useState(false)
   const [marketplacePurchasing, setMarketplacePurchasing] = useState<string | null>(null)
 
-  // Calculate emotional stability when access changes or the user logs a new check-in
+  // Calculate emotional stability for all users (not just paid ones)
   useEffect(() => {
-    if (hasAccess) {
-      calculateUserStability()
-    }
-  }, [hasAccess, userData.lastEmotionCheckIn, userData.surveyData?.score])
+    calculateUserStability()
+  }, [userData.lastEmotionCheckIn, userData.surveyData?.score])
 
   // If coming from Live Odds wanting AI Analyze My Bet, switch to advisor tab
   useEffect(() => {
@@ -191,6 +192,23 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       if (flag) {
         setActiveSection('advisor')
         localStorage.removeItem('aiAdvisorFromLiveOdds')
+        
+        // Check for pre-filled game data
+        const pendingGame = sessionStorage.getItem('pendingBetGame')
+        if (pendingGame) {
+          try {
+            const gameData = JSON.parse(pendingGame)
+            console.log('Pre-filled game data from live scores:', gameData)
+            // Store the game data to be used by TiltLab
+            sessionStorage.setItem('tiltLabPrefillData', pendingGame)
+            // Show toast notification
+            toast.success(`Game pre-filled: ${gameData.awayTeam} @ ${gameData.homeTeam}`, {
+              description: "TiltLab is ready with your selected game"
+            })
+          } catch (e) {
+            console.error('Error parsing pending game data:', e)
+          }
+        }
       }
     } catch {
       // ignore storage errors
@@ -292,8 +310,30 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const calculateUserStability = async () => {
     try {
       const emotionLogs = await storage.getEmotionLogs()
-      const trades = await storage.getTrades()
       const surveyScore = userData.surveyData?.score
+
+      // Get comprehensive bets and transform to Trade format for emotional scoring
+      const comprehensiveBets = await storage.getComprehensiveBets()
+      const trades = comprehensiveBets.map(bet => ({
+        id: bet.id,
+        timestamp: bet.timestamp,
+        title: `${bet.awayTeam} @ ${bet.homeTeam}`,
+        sport: bet.sport,
+        preTradeEmotion: bet.emotions.before.emotion,
+        preTradeIntensity: bet.emotions.before.intensity,
+        biasesIdentified: bet.biasesIdentified,
+        confidenceLevel: bet.confidenceLevel,
+        reasoning: bet.reasoning,
+        outcome: bet.outcome === 'win' ? 'profit' as const : bet.outcome === 'loss' ? 'loss' as const : bet.outcome === 'push' ? 'breakeven' as const : undefined,
+        postTradeEmotion: bet.emotions.after?.emotion,
+        postTradeIntensity: bet.emotions.after?.intensity,
+        reflection: bet.emotions.after?.reflection,
+        stake: bet.stake,
+        odds: bet.odds,
+        actualReturn: bet.actualReturn,
+        status: bet.outcome === 'pending' ? 'pending' as const : 'settled' as const,
+        result: bet.outcome === 'win' ? 'win' as const : bet.outcome === 'loss' ? 'loss' as const : bet.outcome === 'push' ? 'push' as const : undefined
+      }))
 
       const stability = calculateEmotionalStability(emotionLogs, surveyScore, trades)
       setEmotionalStability(stability)
@@ -350,30 +390,49 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       }
 
       console.log('AI Picks: Making fetch request to /api/picker/recommend')
-      const response = await fetch('/api/picker/recommend', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          sport: selectedSport,
-          emotionalScore: emotionalStability.score,
-          riskTolerance
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        console.log('AI Picks: Request timeout, aborting...')
+        controller.abort()
+      }, 60000) // Increased timeout to 60 seconds for AI analysis + ML predictions
+      
+      let response: Response
+      try {
+        response = await fetch('/api/picker/recommend', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            sport: selectedSport,
+            emotionalScore: emotionalStability.score,
+            riskTolerance
+          }),
+          signal: controller.signal,
         })
-      })
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Request timed out. The AI analysis is taking longer than expected. Please try again.')
+        }
+        throw error
+      } finally {
+        clearTimeout(timeoutId)
+      }
       console.log('AI Picks: Fetch completed, status:', response.status)
 
       let responseData: any = null
       try {
         responseData = await response.json()
+        console.log('AI Picks: Response JSON parsed successfully')
       } catch (e) {
         console.warn('AI Picks: Failed to parse JSON response', e)
       }
 
       if (!response.ok) {
+        console.log('AI Picks: Response not OK, handling error')
         // Handle usage-limit / access errors (403) more gracefully
-        if (response.status === 403 && responseData) {
+        if (response.status === 403 && responseData && (responseData.error || responseData.usage_limit_reached || responseData.upgrade_required)) {
           console.error('AI Picks: Usage or access error:', responseData)
           const description =
             responseData.error ||
@@ -388,27 +447,35 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               description: 'You can purchase additional AI credits in the marketplace.',
             })
           }
+          // Reset loading states before returning
+          setLoading(false)
+          setIsFetchingPicks(false)
+          setLastPicksFetchAt(now)
+          // Don't throw error for handled 403 cases
+          return
         } else {
           console.error('AI Picks: API error:', responseData || response.statusText)
+          throw new Error(`Failed to fetch AI picks: ${response.status}`)
         }
-
-        throw new Error(`Failed to fetch AI picks: ${response.status}`)
       }
 
       const data = responseData as any
       console.log('AI Picks: Response data:', data)
 
       if (!data.shouldBet) {
+        console.log('AI Picks: shouldBet is false, showing warning')
         toast.warning('Emotional Stability Check', {
           description: data.message
         })
         setPicks([])
       } else {
+        console.log('AI Picks: shouldBet is true, processing recommendations')
         const recs = data.recommendations || []
         const probsByGameId = (data.probsByGameId || {}) as Record<
           string,
           { pLoss?: number; pPush?: number; pWin?: number }
         >
+        console.log('AI Picks: Processing', recs.length, 'recommendations')
 
         const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
         const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
@@ -433,20 +500,63 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           suggestedStake: rec.suggestedStakeAbsolute ?? 0,
           riskLevel: rec.riskLevel || 'MEDIUM',
           emotionalAlignment: (() => {
-            if (typeof rec.emotionalAlignment === 'number' && Number.isFinite(rec.emotionalAlignment)) {
-              return clampPct(rec.emotionalAlignment)
+            // Debug logging
+            console.log('AI Picks: Emotional alignment data', {
+              recAlignment: rec.emotionalAlignment,
+              emotionalScore: data.emotionalScore,
+              recData: rec
+            })
+
+            // Try API-returned emotional alignment first
+            if (typeof rec.emotionalAlignment === 'number' && Number.isFinite(rec.emotionalAlignment) && rec.emotionalAlignment > 0) {
+              const aligned = clampPct(rec.emotionalAlignment)
+              console.log('AI Picks: Using rec.emotionalAlignment:', aligned)
+              return aligned
             }
-            if (typeof data.emotionalScore === 'number' && Number.isFinite(data.emotionalScore)) {
-              return clampPct(data.emotionalScore)
+
+            // Try the emotional score passed to API
+            if (typeof data.emotionalScore === 'number' && Number.isFinite(data.emotionalScore) && data.emotionalScore > 0) {
+              const aligned = clampPct(data.emotionalScore)
+              console.log('AI Picks: Using data.emotionalScore:', aligned)
+              return aligned
             }
-            return 0
+
+            // Try to get emotional score from userData if available
+            if (typeof userData.emotionalStability?.score === 'number' && userData.emotionalStability.score > 0) {
+              const aligned = clampPct(userData.emotionalStability.score)
+              console.log('AI Picks: Using userData.emotionalStability.score:', aligned)
+              return aligned
+            }
+
+            // Fallback to a reasonable default instead of 0
+            console.log('AI Picks: Using fallback emotional alignment: 75')
+            return 75
           })(),
           reasoning: rec.shortExplanation || '',
           commenceTime: rec.startTime,
           expectedValue: (() => {
+            // Try to use EV from API response first (from numericRisk.ev)
+            if (rec.numericRisk && typeof rec.numericRisk.ev === 'number' && Number.isFinite(rec.numericRisk.ev)) {
+              console.log('AI Picks: Using EV from API response:', rec.numericRisk.ev)
+              return rec.numericRisk.ev
+            }
+
+            // Fallback to calculating EV if not provided
             const odds = Number(rec.odds)
-            const stake = Number(rec.suggestedStakeAbsolute ?? 0) || 0
-            if (!Number.isFinite(odds) || odds === 0) return 0
+            const stake = Number(rec.suggestedStakeAbsolute ?? 0)
+
+            // Debug logging
+            console.log('AI Picks: EV calculation data', {
+              odds,
+              stake,
+              suggestedStakeAbsolute: rec.suggestedStakeAbsolute,
+              rec
+            })
+
+            if (!Number.isFinite(odds) || odds === 0 || stake <= 0) {
+              console.log('AI Picks: EV calculation returning 0 - invalid odds or stake')
+              return 0
+            }
 
             const gameId = rec.gameId ? String(rec.gameId) : undefined
             const probs = gameId ? probsByGameId[gameId] : undefined
@@ -462,37 +572,77 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               const pPush = clamp01(Number(probs.pPush ?? 0))
 
               if (side === "home") {
-                return computeExpectedValueDollars({
-                  stake: stake || 100,
+                const ev = computeExpectedValueDollars({
+                  stake,
                   odds,
                   pWin: pWinHome,
                   pLoss: clamp01(1 - pWinHome - pPush),
                   pPush,
                 })
+                console.log('AI Picks: EV calculated (home side):', ev)
+                return ev
               }
               if (side === "away") {
-                return computeExpectedValueDollars({
-                  stake: stake || 100,
+                const ev = computeExpectedValueDollars({
+                  stake,
                   odds,
                   pWin: pWinAway,
                   pLoss: clamp01(1 - pWinAway - pPush),
                   pPush,
                 })
+                console.log('AI Picks: EV calculated (away side):', ev)
+                return ev
               }
             }
 
             const implied = odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
             const pWin = clamp01(implied)
             const pLoss = clamp01(1 - pWin)
-            return computeExpectedValueDollars({
-              stake: stake || 100,
+            const ev = computeExpectedValueDollars({
+              stake,
               odds,
               pWin,
               pLoss,
             })
+            console.log('AI Picks: EV calculated (implied probability):', ev)
+            return ev
+          })(),
+          evPercentage: (() => {
+            // Try to use evPercentage from API response first (from numericRisk.evPercentage)
+            if (rec.numericRisk && typeof rec.numericRisk.evPercentage === 'number' && Number.isFinite(rec.numericRisk.evPercentage)) {
+              console.log('AI Picks: Using evPercentage from API response:', rec.numericRisk.evPercentage)
+              return rec.numericRisk.evPercentage
+            }
+
+            // Fallback to calculating evPercentage if not provided
+            const stake = Number(rec.suggestedStakeAbsolute ?? 0)
+            if (stake <= 0) {
+              console.log('AI Picks: evPercentage calculation returning 0 - invalid stake')
+              return 0
+            }
+
+            // Use the EV we already calculated or will calculate
+            let ev = 0
+            if (rec.numericRisk && typeof rec.numericRisk.ev === 'number' && Number.isFinite(rec.numericRisk.ev)) {
+              ev = rec.numericRisk.ev
+            } else {
+              // Recalculate EV for percentage calculation
+              const odds = Number(rec.odds)
+              if (Number.isFinite(odds) && odds !== 0) {
+                const implied = odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
+                const pWin = clamp01(implied)
+                const pLoss = clamp01(1 - pWin)
+                ev = computeExpectedValueDollars({ stake, odds, pWin, pLoss })
+              }
+            }
+
+            const evPct = (ev / stake) * 100
+            console.log('AI Picks: Calculated evPercentage:', evPct)
+            return evPct
           })(),
         }))
 
+        console.log('AI Picks: Mapped picks created, setting picks state')
         setPicks(mappedPicks)
         if (mappedPicks.length > 0) {
           console.log(`AI Picks: Loaded ${mappedPicks.length} picks`)
@@ -503,18 +653,21 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             })
           }
         } else {
-          console.log('AI Picks: No picks available')
+          console.log('AI Picks: No picks available after mapping')
           toast.info('No Picks Available', {
             description: data.message || 'No games available for this sport at the moment.'
           })
         }
       }
     } catch (error) {
-      console.error('Error fetching AI picks:', error)
+      console.error('AI Picks: Error in fetchAIPicks:', error)
 
       // Provide more specific error messages
       let errorMessage = 'Please try again'
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      const isAbort = (error as any)?.name === 'AbortError'
+      if (isAbort) {
+        errorMessage = 'SmartSlip timed out. Please try again in a moment.'
+      } else if (error instanceof TypeError && error.message === 'Failed to fetch') {
         errorMessage = 'Unable to connect to the server. Check your internet connection or try restarting the dev server.'
         console.error('AI Picks: Network error - server may not be running or unreachable')
       } else if (error instanceof Error) {
@@ -526,6 +679,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       })
       setPicks([])
     } finally {
+      console.log('AI Picks: Reached finally block, clearing loading states')
       setLoading(false)
       setIsFetchingPicks(false)
       setLastPicksFetchAt(now)
@@ -764,20 +918,28 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <Brain className="h-5 w-5 text-purple-500" />
-              Your Current State
+              Your Emotional State
             </h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                calculateUserStability()
-                fetchAIPicks()
-              }}
-              disabled={loading || cooldown || isFetchingPicks}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            {hasAccess ? (
+              <Button
+                onClick={() => {
+                  calculateUserStability()
+                  fetchAIPicks()
+                }}
+                variant="outline"
+                size="sm"
+                className="bg-background/50 hover:bg-background/80"
+                disabled={loading || cooldown || isFetchingPicks}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            ) : (
+              <Badge variant="secondary" className="text-xs">
+                <Lock className="h-3 w-3 mr-1" />
+                Upgrade to refresh
+              </Badge>
+            )}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -817,6 +979,21 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <p className="text-sm text-muted-foreground">{emotionalStability.recommendation}</p>
             </div>
           </div>
+          
+          {!hasAccess && (
+            <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Want AI Picks?</p>
+                  <p className="text-xs text-muted-foreground">Upgrade to get personalized betting recommendations</p>
+                </div>
+                <Button size="sm" onClick={() => setActiveSection('marketplace')}>
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Upgrade
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -905,9 +1082,16 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Expected Value:</span>
-                  <span className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {pick.expectedValue >= 0 ? '+' : ''}${pick.expectedValue.toFixed(2)}
-                  </span>
+                  <div className="text-right">
+                    <span className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {pick.expectedValue >= 0 ? '+' : ''}${pick.expectedValue.toFixed(2)}
+                    </span>
+                    {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
+                      <span className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ({pick.evPercentage >= 0 ? '+' : ''}{pick.evPercentage.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (

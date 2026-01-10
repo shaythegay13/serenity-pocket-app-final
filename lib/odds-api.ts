@@ -139,7 +139,7 @@ export async function fetchLiveOdds(sport: string = 'upcoming'): Promise<LiveOdd
     const params = new URLSearchParams({
       apiKey: apiKey,
       regions: 'us',
-      markets: 'h2h,spreads',
+      markets: 'h2h,spreads,totals',
       oddsFormat: 'american',
       dateFormat: 'iso'
     })
@@ -223,32 +223,83 @@ export async function fetchAvailableSports() {
 
 /**
  * Transform odds data for display in the app
+ * Now extracts moneyline, spreads, and totals
  */
 export function transformOddsForDisplay(oddsData: OddsData[]) {
   return oddsData.map(game => {
-    // Find best odds across all bookmakers
-    const allOdds = game.bookmakers.flatMap(bookmaker =>
-      bookmaker.markets.flatMap(market =>
-        market.outcomes.map(outcome => ({
-          bookmaker: bookmaker.title,
-          team: outcome.name,
-          odds: outcome.price
-        }))
-      )
+    // Extract moneyline odds (h2h market)
+    const h2hMarkets = game.bookmakers.flatMap(bookmaker =>
+      bookmaker.markets
+        .filter(market => market.key === 'h2h')
+        .flatMap(market =>
+          market.outcomes.map(outcome => ({
+            bookmaker: bookmaker.title,
+            team: outcome.name,
+            odds: outcome.price
+          }))
+        )
     )
 
-    // Group by team
-    const homeOdds = allOdds.filter(o => o.team === game.home_team)
-    const awayOdds = allOdds.filter(o => o.team === game.away_team)
+    const homeMoneyline = h2hMarkets.filter(o => o.team === game.home_team)
+    const awayMoneyline = h2hMarkets.filter(o => o.team === game.away_team)
 
-    // Find best odds for each team
-    const bestHomeOdds = homeOdds.reduce((best, current) =>
-      current.odds > best.odds ? current : best
-    , homeOdds[0])
+    const bestHomeMoneyline = homeMoneyline.length > 0
+      ? homeMoneyline.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
 
-    const bestAwayOdds = awayOdds.reduce((best, current) =>
-      current.odds > best.odds ? current : best
-    , awayOdds[0])
+    const bestAwayMoneyline = awayMoneyline.length > 0
+      ? awayMoneyline.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
+
+    // Extract spread odds
+    const spreadMarkets = game.bookmakers.flatMap(bookmaker =>
+      bookmaker.markets
+        .filter(market => market.key === 'spreads')
+        .flatMap(market =>
+          market.outcomes.map(outcome => ({
+            bookmaker: bookmaker.title,
+            team: outcome.name,
+            odds: outcome.price,
+            point: (outcome as any).point || 0
+          }))
+        )
+    )
+
+    const homeSpreads = spreadMarkets.filter(o => o.team === game.home_team)
+    const awaySpreads = spreadMarkets.filter(o => o.team === game.away_team)
+
+    const bestHomeSpread = homeSpreads.length > 0
+      ? homeSpreads.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
+
+    const bestAwaySpread = awaySpreads.length > 0
+      ? awaySpreads.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
+
+    // Extract totals (over/under)
+    const totalsMarkets = game.bookmakers.flatMap(bookmaker =>
+      bookmaker.markets
+        .filter(market => market.key === 'totals')
+        .flatMap(market =>
+          market.outcomes.map(outcome => ({
+            bookmaker: bookmaker.title,
+            type: outcome.name, // "Over" or "Under"
+            odds: outcome.price,
+            point: (outcome as any).point || 0
+          }))
+        )
+    )
+
+    const overs = totalsMarkets.filter(o => o.type === 'Over')
+    const unders = totalsMarkets.filter(o => o.type === 'Under')
+
+    const bestOver = overs.length > 0
+      ? overs.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
+
+    const bestUnder = unders.length > 0
+      ? unders.reduce((best, current) => current.odds > best.odds ? current : best)
+      : undefined
 
     return {
       id: game.id,
@@ -257,14 +308,49 @@ export function transformOddsForDisplay(oddsData: OddsData[]) {
       homeTeam: game.home_team,
       awayTeam: game.away_team,
       commenceTime: new Date(game.commence_time),
-      homeOdds: {
-        best: bestHomeOdds,
-        all: homeOdds
-      },
-      awayOdds: {
-        best: bestAwayOdds,
-        all: awayOdds
-      },
+      // Moneyline odds
+      homeOdds: bestHomeMoneyline ? {
+        best: bestHomeMoneyline,
+        all: homeMoneyline
+      } : undefined,
+      awayOdds: bestAwayMoneyline ? {
+        best: bestAwayMoneyline,
+        all: awayMoneyline
+      } : undefined,
+      // Spread odds
+      homeSpread: bestHomeSpread ? {
+        best: {
+          bookmaker: bestHomeSpread.bookmaker,
+          odds: bestHomeSpread.odds,
+          line: bestHomeSpread.point
+        },
+        all: homeSpreads
+      } : undefined,
+      awaySpread: bestAwaySpread ? {
+        best: {
+          bookmaker: bestAwaySpread.bookmaker,
+          odds: bestAwaySpread.odds,
+          line: bestAwaySpread.point
+        },
+        all: awaySpreads
+      } : undefined,
+      // Totals
+      overLine: bestOver ? {
+        best: {
+          bookmaker: bestOver.bookmaker,
+          odds: bestOver.odds,
+          line: bestOver.point
+        },
+        all: overs
+      } : undefined,
+      underLine: bestUnder ? {
+        best: {
+          bookmaker: bestUnder.bookmaker,
+          odds: bestUnder.odds,
+          line: bestUnder.point
+        },
+        all: unders
+      } : undefined,
       bookmakers: game.bookmakers.map(b => b.title)
     }
   })

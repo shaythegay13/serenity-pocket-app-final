@@ -36,6 +36,67 @@ function mapLeagueToSport(league: string): string {
   return mapping[league] || league.toLowerCase();
 }
 
+/**
+ * Filter games to only include those matching the requested sport
+ * This is a safety measure to prevent cross-sport contamination
+ */
+function filterGamesBySport(games: any[], requestedSport: string): any[] {
+  const expectedLeague = mapSportToLeague(requestedSport);
+
+  // Map of sport variations for more flexible matching
+  const sportVariations: Record<string, string[]> = {
+    'americanfootball_nfl': ['NFL', 'AMERICAN_FOOTBALL', 'AMERICANFOOTBALL', 'FOOTBALL'],
+    'basketball_nba': ['NBA', 'BASKETBALL'],
+    'baseball_mlb': ['MLB', 'BASEBALL'],
+    'icehockey_nhl': ['NHL', 'ICE_HOCKEY', 'ICEHOCKEY', 'HOCKEY']
+  };
+
+  const allowedVariations = sportVariations[requestedSport] || [expectedLeague];
+
+  return games.filter(game => {
+    // Check both the sport field and sportKey field
+    const gameSport = (game.sport || game.sportKey || '');
+
+    // If no sport data, trust the API filtering and keep the game
+    if (!gameSport) {
+      console.log(`ℹ️ Keeping game with no sport data: ${game.awayTeam} @ ${game.homeTeam} (trusting API filter)`);
+      return true;
+    }
+
+    const gameSportStr = gameSport.toString();
+    const gameSportUpper = gameSportStr.toUpperCase();
+
+    // Exact match on sport key (e.g., "americanfootball_nfl")
+    if (gameSportStr === requestedSport) {
+      return true;
+    }
+
+    // Match by any of the allowed variations
+    for (const variation of allowedVariations) {
+      if (gameSportUpper.includes(variation)) {
+        return true;
+      }
+    }
+
+    // Check if this is a different major sport (cross-contamination)
+    const otherSports = ['NFL', 'NBA', 'MLB', 'NHL', 'AMERICAN_FOOTBALL', 'BASKETBALL', 'BASEBALL', 'ICE_HOCKEY'];
+    const isDefinitelyWrongSport = otherSports.some(sport =>
+      sport !== expectedLeague &&
+      !allowedVariations.includes(sport) &&
+      gameSportUpper.includes(sport)
+    );
+
+    if (isDefinitelyWrongSport) {
+      console.log(`🚫 Filtering out game from wrong sport: ${game.awayTeam} @ ${game.homeTeam} (sport: "${gameSportStr}", expected: ${requestedSport})`);
+      return false;
+    }
+
+    // If we can't determine it's wrong, keep it (trust the API)
+    console.log(`⚠️ Uncertain sport match, keeping: ${game.awayTeam} @ ${game.homeTeam} (sport: "${gameSportStr}", expected: ${requestedSport})`);
+    return true;
+  });
+}
+
 type SportLeague = 'NFL' | 'NBA' | 'MLB' | 'NHL';
 type AdvantageOpportunity = any; // Placeholder
 
@@ -171,6 +232,79 @@ export async function fetchEnhancedLiveOdds(
 }
 
 /**
+ * Normalize RapidAPI data structure to match The Odds API format
+ * This ensures the picker route can extract spread and total data correctly
+ */
+function normalizeRapidAPIData(games: any[]): any[] {
+  return games.map(game => {
+    // If the game already has The Odds API format, return as-is
+    if (game.homeSpread || game.overLine) {
+      return game;
+    }
+
+    // Convert RapidAPI format to The Odds API format
+    const normalized: any = {
+      ...game,
+    };
+
+    // Convert spread data: spread.home/away → homeSpread/awaySpread
+    if (game.spread) {
+      if (game.spread.home) {
+        normalized.homeSpread = {
+          best: {
+            bookmaker: game.spread.home.best?.bookmaker || 'Unknown',
+            odds: game.spread.home.best?.odds,
+            line: game.spread.home.line
+          },
+          all: game.spread.home.all || []
+        };
+      }
+      if (game.spread.away) {
+        normalized.awaySpread = {
+          best: {
+            bookmaker: game.spread.away.best?.bookmaker || 'Unknown',
+            odds: game.spread.away.best?.odds,
+            line: game.spread.away.line
+          },
+          all: game.spread.away.all || []
+        };
+      }
+    }
+
+    // Convert totals data: totals.over/under → overLine/underLine
+    if (game.totals) {
+      if (game.totals.over) {
+        normalized.overLine = {
+          best: {
+            bookmaker: game.totals.over.best?.bookmaker || 'Unknown',
+            odds: game.totals.over.best?.odds,
+            line: game.totals.over.line
+          },
+          all: game.totals.over.all || []
+        };
+      }
+      if (game.totals.under) {
+        normalized.underLine = {
+          best: {
+            bookmaker: game.totals.under.best?.bookmaker || 'Unknown',
+            odds: game.totals.under.best?.odds,
+            line: game.totals.under.line
+          },
+          all: game.totals.under.all || []
+        };
+      }
+    }
+
+    console.log(`🔄 Normalized RapidAPI game: ${game.awayTeam} @ ${game.homeTeam}`, {
+      hasSpread: !!normalized.homeSpread,
+      hasTotals: !!normalized.overLine
+    });
+
+    return normalized;
+  });
+}
+
+/**
  * Fetch from RapidAPI Sportsbook only
  * Uses the new sportsbook-api-v2 implementation
  */
@@ -190,9 +324,27 @@ async function fetchFromRapidAPI(sport: string): Promise<EnhancedOddsResponse> {
 
     console.log(`✅ RapidAPI Sportsbook success - ${response.data.length} games`);
 
+    // Apply strict sport filtering to ensure no cross-contamination
+    const filteredData = filterGamesBySport(response.data, sport);
+    console.log(`✅ After sport filtering: ${filteredData.length} games remain for ${sport}`);
+
+    if (filteredData.length === 0) {
+      console.warn('⚠️ RapidAPI Sportsbook returned data but all games were filtered out');
+      return {
+        success: false,
+        data: [],
+        source: 'mock',
+        error: 'No games available after sport filtering'
+      };
+    }
+
+    // Normalize RapidAPI data to match The Odds API structure
+    const normalizedData = normalizeRapidAPIData(filteredData);
+    console.log(`🔄 Normalized ${normalizedData.length} RapidAPI games to The Odds API format`);
+
     return {
       success: true,
-      data: response.data,
+      data: normalizedData,
       source: 'rapidapi',
       remainingRequests: {
         rapidapi: response.remainingRequests
@@ -279,9 +431,24 @@ async function fetchFromTheOddsAPI(sport: string): Promise<EnhancedOddsResponse>
     // Use the same rich format that LiveOddsTab expects
     const transformed = transformOddsForDisplay(dataArray as OddsData[]);
 
+    // Apply strict sport filtering to ensure no cross-contamination
+    const filteredData = filterGamesBySport(transformed, sport);
+    console.log(`✅ The Odds API: After sport filtering, ${filteredData.length} games remain for ${sport}`);
+
+    if (filteredData.length === 0) {
+      console.warn('⚠️ The Odds API returned data but all games were filtered out');
+      return {
+        success: false,
+        data: [],
+        source: 'mock',
+        error: 'No games available after sport filtering',
+        remainingRequests: oddsResponse.remainingRequests ? { theodds: oddsResponse.remainingRequests } : undefined
+      };
+    }
+
     return {
       success: true,
-      data: transformed,
+      data: filteredData,
       source: 'theodds',
       remainingRequests: oddsResponse.remainingRequests ? { theodds: oddsResponse.remainingRequests } : undefined
     };

@@ -600,31 +600,15 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
       const recentEmotions = await storage.getEmotionLogs()
       const lastEmotion = recentEmotions[recentEmotions.length - 1]
 
-      // Create bet analysis object
-      const analysisId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      const betAnalysis: BetAnalysis = {
-        id: analysisId,
-        timestamp: new Date(),
-        betType: "straight", // Default to straight bet
-        sport: "Unknown", // Would be extracted from bet description in real implementation
-        description: betDescription,
-        odds: parseFloat(odds) || 0,
-        stake: parseFloat(stake) || 0,
-        emotionalState: lastEmotion?.emotion || "neutral",
-        emotionalIntensity: lastEmotion?.intensity || 5,
-        biasWarnings: hasPsychAccess ? analysis.biasWarnings : [],
-        aiRecommendation: analysis.recommendation,
-        expectedValue: analysis.expectedValue,
-        probabilityEstimate: analysis.probability,
-        outcome: "pending",
-      }
-
-      // Save to storage (will sync to database if user is logged in)
-      // @ts-ignore - Method added dynamically to storageHybrid
-      await storage.addBetAnalysis(betAnalysis)
+      // Save using the new BetTrackingService which creates a ComprehensiveBet
+      await BetTrackingService.saveBetAnalyzerBet(
+        betDescription,
+        parseFloat(odds) || 0,
+        parseFloat(stake) || 0,
+        analysis,
+        lastEmotion?.emotion,
+        lastEmotion?.intensity
+      )
       
       setSaved(true)
       setDailyBetCount((c) => c + 1)
@@ -796,7 +780,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
               <Button
                 onClick={handleAnalyze}
                 disabled={analyzing || !betDescription || !odds || !stake || isGuardActive}
-                className="w-full h-12 text-base font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="w-full h-12 text-base font-medium bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 size="lg"
               >
                 {analyzing ? (
@@ -1176,7 +1160,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
             </Card>
 
             {/* Recommended Action */}
-            <Card className="p-6 border-0 shadow-lg bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20">
+            <Card className="p-6 border-0 shadow-lg bg-linear-to-br from-green-500/10 to-emerald-500/10 border-green-500/20">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
                   <Target className="h-5 w-5 text-green-600" />

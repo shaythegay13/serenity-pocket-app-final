@@ -195,25 +195,48 @@ export function GameCard({
     e.stopPropagation() // Prevent card click
     console.log('Bet button clicked!', { game, subscriptionTier })
     
-    // Always navigate to TiltLab with game information
+    // Map internal sport keys to human-readable names
+    const sportNames: Record<string, string> = {
+      'basketball_nba': 'NBA',
+      'americanfootball_nfl': 'NFL',
+      'baseball_mlb': 'MLB',
+      'icehockey_nhl': 'NHL'
+    }
+    
+    // Create comprehensive game data for TiltLab
     const gameData = {
       awayTeam: game.awayTeam,
       homeTeam: game.homeTeam,
       sport: game.sport,
+      sportName: sportNames[game.sport] || game.sport.replace(/_/g, ' ').toUpperCase(),
       odds: game.moneyline || {
         home: game.spread || 0,
         away: game.spread ? -(game.spread) : 0
       },
       commenceTime: game.gameTime,
+      // Add team records (placeholder - should be fetched from API)
+      homeRecord: "0-0", // TODO: Fetch actual team records
+      awayRecord: "0-0", // TODO: Fetch actual team records
       source: 'game-card' // Track where this came from
     }
     
+    // Store in both sessionStorage and localStorage for compatibility
     sessionStorage.setItem('pendingBetGame', JSON.stringify(gameData))
+    localStorage.setItem('pendingBetAnalysis', JSON.stringify({
+      sport: gameData.sport,
+      homeTeam: gameData.homeTeam,
+      awayTeam: gameData.awayTeam,
+      homeRecord: gameData.homeRecord,
+      awayRecord: gameData.awayRecord,
+      bestHomeOdds: gameData.odds.home,
+      bestAwayOdds: gameData.odds.away,
+      defaultStake: 50,
+      sportName: gameData.sportName
+    }))
     localStorage.setItem('aiAdvisorFromLiveOdds', 'true') // Use existing flag
     
     // Navigate to AI Picks tab
     window.location.href = "/?tab=ai-picks"
-    alert(`Opening TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
     
     if (onBetClick) {
       onBetClick(game)
@@ -362,10 +385,10 @@ export function GameCard({
         <div className="mt-4 pt-4 border-t border-white/10">
           <button
             onClick={handleBetClick}
-            className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+            className="w-full bg-linear-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
             style={{ minHeight: '48px', padding: '16px 24px' }}
           >
-            <TrendingUp className="h-5 w-5 flex-shrink-0" />
+            <TrendingUp className="h-5 w-5 shrink-0" />
             <span className="font-semibold">Bet on This Game</span>
           </button>
         </div>

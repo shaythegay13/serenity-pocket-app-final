@@ -41,7 +41,6 @@ export const storageHybrid: {
   // Comprehensive Bet Operations
   getComprehensiveBets(): Promise<ComprehensiveBet[]>
   addComprehensiveBet(bet: ComprehensiveBet): Promise<void>
-  saveComprehensiveBets(bets: ComprehensiveBet[]): Promise<void>
   updateComprehensiveBet(updated: ComprehensiveBet): Promise<void>
   
   // Trade Operations
@@ -98,27 +97,144 @@ export const storageHybrid: {
 
   // Bet Analyses Operations
   async getBetAnalyses(): Promise<BetAnalysis[]> {
-    if (typeof window === "undefined") return []
-    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
-    return data ? JSON.parse(data) : []
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from("bet_analyses")
+          .select("*")
+          .eq("user_id", userId)
+          .order("timestamp", { ascending: false })
+          .limit(1000)
+
+        if (data && !error) {
+          return data.map((row: any) => ({
+            id: row.id,
+            timestamp: new Date(row.timestamp),
+            betType: row.bet_type,
+            sport: row.sport,
+            description: row.description,
+            odds: row.odds,
+            stake: row.stake,
+            emotionalState: row.emotional_state,
+            emotionalIntensity: row.emotional_intensity,
+            biasWarnings: row.bias_warnings || [],
+            aiRecommendation: row.ai_recommendation,
+            expectedValue: row.expected_value,
+            probabilityEstimate: row.probability_estimate,
+            outcome: row.outcome,
+            actualReturn: row.actual_return,
+          }))
+        }
+      } catch (error) {
+        console.error("Error fetching bet analyses:", error)
+      }
+    }
+
+    // Fallback to localStorage
+    if (typeof window !== "undefined") {
+      const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
+      return data ? JSON.parse(data, (key, value) => {
+        if (key === 'timestamp') return new Date(value)
+        return value
+      }) : []
+    }
+
+    return []
   },
 
-  async addBetAnalysis(bet: BetAnalysis): Promise<void> {
-    if (typeof window === "undefined") return
-    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
-    const list: BetAnalysis[] = data ? JSON.parse(data) : []
-    list.push(bet)
-    localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(list))
+  async addBetAnalysis(analysis: BetAnalysis): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    console.log('addBetAnalysis: userId =', userId)
+
+    if (userId) {
+      try {
+        const payload = {
+          id: analysis.id,
+          user_id: userId,
+          bet_type: analysis.betType,
+          sport: analysis.sport,
+          description: analysis.description,
+          odds: analysis.odds,
+          stake: analysis.stake,
+          emotional_state: analysis.emotionalState,
+          emotional_intensity: analysis.emotionalIntensity,
+          bias_warnings: analysis.biasWarnings,
+          ai_recommendation: analysis.aiRecommendation,
+          expected_value: analysis.expectedValue,
+          probability_estimate: analysis.probabilityEstimate,
+          outcome: analysis.outcome,
+          actual_return: analysis.actualReturn,
+          timestamp: analysis.timestamp.toISOString(),
+        }
+
+        console.log('addBetAnalysis: Attempting insert with payload:', JSON.stringify(payload, null, 2))
+
+        const { data, error, status, statusText } = await supabase
+          .from("bet_analyses")
+          .insert(payload)
+          .select()
+
+        if (error) {
+          console.error("Error saving bet analysis to Supabase:", {
+            status,
+            statusText,
+            error,
+            message: (error as any)?.message,
+          })
+        } else {
+          console.log('✅ Successfully saved bet analysis to Supabase:', data)
+        }
+      } catch (error) {
+        console.error("Exception while saving bet analysis:", error)
+      }
+    } else {
+      console.warn('⚠️ No user ID found, skipping Supabase insert. Saving to localStorage only.')
+    }
+
+    // Also save to localStorage as backup
+    if (typeof window !== "undefined") {
+      const analyses = JSON.parse(localStorage.getItem(STORAGE_KEYS.BET_ANALYSES) || "[]")
+      analyses.push(analysis)
+      // Keep only last 50 analyses
+      const trimmed = analyses.slice(-50)
+      localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(trimmed))
+    }
   },
 
-  async updateBetAnalysis(updated: BetAnalysis): Promise<void> {
-    if (typeof window === "undefined") return
-    const data = localStorage.getItem(STORAGE_KEYS.BET_ANALYSES)
-    const list: BetAnalysis[] = data ? JSON.parse(data) : []
-    const idx = list.findIndex(b => b.id === updated.id)
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], ...updated }
-      localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(list))
+  async updateBetAnalysis(analysis: BetAnalysis): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId && analysis.id) {
+      try {
+        const { error } = await supabase
+          .from("bet_analyses")
+          .update({
+            outcome: analysis.outcome,
+            actual_return: analysis.actualReturn,
+            stake: analysis.stake,
+          })
+          .eq("id", analysis.id)
+          .eq("user_id", userId)
+
+        if (error) {
+          console.error("Error updating bet analysis:", error)
+        }
+      } catch (error) {
+        console.error("Error updating bet analysis:", error)
+      }
+    }
+
+    // Also update in localStorage
+    if (typeof window !== "undefined") {
+      const analyses = JSON.parse(localStorage.getItem(STORAGE_KEYS.BET_ANALYSES) || "[]")
+      const index = analyses.findIndex((a: BetAnalysis) => a.id === analysis.id)
+      if (index !== -1) {
+        analyses[index] = analysis
+        localStorage.setItem(STORAGE_KEYS.BET_ANALYSES, JSON.stringify(analyses))
+      }
     }
   },
 
@@ -343,6 +459,7 @@ export const storageHybrid: {
         ethnicity: data.ethnicity,
         bettingFrequency: data.betting_frequency,
         typicalBetAmount: data.typical_bet_amount,
+        surveyData: data.survey_data, // Add survey data from database
       }
 
       // Merge local cached preferences (e.g., safety settings) if present
@@ -1095,7 +1212,7 @@ export const storageHybrid: {
     return data ? JSON.parse(data) : getDefaultAchievements()
   },
 
-  async setAchievements(achievements: Achievement[]): Promise<void> {
+  async updateAchievements(achievements: Achievement[]): Promise<void> {
     const userId = await this.getCurrentUserId()
 
     if (userId) {
@@ -1229,7 +1346,7 @@ export const storageHybrid: {
     return challenges
   },
 
-  async setChallenges(challenges: Challenge[]): Promise<void> {
+  async updateChallenges(challenges: Challenge[]): Promise<void> {
     const userId = await this.getCurrentUserId()
 
     if (userId) {
@@ -1302,6 +1419,258 @@ export const storageHybrid: {
       localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, date.toISOString())
     }
   },
+
+  // Comprehensive Bet Tracking Methods
+  async getComprehensiveBets(): Promise<ComprehensiveBet[]> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from("comprehensive_bets")
+          .select("*")
+          .eq("user_id", userId)
+          .order("timestamp", { ascending: false })
+          .limit(1000)
+
+        if (data && !error) {
+          return data.map((row: any) => ({
+            id: row.id,
+            timestamp: new Date(row.timestamp),
+            sport: row.sport,
+            league: row.league,
+            homeTeam: row.home_team,
+            awayTeam: row.away_team,
+            gameDate: new Date(row.game_date),
+            betType: row.bet_type,
+            selection: row.selection,
+            line: row.line,
+            odds: row.odds,
+            stake: row.stake,
+            emotions: {
+              before: row.emotions?.before ? {
+                ...row.emotions.before,
+                timestamp: new Date(row.emotions.before.timestamp)
+              } : { emotion: "", intensity: 0, timestamp: new Date() },
+              during: row.emotions?.during ? {
+                ...row.emotions.during,
+                timestamp: new Date(row.emotions.during.timestamp)
+              } : undefined,
+              after: row.emotions?.after ? {
+                ...row.emotions.after,
+                timestamp: new Date(row.emotions.after.timestamp)
+              } : { emotion: "", intensity: 0, timestamp: new Date() }
+            },
+            biasesIdentified: row.biases_identified || [],
+            confidenceLevel: row.confidence_level,
+            reasoning: row.reasoning,
+            isLiveBet: row.is_live_bet,
+            isChasingLoss: row.is_chasing_loss,
+            isFavoriteTeam: row.is_favorite_team,
+            outcome: row.outcome,
+            actualReturn: row.actual_return,
+            profitLoss: row.profit_loss,
+            aiRecommendation: row.ai_recommendation,
+            expectedValue: row.expected_value,
+            probabilityEstimate: row.probability_estimate,
+            riskLevel: row.risk_level,
+            source: row.source,
+            sportsbook: row.sportsbook,
+            completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+          }))
+        }
+      } catch (error) {
+        console.error("Error fetching comprehensive bets:", error)
+      }
+    }
+
+    if (typeof window === "undefined") return []
+    
+    const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+    if (!data) return []
+
+    try {
+      return JSON.parse(data).map((bet: any) => ({
+        ...bet,
+        timestamp: new Date(bet.timestamp),
+        gameDate: new Date(bet.gameDate),
+        completedAt: bet.completedAt ? new Date(bet.completedAt) : undefined,
+        emotions: {
+          ...bet.emotions,
+          before: { 
+            ...bet.emotions.before, 
+            timestamp: new Date(bet.emotions.before.timestamp) 
+          },
+          during: bet.emotions.during ? { 
+            ...bet.emotions.during, 
+            timestamp: new Date(bet.emotions.during.timestamp) 
+          } : undefined,
+          after: { 
+            ...bet.emotions.after, 
+            timestamp: new Date(bet.emotions.after.timestamp) 
+          }
+        }
+      }))
+    } catch (e) {
+      console.error("Error parsing comprehensive bets", e)
+      return []
+    }
+  },
+
+  async addComprehensiveBet(bet: ComprehensiveBet): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from("comprehensive_bets")
+          .insert({
+            id: bet.id,
+            user_id: userId,
+            timestamp: bet.timestamp.toISOString(),
+            sport: bet.sport,
+            league: bet.league,
+            home_team: bet.homeTeam,
+            away_team: bet.awayTeam,
+            game_date: bet.gameDate.toISOString(),
+            bet_type: bet.betType,
+            selection: bet.selection,
+            line: bet.line,
+            odds: bet.odds,
+            stake: bet.stake,
+            emotions: bet.emotions,
+            biases_identified: bet.biasesIdentified,
+            confidence_level: bet.confidenceLevel,
+            reasoning: bet.reasoning,
+            is_live_bet: bet.isLiveBet,
+            is_chasing_loss: bet.isChasingLoss,
+            is_favorite_team: bet.isFavoriteTeam,
+            outcome: bet.outcome,
+            actual_return: bet.actualReturn,
+            profit_loss: bet.profitLoss,
+            ai_recommendation: bet.aiRecommendation,
+            expected_value: bet.expectedValue,
+            probability_estimate: bet.probabilityEstimate,
+            risk_level: bet.riskLevel,
+            source: bet.source,
+            sportsbook: bet.sportsbook,
+            completed_at: bet.completedAt?.toISOString(),
+          })
+
+        if (error) {
+          console.error("Error adding comprehensive bet:", error)
+        }
+      } catch (error) {
+        console.error("Exception adding comprehensive bet:", error)
+      }
+    }
+
+    if (typeof window === "undefined") return
+    
+    const localData = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+    let localBets: any[] = localData ? JSON.parse(localData) : []
+    // Simple check to avoid duplicates if ID exists
+    if (!localBets.find((b: any) => b.id === bet.id)) {
+        localBets.push(bet)
+        if (localBets.length > 50) localBets = localBets.slice(-50)
+        localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
+    }
+  },
+
+  async updateComprehensiveBet(updated: ComprehensiveBet): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from("comprehensive_bets")
+          .update({
+            outcome: updated.outcome,
+            actual_return: updated.actualReturn,
+            profit_loss: updated.profitLoss,
+            completed_at: updated.completedAt?.toISOString(),
+            emotions: updated.emotions,
+            stake: updated.stake,
+            odds: updated.odds,
+            reasoning: updated.reasoning,
+            risk_level: updated.riskLevel
+          })
+          .eq("id", updated.id)
+          .eq("user_id", userId)
+
+        if (error) {
+          console.error("Error updating comprehensive bet:", error)
+        }
+      } catch (error) {
+        console.error("Exception updating comprehensive bet:", error)
+      }
+    }
+
+    if (typeof window === "undefined") return
+    
+    const localData = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
+    if (localData) {
+        try {
+            let localBets: any[] = JSON.parse(localData)
+            const idx = localBets.findIndex((b: any) => b.id === updated.id)
+            if (idx !== -1) {
+                localBets[idx] = { ...localBets[idx], ...updated }
+                localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
+            }
+        } catch (e) {
+            console.error("Error updating local comprehensive bet", e)
+        }
+    }
+  },
+
+  // AI Service Usage
+  async getAIServiceUsage(): Promise<AIServiceUsage[]> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        const ninetyDaysAgo = new Date()
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+        const { data, error } = await supabase
+          .from("ai_service_usage")
+          .select("*")
+          .eq("user_id", userId)
+          .gte("created_at", ninetyDaysAgo.toISOString())
+          .order("created_at", { ascending: true })
+
+        if (error) {
+          console.error("Error fetching AI service usage:", error)
+        } else if (data) {
+          const mapped = (data || []).map((row: any): AIServiceUsage => ({
+            id: row.id,
+            userId: row.user_id,
+            serviceType: row.service_type,
+            weekStartDate: row.week_start_date,
+            tierAtTimeOfUse: row.tier_at_time_of_use ?? undefined,
+            requestMetadata: row.request_metadata ?? undefined,
+            createdAt: row.created_at,
+          }))
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(STORAGE_KEYS.AI_USAGE, JSON.stringify(mapped))
+            } catch {
+              // ignore
+            }
+          }
+
+          return mapped
+        }
+      } catch (err) {
+        console.error("Exception fetching AI service usage:", err)
+      }
+    }
+
+    if (typeof window === "undefined") return []
+    const cached = localStorage.getItem(STORAGE_KEYS.AI_USAGE)
+    return cached ? (JSON.parse(cached) as AIServiceUsage[]) : []
+  }
 }
 
 // Default data generators
@@ -1532,267 +1901,4 @@ function getDefaultChallenges(): Challenge[] {
       expiresAt: weekEnd,
     },
   ]
-}
-
-// Extend storageHybrid with bet analysis methods
-// @ts-ignore - Adding methods dynamically
-storageHybrid.addBetAnalysis = async function(analysis: BetAnalysis): Promise<void> {
-  const userId = await this.getCurrentUserId()
-
-  console.log('addBetAnalysis: userId =', userId)
-
-  if (userId) {
-    try {
-      const payload = {
-        id: analysis.id,
-        user_id: userId,
-        bet_type: analysis.betType,
-        sport: analysis.sport,
-        description: analysis.description,
-        odds: analysis.odds,
-        stake: analysis.stake,
-        emotional_state: analysis.emotionalState,
-        emotional_intensity: analysis.emotionalIntensity,
-        bias_warnings: analysis.biasWarnings,
-        ai_recommendation: analysis.aiRecommendation,
-        expected_value: analysis.expectedValue,
-        probability_estimate: analysis.probabilityEstimate,
-        outcome: analysis.outcome,
-        actual_return: analysis.actualReturn,
-        timestamp: analysis.timestamp.toISOString(),
-      }
-
-      console.log('addBetAnalysis: Attempting insert with payload:', JSON.stringify(payload, null, 2))
-
-      const { data, error, status, statusText } = await supabase
-        .from("bet_analyses")
-        .insert(payload)
-        .select()
-
-      if (error) {
-        const ownProps = Object.getOwnPropertyNames(error as any)
-        const safeError: Record<string, unknown> = {}
-        for (const k of ownProps) {
-          try {
-            ;(safeError as any)[k] = (error as any)[k]
-          } catch {
-            ;(safeError as any)[k] = "[unreadable]"
-          }
-        }
-
-        console.error("Error saving bet analysis to Supabase:", {
-          status,
-          statusText,
-          error,
-          safeError,
-          message: (error as any)?.message,
-          details: (error as any)?.details,
-          hint: (error as any)?.hint,
-          code: (error as any)?.code,
-        })
-
-        console.error(
-          "Error saving bet analysis to Supabase (stringified):",
-          JSON.stringify(
-            {
-              status,
-              statusText,
-              message: (error as any)?.message,
-              details: (error as any)?.details,
-              hint: (error as any)?.hint,
-              code: (error as any)?.code,
-              safeError,
-            },
-            null,
-            2,
-          ),
-        )
-      } else {
-        console.log('✅ Successfully saved bet analysis to Supabase:', data)
-      }
-    } catch (error) {
-      console.error("Exception while saving bet analysis:", error)
-    }
-  } else {
-    console.warn('⚠️ No user ID found, skipping Supabase insert. Saving to localStorage only.')
-  }
-
-  // Also save to localStorage as backup
-  if (typeof window !== "undefined") {
-    const analyses = JSON.parse(localStorage.getItem("bet_analyses") || "[]")
-    analyses.push(analysis)
-    // Keep only last 50 analyses
-    const trimmed = analyses.slice(-50)
-    localStorage.setItem("bet_analyses", JSON.stringify(trimmed))
-  }
-}
-
-// @ts-ignore - Adding methods dynamically
-storageHybrid.updateBetAnalysis = async function(analysis: BetAnalysis): Promise<void> {
-  const userId = await this.getCurrentUserId()
-
-  if (userId && analysis.id) {
-    try {
-      const { error } = await supabase
-        .from("bet_analyses")
-        .update({
-          outcome: analysis.outcome,
-          actual_return: analysis.actualReturn,
-          stake: analysis.stake,
-        })
-        .eq("id", analysis.id)
-        .eq("user_id", userId)
-
-      if (error) {
-        console.error("Error updating bet analysis:", error)
-      }
-    } catch (error) {
-      console.error("Error updating bet analysis:", error)
-    }
-  }
-
-  // Also update in localStorage
-  if (typeof window !== "undefined") {
-    const analyses = JSON.parse(localStorage.getItem("bet_analyses") || "[]")
-    const index = analyses.findIndex((a: BetAnalysis) => a.id === analysis.id)
-    if (index !== -1) {
-      analyses[index] = analysis
-      localStorage.setItem("bet_analyses", JSON.stringify(analyses))
-    }
-  }
-}
-
-// @ts-ignore - Adding methods dynamically
-storageHybrid.getBetAnalyses = async function(): Promise<BetAnalysis[]> {
-  const userId = await this.getCurrentUserId()
-
-  if (userId) {
-    try {
-      const { data, error } = await supabase
-        .from("bet_analyses")
-        .select("*")
-        .eq("user_id", userId)
-        .order("timestamp", { ascending: false })
-        .limit(1000)
-
-      if (data && !error) {
-        return data.map((row: any) => ({
-          id: row.id,
-          timestamp: new Date(row.timestamp),
-          betType: row.bet_type,
-          sport: row.sport,
-          description: row.description,
-          odds: row.odds,
-          stake: row.stake,
-          emotionalState: row.emotional_state,
-          emotionalIntensity: row.emotional_intensity,
-          biasWarnings: row.bias_warnings || [],
-          aiRecommendation: row.ai_recommendation,
-          expectedValue: row.expected_value,
-          probabilityEstimate: row.probability_estimate,
-          outcome: row.outcome,
-          actualReturn: row.actual_return,
-        }))
-      }
-    } catch (error) {
-      console.error("Error fetching bet analyses:", error)
-    }
-  }
-
-  // Fallback to localStorage
-  if (typeof window !== "undefined") {
-    const data = localStorage.getItem("bet_analyses")
-    return data ? JSON.parse(data) : []
-  }
-
-  return []
-}
-
-// Comprehensive Bet Tracking Methods
-storageHybrid.getComprehensiveBets = async function(): Promise<ComprehensiveBet[]> {
-  if (typeof window === "undefined") return []
-  
-  // For now, use localStorage as the primary storage
-  // TODO: Add Supabase integration for authenticated users
-  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
-  return data ? JSON.parse(data) : []
-}
-
-// Adding methods dynamically  
-storageHybrid.addComprehensiveBet = async function(bet: ComprehensiveBet): Promise<void> {
-  if (typeof window === "undefined") return
-  
-  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
-  const list: ComprehensiveBet[] = data ? JSON.parse(data) : []
-  list.push(bet)
-  localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(list))
-}
-
-// Adding methods dynamically
-storageHybrid.saveComprehensiveBets = async function(bets: ComprehensiveBet[]): Promise<void> {
-  if (typeof window === "undefined") return
-  
-  localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(bets))
-}
-
-// Adding methods dynamically
-storageHybrid.updateComprehensiveBet = async function(updated: ComprehensiveBet): Promise<void> {
-  if (typeof window === "undefined") return
-  
-  const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
-  const list: ComprehensiveBet[] = data ? JSON.parse(data) : []
-  const idx = list.findIndex(b => b.id === updated.id)
-  if (idx !== -1) {
-    list[idx] = { ...list[idx], ...updated }
-    localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(list))
-  }
-}
-
-// Adding methods dynamically
-storageHybrid.getAIServiceUsage = async function(): Promise<AIServiceUsage[]> {
-  const userId = await this.getCurrentUserId()
-
-  if (userId) {
-    try {
-      const ninetyDaysAgo = new Date()
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-
-      const { data, error } = await supabase
-        .from("ai_service_usage")
-        .select("*")
-        .eq("user_id", userId)
-        .gte("created_at", ninetyDaysAgo.toISOString())
-        .order("created_at", { ascending: true })
-
-      if (error) {
-        console.error("Error fetching AI service usage:", error)
-      } else if (data) {
-        const mapped = (data || []).map((row: any): AIServiceUsage => ({
-          id: row.id,
-          userId: row.user_id,
-          serviceType: row.service_type,
-          weekStartDate: row.week_start_date,
-          tierAtTimeOfUse: row.tier_at_time_of_use ?? undefined,
-          requestMetadata: row.request_metadata ?? undefined,
-          createdAt: row.created_at,
-        }))
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem(STORAGE_KEYS.AI_USAGE, JSON.stringify(mapped))
-          } catch {
-            // ignore
-          }
-        }
-
-        return mapped
-      }
-    } catch (err) {
-      console.error("Exception fetching AI service usage:", err)
-    }
-  }
-
-  if (typeof window === "undefined") return []
-  const cached = localStorage.getItem(STORAGE_KEYS.AI_USAGE)
-  return cached ? (JSON.parse(cached) as AIServiceUsage[]) : []
 }

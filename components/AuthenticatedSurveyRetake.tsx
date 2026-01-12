@@ -8,6 +8,7 @@ import { getScoreInterpretation } from '@/types/survey';
 import { computeArchetype, ArchetypeDef } from '@/lib/archetypes';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export function AuthenticatedSurveyRetake() {
   const router = useRouter();
@@ -20,10 +21,18 @@ export function AuthenticatedSurveyRetake() {
     setIsSubmitting(true);
 
     try {
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session found. Please log in again.');
+      }
+
       const response = await fetch('/api/gambling-survey/retake', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           responses,
@@ -42,6 +51,11 @@ export function AuthenticatedSurveyRetake() {
       setSurveyResult({ score: data.score, level });
       setArchetype(at);
 
+      // Clear local cache to ensure fresh data is loaded
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('serenity_user_data');
+      }
+
       setSurveyComplete(true);
     } catch (error) {
       console.error('Survey submission error:', error);
@@ -58,7 +72,7 @@ export function AuthenticatedSurveyRetake() {
 
   if (surveyComplete && surveyResult) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-green-50">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-linear-to-br from-blue-50 to-green-50">
         <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center">
           <button
             type="button"
@@ -74,7 +88,7 @@ export function AuthenticatedSurveyRetake() {
             <p className="text-gray-700">Your new results are ready</p>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-6 mb-6">
+          <div className="bg-linear-to-r from-blue-50 to-green-50 rounded-lg p-6 mb-6">
             <div className="text-sm text-gray-600 mb-2">Your Score</div>
             <div className="text-5xl font-bold text-gray-900 mb-2">{surveyResult.score}</div>
             <div className="text-lg font-semibold text-gray-700">{surveyResult.level}</div>
@@ -104,7 +118,7 @@ export function AuthenticatedSurveyRetake() {
 
           <Button
             onClick={handleReturnHome}
-            className="w-full px-8 py-4 text-lg bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+            className="w-full px-8 py-4 text-lg bg-linear-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
           >
             Return to Home
           </Button>
@@ -114,7 +128,7 @@ export function AuthenticatedSurveyRetake() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-green-50">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-linear-to-br from-blue-50 to-green-50">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-8">
         <button
           type="button"

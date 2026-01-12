@@ -3,9 +3,73 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Premium dark theme with vibrant accents - inspired by modern fintech/data platforms */
+/* Light theme - clean and professional for daytime use */
 :root {
-  /* Dark grey background instead of pure black for better comfort */
+  /* Clean white background */
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.12 0.005 250);
+
+  /* Cards with subtle elevation */
+  --card: oklch(0.985 0 0);
+  --card-foreground: oklch(0.12 0.005 250);
+
+  /* Popovers slightly elevated */
+  --popover: oklch(0.99 0 0);
+  --popover-foreground: oklch(0.12 0.005 250);
+
+  /* Vibrant electric blue primary - readable on light */
+  --primary: oklch(0.55 0.22 260);
+  --primary-foreground: oklch(0.99 0 0);
+
+  /* Vivid purple secondary accent */
+  --secondary: oklch(0.5 0.18 300);
+  --secondary-foreground: oklch(0.99 0 0);
+
+  /* Success green */
+  --success: oklch(0.55 0.15 150);
+  --success-foreground: oklch(0.99 0 0);
+
+  /* Warning amber */
+  --warning: oklch(0.65 0.16 70);
+  --warning-foreground: oklch(0.12 0 0);
+
+  /* Muted elements */
+  --muted: oklch(0.94 0.005 250);
+  --muted-foreground: oklch(0.45 0.01 250);
+
+  /* Accent matches primary */
+  --accent: oklch(0.55 0.22 260);
+  --accent-foreground: oklch(0.99 0 0);
+
+  /* Destructive red */
+  --destructive: oklch(0.55 0.24 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  /* Borders subtle but visible */
+  --border: oklch(0.88 0.005 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.55 0.22 260);
+
+  /* Chart colors - vibrant and distinct */
+  --chart-1: oklch(0.55 0.22 260);
+  --chart-2: oklch(0.5 0.18 300);
+  --chart-3: oklch(0.55 0.15 150);
+  --chart-4: oklch(0.65 0.16 70);
+  --chart-5: oklch(0.58 0.18 200);
+
+  --radius: 0.875rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  /* Premium dark theme - terminal aesthetic for focused nighttime use */
   --background: oklch(0.12 0.005 250);
   --foreground: oklch(0.98 0 0);
 
@@ -57,47 +121,7 @@
   --chart-4: oklch(0.7 0.18 70);
   --chart-5: oklch(0.68 0.2 200);
 
-  --radius: 0.875rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  /* Using same dark grey color scheme for dark mode */
-  --background: oklch(0.12 0.005 250);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.01 250);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.18 0.01 250);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.25 260);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.6 0.22 300);
-  --secondary-foreground: oklch(0.98 0 0);
-  --success: oklch(0.65 0.18 150);
-  --success-foreground: oklch(0.98 0 0);
-  --warning: oklch(0.7 0.18 70);
-  --warning-foreground: oklch(0.12 0 0);
-  --muted: oklch(0.2 0.01 250);
-  --muted-foreground: oklch(0.55 0.01 250);
-  --accent: oklch(0.65 0.25 260);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.55 0.24 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.18 0.01 250);
-  --input: oklch(0.14 0.01 250);
-  --ring: oklch(0.65 0.25 260);
-  --chart-1: oklch(0.65 0.25 260);
-  --chart-2: oklch(0.6 0.22 300);
-  --chart-3: oklch(0.65 0.18 150);
-  --chart-4: oklch(0.7 0.18 70);
-  --chart-5: oklch(0.68 0.2 200);
+  /* Dark sidebar */
   --sidebar: oklch(0.12 0.01 250);
   --sidebar-foreground: oklch(0.98 0 0);
   --sidebar-primary: oklch(0.65 0.25 260);

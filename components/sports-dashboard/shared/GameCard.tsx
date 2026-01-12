@@ -1,6 +1,8 @@
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { StatBadge, StatBadgeGroup } from "./StatBadge"
-import { Clock, Zap, CheckCircle, TrendingUp } from "lucide-react"
+import { Clock, Zap, CheckCircle, TrendingUp, Bookmark, BookmarkCheck } from "lucide-react"
+import { SavedGamesService } from "@/lib/saved-games-service"
+import { toast } from "sonner"
 
 /**
  * GameData Interface
@@ -164,6 +166,31 @@ export function GameCard({
   const statusInfo = statusConfig[game.status] || statusConfig.UPCOMING
   const StatusIcon = statusInfo.icon
 
+  // Save functionality
+  const [isSaved, setIsSaved] = useState(false)
+
+  useEffect(() => {
+    setIsSaved(SavedGamesService.isGameSaved(game.id))
+  }, [game.id])
+
+  const handleSaveClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent card click
+    try {
+      if (isSaved) {
+        SavedGamesService.removeSavedGame(game.id)
+        setIsSaved(false)
+        toast.success("Game removed from saved games")
+      } else {
+        SavedGamesService.saveGame(game)
+        setIsSaved(true)
+        toast.success("Game saved for later")
+      }
+    } catch (error) {
+      toast.error("Failed to save game")
+      console.error("Error saving game:", error)
+    }
+  }
+
   const handleBetClick = (e: React.MouseEvent) => {
     e.stopPropagation() // Prevent card click
     console.log('Bet button clicked!', { game, subscriptionTier })
@@ -215,9 +242,28 @@ export function GameCard({
       `}
       aria-label={`Game: ${game.awayTeam} at ${game.homeTeam}, ${formatGameTime(game.gameTime)}`}
     >
-      {/* Status Badge - Top Right */}
+      {/* Status Badge & Save Button - Top */}
       <div className="flex justify-between items-start mb-4">
-        <div className="opacity-0" /> {/* Spacer */}
+        {/* Save/Bookmark Button */}
+        <button
+          onClick={handleSaveClick}
+          className={`
+            p-2 rounded-md transition-all duration-200
+            ${isSaved
+              ? 'bg-primary/20 text-primary border border-primary/40'
+              : 'bg-gray-500/20 text-gray-400 border border-gray-500/40 hover:bg-gray-500/30'
+            }
+          `}
+          aria-label={isSaved ? "Remove from saved games" : "Save game for later"}
+        >
+          {isSaved ? (
+            <BookmarkCheck className="h-4 w-4" />
+          ) : (
+            <Bookmark className="h-4 w-4" />
+          )}
+        </button>
+
+        {/* Status Badge */}
         <div
           className={`
             flex items-center gap-1.5

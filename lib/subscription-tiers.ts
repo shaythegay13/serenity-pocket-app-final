@@ -4,7 +4,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "free",
     name: "Mindful Bettor",
-    displayName: "Free Plan",
+    displayName: "Free",
     price: 0,
     interval: "month",
     description: "Build self-awareness and track your betting behavior to make safer, smarter decisions.",

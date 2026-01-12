@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { validateSurveySubmission, calculateSurveyScore } from '@/lib/surveyValidation';
 import { computeArchetype } from '@/lib/archetypes';
+import { supabaseServer } from '@/lib/supabase-server';
 import type { SurveyAnswer } from '@/types/survey';
 
 export async function POST(request: NextRequest) {
@@ -22,10 +23,29 @@ export async function POST(request: NextRequest) {
     // Extract responses
     const { responses } = body;
 
-    // Get authenticated user
-    const supabase = supabaseServer;
+    // Get auth token from header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized - please log in' },
+        { status: 401 }
+      );
+    }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const token = authHeader.replace('Bearer ', '');
+
+    // Create Supabase client to validate token
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
       console.error('Auth error:', authError);
@@ -57,6 +77,9 @@ export async function POST(request: NextRequest) {
     console.log('Computed archetype:', archetype.name);
 
     console.log('Inserting survey response for user:', user.id, 'with score:', score);
+
+    // Use server client for database operations (has service role key to bypass RLS)
+    const supabase = supabaseServer;
 
     // Insert into survey_responses table
     const { data, error } = await supabase

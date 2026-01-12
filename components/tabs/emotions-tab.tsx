@@ -8,16 +8,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { EmotionHistory } from "@/components/emotion-history"
-import { EmotionInsights } from "@/components/emotion-insights"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import type { UserData, EmotionLog, Trade } from "@/lib/types"
-import { Plus, History, Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
+import type { UserData, EmotionLog, Trade, Challenge } from "@/lib/types"
+import { Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
-import { WeeklyStabilityReport } from "@/components/behavior/WeeklyStabilityReport"
 
 interface EmotionsTabProps {
   userData: UserData
@@ -74,8 +71,87 @@ const commonBiases = [
   { id: "herd", label: "Herd Mentality", desc: "Following popular picks or consensus without independent reasoning." },
 ]
 
+function computeBehaviorStats(emotionLogs: EmotionLog[], allTrades: Trade[]) {
+  try {
+    if (emotionLogs.length === 0 || allTrades.length === 0) {
+      return null
+    }
+
+    const tradesWithEmotionTracking = allTrades.filter(trade =>
+      trade.preTradeEmotion && trade.preTradeIntensity
+    )
+    const tradesWithoutEmotionTracking = allTrades.filter(trade =>
+      !trade.preTradeEmotion || !trade.preTradeIntensity
+    )
+
+    const winRateWithTracking = tradesWithEmotionTracking.length > 0 ?
+      (tradesWithEmotionTracking.filter(t => t.outcome === "profit").length / tradesWithEmotionTracking.length) * 100 : 0
+    const winRateWithoutTracking = tradesWithoutEmotionTracking.length > 0 ?
+      (tradesWithoutEmotionTracking.filter(t => t.outcome === "profit").length / tradesWithoutEmotionTracking.length) * 100 : 0
+
+    const betterDecisions = winRateWithTracking > winRateWithoutTracking ?
+      Math.round(winRateWithTracking - winRateWithoutTracking) : 0
+
+    const consistentTrackers = allTrades.filter(trade =>
+      trade.preTradeEmotion && trade.postTradeEmotion
+    )
+    const inconsistentTrackers = allTrades.filter(trade =>
+      !trade.preTradeEmotion || !trade.postTradeEmotion
+    )
+
+    const calculateROI = (trades: Trade[]) => {
+      const completedTrades = trades.filter(t => t.stake && t.outcome)
+      if (completedTrades.length === 0) return 0
+
+      const totalProfit = completedTrades.reduce((sum, trade) => {
+        const stake = trade.stake || 0
+        if (trade.outcome === "profit") return sum + (stake * 0.9)
+        if (trade.outcome === "loss") return sum - stake
+        return sum
+      }, 0)
+
+      const totalStaked = completedTrades.reduce((sum, trade) => sum + (trade.stake || 0), 0)
+      return totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0
+    }
+
+    const roiConsistent = calculateROI(consistentTrackers)
+    const roiInconsistent = calculateROI(inconsistentTrackers)
+    const roiImprovement = roiConsistent > roiInconsistent ?
+      Math.round((roiConsistent / Math.abs(roiInconsistent || 1)) * 10) / 10 : 1.0
+
+    const impulsiveEmotions = ["fear", "greed", "frustration"]
+    const impulsiveTrades = allTrades.filter(trade =>
+      impulsiveEmotions.includes(trade.preTradeEmotion || "") && (trade.preTradeIntensity || 0) >= 7
+    )
+    const totalTradesWithEmotionData = allTrades.filter(trade => trade.preTradeEmotion)
+
+    const recentLogs = emotionLogs.slice(-50)
+    const olderLogs = emotionLogs.slice(-100, -50)
+
+    const recentImpulsiveRate = recentLogs.length > 0 ?
+      (recentLogs.filter(log => impulsiveEmotions.includes(log.emotion) && log.intensity >= 7).length / recentLogs.length) * 100 : 0
+    const olderImpulsiveRate = olderLogs.length > 0 ?
+      (olderLogs.filter(log => impulsiveEmotions.includes(log.emotion) && log.intensity >= 7).length / olderLogs.length) * 100 : 0
+
+    const impulsiveReduction = olderImpulsiveRate > recentImpulsiveRate ?
+      Math.round(olderImpulsiveRate - recentImpulsiveRate) : 0
+
+    if (tradesWithEmotionTracking.length >= 10 && emotionLogs.length >= 20) {
+      return {
+        betterDecisions: Math.max(betterDecisions, 15),
+        roiImprovement: Math.max(roiImprovement, 1.2),
+        impulsiveReduction: Math.max(impulsiveReduction, 10)
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error calculating behavior stats:", error)
+    return null
+  }
+}
+
 export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: EmotionsTabProps) {
-  const [view, setView] = useState<"log" | "history" | "insights">("log")
   const [step, setStep] = useState<"core" | "sub" | "details" | "biases">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState<string>("")
@@ -87,9 +163,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [selectedBiases, setSelectedBiases] = useState<string[]>([])
   const [stake, setStake] = useState<string>("")
   const [odds, setOdds] = useState<string>("")
+  const [isLogging, setIsLogging] = useState<boolean>(false)
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
-  const [challenges, setChallenges] = useState<any[]>([])
+  const [challenges, setChallenges] = useState<Challenge[]>([])
   const [behaviorStats, setBehaviorStats] = useState<{
     betterDecisions: number
     roiImprovement: number
@@ -98,125 +175,51 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const emotionFormRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const loadLogs = async () => {
-      const emotionLogs = await storage.getEmotionLogs()
-      setLogs(emotionLogs)
-    }
-    const loadTrades = async () => {
-      const tradesData = await storage.getTrades()
-      setTrades(tradesData)
-    }
-    const loadChallenges = async () => {
-      const challengesData = await storage.getChallenges()
-      setChallenges(challengesData)
-    }
-    const calculateBehaviorStats = async () => {
+    let cancelled = false
+
+    const load = async () => {
       try {
-        // Get all emotion logs and trades
-        const emotionLogs = await storage.getEmotionLogs()
-        const allTrades = await storage.getTrades()
-        
-        if (emotionLogs.length === 0 || allTrades.length === 0) {
-          setBehaviorStats(null)
-          return
-        }
-
-        // Calculate Better Decisions Percentage
-        // Compare trades with emotional tracking vs without
-        const tradesWithEmotionTracking = allTrades.filter(trade => 
-          trade.preTradeEmotion && trade.preTradeIntensity
-        )
-        const tradesWithoutEmotionTracking = allTrades.filter(trade => 
-          !trade.preTradeEmotion || !trade.preTradeIntensity
-        )
-        
-        const winRateWithTracking = tradesWithEmotionTracking.length > 0 ? 
-          tradesWithEmotionTracking.filter(t => t.outcome === 'profit').length / tradesWithEmotionTracking.length * 100 : 0
-        const winRateWithoutTracking = tradesWithoutEmotionTracking.length > 0 ? 
-          tradesWithoutEmotionTracking.filter(t => t.outcome === 'profit').length / tradesWithoutEmotionTracking.length * 100 : 0
-        
-        const betterDecisions = winRateWithTracking > winRateWithoutTracking ? 
-          Math.round(winRateWithTracking - winRateWithoutTracking) : 0
-
-        // Calculate ROI Improvement
-        // Compare ROI of users who consistently track emotions vs those who don't
-        const consistentTrackers = allTrades.filter(trade => 
-          trade.preTradeEmotion && trade.postTradeEmotion
-        )
-        const inconsistentTrackers = allTrades.filter(trade => 
-          !trade.preTradeEmotion || !trade.postTradeEmotion
-        )
-        
-        const calculateROI = (trades: Trade[]) => {
-          const completedTrades = trades.filter(t => t.stake && t.outcome)
-          if (completedTrades.length === 0) return 0
-          const totalProfit = completedTrades.reduce((sum, trade) => {
-            const stake = trade.stake || 0
-            if (trade.outcome === 'profit') return sum + (stake * 0.9) // Assuming 90% profit
-            if (trade.outcome === 'loss') return sum - stake
-            return sum // breakeven adds nothing
-          }, 0)
-          const totalStaked = completedTrades.reduce((sum, trade) => sum + (trade.stake || 0), 0)
-          return totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0
-        }
-        
-        const roiConsistent = calculateROI(consistentTrackers)
-        const roiInconsistent = calculateROI(inconsistentTrackers)
-        const roiImprovement = roiConsistent > roiInconsistent ? 
-          Math.round((roiConsistent / Math.abs(roiInconsistent || 1)) * 10) / 10 : 1.0
-
-        // Calculate Impulsive Bet Reduction
-        // Define impulsive bets as those with high-intensity negative emotions (fear, greed, frustration)
-        const impulsiveEmotions = ['fear', 'greed', 'frustration']
-        const impulsiveTrades = allTrades.filter(trade => 
-          impulsiveEmotions.includes(trade.preTradeEmotion) && trade.preTradeIntensity >= 7
-        )
-        const totalTradesWithEmotionData = allTrades.filter(trade => trade.preTradeEmotion)
-        
-        const impulsiveRate = totalTradesWithEmotionData.length > 0 ? 
-          (impulsiveTrades.length / totalTradesWithEmotionData.length) * 100 : 0
-        
-        // Calculate reduction based on emotional awareness over time
-        const recentLogs = emotionLogs.slice(-50) // Last 50 logs
-        const olderLogs = emotionLogs.slice(-100, -50) // Previous 50 logs
-        
-        const recentImpulsiveRate = recentLogs.length > 0 ? 
-          recentLogs.filter(log => impulsiveEmotions.includes(log.emotion) && log.intensity >= 7).length / recentLogs.length * 100 : 0
-        const olderImpulsiveRate = olderLogs.length > 0 ? 
-          olderLogs.filter(log => impulsiveEmotions.includes(log.emotion) && log.intensity >= 7).length / olderLogs.length * 100 : 0
-        
-        const impulsiveReduction = olderImpulsiveRate > recentImpulsiveRate ? 
-          Math.round(olderImpulsiveRate - recentImpulsiveRate) : 0
-
-        // Only show stats if we have meaningful data
-        console.log('Behavior Stats Debug:', {
-          tradesWithEmotionTracking: tradesWithEmotionTracking.length,
-          emotionLogs: emotionLogs.length,
-          betterDecisions,
-          roiImprovement,
-          impulsiveReduction
-        })
-        
-        if (tradesWithEmotionTracking.length >= 10 && emotionLogs.length >= 20) {
-          setBehaviorStats({
-            betterDecisions: Math.max(betterDecisions, 15), // Minimum 15%
-            roiImprovement: Math.max(roiImprovement, 1.2), // Minimum 1.2x
-            impulsiveReduction: Math.max(impulsiveReduction, 10) // Minimum 10%
+        const [emotionLogsData, tradesData, challengesData] = await Promise.all([
+          storage.getEmotionLogs().catch(error => {
+            console.error("Error loading emotion logs:", error)
+            return []
+          }),
+          storage.getTrades().catch(error => {
+            console.error("Error loading trades:", error)
+            return []
+          }),
+          storage.getChallenges().catch(error => {
+            console.error("Error loading challenges:", error)
+            return []
           })
-        } else {
-          console.log('Insufficient data for behavior stats')
+        ])
+
+        if (cancelled) return
+
+        const safeLogs = Array.isArray(emotionLogsData) ? emotionLogsData : []
+        const safeTrades = Array.isArray(tradesData) ? tradesData : []
+        const safeChallenges = Array.isArray(challengesData) ? challengesData : []
+
+        setLogs(safeLogs)
+        setTrades(safeTrades)
+        setChallenges(safeChallenges)
+        setBehaviorStats(computeBehaviorStats(safeLogs, safeTrades))
+      } catch (error) {
+        console.error("Error loading behavior tab data:", error)
+        if (!cancelled) {
+          setLogs([])
+          setTrades([])
+          setChallenges([])
           setBehaviorStats(null)
         }
-      } catch (error) {
-        console.error('Error calculating behavior stats:', error)
-        setBehaviorStats(null)
       }
     }
 
-    loadLogs()
-    loadTrades()
-    loadChallenges()
-    calculateBehaviorStats()
+    load()
+
+    return () => {
+      cancelled = true
+    }
   }, [refreshKey])
 
   const handleCoreSelect = (emotion: typeof coreEmotions[0]) => {
@@ -288,7 +291,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
     await storage.addEmotionLog(newLog)
     const updatedLogs = await storage.getEmotionLogs()
-    setLogs(updatedLogs)
+    setLogs(updatedLogs ?? [])
 
     // Different XP and gamification based on phase
     let xpEarned = 10
@@ -320,7 +323,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       }
       await storage.addTrade(newTrade)
       const updatedTrades = await storage.getTrades()
-      setTrades(updatedTrades)
+      setTrades(updatedTrades ?? [])
       
       updates = {
         ...updates,
@@ -341,7 +344,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         return c
       })
       if (JSON.stringify(updatedChallenges) !== JSON.stringify(challenges)) {
-        await storage.setChallenges(updatedChallenges)
+        await storage.updateChallenges(updatedChallenges)
         setChallenges(updatedChallenges)
       }
     } else if (phase === "after") {
@@ -362,7 +365,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           odds: odds ? parseFloat(odds) : pendingTrade.odds,
         })
         const updatedTrades = await storage.getTrades()
-        setTrades(updatedTrades)
+        setTrades(updatedTrades ?? [])
       }
       
       updates = {
@@ -409,7 +412,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       {/* Log Emotion */}
         <div className="space-y-6">
           {/* Section Above Check-in */}
-          <Card className="p-6 bg-gradient-to-br from-blue-50/10 to-purple-50/10 border-blue-30">
+          <Card className="p-6 bg-linear-to-br from-blue-50/10 to-purple-50/10 border-blue-30">
             <div className="text-center space-y-4">
               <div className="inline-flex p-3 rounded-full bg-blue-500/10">
                 <Lightbulb className="h-6 w-6 text-blue-400" />
@@ -819,84 +822,16 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               </div>
 
               <Button 
-                onClick={handleLogEmotion} 
-                className="w-full text-white font-bold text-lg py-6 hover:scale-105 transition-transform shadow-lg hover:shadow-xl" 
-                size="lg"
-                style={{ backgroundColor: selectedCore?.color }}
-              >
-                <Check className="h-6 w-6 mr-3" />
-                Log Emotion (+10 XP)
-              </Button>
-              
-              {/* Debug info */}
-              <div className="text-xs text-muted-foreground text-center">
-                Debug: Step = {step}, Selected Emotion = {selectedEmotion || 'none'}
-              </div>
-              
-              {/* Test button */}
-              <Button 
-                onClick={() => console.log('Test button clicked!')}
-                variant="outline"
-                size="sm"
+                onClick={handleLogEmotion}
+                disabled={!selectedEmotion || isLogging}
                 className="w-full"
               >
-                Test Click (Debug)
+                Log Emotion (+10 XP)
               </Button>
             </div>
           )}
         </Card>
-
-          {/* Section Below Check-in */}
-          <Card className="p-6 bg-gradient-to-br from-green-50/10 to-emerald-50/10 border-green-30">
-            <div className="text-center space-y-4">
-              <div className="inline-flex p-3 rounded-full bg-green-500/10">
-                <History className="h-6 w-6 text-green-400" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">Your Emotional Journey</h3>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-                  Review your emotional patterns and insights to make more disciplined betting decisions.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50/10"
-                  onClick={() => setView("history")}
-                >
-                  <History className="h-5 w-5 text-blue-400" />
-                  <span className="text-sm font-medium">View History</span>
-                  <span className="text-xs text-muted-foreground">See your past emotions</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-purple-50/10"
-                  onClick={() => setView("insights")}
-                >
-                  <Lightbulb className="h-5 w-5 text-purple-400" />
-                  <span className="text-sm font-medium">Get Insights</span>
-                  <span className="text-xs text-muted-foreground">Discover your patterns</span>
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {/* History and Insights Views */}
-          {view === "history" && (
-            <EmotionHistory 
-              logs={logs} 
-              onBack={() => setView("log")} 
-            />
-          )}
-          
-          {view === "insights" && (
-            <EmotionInsights 
-              logs={logs} 
-              trades={trades}
-              onBack={() => setView("log")} 
-            />
-          )}
-        </div>
+      </div>
     </div>
   )
 }

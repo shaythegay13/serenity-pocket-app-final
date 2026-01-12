@@ -52,11 +52,35 @@ export function LandingPage({ onLogin }: LandingPageProps) {
         }, 0)
         const avgROI = completedBets.length > 0 ? totalROI / completedBets.length : 0
 
-        // Calculate win rate improvement (simplified - comparing first vs last month performance)
-        const winRateImprovement = totalUsers > 100 ? Math.random() * 30 + 10 : 0 // Placeholder calculation
+        // Calculate win rate improvement (compare early vs recent performance)
+        let winRateImprovement = 0
+        if (betAnalyses && betAnalyses.length >= 100) {
+          // Sort bets by date
+          const sortedBets = betAnalyses
+            .filter(bet => bet.outcome !== 'pending' && bet.created_at)
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          
+          if (sortedBets.length >= 50) {
+            // Calculate early period win rate (first 25% of bets)
+            const earlyPeriod = sortedBets.slice(0, Math.floor(sortedBets.length * 0.25))
+            const earlyWins = earlyPeriod.filter(bet => bet.outcome === 'win').length
+            const earlyWinRate = earlyWins / earlyPeriod.length
+            
+            // Calculate recent period win rate (last 25% of bets)
+            const recentPeriod = sortedBets.slice(-Math.floor(sortedBets.length * 0.25))
+            const recentWins = recentPeriod.filter(bet => bet.outcome === 'win').length
+            const recentWinRate = recentWins / recentPeriod.length
+            
+            // Calculate improvement
+            winRateImprovement = ((recentWinRate - earlyWinRate) * 100)
+            
+            // Cap improvement at reasonable range (-50% to +50%)
+            winRateImprovement = Math.max(-50, Math.min(50, winRateImprovement))
+          }
+        }
 
-        // Only show stats if they meet minimum thresholds
-        const meetsThresholds = totalUsers >= 50 && totalBets >= 1000 && avgROI !== 0
+        // Only show stats if we have substantial real data (50+ subscribers for credibility)
+        const meetsThresholds = totalUsers >= 50 && totalBets >= 100 && avgROI !== 0
 
         if (meetsThresholds) {
           setUserStats({
@@ -66,7 +90,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             winRateImprovement
           })
         } else {
-          setUserStats(null) // Don't show stats if they're too low
+          setUserStats(null) // Don't show stats until we have substantial real data
         }
       } catch (error) {
         console.error('Error fetching user stats:', error)
@@ -80,7 +104,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0a1a] via-[#0f0f23] to-[#0a0a1a]">
+    <div className="min-h-screen bg-linear-to-b from-[#0a0a1a] via-[#0f0f23] to-[#1a1a2e]">
       {/* Header Section */}
       <header className="relative border-b border-white/10 backdrop-blur-sm bg-black/20">
         <div className="container mx-auto px-4 py-6">
@@ -110,7 +134,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" />
 
         <div className="container mx-auto px-4 pt-20 pb-32 relative">
           <div className="max-w-4xl mx-auto text-center space-y-8">
@@ -118,11 +142,11 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             {/* Main Headline */}
             <h1 className="text-6xl md:text-7xl font-bold tracking-tight">
               <span className="text-white">Win with </span>
-              <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Data
               </span>
               <br />
-              <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
                 & Discipline
               </span>
             </h1>
@@ -138,7 +162,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               <Button
                 size="lg"
                 onClick={onLogin}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-6 text-lg rounded-xl"
+                className="bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-6 text-lg rounded-xl"
               >
                 Log In to Get Started →
               </Button>
@@ -150,21 +174,54 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       {/* Stats Section */}
       <section className="py-16 border-y border-gray-800/50 bg-black/20">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
-            {[
-              { value: "+23%", label: "Win Rate Improvement", color: "text-green-400" },
-              { value: "12K+", label: "Users Worldwide", color: "text-blue-400" },
-              { value: "2.4M+", label: "Bets Analyzed", color: "text-purple-400" },
-              { value: "+18%", label: "ROI Increase", color: "text-pink-400" },
-            ].map((stat, idx) => (
-              <div key={idx} className="text-center space-y-2">
-                <div className={`text-4xl md:text-5xl font-bold ${stat.color}`}>
-                  {stat.value}
+          {loading ? (
+            // Show skeleton loading while fetching stats
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
+              {[1, 2, 3, 4].map((idx) => (
+                <div key={idx} className="text-center space-y-2">
+                  <div className="h-12 w-24 mx-auto bg-gray-700/50 rounded-lg animate-pulse"></div>
+                  <div className="h-4 w-20 mx-auto bg-gray-700/50 rounded animate-pulse"></div>
                 </div>
-                <div className="text-sm text-gray-400">{stat.label}</div>
+              ))}
+            </div>
+          ) : userStats ? (
+            // Show real stats from Supabase
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
+              <div className="text-center space-y-2">
+                <div className="text-4xl md:text-5xl font-bold text-green-400">
+                  +{userStats.winRateImprovement.toFixed(1)}%
+                </div>
+                <div className="text-sm text-gray-400">Win Rate Improvement</div>
               </div>
-            ))}
-          </div>
+              <div className="text-center space-y-2">
+                <div className="text-4xl md:text-5xl font-bold text-blue-400">
+                  {userStats.totalUsers >= 1000 
+                    ? `${(userStats.totalUsers / 1000).toFixed(1)}K+`
+                    : `${userStats.totalUsers}+`
+                  }
+                </div>
+                <div className="text-sm text-gray-400">Users Worldwide</div>
+              </div>
+              <div className="text-center space-y-2">
+                <div className="text-4xl md:text-5xl font-bold text-purple-400">
+                  {userStats.totalBets >= 1000000 
+                    ? `${(userStats.totalBets / 1000000).toFixed(1)}M+`
+                    : userStats.totalBets >= 1000 
+                      ? `${(userStats.totalBets / 1000).toFixed(1)}K+`
+                      : `${userStats.totalBets}+`
+                  }
+                </div>
+                <div className="text-sm text-gray-400">Bets Analyzed</div>
+              </div>
+              <div className="text-center space-y-2">
+                <div className="text-4xl md:text-5xl font-bold text-pink-400">
+                  +{userStats.avgROI.toFixed(1)}%
+                </div>
+                <div className="text-sm text-gray-400">ROI Increase</div>
+              </div>
+            </div>
+          ) : null // Don't show stats section until we have substantial real data
+        }
         </div>
       </section>
 
@@ -227,14 +284,14 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             ].map((feature, idx) => (
               <Card
                 key={idx}
-                className="group relative overflow-hidden bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-gray-800/50 hover:border-gray-700/50 transition-all duration-300 p-6"
+                className="group relative overflow-hidden bg-linear-to-br from-gray-900/50 to-gray-800/30 border-gray-800/50 hover:border-gray-700/50 transition-all duration-300 p-6"
               >
                 {/* Gradient overlay on hover */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+                <div className={`absolute inset-0 bg-linear-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
 
                 <div className="relative space-y-4">
                   {/* Icon */}
-                  <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${feature.color} bg-opacity-10`}>
+                  <div className={`inline-flex p-3 rounded-xl bg-linear-to-br ${feature.color} bg-opacity-10`}>
                     <feature.icon className={`h-6 w-6 ${feature.iconColor}`} />
                   </div>
 
@@ -255,7 +312,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       </section>
 
       {/* Trust Section */}
-      <section className="py-24 bg-gradient-to-br from-blue-950/20 to-purple-950/20">
+      <section className="py-24 bg-linear-to-br from-blue-950/20 to-purple-950/20">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center space-y-8">
             {/* Shield Icon */}
@@ -279,7 +336,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               <Button
                 size="lg"
                 onClick={onLogin}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 rounded-xl"
+                className="bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 rounded-xl"
               >
                 Log In to Get Started
               </Button>

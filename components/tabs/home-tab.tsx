@@ -39,14 +39,14 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
     <div className="space-y-6">
       {/* Welcome Hero Section */}
       <div className="relative overflow-hidden rounded-2xl glass p-6 md:p-10">
-        <div className="absolute inset-0 bg-linear-to-br from-primary/10 via-transparent to-secondary/10" />
+        <div className="absolute inset-0 bg-linear-to-br from-primary/20 via-transparent to-secondary/20" />
         <div className="relative z-10 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="space-y-2">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-linear-to-r from-foreground via-primary to-secondary bg-clip-text text-transparent">
                 Welcome back, {userData.name}!
               </h1>
-              <p className="text-muted-foreground text-lg sm:text-xl md:text-2xl">
+              <p className="text-foreground/80 text-lg sm:text-xl md:text-2xl">
                 Your emotional awareness companion for smarter, safer betting
               </p>
             </div>
@@ -68,8 +68,8 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold">{userData.totalEmotionsLogged}</p>
-              <p className="text-sm sm:text-base text-muted-foreground">Emotions Logged</p>
+              <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-linear-to-r from-primary to-secondary bg-clip-text text-transparent">{userData.totalEmotionsLogged}</p>
+              <p className="text-sm sm:text-base text-foreground/70">Emotions Logged</p>
             </div>
           </CardContent>
         </Card>
@@ -83,8 +83,8 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold">{userData.totalTrades}</p>
-              <p className="text-sm sm:text-base text-muted-foreground">Total Bets</p>
+              <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-linear-to-r from-primary to-secondary bg-clip-text text-transparent">{userData.totalTrades}</p>
+              <p className="text-sm sm:text-base text-foreground/70">Total Bets</p>
             </div>
           </CardContent>
         </Card>
@@ -98,8 +98,8 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold">{emotionallyAwarePercentage}%</p>
-              <p className="text-sm sm:text-base text-muted-foreground">Emotionally Aware Decisions</p>
+              <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-linear-to-r from-primary to-secondary bg-clip-text text-transparent">{emotionallyAwarePercentage}%</p>
+              <p className="text-sm sm:text-base text-foreground/70">Emotionally Aware Decisions</p>
             </div>
           </CardContent>
         </Card>
@@ -113,8 +113,8 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold">{userData.totalBiasesIdentified}</p>
-              <p className="text-sm sm:text-base text-muted-foreground">Biases Identified</p>
+              <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-linear-to-r from-primary to-secondary bg-clip-text text-transparent">{userData.totalBiasesIdentified}</p>
+              <p className="text-sm sm:text-base text-foreground/70">Biases Identified</p>
             </div>
           </CardContent>
         </Card>

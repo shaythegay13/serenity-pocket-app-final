@@ -35,7 +35,7 @@
 
   /* Muted elements */
   --muted: oklch(0.94 0.005 250);
-  --muted-foreground: oklch(0.45 0.01 250);
+  --muted-foreground: oklch(0.35 0.01 250);
 
   /* Accent matches primary */
   --accent: oklch(0.55 0.22 260);
@@ -187,11 +187,11 @@
 
   /* Glassmorphism utility classes for modern depth */
   .glass {
-    @apply bg-card/40 backdrop-blur-xl border border-border/50;
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
   }
 
   .glass-hover {
-    @apply transition-all hover:bg-card/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10;
+    @apply transition-all hover:bg-card/90 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10;
   }
 
   /* Gradient text utilities */

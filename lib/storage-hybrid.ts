@@ -86,6 +86,9 @@ export const storageHybrid: {
   // Check-in Operations
   getLastCheckIn(): Promise<Date | null>
   setLastCheckIn(date: Date): Promise<void>
+  
+  // Daily Rings Operations
+  updateDailyRingsForEmotion(): Promise<void>
 } = {
   // Get current user ID
   async getCurrentUserId(): Promise<string | null> {
@@ -375,6 +378,11 @@ export const storageHybrid: {
 
       localStorage.setItem(STORAGE_KEYS.GAME_LINES, JSON.stringify(Array.from(map.values())))
     }
+  },
+
+  async setGameLines(lines: GameLineRecord[]): Promise<void> {
+    // Alias for bulkUpsertGameLines for backward compatibility
+    return this.bulkUpsertGameLines(lines)
   },
 
   // User Data Operations
@@ -793,6 +801,9 @@ export const storageHybrid: {
       logs.push(log)
       localStorage.setItem(STORAGE_KEYS.EMOTION_LOGS, JSON.stringify(logs))
     }
+
+    // Update daily rings and user stats
+    await this.updateDailyRingsForEmotion()
   },
 
   // Trades Operations
@@ -1048,6 +1059,16 @@ export const storageHybrid: {
       averageScore: Math.round(Object.values(profile).reduce((a, b) => a + b, 0) / 6)
     }
     await this.addBiasQuizHistory(historyEntry)
+  },
+
+  async getBiasHistory(): Promise<BiasQuizHistory[]> {
+    // Alias for getBiasQuizHistory for backward compatibility
+    return this.getBiasQuizHistory()
+  },
+
+  async addBiasHistory(history: BiasQuizHistory): Promise<void> {
+    // Alias for addBiasQuizHistory for backward compatibility
+    return this.addBiasQuizHistory(history)
   },
 
   async getBiasQuizHistory(): Promise<BiasQuizHistory[]> {
@@ -1418,6 +1439,47 @@ export const storageHybrid: {
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, date.toISOString())
     }
+  },
+
+  // Update daily rings for emotion logging
+  async updateDailyRingsForEmotion(): Promise<void> {
+    const userData = await this.getUserData()
+    if (!userData) return
+
+    // Check if rings need to be reset (new day)
+    const now = new Date()
+    const lastReset = userData.lastRingReset || new Date(0)
+    
+    if (now.toDateString() !== lastReset.toDateString()) {
+      // Reset rings for new day
+      await this.setUserData({
+        ...userData,
+        dailyRings: {
+          emotionalAwareness: 0,
+          biasRecognition: 0,
+          mindfulness: 0,
+        },
+        lastRingReset: now,
+      })
+      return
+    }
+
+    // Update emotional awareness ring (increment by 25% per emotion check-in, max 100%)
+    const currentEmotionalAwareness = userData.dailyRings.emotionalAwareness || 0
+    const newEmotionalAwareness = Math.min(100, currentEmotionalAwareness + 25)
+
+    // Update mindfulness ring (using the old mindfulness field for journal completion)
+    const currentMindfulness = userData.dailyRings.mindfulness || 0
+    const newMindfulness = Math.min(100, currentMindfulness + 25)
+
+    await this.setUserData({
+      ...userData,
+      dailyRings: {
+        ...userData.dailyRings,
+        emotionalAwareness: newEmotionalAwareness,
+        mindfulness: newMindfulness,
+      },
+    })
   },
 
   // Comprehensive Bet Tracking Methods

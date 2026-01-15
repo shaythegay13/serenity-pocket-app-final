@@ -3,9 +3,12 @@
  * Provides real-time stats for NBA, NFL, MLB, NHL
  * No API key required, no rate limits
  * Data updates after each game
+ * 
+ * Updated to use unified sportsFetcher system
  */
 
 import type { PlayerStats } from './sports-data-api'
+import { sportsFetcher } from '../utils/sportsFetcher.js'
 
 /**
  * Normalize a string for comparison by removing accents and converting to lowercase
@@ -150,7 +153,7 @@ function getTeamAbbreviation(teamName: string): string {
     'philadelphia flyers': 'phi', 'pittsburgh penguins': 'pit', 'san jose sharks': 'sj',
     'seattle kraken': 'sea', 'st louis blues': 'stl', 'tampa bay lightning': 'tb',
     'toronto maple leafs': 'tor', 'vancouver canucks': 'van', 'vegas golden knights': 'vgk',
-    'washington capitals': 'wsh', 'winnipeg jets': 'wpg'
+    'washington capitals': 'wsh', 'winnipeg jets': 'wpg', 'utah mammoth': 'utah'
   }
 
   // Combine all teams
@@ -788,7 +791,20 @@ export async function fetchRecentGameLogs(
 }
 
 /**
- * Fetch team roster from ESPN (more accurate than TheSportsDB)
+ * Convert sport string to sport key format
+ */
+function getSportKey(sport: string): string {
+  const sportMap: Record<string, string> = {
+    'americanfootball_nfl': 'nfl',
+    'basketball_nba': 'nba', 
+    'baseball_mlb': 'mlb',
+    'icehockey_nhl': 'nhl'
+  }
+  return sportMap[sport] || sport
+}
+
+/**
+ * Fetch team roster from ESPN using unified sportsFetcher
  * Returns list of current players on the team
  */
 export async function fetchESPNTeamRoster(
@@ -796,26 +812,21 @@ export async function fetchESPNTeamRoster(
   sport: string
 ): Promise<Array<{ id: string; name: string; position?: string; number?: string; imageUrl?: string; team: string }>> {
   try {
-    const sportPath = getSportPath(sport)
+    // Convert sport to the format expected by sportsFetcher
+    const sportKey = getSportKey(sport)
     const teamAbbr = getTeamAbbreviation(teamName)
 
-    const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${teamAbbr}/roster`
+    console.log(` Fetching roster for ${teamName} (${sportKey}) using unified sportsFetcher`)
 
-    // Fetch directly from ESPN public API (no proxy or authentication needed)
-    const response = await fetch(espnUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; SportsApp/1.0)',
-      },
-    })
-    console.log(`[ESPN API] Team roster fetch - Status: ${response.status} ${response.ok ? '✓ SUCCESS' : '✗ FAILED'} - Team: ${teamAbbr} - URL: ${espnUrl}`)
-    if (!response.ok) {
-      console.warn(`[ESPN Roster] Failed to fetch: ${response.status}`)
+    // Use the unified sportsFetcher instead of direct ESPN API calls
+    const rosterResult = await sportsFetcher.getTeamRoster(sportKey, teamAbbr)
+    
+    if (!rosterResult || !rosterResult.data) {
+      console.warn(` No roster data found for ${teamName} from sportsFetcher`)
       return []
     }
 
-    const data: any = await response.json()
+    const data = rosterResult.data
 
     // Flatten athletes array - ONLY include active roster (offense, defense, specialTeam)
     // Exclude practice squad, injured reserve, and suspended players
@@ -851,7 +862,7 @@ export async function fetchESPNTeamRoster(
     })).filter(p => p.name) // Only include players with names
 
   } catch (error) {
-    console.error('[ESPN Roster] Error:', error)
+    console.error(` Error fetching roster for ${teamName}:`, error)
     return []
   }
 }

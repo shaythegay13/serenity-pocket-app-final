@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   BarChart,
   Bar,
@@ -18,18 +19,22 @@ import {
   LineChart,
   Line
 } from "recharts"
-import { TrendingUp, DollarSign, Target, BarChart3 } from "lucide-react"
-import type { Trade } from "@/lib/types"
+import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react"
+import type { Trade, BetAnalysis } from "@/lib/types"
 import { KPICardsGrid } from "./KPICards"
 import { calculateBettingMetrics } from "./utils/calculations"
 import type { UnifiedBet } from "./types"
+import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { toast } from "sonner"
 
 interface PerformanceTabProps {
   trades: Trade[]
   unifiedBets?: UnifiedBet[]
+  onRefreshData?: () => void
+  isRefreshing?: boolean
 }
 
-export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps) {
+export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefreshing }: PerformanceTabProps) {
   // Calculate metrics
   const metrics = useMemo(() => {
     if (unifiedBets.length > 0) {
@@ -37,14 +42,24 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
     }
 
     // Fallback to trades data
-    const completed = trades.filter(t => t.outcome && t.outcome !== 'pending')
+    const completed = trades.filter(t => t.outcome && t.actualReturn != null)
     const wins = completed.filter(t => t.outcome === 'profit')
     const losses = completed.filter(t => t.outcome === 'loss')
+    const breakeven = completed.filter(t => t.outcome === 'breakeven')
     const totalStaked = completed.reduce((sum, t) => sum + (t.stake || 0), 0)
-    const totalReturns = completed.reduce((sum, t) => sum + (t.profit || 0), 0)
-    const profit = totalReturns
+    const totalReturns = completed.reduce((sum, t) => sum + (t.actualReturn || 0), 0)
+    const profit = totalReturns - totalStaked
     const roi = totalStaked > 0 ? (profit / totalStaked) * 100 : 0
     const winRate = completed.length > 0 ? (wins.length / completed.length) * 100 : 0
+
+    // Calculate average expected value from completed trades
+    const tradesWithEV = completed.filter(t => t.stake && t.stake > 0)
+    const avgEV = tradesWithEV.length > 0 
+      ? tradesWithEV.reduce((sum: number, trade: Trade) => {
+          const profit = (trade.actualReturn || 0) - (trade.stake || 0)
+          return sum + profit
+        }, 0) / tradesWithEV.length
+      : 0
 
     return {
       totalBets: trades.length,
@@ -56,9 +71,63 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
       totalReturns,
       profit,
       roi,
-      avgEV: 0
+      avgEV
     }
   }, [trades, unifiedBets])
+
+  // State for pending bets
+  const [pendingBets, setPendingBets] = useState<BetAnalysis[]>([])
+  const [loadingPending, setLoadingPending] = useState(false)
+
+  // Load pending bets on mount
+  useMemo(async () => {
+    setLoadingPending(true)
+    try {
+      const analyses = await storage.getBetAnalyses()
+      const pending = analyses.filter(bet => bet.outcome === 'pending')
+      setPendingBets(pending) // Show all pending bets
+    } catch (error) {
+      console.error('Error loading pending bets:', error)
+    } finally {
+      setLoadingPending(false)
+    }
+  }, [])
+
+  // Handle bet outcome update
+  const handleBetOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
+    try {
+      const bet = pendingBets.find(b => b.id === betId)
+      if (!bet) return
+
+      // Calculate actual return based on outcome
+      let actualReturn: number
+      if (outcome === 'win') {
+        actualReturn = bet.stake * (1 + (bet.odds > 0 ? bet.odds / 100 : 100 / Math.abs(bet.odds)))
+      } else if (outcome === 'push') {
+        actualReturn = bet.stake
+      } else {
+        actualReturn = 0
+      }
+
+      // Update the bet
+      await storage.updateBetAnalysis({
+        ...bet,
+        outcome,
+        actualReturn
+      })
+
+      // Remove from pending bets
+      setPendingBets(prev => prev.filter(b => b.id !== betId))
+      
+      toast.success(`Bet marked as ${outcome}!`)
+      
+      // Don't refresh immediately - let the user settle multiple bets if they want
+      // The data will be refreshed when they navigate away and back, or they can manually refresh
+    } catch (error) {
+      console.error('Error updating bet outcome:', error)
+      toast.error('Failed to update bet outcome')
+    }
+  }
 
   // Calculate average stake
   const avgStake = useMemo(() => {
@@ -72,7 +141,7 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
     const wins = trades.filter(t => t.outcome === 'profit').length
     const losses = trades.filter(t => t.outcome === 'loss').length
     const breakeven = trades.filter(t => t.outcome === 'breakeven').length
-    const pending = trades.filter(t => !t.outcome || t.outcome === 'pending').length
+    const pending = trades.filter(t => !t.outcome).length
 
     return [
       { name: 'Wins', value: wins, color: 'oklch(0.65 0.18 150)' },
@@ -94,7 +163,11 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
       const stats = sportMap.get(sport)!
       if (trade.outcome === 'profit') stats.wins++
       if (trade.outcome === 'loss') stats.losses++
-      stats.profit += trade.profit || 0
+      
+      // Only include profit for settled bets with actualReturn
+      if (trade.actualReturn != null) {
+        stats.profit += (trade.actualReturn || 0) - (trade.stake || 0)
+      }
     })
 
     return Array.from(sportMap.entries()).map(([sport, stats]) => ({
@@ -111,12 +184,13 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
   // Cumulative profit over time
   const cumulativeProfit = useMemo(() => {
     const sorted = [...trades]
-      .filter(t => t.outcome && t.outcome !== 'pending')
+      .filter(t => t.outcome && t.actualReturn != null)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     let cumulative = 0
     return sorted.map(trade => {
-      cumulative += trade.profit || 0
+      const tradeProfit = (trade.actualReturn || 0) - (trade.stake || 0)
+      cumulative += tradeProfit
       return {
         date: new Date(trade.timestamp).toLocaleDateString(),
         profit: cumulative
@@ -127,11 +201,85 @@ export function PerformanceTab({ trades, unifiedBets = [] }: PerformanceTabProps
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-2xl font-bold text-foreground">Betting Performance</h3>
-        <p className="text-sm text-muted-foreground">
-          Track your betting metrics, ROI, and performance by sport
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold text-foreground">Betting Performance</h3>
+            <p className="text-muted-foreground">Track your betting results and settle pending bets</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefreshData}
+            disabled={isRefreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
+        </div>
       </div>
+
+      {/* Pending Bets Section */}
+      {pendingBets.length > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="h-5 w-5 text-orange-500" />
+            <h4 className="text-lg font-semibold text-foreground">Settle Pending Bets</h4>
+            <Badge variant="secondary">{pendingBets.length} pending</Badge>
+          </div>
+          
+          <div className="space-y-3">
+            {pendingBets.map(bet => (
+              <Card key={bet.id} className="p-4 border-l-4 border-l-orange-500">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">{bet.description || 'Unknown Bet'}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {bet.sport} • ${bet.stake.toFixed(2)} • {bet.odds > 0 ? '+' : ''}{bet.odds}
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleBetOutcome(bet.id, 'win')}
+                      className="gap-1"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Win
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleBetOutcome(bet.id, 'loss')}
+                      className="gap-1"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Loss
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBetOutcome(bet.id, 'push')}
+                    >
+                      Push
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+          
+          {pendingBets.length >= 5 && (
+            <div className="mt-4 text-center">
+              <Button variant="outline" size="sm">
+                View All Pending Bets
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <KPICardsGrid

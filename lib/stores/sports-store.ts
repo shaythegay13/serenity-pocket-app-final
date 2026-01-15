@@ -81,7 +81,7 @@ const initialState = {
   } as Record<SupportedSportKey, number | null>,
   selectedPlayer: null,
   refreshInterval: 30, // Default 30 seconds
-  preferredLayout: 'default',
+  preferredLayout: 'default' as const,
 }
 
 /**

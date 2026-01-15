@@ -18,6 +18,7 @@ export type EmotionOutcomePoint = {
   betActivity?: number
   expectedValue?: number
   mentalHealthScore?: number
+  profitLoss?: number
 }
 
 export interface DailyBucket {

@@ -1,6 +1,7 @@
 import { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { calculateBetReturn, calculateProfitLoss } from "@/lib/bet-tracking-calculations"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import type { SupportedSportKey, GameBetMarketType } from "@/lib/types"
 
 export class BetTrackingService {
@@ -78,6 +79,9 @@ export class BetTrackingService {
     // Save to storage
     await this.saveComprehensiveBet(comprehensiveBet)
     
+    // Emit event to refresh analytics data across the app
+    analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+    
     return comprehensiveBet
   }
 
@@ -148,6 +152,10 @@ export class BetTrackingService {
     }
 
     await this.saveComprehensiveBet(comprehensiveBet)
+    
+    // Emit event to refresh analytics data across the app
+    analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+    
     return comprehensiveBet
   }
 

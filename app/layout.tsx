@@ -6,7 +6,6 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { FlowgladProviderWrapper } from "@/components/flowglad-provider-wrapper"
-import { Analytics } from "@vercel/analytics/next"
 import { Footer } from "@/components/footer"
 
 const inter = Inter({ subsets: ["latin"] })

@@ -19,14 +19,33 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
 
   useEffect(() => {
     let mounted = true
+    let timeoutId: NodeJS.Timeout
     
     const checkAuth = async () => {
+      console.log('🔐 AuthenticatedLayout: Starting auth check...')
+      
+      // Add timeout to prevent infinite loading
+      timeoutId = setTimeout(() => {
+        if (mounted && loading) {
+          console.log('🔐 Auth check timeout - forcing loading to false')
+          setLoading(false)
+          setAuthed(false)
+        }
+      }, 10000) // 10 second timeout
+      
       try {
         // Get session and user data in parallel
+        console.log('🔐 Getting session and user data...')
         const [{ data: { session } }, userData] = await Promise.all([
           supabase.auth.getSession(),
-          storage.getUserData().catch(() => null)
+          storage.getUserData().catch((error) => {
+            console.log('🔐 getUserData failed:', error)
+            return null
+          })
         ])
+        
+        console.log('🔐 Session:', session ? 'found' : 'not found')
+        console.log('🔐 UserData:', userData ? 'found' : 'not found')
         
         if (!mounted) return
         
@@ -40,12 +59,26 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         setUserData(userData)
         
       } catch (error) {
-        console.error('Auth check error:', error)
+        console.error('🔐 Auth check error:', error)
+        
+        // Check if this is an invalid refresh token error
+        if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
+          console.log('🔐 Invalid refresh token detected, clearing auth state...')
+          // Clear all auth state
+          await supabase.auth.signOut()
+          if (typeof window !== 'undefined') {
+            localStorage.clear()
+            sessionStorage.clear()
+          }
+        }
+        
         if (mounted) {
           setAuthed(false)
         }
       } finally {
         if (mounted) {
+          console.log('🔐 Auth check complete, setting loading to false')
+          clearTimeout(timeoutId)
           setLoading(false)
         }
       }
@@ -71,6 +104,23 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
             }
           } catch (error) {
             console.error('Error getting user data:', error)
+            
+            // Check if this is an invalid refresh token error
+            if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
+              console.log('🔐 Invalid refresh token detected in auth state change, clearing auth state...')
+              // Clear all auth state
+              await supabase.auth.signOut()
+              if (typeof window !== 'undefined') {
+                localStorage.clear()
+                sessionStorage.clear()
+              }
+              if (mounted) {
+                setAuthed(false)
+                setUserData(null)
+              }
+              return
+            }
+            
             if (mounted) {
               setAuthed(true)
               setUserData(null)
@@ -134,7 +184,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
       <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
       
       <div className="hidden md:block">
-        <Navigation activeTab={activeTab} onTabChange={handleNavigateToTab} />
+        <Navigation />
       </div>
       
       <main className="pb-20 md:pb-0">

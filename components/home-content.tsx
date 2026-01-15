@@ -61,6 +61,14 @@ export function HomeContent() {
   // Read tab parameter from URL
   useEffect(() => {
     const tab = searchParams.get("tab")
+    
+    // Redirect old history tab to analytics performance tab
+    if (tab === "history") {
+      window.history.replaceState(null, "", "/?tab=analytics")
+      setActiveTab("analytics")
+      return
+    }
+    
     if (tab && ["home", "odds", "analyze", "behavior", "ai-picks", "analytics", "account"].includes(tab)) {
       setActiveTab(tab)
     }
@@ -73,6 +81,12 @@ export function HomeContent() {
       
       try {
         const data = await storage.getUserData()
+
+        // Check if user data exists before accessing properties
+        if (!data) {
+          setShowEmotionCheckIn(true)
+          return
+        }
 
         // lastEmotionCheckIn is stored as a Date (or may be missing)
         const last = data.lastEmotionCheckIn
@@ -98,7 +112,13 @@ export function HomeContent() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        // Run auth check and user data fetch in parallel
+        const [sessionResult, userDataResult] = await Promise.allSettled([
+          supabase.auth.getSession(),
+          storage.getUserData().catch(() => null)
+        ])
+
+        const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
         
         if (!session) {
           setAuthed(false)
@@ -109,7 +129,7 @@ export function HomeContent() {
 
         setAuthed(true)
         
-        const profile = await storage.getUserData()
+        const profile = userDataResult.status === 'fulfilled' ? userDataResult.value : null
         setUserData(profile)
 
         // Authenticated users should land in the main dashboard.
@@ -169,6 +189,7 @@ export function HomeContent() {
   }, [])
 
   const handleNavigateToTab = (tab: string) => {
+    console.log('🔄 Navigating to tab:', tab)
     setActiveTab(tab)
   }
 
@@ -392,7 +413,7 @@ export function HomeContent() {
         <DashboardHeader userData={userData ?? undefined} onNavigateToTab={handleNavigateToTab} />
         
         <div className="hidden md:block">
-          <Navigation activeTab={activeTab} onTabChange={handleNavigateToTab} />
+          <Navigation />
         </div>
         
         <main className="pb-20 md:pb-0">
@@ -416,13 +437,24 @@ export function HomeContent() {
               )}
               {activeTab === "ai-picks" && <AiPicksTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
               {activeTab === "analytics" && <AnalyticsTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
-              {activeTab === "account" && <AccountTab userData={userData as any} updateUserData={updateUserData} />}
+              {activeTab === "account" && (
+                <Suspense fallback={
+                  <div className="min-h-[60vh] flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <div className="animate-pulse text-muted-foreground">Loading Account...</div>
+                    </div>
+                  </div>
+                }>
+                  <AccountTab userData={userData as any} updateUserData={updateUserData} />
+                </Suspense>
+              )}
             </Suspense>
           </ErrorBoundary>
         </main>
         
         <div className="md:hidden">
-          <BottomNav activeTab={activeTab} onTabChange={handleNavigateToTab} />
+          <BottomNav />
         </div>
       </div>
     </ErrorBoundary>

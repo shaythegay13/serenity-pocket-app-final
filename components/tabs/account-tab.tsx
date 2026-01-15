@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,30 +13,41 @@ interface AccountTabProps {
   updateUserData: (updates: Partial<UserData>) => Promise<void>
 }
 
-export function AccountTab({ userData, updateUserData }: AccountTabProps) {
+export const AccountTab = memo(function AccountTab({ userData, updateUserData }: AccountTabProps) {
+  console.log('👤 AccountTab rendering with userData:', userData?.name, 'Tier:', userData?.subscriptionTier)
+  
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [localName, setLocalName] = useState(userData.name)
-  const [localUsername, setLocalUsername] = useState(userData.username || '')
-  const [localAge, setLocalAge] = useState(userData.age?.toString() || '')
-  const [localLocation, setLocalLocation] = useState(userData.location || '')
-  const [localDailyLimit, setLocalDailyLimit] = useState<string>(
-    userData.dailyBetLimit != null ? String(userData.dailyBetLimit) : ''
-  )
-  const [localMaxStake, setLocalMaxStake] = useState<string>(
-    userData.maxStakeLimit != null ? String(userData.maxStakeLimit) : ''
-  )
-  const currentTier = userData.subscriptionTier || "free"
+  
+  // Memoize local state to prevent unnecessary re-renders
+  const localState = useMemo(() => ({
+    name: userData.name,
+    username: userData.username || '',
+    age: userData.age?.toString() || '',
+    location: userData.location || '',
+    dailyLimit: userData.dailyBetLimit != null ? String(userData.dailyBetLimit) : '',
+    maxStake: userData.maxStakeLimit != null ? String(userData.maxStakeLimit) : ''
+  }), [userData.name, userData.username, userData.age, userData.location, userData.dailyBetLimit, userData.maxStakeLimit])
 
-  // Update local state when userData changes
+  const [localName, setLocalName] = useState(localState.name)
+  const [localUsername, setLocalUsername] = useState(localState.username)
+  const [localAge, setLocalAge] = useState(localState.age)
+  const [localLocation, setLocalLocation] = useState(localState.location)
+  const [localDailyLimit, setLocalDailyLimit] = useState(localState.dailyLimit)
+  const [localMaxStake, setLocalMaxStake] = useState(localState.maxStake)
+  
+  // Memoize current tier
+  const currentTier = useMemo(() => userData.subscriptionTier || "free", [userData.subscriptionTier])
+
+  // Optimize useEffect with minimal dependencies
   useEffect(() => {
-    setLocalName(userData.name)
-    setLocalUsername(userData.username || '')
-    setLocalAge(userData.age?.toString() || '')
-    setLocalLocation(userData.location || '')
-    setLocalDailyLimit(userData.dailyBetLimit != null ? String(userData.dailyBetLimit) : '')
-    setLocalMaxStake(userData.maxStakeLimit != null ? String(userData.maxStakeLimit) : '')
-  }, [userData.name, userData.username, userData.age, userData.location])
+    setLocalName(localState.name)
+    setLocalUsername(localState.username)
+    setLocalAge(localState.age)
+    setLocalLocation(localState.location)
+    setLocalDailyLimit(localState.dailyLimit)
+    setLocalMaxStake(localState.maxStake)
+  }, [localState])
 
   // Log subscription data on mount/update
   console.log('💳 Current subscription:', {
@@ -318,31 +329,6 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
                   </span>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Current Plan */}
-      <Card className="p-6 bg-linear-to-br from-primary/10 to-accent/10 border-primary/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-primary/20">
-              {currentTier === "free" ? (
-                <User className="h-8 w-8 text-primary" />
-              ) : (
-                <Crown className="h-8 w-8 text-primary" />
-              )}
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-foreground">{currentTier === 'free' ? 'Free Plan' : 'Premium Plan'}</h3>
-              <p className="text-sm text-muted-foreground">{currentTier === 'free' ? 'Basic features' : 'Premium features'}</p>
-            </div>
-          </div>
-          {currentTier !== "free" && (
-            <div className="text-right">
-              <p className="text-3xl font-bold text-primary">Premium</p>
-              <p className="text-xs text-muted-foreground">Active</p>
             </div>
           )}
         </div>
@@ -716,4 +702,4 @@ export function AccountTab({ userData, updateUserData }: AccountTabProps) {
 
       </div>
   )
-}
+})

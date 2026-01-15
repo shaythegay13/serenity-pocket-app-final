@@ -82,7 +82,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
     }
   }
 
-  const handleUpdateOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
+  const handleUpdateOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push' | 'pending') => {
     try {
       // Find the bet
       const betIndex = analyses.findIndex(bet => bet.id === betId)
@@ -92,6 +92,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       const actualReturn = 
         outcome === 'win' ? calculateWinReturn(bet.stake, bet.odds) :
         outcome === 'push' ? bet.stake :
+        outcome === 'pending' ? undefined :
         0
 
       const updatedBet = {
@@ -110,7 +111,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       await storage.updateBetAnalysis(updatedBet)
       
       toast.success('Outcome updated', {
-        description: `Bet marked as ${outcome.toUpperCase()} - Return: $${actualReturn.toFixed(2)}`
+        description: `Bet marked as ${outcome.toUpperCase()} - Return: $${actualReturn?.toFixed(2) || '0.00'}`
       })
     } catch (error) {
       console.error('Error updating outcome:', error)
@@ -482,7 +483,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                   <div className="text-xs text-muted-foreground mb-1">
                     Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}
                   </div>
-                  {bet.expectedValue !== undefined && (
+                  {bet.expectedValue !== undefined && bet.expectedValue !== null && (
                     <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       EV: {bet.expectedValue >= 0 ? '+' : ''}${bet.expectedValue.toFixed(2)}
                     </div>
@@ -666,7 +667,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                             selectedBet.outcome === 'loss' ? 'text-red-500' :
                             'text-gray-500'
                           }`}>
-                            {selectedBet.outcome.toUpperCase()}
+                            {selectedBet.outcome?.toUpperCase() || 'PENDING'}
                           </p>
                         </div>
                         {selectedBet.actualReturn !== undefined && (

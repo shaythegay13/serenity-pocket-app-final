@@ -1,7 +1,6 @@
 "use client"
 
-import React from "react"
-import { useEffect, useState } from "react"
+import React, { memo, useMemo, useCallback, useState } from "react"
 import { GameCard } from "./shared/GameCard"
 import { TabSkeleton } from "./shared/LoadingSkeleton"
 import { useSportsStore, type SportsFeatureView } from "@/lib/stores/sports-store"
@@ -14,15 +13,28 @@ import { TeamPlayerAnalyticsPanel } from "./panels/TeamPlayerAnalyticsPanel"
 import { LineMovementPanelEnhanced } from "./panels/LineMovementPanelEnhanced"
 import { BettingTrendsPanelEnhanced } from "./panels/BettingTrendsPanelEnhanced"
 
-// DISABLED: Advanced live betting components not needed while "Feature Coming Soon" wall is active
-// import { LiveGameCard } from "@/components/live-betting/LiveGameCard"
-// import { OddsGrid } from "@/components/live-betting/OddsGrid"
-// import { LineMovementChart } from "@/components/live-betting/LineMovementChart"
-// import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsDashboard"
-import { LiveGameCard } from "@/components/live-betting/LiveGameCard"
-import { OddsGrid } from "@/components/live-betting/OddsGrid"
-import { LineMovementChart } from "@/components/live-betting/LineMovementChart"
-import { BettingTrendsDashboard } from "@/components/live-betting/BettingTrendsDashboard"
+// Lazy load heavy components to improve initial load performance
+import dynamic from "next/dynamic"
+
+const LiveGameCard = dynamic(() => import("@/components/live-betting/LiveGameCard").then(mod => ({ default: mod.LiveGameCard })), {
+  loading: () => <div className="animate-pulse bg-gray-800 h-32 rounded-lg mb-2"></div>,
+  ssr: false
+})
+
+const OddsGrid = dynamic(() => import("@/components/live-betting/OddsGrid").then(mod => ({ default: mod.OddsGrid })), {
+  loading: () => <div className="animate-pulse bg-gray-800 h-64 rounded-lg"></div>,
+  ssr: false
+})
+
+const LineMovementChart = dynamic(() => import("@/components/live-betting/LineMovementChart").then(mod => ({ default: mod.LineMovementChart })), {
+  loading: () => <div className="animate-pulse bg-gray-800 h-48 rounded-lg"></div>,
+  ssr: false
+})
+
+const BettingTrendsDashboard = dynamic(() => import("@/components/live-betting/BettingTrendsDashboard").then(mod => ({ default: mod.BettingTrendsDashboard })), {
+  loading: () => <div className="animate-pulse bg-gray-800 h-64 rounded-lg"></div>,
+  ssr: false
+})
 
 // DISABLED: Enhanced panels not needed while "Feature Coming Soon" wall is active
 // import {
@@ -100,7 +112,7 @@ export function LiveScoresPanelEnhanced({ sport, subscriptionTier }: { sport: Su
         const isPast = commence < new Date(now.getTime() - 4 * 60 * 60 * 1000) // 4 hours ago
 
         return (
-          <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/10 rounded-xl p-6">
+          <div key={game.id} className="bg-linear-to-br from-[#1a1f2e] to-[#151923] border border-white/10 rounded-xl p-6">
             {/* Status Badge */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -164,10 +176,10 @@ export function LiveScoresPanelEnhanced({ sport, subscriptionTier }: { sport: Su
               <div className="mt-4 pt-4 border-t border-white/10">
                 <button
                   onClick={() => handleBetClick(game)}
-                  className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+                  className="w-full bg-linear-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
                   style={{ minHeight: '48px', padding: '16px 24px' }}
                 >
-                  <TrendingUp className="h-5 w-5 flex-shrink-0" />
+                  <TrendingUp className="h-5 w-5 shrink-0" />
                   <span className="font-semibold">Bet on This Game</span>
                 </button>
               </div>
@@ -219,7 +231,7 @@ function UpcomingGamesOddsPanelEnhanced({ sport }: { sport: SupportedSportKey })
         const daysUntil = Math.floor(hoursUntil / 24)
 
         return (
-          <div key={game.id} className="bg-gradient-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
+          <div key={game.id} className="bg-linear-to-br from-[#1a1f2e] to-[#151923] border border-white/20 rounded-xl p-6">
             {/* Game Header */}
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
               <div>
@@ -459,10 +471,10 @@ function LiveScoresPanel({ sport, subscriptionTier }: { sport: SupportedSportKey
             {canBet && (
               <button
                 onClick={() => handleBetClick(game)}
-                className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
+                className="w-full bg-linear-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer pointer-events-auto min-h-[48px] text-base"
                 style={{ minHeight: '48px', padding: '16px 24px' }}
               >
-                <TrendingUp className="h-5 w-5 flex-shrink-0" />
+                <TrendingUp className="h-5 w-5 shrink-0" />
                 <span className="font-semibold">Bet on This Game</span>
               </button>
             )}
@@ -604,14 +616,24 @@ function PanelHeader({ feature }: { feature: SportsFeatureView | null }) {
   )
 }
 
-export function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
+// Memoized panel components to prevent unnecessary re-renders
+const MemoizedLiveScoresPanel = memo(LiveScoresPanelEnhanced)
+const MemoizedUpcomingGamesPanel = memo(UpcomingGamesOddsPanelEnhanced)
+const MemoizedLineMovementPanel = memo(LineMovementPanelEnhanced)
+const MemoizedTeamPlayerPanel = memo(TeamPlayerAnalyticsPanel)
+const MemoizedBettingTrendsPanel = memo(BettingTrendsPanelEnhanced)
+
+export const FeaturePanels = memo(function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
   const activeSport = useSportsStore((state) => state.activeSport)
   const activeFeature = useSportsStore((state) => state.activeFeature)
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
-  const subscriptionTier = userData?.subscriptionTier || "free"
+  const [isPanelLoading, setIsPanelLoading] = useState(false)
+  
+  // Memoize subscription tier to prevent unnecessary recalculations
+  const subscriptionTier = useMemo(() => userData?.subscriptionTier || "free", [userData?.subscriptionTier])
 
-  // Function to navigate to betting features
-  const navigateToBettingFeature = (feature: 'smartslip' | 'tiltlab', game: any) => {
+  // Optimize navigation function with useCallback
+  const navigateToBettingFeature = useCallback((feature: 'smartslip' | 'tiltlab', game: any) => {
     // Store the game data for pre-filling
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('pendingBetGame', JSON.stringify({
@@ -635,39 +657,43 @@ export function FeaturePanels({ userData }: { userData?: { subscriptionTier?: st
     } else {
       alert(`Navigating to TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
     }
-  }
+  }, [activeSport])
 
+  // Early return if no active feature
   if (!activeFeature) {
     return null
   }
 
-  const handleClose = () => {
+  // Optimize close handlers
+  const handleClose = useCallback(() => {
     setActiveFeature(null)
-  }
+  }, [setActiveFeature])
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       handleClose()
     }
-  }
+  }, [handleClose])
 
-  // Render the appropriate panel based on active feature
-  const renderPanelContent = () => {
-    switch (activeFeature) {
-      case "live_scores":
-        return <LiveScoresPanelEnhanced sport={activeSport} subscriptionTier={subscriptionTier} />
-      case "upcoming_games_odds":
-        return <UpcomingGamesOddsPanelEnhanced sport={activeSport} />
-      case "line_movement":
-        return <LineMovementPanelEnhanced sport={activeSport} />
-      case "team_player_analytics":
-        return <TeamPlayerAnalyticsPanel sport={activeSport} />
-      case "betting_trends":
-        return <BettingTrendsPanelEnhanced sport={activeSport} />
-      default:
-        return null
+  // Memoize panel content rendering
+  const renderPanelContent = useMemo(() => {
+    setIsPanelLoading(true)
+    
+    const panelMap = {
+      live_scores: <MemoizedLiveScoresPanel sport={activeSport} subscriptionTier={subscriptionTier} />,
+      upcoming_games_odds: <MemoizedUpcomingGamesPanel sport={activeSport} />,
+      line_movement: <MemoizedLineMovementPanel sport={activeSport} />,
+      team_player_analytics: <MemoizedTeamPlayerPanel sport={activeSport} />,
+      betting_trends: <MemoizedBettingTrendsPanel sport={activeSport} />
     }
-  }
+    
+    const content = panelMap[activeFeature as keyof typeof panelMap] || null
+    
+    // Simulate progressive loading
+    setTimeout(() => setIsPanelLoading(false), 100)
+    
+    return content
+  }, [activeFeature, activeSport, subscriptionTier])
 
   return (
     <>
@@ -696,13 +722,21 @@ export function FeaturePanels({ userData }: { userData?: { subscriptionTier?: st
               </div>
             </div>
 
-            {/* Panel Content */}
+            {/* Panel Content with Progressive Loading */}
             <div className="px-6 pb-8">
-              {renderPanelContent()}
+              {isPanelLoading ? (
+                <div className="py-12">
+                  <TabSkeleton cardCount={3} />
+                </div>
+              ) : (
+                <div className="animate-fadeIn">
+                  {renderPanelContent}
+                </div>
+              )}
             </div>
           </section>
         </div>
       </div>
     </>
   )
-}
+})

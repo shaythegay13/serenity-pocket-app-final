@@ -156,32 +156,32 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 {userData && (
                   <div className="px-3 py-3 border-b border-border bg-muted/50">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Archetype</span>
                         <span className="font-semibold text-foreground">
                           {userData.surveyData?.userType || 'Take survey'}
                         </span>
                       </div>
                       {userData.surveyData && (
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
                           <span className="text-muted-foreground">Risk Level</span>
                           <span className="font-semibold text-foreground">{userData.surveyData.level || 'N/A'}</span>
                         </div>
                       )}
                       {userData.surveyData && (
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
                           <span className="text-muted-foreground">Score</span>
                           <span className="font-semibold text-foreground">{userData.surveyData.score !== undefined ? userData.surveyData.score : 'N/A'}</span>
                         </div>
                       )}
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Emotional Wellness</span>
                         <span className="font-semibold text-foreground">
                           {emotionalWellness !== null ? `${emotionalWellness}%` : 'Calculating...'}
                         </span>
                       </div>
                       {userData.emotionalAwarenessStreak !== undefined && (
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
                           <span className="text-muted-foreground">Awareness Streak</span>
                           <span className="font-semibold text-foreground">{userData.emotionalAwarenessStreak} days</span>
                         </div>
@@ -191,7 +191,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 )}
 
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   role="menuitem"
                   type="button"
                   onClick={() => {
@@ -199,12 +199,12 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                     onNavigateToTab?.("account")
                   }}
                 >
-                  <User className="h-4 w-4" aria-hidden="true" />
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                   <span>Account</span>
                 </button>
 
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   role="menuitem"
                   type="button"
                   onClick={() => {
@@ -216,7 +216,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 </button>
 
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   role="menuitem"
                   type="button"
                   onClick={() => {
@@ -225,9 +225,9 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   }}
                 >
                   {mounted && resolvedTheme === "dark" ? (
-                    <Sun className="h-4 w-4" aria-hidden="true" />
+                    <Sun className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                   ) : (
-                    <Moon className="h-4 w-4" aria-hidden="true" />
+                    <Moon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                   )}
                   <span>{mounted && resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
                 </button>
@@ -235,7 +235,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 <div className="h-px bg-border" />
 
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-accent"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-red-600 hover:bg-accent"
                   role="menuitem"
                   type="button"
                   onClick={() => {

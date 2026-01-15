@@ -76,7 +76,7 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
       emotionMap.set(emotion, (emotionMap.get(emotion) || 0) + 1)
     })
 
-    return Array.from(emotionMap.entries())
+    const distribution = Array.from(emotionMap.entries())
       .map(([emotion, count]) => ({
         emotion,
         count,
@@ -84,6 +84,8 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10) // Top 10 emotions
+    
+    return distribution
   }, [emotionLogs])
 
   // Betting phase emotions
@@ -201,16 +203,10 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
           </div>
           {emotionDistribution.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={emotionDistribution} layout="horizontal">
+              <BarChart data={emotionDistribution}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.2 0.01 250)" />
-                <XAxis type="number" stroke="oklch(0.55 0.01 250)" tick={{ fill: 'oklch(0.55 0.01 250)' }} />
-                <YAxis
-                  type="category"
-                  dataKey="emotion"
-                  stroke="oklch(0.55 0.01 250)"
-                  tick={{ fill: 'oklch(0.55 0.01 250)', fontSize: 12 }}
-                  width={100}
-                />
+                <XAxis dataKey="emotion" stroke="oklch(0.55 0.01 250)" tick={{ fill: 'oklch(0.55 0.01 250)', fontSize: 12 }} />
+                <YAxis stroke="oklch(0.55 0.01 250)" tick={{ fill: 'oklch(0.55 0.01 250)' }} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'oklch(0.16 0.01 250)',
@@ -236,8 +232,13 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              No emotion data available
+            <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+              <p>No emotion data available</p>
+              {emotionLogs.length > 0 && (
+                <p className="text-sm mt-2">
+                  Found {emotionLogs.length} emotion logs but couldn't process distribution
+                </p>
+              )}
             </div>
           )}
         </Card>

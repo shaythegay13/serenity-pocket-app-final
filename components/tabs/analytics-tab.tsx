@@ -1,17 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { EmotionLog, Trade, UserData, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import { Lock, Crown, Activity, TrendingUp, Brain, CheckCircle2 } from "lucide-react"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import { canAccessFeature } from "@/lib/subscription-tiers"
 import { supabase } from "@/lib/supabase"
 import { CorrelationTab } from "@/components/analytics/CorrelationTab"
 import { PerformanceTab } from "@/components/analytics/PerformanceTab"
 import { MentalHealthTab } from "@/components/analytics/MentalHealthTab"
+import { usePerformanceMonitor } from "@/lib/use-performance-monitor"
 
 interface AnalyticsTabProps {
   userData: UserData
@@ -22,13 +24,7 @@ type SubTab = "correlation" | "performance" | "mental-health"
 
 export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const hasAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
-
-  // State declarations
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [logs, setLogs] = useState<EmotionLog[]>([])
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>("performance")
+  const { markDataLoaded, markError } = usePerformanceMonitor('AnalyticsTab')
 
   // Show paywall for free tier users
   if (!hasAccess) {
@@ -58,7 +54,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           <div className="space-y-3 max-w-sm mx-auto">
             <div className="flex items-start gap-3 text-left">
               <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
-              <span className="text-sm text-foreground">Emotion vs. Outcome Correlation Charts</span>
+              <span className="text-sm text-foreground">Emotion vs Outcome Correlation Charts</span>
             </div>
             <div className="flex items-start gap-3 text-left">
               <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
@@ -87,92 +83,138 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     )
   }
 
-  // Load data effect
+  // State declarations
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<EmotionLog[]>([])
+  const [trades, setTrades] = useState<Trade[]>([])
+  const [comprehensiveBets, setComprehensiveBets] = useState<ComprehensiveBet[]>([])
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>("performance")
+
+  // Load data on mount - only run once
   useEffect(() => {
     let cancelled = false
 
-    const load = async () => {
+    const loadData = async () => {
       try {
         setLoading(true)
-        console.log('📊 Loading analytics data...')
 
-        // Load data from localStorage
-        const emotionLogs = JSON.parse(localStorage.getItem('serenity_emotion_logs') || '[]')
-        const tradeData = JSON.parse(localStorage.getItem('serenity_trades') || '[]')
+        // Check authentication status first
+        const { data: { session } } = await supabase.auth.getSession()
 
-        // Also try loading emotions from Supabase as primary source
-        if (supabase) {
-          try {
-            const { data: supabaseEmotions, error } = await supabase
-              .from('emotion_logs')
-              .select(`
-                id,
-                emotion,
-                phase,
-                timestamp,
-                trade_id,
-                trades(
-                  id,
-                  timestamp,
-                  title,
-                  sport,
-                  stake,
-                  odds,
-                  outcome,
-                  profit
-                )
-              `)
-              .order('timestamp', { ascending: false })
-
-            if (!error && supabaseEmotions) {
-              console.log('✅ Loaded emotions from Supabase:', supabaseEmotions.length)
-
-              // Map Supabase data to EmotionLog type
-              const mappedEmotions: EmotionLog[] = supabaseEmotions.map((emotion: any) => ({
-                id: emotion.id || `supabase-${emotion.timestamp}`,
-                timestamp: new Date(emotion.timestamp),
-                emotion: emotion.emotion,
-                intensity: 5,
-                context: 'betting',
-                phase: emotion.phase,
-                tradeId: emotion.trade_id
-              }))
-
-              if (!cancelled) {
-                setLogs(mappedEmotions)
-              }
-            } else {
-              console.log('Using localStorage emotions as fallback')
-              if (!cancelled) {
-                setLogs(emotionLogs || [])
-              }
-            }
-          } catch (supabaseError) {
-            console.log('Supabase error, using localStorage:', supabaseError)
-            if (!cancelled) {
-              setLogs(emotionLogs || [])
-            }
-          }
-        } else {
-          if (!cancelled) {
-            setLogs(emotionLogs || [])
-          }
+        if (!session || cancelled) {
+          setLogs([])
+          setTrades([])
+          setLoading(false)
+          return
         }
 
-        if (!cancelled) {
-          setTrades(tradeData || [])
-        }
+        const startTime = performance.now()
+        
+        // Load data in parallel to improve performance
+        const [emotionLogsResult, betAnalysesResult, tradesData, comprehensiveBetsData] = await Promise.allSettled([
+          storage.getEmotionLogs().catch(err => {
+            console.error('Error loading emotion logs:', err)
+            return [] as EmotionLog[]
+          }),
+          storage.getBetAnalyses().catch(err => {
+            console.error('Error loading bet analyses:', err)
+            return [] as BetAnalysis[]
+          }),
+          storage.getTrades().catch(err => {
+            console.error('Error loading trades data:', err)
+            return [] as Trade[]
+          }),
+          storage.getComprehensiveBets().catch(err => {
+            console.error('Error loading comprehensive bets:', err)
+            return [] as ComprehensiveBet[]
+          })
+        ])
+        
+        const emotionLogs = emotionLogsResult.status === 'fulfilled' ? emotionLogsResult.value : []
+        const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value : []
+        const trades = tradesData.status === 'fulfilled' ? tradesData.value : []
+        const comprehensiveBets = comprehensiveBetsData.status === 'fulfilled' ? comprehensiveBetsData.value : []
+        
+        const loadTime = performance.now() - startTime
+        
+        if (cancelled) return
 
-        console.log('📊 Analytics data loaded:', {
-          emotions: emotionLogs.length,
-          trades: tradeData.length
+        // Process bet analyses to trades
+        const performanceTradesFromAnalyses: Trade[] = betAnalyses.slice(0, 100).map((analysis: BetAnalysis) => ({
+          id: analysis.id,
+          timestamp: analysis.timestamp,
+          title: analysis.description || 'Unknown Bet',
+          sport: analysis.sport,
+          betType: analysis.betType === 'straight' ? 'moneyline' as const : analysis.betType,
+          stake: analysis.stake,
+          odds: analysis.odds,
+          actualReturn: analysis.actualReturn,
+          outcome: analysis.outcome === 'push' ? 'breakeven' : 
+                  analysis.outcome === 'win' ? 'profit' : 
+                  analysis.outcome === 'loss' ? 'loss' : 
+                  analysis.outcome === 'pending' ? undefined :
+                  undefined,
+          preTradeEmotion: analysis.emotionalState,
+          preTradeIntensity: analysis.emotionalIntensity,
+          biasesIdentified: analysis.biasWarnings,
+          confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
+          reasoning: analysis.aiRecommendation || '',
+        }))
+
+        // Process comprehensive bets to trades
+        const performanceTradesFromComprehensive: Trade[] = comprehensiveBets.slice(0, 100).map((bet: ComprehensiveBet) => ({
+          id: bet.id,
+          timestamp: bet.timestamp,
+          title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+          sport: bet.sport,
+          betType: bet.betType,
+          stake: bet.stake,
+          odds: bet.odds,
+          actualReturn: bet.actualReturn || 0,
+          outcome: bet.outcome === 'push' ? 'breakeven' : 
+                  bet.outcome === 'win' ? 'profit' : 
+                  bet.outcome === 'loss' ? 'loss' : 
+                  bet.outcome === 'pending' ? undefined :
+                  undefined,
+          preTradeEmotion: bet.emotions.before.emotion,
+          preTradeIntensity: bet.emotions.before.intensity,
+          biasesIdentified: bet.biasesIdentified,
+          confidenceLevel: bet.confidenceLevel,
+          reasoning: bet.reasoning || '',
+        }))
+
+        // Combine all trades, prioritizing bet analyses and removing duplicates by ID
+        const allTrades = [...performanceTradesFromAnalyses]
+        comprehensiveBets.forEach(bet => {
+          if (!allTrades.find(trade => trade.id === bet.id)) {
+            const comprehensiveTrade = performanceTradesFromComprehensive.find(trade => trade.id === bet.id)
+            if (comprehensiveTrade) {
+              allTrades.push(comprehensiveTrade)
+            }
+          }
         })
+
+        // Sort by timestamp (newest first) and limit to 100
+        const performanceTrades = allTrades
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 100)
+
+        // Update state
+        setLogs(emotionLogs)
+        setTrades(performanceTrades)
+        setComprehensiveBets(comprehensiveBets)
+        markDataLoaded(emotionLogs.length + performanceTrades.length + comprehensiveBets.length)
+        
       } catch (error) {
         if (cancelled) return
         console.error('Error loading analytics data:', error)
-        setError(error instanceof Error ? error.message : 'Failed to load analytics data')
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load analytics data'
+        setError(errorMessage)
+        markError(errorMessage)
         setLogs([])
         setTrades([])
+        setComprehensiveBets([])
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -180,12 +222,138 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       }
     }
 
-    load()
+    loadData()
 
     return () => {
       cancelled = true
     }
+  }, []) // Empty dependency array - only run once on mount
+
+  // Listen for betting data updates from emotion check-ins
+  useEffect(() => {
+    const handleBettingDataSaved = () => {
+      console.log('🔄 Betting data saved, automatically refreshing analytics...')
+      refreshData()
+    }
+
+    analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleBettingDataSaved)
+
+    return () => {
+      analyticsEvents.off(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleBettingDataSaved)
+    }
   }, [])
+
+  // Simple refresh function for PerformanceTab
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  const refreshData = async () => {
+    try {
+      setIsRefreshing(true)
+      console.log('🔄 Refreshing analytics data...')
+      
+      // Load only bet analyses and comprehensive bets data in parallel for refresh
+      const [betAnalysesResult, comprehensiveBetsResult] = await Promise.allSettled([
+        storage.getBetAnalyses().catch(err => {
+          console.error('Error loading bet analyses:', err)
+          return [] as BetAnalysis[]
+        }),
+        storage.getComprehensiveBets().catch(err => {
+          console.error('Error loading comprehensive bets:', err)
+          return [] as ComprehensiveBet[]
+        })
+      ])
+      
+      const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value : []
+      const comprehensiveBets = comprehensiveBetsResult.status === 'fulfilled' ? comprehensiveBetsResult.value : []
+      console.log('🔄 Bet analyses refreshed:', betAnalyses.length)
+      console.log('🔄 Comprehensive bets refreshed:', comprehensiveBets.length)
+      
+      // Debug: Log sample data
+      const settledBets = betAnalyses.filter(bet => bet.outcome !== 'pending')
+      console.log('🔄 Settled bets found:', settledBets.length)
+      if (settledBets.length > 0) {
+        console.log('🔄 Sample settled bet:', settledBets[0])
+      }
+
+      // Process bet analyses to trades
+      const performanceTradesFromAnalyses: Trade[] = betAnalyses.slice(0, 100).map((analysis: BetAnalysis) => ({
+        id: analysis.id,
+        timestamp: analysis.timestamp,
+        title: analysis.description || 'Unknown Bet',
+        sport: analysis.sport,
+        betType: analysis.betType === 'straight' ? 'moneyline' as const : analysis.betType,
+        stake: analysis.stake,
+        odds: analysis.odds,
+        actualReturn: analysis.actualReturn,
+        outcome: analysis.outcome === 'push' ? 'breakeven' : 
+                analysis.outcome === 'win' ? 'profit' : 
+                analysis.outcome === 'loss' ? 'loss' : 
+                analysis.outcome === 'pending' ? undefined :
+                undefined,
+        preTradeEmotion: analysis.emotionalState,
+        preTradeIntensity: analysis.emotionalIntensity,
+        biasesIdentified: analysis.biasWarnings,
+        confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
+        reasoning: analysis.aiRecommendation || '',
+      }))
+
+      // Process comprehensive bets to trades
+      const performanceTradesFromComprehensive: Trade[] = comprehensiveBets.slice(0, 100).map((bet: ComprehensiveBet) => ({
+        id: bet.id,
+        timestamp: bet.timestamp,
+        title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+        sport: bet.sport,
+        betType: bet.betType,
+        stake: bet.stake,
+        odds: bet.odds,
+        actualReturn: bet.actualReturn || 0,
+        outcome: bet.outcome === 'push' ? 'breakeven' : 
+                bet.outcome === 'win' ? 'profit' : 
+                bet.outcome === 'loss' ? 'loss' : 
+                bet.outcome === 'pending' ? undefined :
+                undefined,
+        preTradeEmotion: bet.emotions.before.emotion,
+        preTradeIntensity: bet.emotions.before.intensity,
+        biasesIdentified: bet.biasesIdentified,
+        confidenceLevel: bet.confidenceLevel,
+        reasoning: bet.reasoning || '',
+      }))
+
+      // Combine all trades, prioritizing bet analyses and removing duplicates by ID
+      const allTrades = [...performanceTradesFromAnalyses]
+      comprehensiveBets.forEach(bet => {
+        if (!allTrades.find(trade => trade.id === bet.id)) {
+          const comprehensiveTrade = performanceTradesFromComprehensive.find(trade => trade.id === bet.id)
+          if (comprehensiveTrade) {
+            allTrades.push(comprehensiveTrade)
+          }
+        }
+      })
+
+      // Sort by timestamp (newest first) and limit to 100
+      const performanceTrades = allTrades
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 100)
+
+      // Debug: Log final trades data
+      const completedTrades = performanceTrades.filter(t => t.outcome && t.actualReturn != null)
+      console.log('🔄 Final performance trades:', performanceTrades.length)
+      console.log('🔄 Completed trades with actual returns:', completedTrades.length)
+      if (completedTrades.length > 0) {
+        console.log('🔄 Sample completed trade:', completedTrades[0])
+      }
+
+      // Update only the trades data (keep emotion logs the same)
+      setTrades(performanceTrades)
+      setComprehensiveBets(comprehensiveBets)
+      markDataLoaded(logs.length + performanceTrades.length)
+      
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -234,14 +402,6 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           Performance
         </Button>
         <Button
-          variant={activeSubTab === "correlation" ? "default" : "outline"}
-          onClick={() => setActiveSubTab("correlation")}
-          className="gap-2"
-        >
-          <Activity className="h-4 w-4" />
-          Emotion Correlation
-        </Button>
-        <Button
           variant={activeSubTab === "mental-health" ? "default" : "outline"}
           onClick={() => setActiveSubTab("mental-health")}
           className="gap-2"
@@ -249,19 +409,27 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           <Brain className="h-4 w-4" />
           Mental Health
         </Button>
+        <Button
+          variant={activeSubTab === "correlation" ? "default" : "outline"}
+          onClick={() => setActiveSubTab("correlation")}
+          className="gap-2"
+        >
+          <Activity className="h-4 w-4" />
+          Emotion Correlation
+        </Button>
       </div>
 
       {/* Tab Content */}
       {activeSubTab === "performance" && (
-        <PerformanceTab trades={trades} />
-      )}
-
-      {activeSubTab === "correlation" && (
-        <CorrelationTab emotionLogs={logs} trades={trades} />
+        <PerformanceTab trades={trades} onRefreshData={refreshData} isRefreshing={isRefreshing} />
       )}
 
       {activeSubTab === "mental-health" && (
         <MentalHealthTab emotionLogs={logs} />
+      )}
+
+      {activeSubTab === "correlation" && (
+        <CorrelationTab emotionLogs={logs} trades={trades} />
       )}
     </div>
   )

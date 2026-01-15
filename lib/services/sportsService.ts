@@ -28,17 +28,17 @@ export async function fetchSportsData(sport: string) {
 export function useSportsDataLoader() {
   const activeSport = useSportsStore((state) => state.activeSport);
   const setLoading = useSportsStore((state) => state.setLoading);
-  const setData = useSportsStore((state) => state.setData);
+  const setOddsData = useSportsStore((state) => state.setOddsData);
   
   const loadData = async () => {
     try {
-      setLoading(true);
+      setLoading(activeSport, true);
       const data = await fetchSportsData(activeSport);
-      setData(activeSport, data);
+      setOddsData(activeSport, data.games || []);
     } catch (error) {
       throw error;
     } finally {
-      setLoading(false);
+      setLoading(activeSport, false);
     }
   };
   

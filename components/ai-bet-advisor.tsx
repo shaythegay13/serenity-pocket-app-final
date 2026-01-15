@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ArrowLeft, ChevronDown } from "lucide-react"
+import { analyzeOdds, formatOdds, getValueRecommendation, type OddsInput, type OddsAnalysis } from "@/lib/odds-calculator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +16,7 @@ import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles } from "luci
 import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
 import type { SupportedSportKey } from "@/lib/types"
 import { AIResultScreen } from "@/components/ai-result-screen"
+import { OddsAnalysisDisplay } from "@/components/odds-analysis-display"
 import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
@@ -63,6 +66,9 @@ export default function AIBetAdvisor() {
   const [emotionMenuOpen, setEmotionMenuOpen] = useState(false)
   const [hoveredEmotionCategory, setHoveredEmotionCategory] = useState<string | null>(null)
   const [step, setStep] = useState<"details" | "context" | "mindset">("details")
+  const [currentOddsAnalysis, setCurrentOddsAnalysis] = useState<OddsAnalysis | null>(null)
+  const [homeOdds, setHomeOdds] = useState<number>(NaN)
+  const [awayOdds, setAwayOdds] = useState<number>(NaN)
 
   const [formData, setFormData] = useState<BetScenario>({
     // Core bet details
@@ -142,31 +148,21 @@ export default function AIBetAdvisor() {
 
       const mappedSport = payload.sport ? sportMap[payload.sport] || "americanfootball_nfl" : "americanfootball_nfl"
 
-      // Infer favorite vs underdog from moneyline odds
+      // Use enhanced odds analysis
       const homeOdds = typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : NaN
       const awayOdds = typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : NaN
 
-      // Calculate implied probabilities
-      const implied = (odds: number) => {
-        if (!odds || Number.isNaN(odds)) return 0.5
-        return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
-      }
-
-      const homeImp = implied(homeOdds)
-      const awayImp = implied(awayOdds)
-
-      let favoriteTeam = payload.homeTeam || ""
-      let underdogTeam = payload.awayTeam || ""
-      let favoriteRecord = payload.homeRecord || ""
-      let underdogRecord = payload.awayRecord || ""
-
+      let oddsAnalysis: OddsAnalysis | null = null
+      
       if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
-        if (awayImp > homeImp) {
-          favoriteTeam = payload.awayTeam || favoriteTeam
-          underdogTeam = payload.homeTeam || underdogTeam
-          favoriteRecord = payload.awayRecord || favoriteRecord
-          underdogRecord = payload.homeRecord || underdogRecord
-        }
+        oddsAnalysis = analyzeOdds({
+          homeTeam: payload.homeTeam || "",
+          awayTeam: payload.awayTeam || "",
+          homeOdds,
+          awayOdds,
+          homeRecord: payload.homeRecord || "",
+          awayRecord: payload.awayRecord || ""
+        })
       }
 
       setFormData(prev => {
@@ -182,16 +178,23 @@ export default function AIBetAdvisor() {
           homeTeam: payload.homeTeam || prev.homeTeam,
           awayTeam: payload.awayTeam || prev.awayTeam,
           betType: "Moneyline",
-          selection: awayImp > homeImp ? "away" : "home",
-          odds: awayImp > homeImp ? (typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : prev.odds) : (typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : prev.odds),
+          selection: oddsAnalysis ? (oddsAnalysis.favoriteTeam === payload.homeTeam ? "home" : "away") : "home",
+          odds: oddsAnalysis ? (oddsAnalysis.favoriteTeam === payload.homeTeam ? homeOdds : awayOdds) : prev.odds,
           betAmount: effectiveBetAmount,
           budget: effectiveBudget,
-          favoriteTeam: favoriteTeam || prev.favoriteTeam,
-          underdogTeam: underdogTeam || prev.underdogTeam,
-          favoriteRecord: favoriteRecord || prev.favoriteRecord,
-          underdogRecord: underdogRecord || prev.underdogRecord,
+          favoriteTeam: oddsAnalysis?.favoriteTeam || prev.favoriteTeam,
+          underdogTeam: oddsAnalysis?.underdogTeam || prev.underdogTeam,
+          favoriteRecord: oddsAnalysis?.favoriteRecord || prev.favoriteRecord,
+          underdogRecord: oddsAnalysis?.underdogRecord || prev.underdogRecord,
         }
       })
+
+      // Store odds analysis for display
+      if (oddsAnalysis) {
+        setCurrentOddsAnalysis(oddsAnalysis)
+        setHomeOdds(homeOdds)
+        setAwayOdds(awayOdds)
+      }
 
       // Clear after use so it doesn't override manual entries later
       window.localStorage.removeItem("pendingBetAnalysis")
@@ -199,6 +202,38 @@ export default function AIBetAdvisor() {
       console.warn("AI Bet Advisor: Failed to prefill from pendingBetAnalysis", err)
     }
   }, [])
+
+  // Function to analyze odds when they change
+  const analyzeCurrentOdds = (homeOdds: number, awayOdds: number) => {
+    if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds) && 
+        formData.homeTeam && formData.awayTeam) {
+      const analysis = analyzeOdds({
+        homeTeam: formData.homeTeam,
+        awayTeam: formData.awayTeam,
+        homeOdds,
+        awayOdds,
+        homeRecord: formData.favoriteRecord || "",
+        awayRecord: formData.underdogRecord || ""
+      })
+      
+      setCurrentOddsAnalysis(analysis)
+      
+      // Update form data with correct favorite/underdog AND set the odds for the selected team
+      setFormData(prev => {
+        const selectedOdds = prev.selection === "home" ? homeOdds : awayOdds
+        return {
+          ...prev,
+          favoriteTeam: analysis.favoriteTeam,
+          underdogTeam: analysis.underdogTeam,
+          favoriteRecord: analysis.favoriteRecord,
+          underdogRecord: analysis.underdogRecord,
+          odds: selectedOdds, // Automatically set odds based on team selection
+        }
+      })
+    } else {
+      setCurrentOddsAnalysis(null)
+    }
+  }
 
   // Check for pre-filled game data from live scores
   useEffect(() => {
@@ -252,35 +287,61 @@ export default function AIBetAdvisor() {
           }))
         }
 
-        // Get last bet outcome from trades
-        const trades = await storage.getTrades()
+        // Get betting data from multiple sources for comprehensive history
+        const [betAnalyses, comprehensiveBets] = await Promise.all([
+          storage.getBetAnalyses(),
+          storage.getComprehensiveBets()
+        ])
 
-        if (trades.length > 0) {
-          // Sort trades by timestamp descending to get the most recent
-          const sortedTrades = [...trades].sort((a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        // Combine and sort all betting data by timestamp
+        const allBettingData = [
+          ...betAnalyses.map(bet => ({
+            ...bet,
+            source: 'emotion-check-in' as const,
+            timestamp: bet.timestamp,
+            outcome: bet.outcome,
+            stake: bet.stake,
+            actualReturn: bet.actualReturn,
+            emotionalState: bet.emotionalState,
+            emotionalIntensity: bet.emotionalIntensity,
+            description: bet.description
+          })),
+          ...comprehensiveBets.map(bet => ({
+            ...bet,
+            source: bet.source,
+            timestamp: bet.timestamp,
+            outcome: bet.outcome,
+            stake: bet.stake,
+            actualReturn: bet.actualReturn || 0,
+            emotionalState: bet.emotions?.before?.emotion || 'Unknown',
+            emotionalIntensity: bet.emotions?.before?.intensity || 5,
+            description: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`
+          }))
+        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+        // Get last bet outcome
+        if (allBettingData.length > 0) {
+          const lastCompletedBet = allBettingData.find(bet => 
+            bet.outcome && bet.outcome !== 'pending'
           )
 
-          // Find the most recent trade with an outcome
-          const lastCompletedTrade = sortedTrades.find(trade => trade.outcome)
-
-          if (lastCompletedTrade) {
+          if (lastCompletedBet) {
             // Check if the last bet was within 7 days
             const sevenDaysAgo = new Date()
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-            const lastBetDate = new Date(lastCompletedTrade.timestamp)
+            const lastBetDate = new Date(lastCompletedBet.timestamp)
 
             let lastOutcome: 'Won' | 'Lost' | 'Push' | 'None' = "None"
             let isChasingLoss = false
 
             if (lastBetDate >= sevenDaysAgo) {
               // Last bet was within 7 days, use the outcome
-              if (lastCompletedTrade.outcome === "profit") {
+              if (lastCompletedBet.outcome === "win" || lastCompletedBet.outcome === "profit") {
                 lastOutcome = "Won"
-              } else if (lastCompletedTrade.outcome === "loss") {
+              } else if (lastCompletedBet.outcome === "loss") {
                 lastOutcome = "Lost"
                 isChasingLoss = true // Auto-detect chasing behavior
-              } else if (lastCompletedTrade.outcome === "breakeven") {
+              } else if (lastCompletedBet.outcome === "push" || lastCompletedBet.outcome === "breakeven") {
                 lastOutcome = "Push"
               }
             }
@@ -291,6 +352,117 @@ export default function AIBetAdvisor() {
               isChasingLoss
             }))
           }
+        }
+
+        // Generate comprehensive betting history summary
+        if (allBettingData.length > 0) {
+          const recentBets = allBettingData.slice(0, 10) // Last 10 bets
+          const lastWeek = new Date()
+          lastWeek.setDate(lastWeek.getDate() - 7)
+          const lastMonth = new Date()
+          lastMonth.setDate(lastMonth.getDate() - 30)
+
+          // Calculate statistics
+          const lastWeekBets = allBettingData.filter(bet => 
+            new Date(bet.timestamp) >= lastWeek
+          )
+          const lastMonthBets = allBettingData.filter(bet => 
+            new Date(bet.timestamp) >= lastMonth
+          )
+
+          const wins = allBettingData.filter(bet => 
+            bet.outcome === 'win' || bet.outcome === 'profit'
+          ).length
+          const losses = allBettingData.filter(bet => 
+            bet.outcome === 'loss'
+          ).length
+          const pushes = allBettingData.filter(bet => 
+            bet.outcome === 'push' || bet.outcome === 'breakeven'
+          ).length
+
+          const totalBets = wins + losses + pushes
+          const winRate = totalBets > 0 ? (wins / totalBets * 100).toFixed(1) : '0'
+
+          // Generate emotional patterns
+          const emotionalStates = allBettingData
+            .filter(bet => bet.emotionalState)
+            .map(bet => bet.emotionalState)
+          const emotionCounts = emotionalStates.reduce((acc, emotion) => {
+            acc[emotion] = (acc[emotion] || 0) + 1
+            return acc
+          }, {} as Record<string, number>)
+
+          const topEmotions = Object.entries(emotionCounts)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 3)
+            .map(([emotion, count]) => `${emotion} (${count}x)`)
+
+          // Generate detailed history summary
+          let historySummary = `Recent Betting Activity:\n\n`
+          
+          // Overall stats
+          historySummary += `📊 Overall Record: ${wins}-${losses}-${pushes} (${winRate}% win rate)\n`
+          historySummary += `📈 Last 7 days: ${lastWeekBets.length} bets\n`
+          historySummary += `📅 Last 30 days: ${lastMonthBets.length} bets\n\n`
+
+          // Recent results
+          if (recentBets.length > 0) {
+            historySummary += `🕒 Recent Results:\n`
+            recentBets.slice(0, 5).forEach((bet, index) => {
+              const date = new Date(bet.timestamp).toLocaleDateString()
+              const result = bet.outcome === 'win' || bet.outcome === 'profit' ? '✅ WON' : 
+                           bet.outcome === 'loss' ? '❌ LOST' : 
+                           bet.outcome === 'push' || bet.outcome === 'breakeven' ? '⚖️ PUSH' : '⏳ PENDING'
+              historySummary += `${index + 1}. ${date} - ${bet.description} - ${result} ($${bet.stake})\n`
+            })
+            historySummary += '\n'
+          }
+
+          // Emotional patterns
+          if (topEmotions.length > 0) {
+            historySummary += `🧠 Common Emotional States:\n`
+            topEmotions.forEach(emotion => {
+              historySummary += `• ${emotion}\n`
+            })
+            historySummary += '\n'
+          }
+
+          // Performance by emotion
+          const emotionPerformance = allBettingData
+            .filter(bet => bet.emotionalState && bet.outcome && bet.outcome !== 'pending')
+            .reduce((acc, bet) => {
+              const emotion = bet.emotionalState!
+              if (!acc[emotion]) {
+                acc[emotion] = { wins: 0, losses: 0, pushes: 0, total: 0 }
+              }
+              acc[emotion].total++
+              if (bet.outcome === 'win' || bet.outcome === 'profit') acc[emotion].wins++
+              else if (bet.outcome === 'loss') acc[emotion].losses++
+              else if (bet.outcome === 'push' || bet.outcome === 'breakeven') acc[emotion].pushes++
+              return acc
+            }, {} as Record<string, { wins: number; losses: number; pushes: number; total: number }>)
+
+          const bestEmotions = Object.entries(emotionPerformance)
+            .filter(([, stats]) => stats.total >= 2) // Only emotions with at least 2 bets
+            .map(([emotion, stats]) => ({
+              emotion,
+              winRate: (stats.wins / stats.total * 100).toFixed(1),
+              total: stats.total
+            }))
+            .sort((a, b) => parseFloat(b.winRate) - parseFloat(a.winRate))
+            .slice(0, 3)
+
+          if (bestEmotions.length > 0) {
+            historySummary += `🎯 Best Performance by Emotion:\n`
+            bestEmotions.forEach(({ emotion, winRate, total }) => {
+              historySummary += `• ${emotion}: ${winRate}% win rate (${total} bets)\n`
+            })
+          }
+
+          setFormData(prev => ({
+            ...prev,
+            history: historySummary
+          }))
         }
       } catch (err) {
         console.warn("AI Bet Advisor: Failed to load user context", err)
@@ -450,7 +622,70 @@ export default function AIBetAdvisor() {
   }
 
   const updateFormData = (field: keyof BetScenario, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value }
+      
+      // If team selection changes, update the odds to match the selected team
+      if (field === "selection") {
+        const selectedOdds = value === "home" ? homeOdds : awayOdds
+        updated.odds = selectedOdds
+        
+        // Auto-populate favorite/underdog fields based on odds analysis
+        if (currentOddsAnalysis) {
+          // If user selected home team
+          if (value === "home") {
+            if (currentOddsAnalysis.favoriteTeam === prev.homeTeam) {
+              updated.favoriteTeam = prev.homeTeam
+              updated.underdogTeam = prev.awayTeam
+              updated.favoriteRecord = currentOddsAnalysis.favoriteRecord
+              updated.underdogRecord = currentOddsAnalysis.underdogRecord
+            } else {
+              updated.favoriteTeam = prev.awayTeam
+              updated.underdogTeam = prev.homeTeam
+              updated.favoriteRecord = currentOddsAnalysis.underdogRecord
+              updated.underdogRecord = currentOddsAnalysis.favoriteRecord
+            }
+          } 
+          // If user selected away team
+          else if (value === "away") {
+            if (currentOddsAnalysis.favoriteTeam === prev.awayTeam) {
+              updated.favoriteTeam = prev.awayTeam
+              updated.underdogTeam = prev.homeTeam
+              updated.favoriteRecord = currentOddsAnalysis.favoriteRecord
+              updated.underdogRecord = currentOddsAnalysis.underdogRecord
+            } else {
+              updated.favoriteTeam = prev.homeTeam
+              updated.underdogTeam = prev.awayTeam
+              updated.favoriteRecord = currentOddsAnalysis.underdogRecord
+              updated.underdogRecord = currentOddsAnalysis.favoriteRecord
+            }
+          }
+        } else {
+          // Fallback: use odds to determine favorite/underdog if no analysis available
+          if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
+            let favoriteTeam, underdogTeam
+            if (homeOdds < 0 && awayOdds < 0) {
+              // Both negative: less negative = favorite
+              favoriteTeam = homeOdds > awayOdds ? prev.homeTeam : prev.awayTeam
+              underdogTeam = homeOdds > awayOdds ? prev.awayTeam : prev.homeTeam
+            } else if (homeOdds > 0 && awayOdds > 0) {
+              // Both positive: smaller positive = favorite
+              favoriteTeam = homeOdds < awayOdds ? prev.homeTeam : prev.awayTeam
+              underdogTeam = homeOdds < awayOdds ? prev.awayTeam : prev.homeTeam
+            } else {
+              // Mixed signs: negative = favorite
+              favoriteTeam = homeOdds < 0 ? prev.homeTeam : prev.awayTeam
+              underdogTeam = homeOdds < 0 ? prev.awayTeam : prev.homeTeam
+            }
+            
+            updated.favoriteTeam = favoriteTeam
+            updated.underdogTeam = underdogTeam
+          }
+        }
+      }
+      
+      return updated
+    })
   }
 
   const handlePlaceBet = () => {
@@ -635,16 +870,42 @@ export default function AIBetAdvisor() {
                 </div>
               )}
 
-              <div>
-                <Label htmlFor="odds">Odds (American)</Label>
-                <Input
-                  id="odds"
-                  type="number"
-                  value={formData.odds || ""}
-                  onChange={(e) => updateFormData("odds", parseInt(e.target.value) || undefined)}
-                  placeholder="e.g., -110"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="homeOdds">Home Team Odds (American)</Label>
+                  <Input
+                    id="homeOdds"
+                    type="number"
+                    value={Number.isNaN(homeOdds) ? "" : homeOdds}
+                    onChange={(e) => {
+                      const odds = parseInt(e.target.value) || NaN
+                      setHomeOdds(odds)
+                      analyzeCurrentOdds(odds, awayOdds)
+                    }}
+                    placeholder="e.g., -110"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="awayOdds">Away Team Odds (American)</Label>
+                  <Input
+                    id="awayOdds"
+                    type="number"
+                    value={Number.isNaN(awayOdds) ? "" : awayOdds}
+                    onChange={(e) => {
+                      const odds = parseInt(e.target.value) || NaN
+                      setAwayOdds(odds)
+                      analyzeCurrentOdds(homeOdds, odds)
+                    }}
+                    placeholder="e.g., +105"
+                  />
+                </div>
               </div>
+
+              {/* Enhanced Odds Analysis Display */}
+              {currentOddsAnalysis && (
+                <OddsAnalysisDisplay analysis={currentOddsAnalysis} />
+              )}
 
               <div>
                 <Label htmlFor="betAmount">Proposed Bet Amount ($)</Label>
@@ -679,7 +940,12 @@ export default function AIBetAdvisor() {
                   value={formData.favoriteTeam}
                   onChange={(e) => updateFormData("favoriteTeam", e.target.value)}
                   placeholder="e.g., Lakers"
+                  className="bg-gray-50"
+                  readOnly={currentOddsAnalysis !== null}
                 />
+                {currentOddsAnalysis && (
+                  <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
+                )}
               </div>
 
               <div>
@@ -689,7 +955,12 @@ export default function AIBetAdvisor() {
                   value={formData.underdogTeam}
                   onChange={(e) => updateFormData("underdogTeam", e.target.value)}
                   placeholder="e.g., Warriors"
+                  className="bg-gray-50"
+                  readOnly={currentOddsAnalysis !== null}
                 />
+                {currentOddsAnalysis && (
+                  <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
+                )}
               </div>
 
               <div>

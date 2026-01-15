@@ -70,10 +70,10 @@ export function SportTabRouter({ activeSport, userData }: SportTabRouterProps) {
         {!["americanfootball_nfl", "basketball_nba", "baseball_mlb", "icehockey_nhl"].includes(activeSport) && (
           <div className="flex items-center justify-center min-h-screen">
             <div className="text-center space-y-4 p-6">
-              <p className="text-gray-400 text-lg">
+              <p className="text-muted-foreground text-lg">
                 Sport not found: {activeSport}
               </p>
-              <p className="text-gray-500 text-sm">
+              <p className="text-muted-foreground/70 text-sm">
                 Please select a valid sport from the navigation
               </p>
             </div>

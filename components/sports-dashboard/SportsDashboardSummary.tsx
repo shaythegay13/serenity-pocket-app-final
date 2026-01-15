@@ -116,12 +116,12 @@ export function SportsDashboardSummary() {
 
   if (loading) {
     return (
-      <div className="px-4 md:px-6 py-4 bg-[#0B0E14] border-b border-white/5">
+      <div className="px-4 md:px-6 py-4 bg-card border-b">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white/5 rounded-lg p-4 animate-pulse">
-              <div className="h-4 bg-white/10 rounded mb-2"></div>
-              <div className="h-6 bg-white/10 rounded"></div>
+            <div key={i} className="bg-muted rounded-lg p-4 animate-pulse">
+              <div className="h-4 bg-muted-foreground/20 rounded mb-2"></div>
+              <div className="h-6 bg-muted-foreground/20 rounded"></div>
             </div>
           ))}
         </div>
@@ -130,55 +130,55 @@ export function SportsDashboardSummary() {
   }
 
   return (
-    <div className="px-4 md:px-6 py-4 bg-[#0B0E14] border-b border-white/5">
+    <div className="px-4 md:px-6 py-4 bg-card border-b">
       {/* Section Title */}
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-white mb-1">Highlights</h2>
-        <p className="text-xs text-gray-400">Your betting activity at a glance</p>
+        <h2 className="text-lg font-bold text-foreground mb-1">Highlights</h2>
+        <p className="text-xs text-muted-foreground">Your betting activity at a glance</p>
       </div>
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Active Bets */}
-        <div className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors">
+        <div className="bg-muted/50 rounded-lg p-4 border border-border hover:bg-muted transition-colors">
           <div className="flex items-center gap-2 mb-2">
-            <Activity className="h-4 w-4 text-blue-400" />
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Active Bets</span>
+            <Activity className="h-4 w-4 text-blue-500" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Active Bets</span>
           </div>
-          <div className="text-2xl font-bold text-white">{activeBets}</div>
-          <div className="text-xs text-gray-500 mt-1">Pending outcomes</div>
+          <div className="text-2xl font-bold text-foreground">{activeBets}</div>
+          <div className="text-xs text-muted-foreground/70 mt-1">Pending outcomes</div>
         </div>
 
         {/* Today's Edge */}
-        <div className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors">
+        <div className="bg-muted/50 rounded-lg p-4 border border-border hover:bg-muted transition-colors">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="h-4 w-4 text-green-400" />
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Today's Edge</span>
+            <TrendingUp className="h-4 w-4 text-green-500" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Today's Edge</span>
           </div>
-          <div className={`text-2xl font-bold ${todayEdge >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className={`text-2xl font-bold ${todayEdge >= 0 ? 'text-green-500' : 'text-destructive'}`}>
             {todayEdge >= 0 ? '+' : ''}{todayEdge}%
           </div>
-          <div className="text-xs text-gray-500 mt-1">Win rate vs 50%</div>
+          <div className="text-xs text-muted-foreground/70 mt-1">Win rate vs 50%</div>
         </div>
 
         {/* Live Games */}
-        <div className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors">
+        <div className="bg-muted/50 rounded-lg p-4 border border-border hover:bg-muted transition-colors">
           <div className="flex items-center gap-2 mb-2">
-            <Zap className="h-4 w-4 text-yellow-400" />
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Live Games</span>
+            <Zap className="h-4 w-4 text-yellow-500" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Live Games</span>
           </div>
-          <div className="text-2xl font-bold text-white">{liveGames}</div>
-          <div className="text-xs text-gray-500 mt-1">In progress now</div>
+          <div className="text-2xl font-bold text-foreground">{liveGames}</div>
+          <div className="text-xs text-muted-foreground/70 mt-1">In progress now</div>
         </div>
 
         {/* Win Streak */}
-        <div className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors">
+        <div className="bg-muted/50 rounded-lg p-4 border border-border hover:bg-muted transition-colors">
           <div className="flex items-center gap-2 mb-2">
-            <Trophy className="h-4 w-4 text-purple-400" />
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Win Streak</span>
+            <Trophy className="h-4 w-4 text-purple-500" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Win Streak</span>
           </div>
-          <div className="text-2xl font-bold text-white">{winStreak}</div>
-          <div className="text-xs text-gray-500 mt-1">Current streak</div>
+          <div className="text-2xl font-bold text-foreground">{winStreak}</div>
+          <div className="text-xs text-muted-foreground/70 mt-1">Current streak</div>
         </div>
       </div>
     </div>

@@ -81,8 +81,8 @@ export function SportTabs({
                 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm
                 transition-all duration-300 whitespace-nowrap min-w-[44px] min-h-[44px]
                 ${isActive
-                  ? 'bg-[#00FF41]/20 text-[#00FF41] border-2 border-[#00FF41]/50 shadow-[0_0_20px_rgba(0,255,65,0.3)]'
-                  : 'bg-[#161B22] text-gray-400 border border-white/5 hover:border-[#00D1FF]/30 hover:text-[#00D1FF]'
+                  ? 'bg-primary/20 text-primary border-2 border-primary/50 shadow-[0_0_20px_rgba(var(--primary),0.3)]'
+                  : 'bg-muted text-muted-foreground border border-border hover:border-secondary/30 hover:text-secondary'
                 }
               `}
               role="tab"

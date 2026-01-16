@@ -162,7 +162,7 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
       }
 
       // Navigate to complete the remaining survey questions
-      router.push('/onboarding/complete-survey');
+      router.push('/gambling-survey');
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Account creation error:', err);
@@ -326,7 +326,7 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         {/* Sign in link */}
         <div className="text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <a href="/signin" className="text-primary hover:underline">
+          <a href="/login" className="text-primary hover:underline">
             Sign in
           </a>
         </div>

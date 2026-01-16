@@ -353,16 +353,14 @@ export function HomeContent() {
 
   if (showSignup) {
     const SignupComponent = lazy(() =>
-      import("@/components/auth/sign-in").then((m) => ({ default: m.SignIn }))
+      import("@/components/AccountCreationFlow").then((m) => ({ default: m.default }))
     )
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
         <SignupComponent 
-          onSwitchToSignUp={() => {}}
-          onForgotPassword={() => {}}
-          onResendConfirmation={() => {}}
+          email=""
         />
       </Suspense>
     )

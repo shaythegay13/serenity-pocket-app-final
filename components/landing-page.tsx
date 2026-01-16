@@ -237,7 +237,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {[
               {
                 icon: Brain,
@@ -284,23 +284,23 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             ].map((feature, idx) => (
               <Card
                 key={idx}
-                className="group relative overflow-hidden bg-linear-to-br from-gray-900/50 to-gray-800/30 border-gray-800/50 hover:border-gray-700/50 transition-all duration-300 p-6"
+                className="group relative overflow-hidden bg-gray-900 border-gray-700 hover:border-gray-600 transition-all duration-300 p-6 min-h-[200px] flex flex-col"
               >
                 {/* Gradient overlay on hover */}
-                <div className={`absolute inset-0 bg-linear-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+                <div className={`absolute inset-0 bg-linear-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
 
-                <div className="relative space-y-4">
+                <div className="relative space-y-4 flex-1 flex flex-col">
                   {/* Icon */}
-                  <div className={`inline-flex p-3 rounded-xl bg-linear-to-br ${feature.color} bg-opacity-10`}>
+                  <div className={`inline-flex p-3 rounded-xl bg-linear-to-br ${feature.color} bg-opacity-20`}>
                     <feature.icon className={`h-6 w-6 ${feature.iconColor}`} />
                   </div>
 
                   {/* Content */}
-                  <div>
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white mb-2">
                       {feature.title}
                     </h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">
+                    <p className="text-gray-300 text-sm leading-relaxed">
                       {feature.description}
                     </p>
                   </div>

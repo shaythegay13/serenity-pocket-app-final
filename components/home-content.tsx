@@ -74,6 +74,18 @@ export function HomeContent() {
     }
   }, [searchParams])
 
+  // Check for signup trigger
+  useEffect(() => {
+    const signup = searchParams.get("signup")
+    
+    if (signup === "true" && !loading && authed === false) {
+      setShowLanding(false)
+      setShowTerms(true)
+      // Clean up the URL
+      window.history.replaceState(null, "", "/")
+    }
+  }, [searchParams, loading, authed])
+
   // Check for emotion check-in trigger
   useEffect(() => {
     const checkEmotionTrigger = async () => {

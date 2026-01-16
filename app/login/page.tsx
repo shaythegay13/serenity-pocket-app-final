@@ -19,7 +19,8 @@ export default function LoginPage() {
   return (
     <SignIn
       onSwitchToSignUp={() => {
-        window.location.href = "/"
+        // Redirect to home with signup flow trigger
+        window.location.href = "/?signup=true"
       }}
       onForgotPassword={() => {
         window.location.href = "/auth/reset-password"

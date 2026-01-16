@@ -132,6 +132,16 @@ export function HomeContent() {
 
         const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
         
+        // Check for refresh token errors
+        if (sessionResult.status === 'rejected') {
+          const error = sessionResult.reason
+          if (error?.message?.includes('Invalid Refresh Token') || error?.message?.includes('Refresh Token Not Found')) {
+            console.log('Clearing stale auth tokens due to refresh error')
+            const { clearStaleAuth } = await import('@/lib/supabase')
+            await clearStaleAuth()
+          }
+        }
+        
         if (!session) {
           setAuthed(false)
           setShowLanding(true)

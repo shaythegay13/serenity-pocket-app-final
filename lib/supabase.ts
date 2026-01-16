@@ -32,6 +32,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
   },
   db: {
     schema: 'public',
@@ -41,4 +42,26 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'x-client-timeout': '5000',
     },
   },
+})
+
+// Helper function to clear auth state when refresh token errors occur
+export const clearStaleAuth = async () => {
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+    // Clear any remaining localStorage items
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('supabase.auth.token')
+      localStorage.removeItem('supabase.auth.refreshToken')
+    }
+  } catch (error) {
+    console.log('Cleared auth state')
+  }
+}
+
+// Handle refresh token errors
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'TOKEN_REFRESHED' && !session) {
+    console.log('Token refresh failed, clearing auth state')
+    clearStaleAuth()
+  }
 })

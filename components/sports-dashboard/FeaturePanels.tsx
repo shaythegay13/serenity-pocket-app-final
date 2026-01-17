@@ -624,9 +624,16 @@ const MemoizedTeamPlayerPanel = memo(TeamPlayerAnalyticsPanel)
 const MemoizedBettingTrendsPanel = memo(BettingTrendsPanelEnhanced)
 
 export const FeaturePanels = memo(function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
-  const activeSport = useSportsStore((state) => state.activeSport)
-  const activeFeature = useSportsStore((state) => state.activeFeature)
-  const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
+  // Combine all store selections into a single hook call to avoid hooks rule violations
+  const { 
+    activeSport, 
+    activeFeature, 
+    setActiveFeature 
+  } = useSportsStore((state) => ({
+    activeSport: state.activeSport,
+    activeFeature: state.activeFeature,
+    setActiveFeature: state.setActiveFeature
+  }))
   const [isPanelLoading, setIsPanelLoading] = useState(false)
   
   // Memoize subscription tier to prevent unnecessary recalculations

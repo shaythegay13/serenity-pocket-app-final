@@ -153,8 +153,34 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    window.location.reload()
+    try {
+      console.log('🔐 Onboarding gate: Starting logout...')
+      
+      // Reset any error handling flags that might interfere
+      const { resetErrorHandling } = await import('@/lib/auth-utils')
+      resetErrorHandling()
+      
+      // Force sign out with global scope
+      await supabase.auth.signOut({ scope: 'global' })
+      
+      // Clear storage
+      if (typeof window !== "undefined") {
+        sessionStorage.clear()
+        localStorage.clear()
+      }
+      
+      // Redirect with delay
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
+      
+    } catch (error) {
+      console.error("Onboarding gate logout error:", error)
+      // Fallback: force redirect even if logout fails
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
+    }
   }
 
   const progressPercentage = biographyComplete && emotionTrackComplete ? 100 : biographyComplete ? 50 : 0

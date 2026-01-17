@@ -105,80 +105,61 @@ const initialState = {
  * setActiveSport('basketball_nba')
  */
 export const useSportsStore = create<SportsStoreState>()(
-  persist(
-    (set) => ({
-      ...initialState,
+  (set) => ({
+    ...initialState,
 
-      setActiveSport: (sport: SupportedSportKey) =>
-        set({ activeSport: sport }),
+    setActiveSport: (sport: SupportedSportKey) =>
+      set({ activeSport: sport }),
 
-      setActiveFeature: (feature: SportsFeatureView | null) =>
-        set({ activeFeature: feature }),
+    setActiveFeature: (feature: SportsFeatureView | null) =>
+      set({ activeFeature: feature }),
 
-      setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) =>
-        set((state) => ({
-          oddsData: {
-            ...state.oddsData,
-            [sport]: data
-          }
-        })),
-
-      setLoading: (sport: SupportedSportKey, loading: boolean) =>
-        set((state) => ({
-          gamesLoading: {
-            ...state.gamesLoading,
-            [sport]: loading
-          }
-        })),
-
-      setLastFetched: (sport: SupportedSportKey, timestamp: number) =>
-        set((state) => ({
-          lastFetched: {
-            ...state.lastFetched,
-            [sport]: timestamp
-          }
-        })),
-
-      openPlayerDetail: (player: any) =>
-        set({ selectedPlayer: player }),
-
-      closePlayerDetail: () =>
-        set({ selectedPlayer: null }),
-
-      reset: () => set(initialState),
-
-      setRefreshInterval: (interval) => set({ refreshInterval: interval }),
-      setPreferredLayout: (layout) => set({ preferredLayout: layout }),
-    }),
-    {
-      name: "sports-dashboard-storage",
-      // Only persist activeSport to localStorage (not full odds data)
-      partialize: (state) => ({
-        activeSport: state.activeSport,
-        refreshInterval: state.refreshInterval,
-        preferredLayout: state.preferredLayout
-      }),
-      // Add storage options to prevent write loops
-      storage: {
-        getItem: (name) => {
-          const item = localStorage.getItem(name)
-          return item ? JSON.parse(item) : null
-        },
-        setItem: (name, value) => {
-          try {
-            localStorage.setItem(name, JSON.stringify(value))
-          } catch (error) {
-            console.warn('Failed to save to localStorage:', error)
-          }
-        },
-        removeItem: (name) => {
-          try {
-            localStorage.removeItem(name)
-          } catch (error) {
-            console.warn('Failed to remove from localStorage:', error)
-          }
+    setOddsData: (sport: SupportedSportKey, data: GameLineRecord[]) =>
+      set((state) => ({
+        oddsData: {
+          ...state.oddsData,
+          [sport]: data
         }
-      }
-    }
-  )
+      })),
+
+    setLoading: (sport: SupportedSportKey, loading: boolean) =>
+      set((state) => ({
+        gamesLoading: {
+          ...state.gamesLoading,
+          [sport]: loading
+        }
+      })),
+
+    setLastFetched: (sport: SupportedSportKey, timestamp: number) =>
+      set((state) => ({
+        lastFetched: {
+          ...state.lastFetched,
+          [sport]: timestamp
+        }
+      })),
+
+    openPlayerDetail: (player: any) =>
+      set({ selectedPlayer: player }),
+
+    closePlayerDetail: () =>
+      set({ selectedPlayer: null }),
+
+    reset: () => set(initialState),
+
+    setRefreshInterval: (interval) => set({ refreshInterval: interval }),
+    setPreferredLayout: (layout) => set({ preferredLayout: layout }),
+  })
+  // TEMPORARILY DISABLED PERSIST TO DEBUG REACT ERROR #185
+  // persist(
+  //   (set) => ({ ... }),
+  //   {
+  //     name: "sports-dashboard-storage",
+  //     partialize: (state) => ({
+  //       activeSport: state.activeSport,
+  //       refreshInterval: state.refreshInterval,
+  //       preferredLayout: state.preferredLayout
+  //     }),
+  //     storage: { ... }
+  //   }
+  // )
 )

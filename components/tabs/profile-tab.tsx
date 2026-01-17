@@ -132,8 +132,34 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-    window.location.reload()
+    try {
+      console.log('🔐 Profile tab: Starting logout...')
+      
+      // Reset any error handling flags that might interfere
+      const { resetErrorHandling } = await import('@/lib/auth-utils')
+      resetErrorHandling()
+      
+      // Force sign out with global scope
+      await supabase.auth.signOut({ scope: 'global' })
+      
+      // Clear storage
+      if (typeof window !== "undefined") {
+        sessionStorage.clear()
+        localStorage.clear()
+      }
+      
+      // Redirect with delay
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
+      
+    } catch (error) {
+      console.error("Profile tab logout error:", error)
+      // Fallback: force redirect even if logout fails
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
+    }
   }
 
   const saveDemographics = async () => {

@@ -83,3 +83,11 @@ export const handleAuthError = async (error: any) => {
   
   return false // Error was not a refresh token error
 }
+
+/**
+ * Reset error handling flag - useful for logout operations
+ */
+export const resetErrorHandling = () => {
+  isHandlingError = false
+  console.log('🔧 Error handling flag reset')
+}

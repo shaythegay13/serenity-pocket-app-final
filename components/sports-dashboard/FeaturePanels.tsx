@@ -623,27 +623,22 @@ const MemoizedLineMovementPanel = memo(LineMovementPanelEnhanced)
 const MemoizedTeamPlayerPanel = memo(TeamPlayerAnalyticsPanel)
 const MemoizedBettingTrendsPanel = memo(BettingTrendsPanelEnhanced)
 
-export const FeaturePanels = memo(function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
-  // Combine all store selections into a single hook call to avoid hooks rule violations
-  const { 
-    activeSport, 
-    activeFeature, 
-    setActiveFeature 
-  } = useSportsStore((state) => ({
-    activeSport: state.activeSport,
-    activeFeature: state.activeFeature,
-    setActiveFeature: state.setActiveFeature
-  }))
+export const FeaturePanels = function FeaturePanels({ userData }: { userData?: { subscriptionTier?: string } }) {
+  // Simplified store access - don't combine to avoid potential issues
+  const activeSport = useSportsStore((state) => state.activeSport)
+  const activeFeature = useSportsStore((state) => state.activeFeature)
+  const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
+  
   const [isPanelLoading, setIsPanelLoading] = useState(false)
   
   // Memoize subscription tier to prevent unnecessary recalculations
   const subscriptionTier = useMemo(() => userData?.subscriptionTier || "free", [userData?.subscriptionTier])
 
-  // Optimize navigation function with useCallback
-  const navigateToBettingFeature = useCallback((feature: 'smartslip' | 'tiltlab', game: any) => {
+  // Simple navigation function without useCallback to avoid dependency issues
+  const navigateToBettingFeature = (feature: 'smartslip' | 'tiltlab', game: any) => {
     // Store the game data for pre-filling
     if (typeof window !== 'undefined') {
-      const currentSport = game.sport || activeSport // Use current activeSport from closure
+      const currentSport = game.sport || activeSport
       sessionStorage.setItem('pendingBetGame', JSON.stringify({
         awayTeam: game.awayTeam,
         homeTeam: game.homeTeam,
@@ -665,23 +660,23 @@ export const FeaturePanels = memo(function FeaturePanels({ userData }: { userDat
     } else {
       alert(`Navigating to TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
     }
-  }, []) // Remove activeSport dependency to prevent infinite re-renders
+  }
 
   // Early return if no active feature
   if (!activeFeature) {
     return null
   }
 
-  // Optimize close handlers
-  const handleClose = useCallback(() => {
+  // Simple close handlers without useCallback
+  const handleClose = () => {
     setActiveFeature(null)
-  }, []) // Remove setActiveFeature dependency - it's stable from Zustand
+  }
 
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+  const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       handleClose()
     }
-  }, [handleClose])
+  }
 
   // Memoize panel content rendering
   const renderPanelContent = useMemo(() => {
@@ -747,4 +742,4 @@ export const FeaturePanels = memo(function FeaturePanels({ userData }: { userDat
       </div>
     </>
   )
-})
+}

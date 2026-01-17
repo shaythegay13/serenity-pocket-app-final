@@ -63,14 +63,33 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
+      console.log('🔐 Starting logout process...')
+      
+      // Reset any error handling flags that might interfere
+      const { resetErrorHandling } = await import('@/lib/auth-utils')
+      resetErrorHandling()
+      
+      // Force sign out with global scope to ensure complete logout
+      await supabase.auth.signOut({ scope: 'global' })
+      
       if (typeof window !== "undefined") {
+        console.log('🔐 Clearing local storage...')
         sessionStorage.clear()
         localStorage.clear()
       }
-      window.location.href = "/"
+      
+      console.log('🔐 Redirecting to home...')
+      // Use setTimeout to break out of any potential render cycles
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
+      
     } catch (error) {
       console.error("Error logging out:", error)
+      // Fallback: force redirect even if logout fails
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
     }
   }
 

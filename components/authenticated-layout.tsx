@@ -86,7 +86,9 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         if (event === 'SIGNED_OUT') {
           setUserData(null)
           setAuthed(false)
-          window.location.href = "/"
+          setTimeout(() => {
+            window.location.href = "/"
+          }, 100)
         } else if (session && event === 'SIGNED_IN') {
           try {
             const userData = await storage.getUserData()
@@ -121,28 +123,44 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
     // Route to specific functional pages based on tab
     switch (tab) {
       case "home":
-        window.location.href = "/"
+        setTimeout(() => {
+          window.location.href = "/"
+        }, 100)
         break
       case "odds": // Sports
-        window.location.href = "/?tab=odds"
+        setTimeout(() => {
+          window.location.href = "/?tab=odds"
+        }, 100)
         break
       case "analyze":
-        window.location.href = "/?tab=analyze"
+        setTimeout(() => {
+          window.location.href = "/?tab=analyze"
+        }, 100)
         break
       case "behavior":
-        window.location.href = "/?tab=behavior"
+        setTimeout(() => {
+          window.location.href = "/?tab=behavior"
+        }, 100)
         break
       case "ai-picks": // Insights
-        window.location.href = "/?tab=ai-picks"
+        setTimeout(() => {
+          window.location.href = "/?tab=ai-picks"
+        }, 100)
         break
       case "analytics":
-        window.location.href = "/?tab=analytics"
+        setTimeout(() => {
+          window.location.href = "/?tab=analytics"
+        }, 100)
         break
       case "account":
-        window.location.href = "/?tab=account"
+        setTimeout(() => {
+          window.location.href = "/?tab=account"
+        }, 100)
         break
       default:
-        window.location.href = "/"
+        setTimeout(() => {
+          window.location.href = "/"
+        }, 100)
     }
   }
 
@@ -156,7 +174,9 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
 
   if (!authed || !userData) {
     // Redirect to home for authentication
-    window.location.href = "/"
+    setTimeout(() => {
+      window.location.href = "/"
+    }, 100)
     return null
   }
 

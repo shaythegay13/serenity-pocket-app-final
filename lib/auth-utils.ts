@@ -1,10 +1,19 @@
 import { supabase } from './supabase'
 
+// Flag to prevent multiple error handler calls
+let isHandlingError = false
+
 /**
  * Utility function to handle refresh token errors
  * Call this when you encounter "Invalid Refresh Token" errors
  */
 export const handleRefreshTokenError = async () => {
+  if (isHandlingError) {
+    console.log('🔧 Already handling refresh token error, skipping...')
+    return
+  }
+  
+  isHandlingError = true
   console.log('🔧 Handling refresh token error...')
   
   try {
@@ -30,13 +39,17 @@ export const handleRefreshTokenError = async () => {
       console.log('✅ Auth state cleared successfully')
     }
     
-    // Redirect to home page for fresh login
-    window.location.href = "/"
+    // Use setTimeout to break out of the render cycle
+    setTimeout(() => {
+      window.location.href = "/"
+    }, 100)
     
   } catch (error) {
     console.error('❌ Error clearing auth state:', error)
-    // Fallback: force reload
-    window.location.reload()
+    // Fallback: force reload after a delay
+    setTimeout(() => {
+      window.location.reload()
+    }, 100)
   }
 }
 
@@ -57,6 +70,11 @@ export const isRefreshTokenError = (error: any): boolean => {
  */
 export const handleAuthError = async (error: any) => {
   console.error('🔐 Auth error:', error)
+  
+  if (isHandlingError) {
+    console.log('🔧 Already handling an error, skipping...')
+    return false
+  }
   
   if (isRefreshTokenError(error)) {
     await handleRefreshTokenError()

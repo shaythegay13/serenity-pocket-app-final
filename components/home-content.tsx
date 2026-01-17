@@ -217,7 +217,10 @@ export function HomeContent() {
 
   const handleEmotionCheckInComplete = () => {
     setShowEmotionCheckIn(false)
-    setRefreshKey(prev => prev + 1)
+    // Only refresh if not on the behavior tab to avoid interfering with emotion logging
+    if (activeTab !== "behavior") {
+      setRefreshKey(prev => prev + 1)
+    }
   }
 
   const handleInstantProfileComplete = () => {

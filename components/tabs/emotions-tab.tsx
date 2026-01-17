@@ -155,12 +155,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [step, setStep] = useState<"core" | "sub" | "details" | "biases">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState<string>("")
-  const [intensity, setIntensity] = useState([3])
+  const [intensity, setIntensity] = useState<number[]>([5])
   const [context, setContext] = useState<string>("")
-  const [phase, setPhase] = useState<"before" | "during" | "after">("before")
-  const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | "">("")
-  const [sport, setSport] = useState<string>("")
-  const [selectedBiases, setSelectedBiases] = useState<string[]>([])
+  const [phase, setPhase] = useState<"before" | "after">("before")
   const [stake, setStake] = useState<string>("")
   const [odds, setOdds] = useState<string>("")
   const [isLogging, setIsLogging] = useState<boolean>(false)
@@ -174,10 +171,24 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   } | null>(null)
   const emotionFormRef = useRef<HTMLDivElement>(null)
 
+  // Missing state variables that were referenced in the code
+  const [selectedBiases, setSelectedBiases] = useState<string[]>([])
+  const [sport, setSport] = useState<string>("")
+  const [outcome, setOutcome] = useState<string>("")
+
+  // Track last refresh to prevent unnecessary reloads
+  const lastRefreshRef = useRef<number>(refreshKey)
+
   useEffect(() => {
     let cancelled = false
 
     const load = async () => {
+      // Skip loading if refreshKey hasn't actually changed
+      if (lastRefreshRef.current === refreshKey && logs.length > 0) {
+        return
+      }
+      lastRefreshRef.current = refreshKey
+
       try {
         const [emotionLogsData, tradesData, challengesData] = await Promise.all([
           storage.getEmotionLogs().catch(error => {

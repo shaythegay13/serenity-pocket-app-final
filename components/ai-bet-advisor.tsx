@@ -336,12 +336,12 @@ export default function AIBetAdvisor() {
 
             if (lastBetDate >= sevenDaysAgo) {
               // Last bet was within 7 days, use the outcome
-              if (lastCompletedBet.outcome === "win" || lastCompletedBet.outcome === "profit") {
+              if (lastCompletedBet.outcome === "win" || (lastCompletedBet as any).outcome === "profit") {
                 lastOutcome = "Won"
               } else if (lastCompletedBet.outcome === "loss") {
                 lastOutcome = "Lost"
                 isChasingLoss = true // Auto-detect chasing behavior
-              } else if (lastCompletedBet.outcome === "push" || lastCompletedBet.outcome === "breakeven") {
+              } else if (lastCompletedBet.outcome === "push" || (lastCompletedBet as any).outcome === "breakeven") {
                 lastOutcome = "Push"
               }
             }
@@ -371,13 +371,13 @@ export default function AIBetAdvisor() {
           )
 
           const wins = allBettingData.filter(bet => 
-            bet.outcome === 'win' || bet.outcome === 'profit'
+            bet.outcome === 'win' || (bet as any).outcome === 'profit'
           ).length
           const losses = allBettingData.filter(bet => 
             bet.outcome === 'loss'
           ).length
           const pushes = allBettingData.filter(bet => 
-            bet.outcome === 'push' || bet.outcome === 'breakeven'
+            bet.outcome === 'push' || (bet as any).outcome === 'breakeven'
           ).length
 
           const totalBets = wins + losses + pushes
@@ -410,9 +410,9 @@ export default function AIBetAdvisor() {
             historySummary += `🕒 Recent Results:\n`
             recentBets.slice(0, 5).forEach((bet, index) => {
               const date = new Date(bet.timestamp).toLocaleDateString()
-              const result = bet.outcome === 'win' || bet.outcome === 'profit' ? '✅ WON' : 
+              const result = bet.outcome === 'win' || (bet as any).outcome === 'profit' ? '✅ WON' : 
                            bet.outcome === 'loss' ? '❌ LOST' : 
-                           bet.outcome === 'push' || bet.outcome === 'breakeven' ? '⚖️ PUSH' : '⏳ PENDING'
+                           bet.outcome === 'push' || (bet as any).outcome === 'breakeven' ? '⚖️ PUSH' : '⏳ PENDING'
               historySummary += `${index + 1}. ${date} - ${bet.description} - ${result} ($${bet.stake})\n`
             })
             historySummary += '\n'
@@ -436,9 +436,9 @@ export default function AIBetAdvisor() {
                 acc[emotion] = { wins: 0, losses: 0, pushes: 0, total: 0 }
               }
               acc[emotion].total++
-              if (bet.outcome === 'win' || bet.outcome === 'profit') acc[emotion].wins++
+              if (bet.outcome === 'win' || (bet as any).outcome === 'profit') acc[emotion].wins++
               else if (bet.outcome === 'loss') acc[emotion].losses++
-              else if (bet.outcome === 'push' || bet.outcome === 'breakeven') acc[emotion].pushes++
+              else if (bet.outcome === 'push' || (bet as any).outcome === 'breakeven') acc[emotion].pushes++
               return acc
             }, {} as Record<string, { wins: number; losses: number; pushes: number; total: number }>)
 
@@ -902,11 +902,6 @@ export default function AIBetAdvisor() {
                 </div>
               </div>
 
-              {/* Enhanced Odds Analysis Display */}
-              {currentOddsAnalysis && (
-                <OddsAnalysisDisplay analysis={currentOddsAnalysis} />
-              )}
-
               <div>
                 <Label htmlFor="betAmount">Proposed Bet Amount ($)</Label>
                 <Input
@@ -1267,6 +1262,7 @@ export default function AIBetAdvisor() {
           <AIResultScreen
             analysis={analysis}
             scenario={formData}
+            oddsAnalysis={currentOddsAnalysis}
             onPlaceBet={handlePlaceBet}
             onDiscard={handleDiscard}
           />

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SemiCircleGauge } from "@/components/ui/semi-circle-gauge"
 import { BiasCard, BiasCarousel } from "@/components/ui/bias-card"
+import { OddsAnalysisDisplay } from "@/components/odds-analysis-display"
+import type { OddsAnalysis } from "@/lib/odds-calculator"
 import {
   CheckCircle,
   AlertTriangle,
@@ -35,6 +37,7 @@ interface BiasInfo {
 interface AIResultScreenProps {
   analysis: ComprehensiveAnalysis
   scenario: BetScenario
+  oddsAnalysis?: OddsAnalysis | null
   onPlaceBet: () => void
   onDiscard: () => void
 }
@@ -85,7 +88,7 @@ const BIAS_DEFINITIONS: Record<string, Omit<BiasInfo, "key">> = {
   },
 }
 
-export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AIResultScreenProps) {
+export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, onDiscard }: AIResultScreenProps) {
   const { recommendation } = analysis
 
   // Calculate psychological edge score (inverse of emotional risk + factors)
@@ -221,6 +224,55 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
         </CardContent>
       </Card>
 
+      {/* Quick Summary */}
+      <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">Quick Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="text-center">
+                <div className={cn(
+                  "text-2xl font-bold",
+                  recommendation.budgetPercent > 20 ? "text-red-500" : 
+                  recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
+                )}>
+                  {recommendation.budgetPercent}%
+                </div>
+                <div className="text-muted-foreground">Budget Risk</div>
+              </div>
+              <div className="text-center">
+                <div className={cn(
+                  "text-2xl font-bold",
+                  analysis.safety.signals.length === 0 ? "text-green-500" : 
+                  analysis.safety.signals.length <= 2 ? "text-yellow-500" : "text-red-500"
+                )}>
+                  {analysis.safety.signals.length}
+                </div>
+                <div className="text-muted-foreground">Risk Factors</div>
+              </div>
+              <div className="text-center">
+                <div className={cn(
+                  "text-2xl font-bold",
+                  psychEdge >= 70 ? "text-green-500" : 
+                  psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
+                )}>
+                  {psychEdge}/100
+                </div>
+                <div className="text-muted-foreground">Mental Edge</div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground mt-3">
+              {recommendation.recommendation === "PLACE BET" && psychEdge >= 70 && analysis.safety.signals.length === 0 && 
+                "✅ All systems clear - this bet meets our safety criteria"}
+              {recommendation.recommendation === "PLACE BET" && (psychEdge < 70 || analysis.safety.signals.length > 0) && 
+                "⚠️ Approved but monitor your emotional state and bankroll"}
+              {recommendation.recommendation === "DON'T PLACE BET" && 
+                "🚨 We recommend waiting - current conditions suggest elevated risk"}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Psychological Edge Meter */}
       <Card className={cn(
         "bg-card/50 backdrop-blur transition-all duration-300",
@@ -228,18 +280,33 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
       )}>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">Psychological Edge</h3>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-foreground">Psychological Edge</h3>
+              <p className="text-xs text-muted-foreground mt-1">Your mental advantage score</p>
+            </div>
             <SemiCircleGauge
               value={psychEdge}
               size={200}
               strokeWidth={14}
               label="/ 100"
             />
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              {psychEdge >= 70 && "Strong mental positioning for this bet"}
-              {psychEdge >= 40 && psychEdge < 70 && "Moderate emotional stability - proceed with awareness"}
-              {psychEdge < 40 && "High emotional risk detected - consider waiting"}
-            </p>
+            <div className="text-center max-w-md">
+              <p className="text-sm text-muted-foreground mb-3">
+                {psychEdge >= 70 && "Strong mental positioning for this bet"}
+                {psychEdge >= 40 && psychEdge < 70 && "Moderate emotional stability - proceed with awareness"}
+                {psychEdge < 40 && "High emotional risk detected - consider waiting"}
+              </p>
+              <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+                <p className="font-medium text-foreground mb-1">How this is calculated:</p>
+                <ul className="text-left space-y-1">
+                  <li>• Emotional risk assessment ({recommendation.emotionalAnalysis.emotionalRisk === "HIGH" ? "-40" : recommendation.emotionalAnalysis.emotionalRisk === "MODERATE" ? "-20" : "0"} points)</li>
+                  <li>• Safety signals detected (-{analysis.safety.signals.length * 10} points)</li>
+                  <li>• Risk factors: {scenario.isChasingLoss && "chasing (-25), "}{scenario.isLiveBet && "live betting (-15), "}{scenario.isFavoriteTeam && "favorite team (-10)"}</li>
+                  <li>• Budget concentration: {recommendation.budgetPercent > 10 ? `-${Math.min(30, Math.round((recommendation.budgetPercent - 10) / 5) * 5)} points` : "0 points"}</li>
+                  <li>• Overall risk level: {recommendation.riskLevel === "HIGH" ? "-20" : recommendation.riskLevel === "MODERATE" ? "-10" : "0"} points</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -252,40 +319,83 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="h-5 w-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">The Math</h3>
+              <span className="text-xs text-muted-foreground ml-auto">Financial Analysis</span>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-border/50">
-                <span className="text-sm text-muted-foreground">Bet Amount</span>
-                <span className="text-lg font-bold tabular-nums">${scenario.betAmount}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">Bet Amount</span>
+                  <span className="text-xs text-muted-foreground">Your proposed stake</span>
+                </div>
+                <span className="text-lg font-bold tabular-nums text-foreground">${scenario.betAmount}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border/50">
-                <span className="text-sm text-muted-foreground">Budget %</span>
-                <span className="text-lg font-bold tabular-nums">{recommendation.budgetPercent}%</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">Budget %</span>
+                  <span className="text-xs text-muted-foreground">Of weekly budget</span>
+                </div>
+                <div className="text-right">
+                  <span className={cn(
+                    "text-lg font-bold tabular-nums",
+                    recommendation.budgetPercent > 20 ? "text-red-500" : 
+                    recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
+                  )}>
+                    {recommendation.budgetPercent}%
+                  </span>
+                  <div className="text-xs text-muted-foreground">
+                    {recommendation.budgetPercent > 20 ? "⚠️ High Risk" : 
+                     recommendation.budgetPercent > 10 ? "⚡ Moderate" : "✅ Safe"}
+                  </div>
+                </div>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border/50">
-                <span className="text-sm text-muted-foreground">Bet Type</span>
-                <span className="text-lg font-bold">{scenario.betType}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">Bet Type</span>
+                  <span className="text-xs text-muted-foreground">Market selected</span>
+                </div>
+                <span className="text-lg font-bold text-foreground">{scenario.betType}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border/50">
-                <span className="text-sm text-muted-foreground">Sport</span>
-                <span className="text-lg font-bold">{scenario.sport}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">Sport</span>
+                  <span className="text-xs text-muted-foreground">League</span>
+                </div>
+                <span className="text-lg font-bold text-foreground">{scenario.sport}</span>
               </div>
               {recommendation.gameFactors.favoriteWinPct > 0 && (
                 <div className="flex justify-between items-center py-2 border-b border-border/50">
-                  <span className="text-sm text-muted-foreground">Win Probability</span>
-                  <span className="text-lg font-bold tabular-nums">
-                    {recommendation.gameFactors.favoriteWinPct}%
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-sm text-muted-foreground">Win Probability</span>
+                    <span className="text-xs text-muted-foreground">Favorite's chance</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold tabular-nums text-foreground">
+                      {recommendation.gameFactors.favoriteWinPct}%
+                    </span>
+                    <div className="text-xs text-muted-foreground">
+                      {recommendation.gameFactors.favoriteWinPct >= 60 ? "Strong Favorite" : 
+                       recommendation.gameFactors.favoriteWinPct >= 55 ? "Moderate Favorite" : "Close Match"}
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-muted-foreground">Safety Signals</span>
-                <span className={cn(
-                  "text-lg font-bold tabular-nums",
-                  analysis.safety.signals.length === 0 ? "text-green-500" : "text-red-500"
-                )}>
-                  {analysis.safety.signals.length}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">Safety Signals</span>
+                  <span className="text-xs text-muted-foreground">Risk warnings</span>
+                </div>
+                <div className="text-right">
+                  <span className={cn(
+                    "text-lg font-bold tabular-nums",
+                    analysis.safety.signals.length === 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {analysis.safety.signals.length}
+                  </span>
+                  <div className="text-xs text-muted-foreground">
+                    {analysis.safety.signals.length === 0 ? "✅ All Clear" : 
+                     analysis.safety.signals.length <= 2 ? "⚠️ Minor Issues" : "🚨 Multiple Risks"}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -297,44 +407,82 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
             <div className="flex items-center gap-2 mb-4">
               <Brain className="h-5 w-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">The Mind</h3>
+              <span className="text-xs text-muted-foreground ml-auto">Psychological Analysis</span>
             </div>
             <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-3">Identified Biases</h4>
                 {detectedBiases.length > 0 ? (
-                  <BiasCarousel>
-                    {detectedBiases.map((bias) => (
-                      <BiasCard
-                        key={bias.key}
-                        icon={bias.icon}
-                        title={bias.title}
-                        description={bias.description}
-                        severity={bias.severity}
-                      />
-                    ))}
-                  </BiasCarousel>
+                  <div className="space-y-2">
+                    <BiasCarousel>
+                      {detectedBiases.map((bias) => (
+                        <BiasCard
+                          key={bias.key}
+                          icon={bias.icon}
+                          title={bias.title}
+                          description={bias.description}
+                          severity={bias.severity}
+                        />
+                      ))}
+                    </BiasCarousel>
+                    <div className="text-xs text-muted-foreground text-center">
+                      {detectedBiases.length} bias{detectedBiases.length !== 1 ? 'es' : ''} detected affecting judgment
+                    </div>
+                  </div>
                 ) : (
-                  <Badge variant="secondary" className="text-sm">
-                    ✓ No Major Biases Detected
-                  </Badge>
+                  <div className="text-center py-3">
+                    <Badge variant="secondary" className="text-sm mb-2">
+                      ✓ No Major Biases Detected
+                    </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      Your mindset appears clear for this decision
+                    </div>
+                  </div>
                 )}
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Emotional State</h4>
-                <Badge variant="outline" className="text-base">
-                  {scenario.currentEmotion}
-                </Badge>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Current Emotional State</h4>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-base">
+                    {scenario.currentEmotion}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {scenario.currentEmotionIntensity && (
+                      <>Intensity: {scenario.currentEmotionIntensity}/10</>
+                    )}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {scenario.currentEmotion.toLowerCase().includes('excited') && "⚠️ High excitement can lead to impulsive decisions"}
+                  {scenario.currentEmotion.toLowerCase().includes('frustrated') && "⚠️ Frustration may indicate chasing behavior"}
+                  {scenario.currentEmotion.toLowerCase().includes('confident') && "✅ Confidence supports rational decisions"}
+                  {scenario.currentEmotion.toLowerCase().includes('anxious') && "⚠️ Anxiety suggests waiting for clarity"}
+                </div>
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Last Outcome</h4>
-                <Badge
-                  variant={scenario.lastOutcome === "Won" ? "secondary" : scenario.lastOutcome === "Lost" ? "destructive" : "outline"}
-                  className="text-base"
-                >
-                  {scenario.lastOutcome}
-                </Badge>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Recent Performance</h4>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={scenario.lastOutcome === "Won" ? "secondary" : scenario.lastOutcome === "Lost" ? "destructive" : "outline"}
+                    className="text-base"
+                  >
+                    {scenario.lastOutcome}
+                  </Badge>
+                  {scenario.isChasingLoss && (
+                    <Badge variant="destructive" className="text-xs">
+                      ⚠️ Chasing
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {scenario.lastOutcome === "Won" && "✅ Recent win - maintain discipline"}
+                  {scenario.lastOutcome === "Lost" && scenario.isChasingLoss && "🚨 Loss + chasing = high risk"}
+                  {scenario.lastOutcome === "Lost" && !scenario.isChasingLoss && "⚠️ Recent loss - consider waiting"}
+                  {scenario.lastOutcome === "Push" && "⚖️ Neutral result - proceed with caution"}
+                  {scenario.lastOutcome === "None" && "ℹ️ No recent history - standard analysis"}
+                </div>
               </div>
 
               {recommendation.emotionalAnalysis.shouldWait && (
@@ -347,10 +495,36 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
                   </p>
                 </div>
               )}
+
+              {/* Additional psychological insights */}
+              <div className="mt-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+                <h4 className="text-xs font-semibold text-foreground mb-2">Psychological Edge Score</h4>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-foreground">{psychEdge}/100</span>
+                  <div className="text-right">
+                    <div className={cn(
+                      "text-xs font-medium",
+                      psychEdge >= 70 ? "text-green-500" : 
+                      psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
+                    )}>
+                      {psychEdge >= 70 ? "Strong Position" : 
+                       psychEdge >= 40 ? "Moderate" : "At Risk"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Mental readiness for this bet
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Odds Analysis */}
+      {oddsAnalysis && (
+        <OddsAnalysisDisplay analysis={oddsAnalysis} />
+      )}
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3 pt-4">

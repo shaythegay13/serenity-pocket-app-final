@@ -290,6 +290,15 @@ export function HomeContent() {
   }
 
   // Render different auth flows
+  // Debug logging to track auth state
+  console.log('🔐 Current auth state:', { 
+    authed, 
+    loading, 
+    showLanding, 
+    hasUserData: !!userData,
+    activeTab 
+  })
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -452,6 +461,7 @@ export function HomeContent() {
   }
 
   if (showLanding && !authed) {
+    console.log('🔐 Showing landing page - showLanding:', showLanding, 'authed:', authed)
     const LandingComponent = lazy(() =>
       import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
     )
@@ -461,12 +471,15 @@ export function HomeContent() {
       </div>}>
         <LandingComponent 
           onLogin={() => {
+            console.log('🔐 Landing page login clicked')
             window.location.href = "/login"
           }}
         />
       </Suspense>
     )
   }
+
+  console.log('🔐 Showing main dashboard - showLanding:', showLanding, 'authed:', authed)
 
   // Main dashboard
   return (

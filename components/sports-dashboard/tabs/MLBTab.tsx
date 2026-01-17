@@ -35,9 +35,18 @@ interface MLBTabProps {
 }
 
 export default function MLBTab({ userData }: MLBTabProps) {
-  const activeSport = useSportsStore((state) => state.activeSport)
-  const isLoading = useSportsStore((state) => state.gamesLoading[activeSport] || false)
-  const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
+  // Combine all store selections into a single hook call to avoid hooks rule violations
+  const { 
+    activeSport, 
+    gamesLoading, 
+    setActiveFeature 
+  } = useSportsStore((state) => ({
+    activeSport: state.activeSport,
+    gamesLoading: state.gamesLoading,
+    setActiveFeature: state.setActiveFeature
+  }))
+
+  const isLoading = gamesLoading[activeSport] || false
 
   const handleFeatureClick = (feature: SportsFeatureView) => {
     setActiveFeature(feature)

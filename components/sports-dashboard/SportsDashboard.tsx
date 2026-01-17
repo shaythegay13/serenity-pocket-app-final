@@ -37,8 +37,14 @@ interface SportsDashboardProps {
 }
 
 export function SportsDashboard({ userData }: SportsDashboardProps) {
-  const activeSport = useSportsStore((state) => state.activeSport)
-  const setActiveSport = useSportsStore((state) => state.setActiveSport)
+  // Combine all store selections into a single hook call to avoid hooks rule violations
+  const { 
+    activeSport, 
+    setActiveSport 
+  } = useSportsStore((state) => ({
+    activeSport: state.activeSport,
+    setActiveSport: state.setActiveSport
+  }))
 
   return (
     <div

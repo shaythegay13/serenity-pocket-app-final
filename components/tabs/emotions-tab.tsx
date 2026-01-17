@@ -174,7 +174,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   // Missing state variables that were referenced in the code
   const [selectedBiases, setSelectedBiases] = useState<string[]>([])
   const [sport, setSport] = useState<string>("")
-  const [outcome, setOutcome] = useState<string>("")
+  const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | undefined>(undefined)
 
   // Track last refresh to prevent unnecessary reloads
   const lastRefreshRef = useRef<number>(refreshKey)

@@ -157,7 +157,28 @@ export const useSportsStore = create<SportsStoreState>()(
         activeSport: state.activeSport,
         refreshInterval: state.refreshInterval,
         preferredLayout: state.preferredLayout
-      })
+      }),
+      // Add storage options to prevent write loops
+      storage: {
+        getItem: (name) => {
+          const item = localStorage.getItem(name)
+          return item ? JSON.parse(item) : null
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, JSON.stringify(value))
+          } catch (error) {
+            console.warn('Failed to save to localStorage:', error)
+          }
+        },
+        removeItem: (name) => {
+          try {
+            localStorage.removeItem(name)
+          } catch (error) {
+            console.warn('Failed to remove from localStorage:', error)
+          }
+        }
+      }
     }
   )
 )

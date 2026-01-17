@@ -643,10 +643,11 @@ export const FeaturePanels = memo(function FeaturePanels({ userData }: { userDat
   const navigateToBettingFeature = useCallback((feature: 'smartslip' | 'tiltlab', game: any) => {
     // Store the game data for pre-filling
     if (typeof window !== 'undefined') {
+      const currentSport = game.sport || activeSport // Use current activeSport from closure
       sessionStorage.setItem('pendingBetGame', JSON.stringify({
         awayTeam: game.awayTeam,
         homeTeam: game.homeTeam,
-        sport: game.sport || activeSport,
+        sport: currentSport,
         odds: {
           home: game.homeOdds?.best?.odds,
           away: game.awayOdds?.best?.odds
@@ -664,7 +665,7 @@ export const FeaturePanels = memo(function FeaturePanels({ userData }: { userDat
     } else {
       alert(`Navigating to TiltLab for ${game.awayTeam} @ ${game.homeTeam}...`)
     }
-  }, [activeSport])
+  }, []) // Remove activeSport dependency to prevent infinite re-renders
 
   // Early return if no active feature
   if (!activeFeature) {
@@ -674,7 +675,7 @@ export const FeaturePanels = memo(function FeaturePanels({ userData }: { userDat
   // Optimize close handlers
   const handleClose = useCallback(() => {
     setActiveFeature(null)
-  }, [setActiveFeature])
+  }, []) // Remove setActiveFeature dependency - it's stable from Zustand
 
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {

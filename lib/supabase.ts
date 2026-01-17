@@ -33,6 +33,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    debug: process.env.NODE_ENV === 'development',
   },
   db: {
     schema: 'public',
@@ -48,10 +49,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const clearStaleAuth = async () => {
   try {
     await supabase.auth.signOut({ scope: 'local' })
-    // Clear any remaining localStorage items
+    // Clear any remaining Supabase localStorage items
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('supabase.auth.token')
-      localStorage.removeItem('supabase.auth.refreshToken')
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('supabase.')) {
+          localStorage.removeItem(key)
+        }
+      })
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('supabase.')) {
+          sessionStorage.removeItem(key)
+        }
+      })
     }
   } catch (error) {
     console.log('Cleared auth state')

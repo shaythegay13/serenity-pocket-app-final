@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { supabase } from "@/lib/supabase"
+import { handleAuthError } from "@/lib/auth-utils"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
@@ -61,18 +62,9 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
       } catch (error) {
         console.error('🔐 Auth check error:', error)
         
-        // Check if this is an invalid refresh token error
-        if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
-          console.log('🔐 Invalid refresh token detected, clearing auth state...')
-          // Clear all auth state
-          await supabase.auth.signOut()
-          if (typeof window !== 'undefined') {
-            localStorage.clear()
-            sessionStorage.clear()
-          }
-        }
-        
-        if (mounted) {
+        // Use enhanced error handler
+        const wasHandled = await handleAuthError(error)
+        if (!wasHandled && mounted) {
           setAuthed(false)
         }
       } finally {
@@ -105,25 +97,14 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
           } catch (error) {
             console.error('Error getting user data:', error)
             
-            // Check if this is an invalid refresh token error
-            if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
-              console.log('🔐 Invalid refresh token detected in auth state change, clearing auth state...')
-              // Clear all auth state
-              await supabase.auth.signOut()
-              if (typeof window !== 'undefined') {
-                localStorage.clear()
-                sessionStorage.clear()
-              }
-              if (mounted) {
-                setAuthed(false)
-                setUserData(null)
-              }
-              return
-            }
-            
-            if (mounted) {
+            // Use enhanced error handler
+            const wasHandled = await handleAuthError(error)
+            if (!wasHandled && mounted) {
               setAuthed(true)
               setUserData(null)
+            } else if (wasHandled) {
+              // Error was handled (redirect initiated), don't continue
+              return
             }
           }
         }

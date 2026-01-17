@@ -122,19 +122,34 @@ export function HomeContent() {
 
   // Initialize user data and check auth
   useEffect(() => {
+    console.log('🏠 HomeContent: Starting auth initialization...')
+    
     const initAuth = async () => {
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('🔐 Auth initialization timeout - forcing loading to false')
+        setLoading(false)
+        setAuthed(false)
+        setShowLanding(true)
+      }, 10000) // 10 second timeout
+
       try {
+        console.log('🔐 Getting session and user data...')
         // Run auth check and user data fetch in parallel
         const [sessionResult, userDataResult] = await Promise.allSettled([
           supabase.auth.getSession(),
           storage.getUserData().catch(() => null)
         ])
 
+        clearTimeout(timeoutId)
+
         const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
+        console.log('🔐 Session result:', session ? 'found' : 'not found')
         
         // Check for refresh token errors
         if (sessionResult.status === 'rejected') {
           const error = sessionResult.reason
+          console.log('🔐 Session rejected:', error)
           if (error?.message?.includes('Invalid Refresh Token') || error?.message?.includes('Refresh Token Not Found')) {
             console.log('Clearing stale auth tokens due to refresh error')
             const { clearStaleAuth } = await import('@/lib/supabase')
@@ -143,15 +158,18 @@ export function HomeContent() {
         }
         
         if (!session) {
+          console.log('🔐 No session found, showing landing')
           setAuthed(false)
           setShowLanding(true)
           setLoading(false)
           return
         }
 
+        console.log('🔐 Session found, setting authed to true')
         setAuthed(true)
         
         const profile = userDataResult.status === 'fulfilled' ? userDataResult.value : null
+        console.log('🔐 User data result:', profile ? 'found' : 'not found')
         setUserData(profile)
 
         // Authenticated users should land in the main dashboard.
@@ -167,10 +185,12 @@ export function HomeContent() {
         setShowLanding(false)
         
       } catch (error) {
+        clearTimeout(timeoutId)
         console.error('Auth initialization error:', error)
         setAuthed(false)
         setShowLanding(true)
       } finally {
+        console.log('🔐 Auth initialization complete, setting loading to false')
         setLoading(false)
       }
     }
@@ -180,6 +200,7 @@ export function HomeContent() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔐 Auth state change:', event, session ? 'with session' : 'no session')
         if (event === 'SIGNED_OUT') {
           setUserData(null)
           setAuthed(false)
@@ -271,7 +292,21 @@ export function HomeContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-pulse text-muted-foreground">Loading...</div>
+          <button 
+            onClick={() => {
+              console.log('🔄 Manual retry triggered')
+              setLoading(false)
+              setAuthed(false)
+              setShowLanding(true)
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Having trouble? Click here
+          </button>
+        </div>
       </div>
     )
   }
@@ -279,7 +314,10 @@ export function HomeContent() {
   if (authed && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-pulse text-muted-foreground">Loading profile...</div>
+        </div>
       </div>
     )
   }

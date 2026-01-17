@@ -763,7 +763,8 @@ export const storageHybrid: {
       const deduped = new Map<string, EmotionLog>()
       for (const l of merged) {
         if (!l || !l.timestamp || !l.emotion) continue
-        const key = `${l.timestamp.getTime()}|${l.emotion}|${l.intensity}|${l.phase}`
+        // Use ID as primary key, fallback to composite key for deduplication
+        const key = l.id || `${l.timestamp.getTime()}|${l.emotion}|${l.intensity}|${l.phase}`
         deduped.set(key, l)
       }
       return Array.from(deduped.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())

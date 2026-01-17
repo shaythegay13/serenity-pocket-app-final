@@ -280,18 +280,34 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       return
     }
 
+    // Check for duplicate log to prevent double logging
+    const now = new Date()
+    const recentLogs = logs.filter(log => 
+      log.emotion === selectedEmotion && 
+      log.phase === phase &&
+      Math.abs(now.getTime() - log.timestamp.getTime()) < 5000 // Within 5 seconds
+    )
+
+    if (recentLogs.length > 0) {
+      console.log('Duplicate emotion detected, skipping:', selectedEmotion)
+      toast.error('You just logged this emotion! Please wait a moment before logging again.')
+      return
+    }
+
     const newLog: EmotionLog = {
       id: Date.now().toString(),
-      timestamp: new Date(),
+      timestamp: now,
       emotion: selectedEmotion,
       intensity: intensity[0],
       context,
       phase,
     }
 
+    // Add to storage
     await storage.addEmotionLog(newLog)
-    const updatedLogs = await storage.getEmotionLogs()
-    setLogs(updatedLogs ?? [])
+    
+    // Update local state optimistically to avoid double-fetching
+    setLogs(prevLogs => [...prevLogs, newLog])
 
     // Different XP and gamification based on phase
     let xpEarned = 10

@@ -3,18 +3,13 @@ import type { Game } from '@/lib/types/sports';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
-export interface Game {
-  id: string;
-  favorableOdds?: boolean;
-}
-
 type LiveScoresProps = {
-  games: Game[];
+  games?: Game[];
   activeGameId?: string;
   onGameClick: (gameId: string) => void;
 };
 
-export function LiveScores({ games, activeGameId, onGameClick }: LiveScoresProps) {
+export function LiveScores({ games = [], activeGameId, onGameClick }: LiveScoresProps) {
   return (
     <div className="w-full bg-gray-50 border-b border-gray-200 py-2">
       <div className="overflow-x-auto pb-2">

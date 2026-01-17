@@ -36,7 +36,7 @@ interface NBATabProps {
 
 export default function NBATab({ userData }: NBATabProps) {
   const activeSport = useSportsStore((state) => state.activeSport)
-  const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
+  const isLoading = useSportsStore((state) => state.gamesLoading[activeSport] || false)
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
   const handleFeatureClick = (feature: SportsFeatureView) => {

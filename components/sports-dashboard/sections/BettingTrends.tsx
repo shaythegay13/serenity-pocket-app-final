@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, ResponsiveContainer, Tooltip } from
 type BettingTrendsProps = {
   publicPercentage: number;
   sharpPercentage: number;
-  moneyDistribution: {
+  moneyDistribution?: {
     name: string;
     value: number;
     color: string;
@@ -15,7 +15,7 @@ type BettingTrendsProps = {
 export function BettingTrends({ 
   publicPercentage, 
   sharpPercentage,
-  moneyDistribution,
+  moneyDistribution = [],
   historicalAccuracy
 }: BettingTrendsProps) {
   return (

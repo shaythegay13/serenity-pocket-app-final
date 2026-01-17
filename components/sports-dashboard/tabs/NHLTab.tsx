@@ -36,7 +36,7 @@ interface NHLTabProps {
 
 export default function NHLTab({ userData }: NHLTabProps) {
   const activeSport = useSportsStore((state) => state.activeSport)
-  const isLoading = useSportsStore((state) => state.gamesLoading[activeSport])
+  const isLoading = useSportsStore((state) => state.gamesLoading[activeSport] || false)
   const setActiveFeature = useSportsStore((state) => state.setActiveFeature)
 
   const handleFeatureClick = (feature: SportsFeatureView) => {

@@ -3,11 +3,11 @@ import type { TeamStats, PlayerStats } from '@/lib/types/sports';
 import { Sparkline } from '@/components/ui/Sparkline';
 
 type AnalyticsTablesProps = {
-  teamStats: TeamStats[];
-  playerStats: PlayerStats[];
+  teamStats?: TeamStats[];
+  playerStats?: PlayerStats[];
 };
 
-export function AnalyticsTables({ teamStats, playerStats }: AnalyticsTablesProps) {
+export function AnalyticsTables({ teamStats = [], playerStats = [] }: AnalyticsTablesProps) {
   const [activeTab, setActiveTab] = useState<'teams' | 'players'>('teams');
 
   return (

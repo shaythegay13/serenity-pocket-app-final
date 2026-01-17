@@ -56,7 +56,7 @@ export function SportsDashboardSummary() {
   }, [])
 
   // Extract metrics calculation for better performance
-  const calculateDashboardMetrics = (betAnalyses: BetAnalysis[], trades: Trade[]) => {
+  const calculateDashboardMetrics = (betAnalyses: BetAnalysis[] = [], trades: Trade[] = []) => {
     // Calculate active bets (pending/unsettled)
     const activeBetsCount = betAnalyses.filter(bet => 
       bet.status === "pending" || bet.status === "open"
@@ -68,12 +68,12 @@ export function SportsDashboardSummary() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
-    const todayBets = betAnalyses.filter(bet => 
-      new Date(bet.timestamp) >= today && bet.status === "settled"
+    const todayBets = (betAnalyses || []).filter(bet => 
+      bet.timestamp && new Date(bet.timestamp) >= today && bet.status === "settled"
     )
     
-    const todayTrades = trades.filter(trade => 
-      new Date(trade.timestamp) >= today && trade.outcome !== undefined
+    const todayTrades = (trades || []).filter(trade => 
+      trade.timestamp && new Date(trade.timestamp) >= today && trade.outcome !== undefined
     )
     
     const totalWins = todayBets.filter(bet => bet.result === "win").length + 
@@ -89,12 +89,14 @@ export function SportsDashboardSummary() {
     const liveGamesCount = Math.floor(Math.random() * 15) + 5 // 5-20 live games
     
     // Calculate win streak
-    const allBets = [...betAnalyses, ...trades].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    const allBets = [...(betAnalyses || []), ...(trades || [])].sort((a, b) => 
+      a.timestamp && b.timestamp ? new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime() : 0
     )
     
     let currentStreak = 0
     for (const bet of allBets) {
+      if (!bet) continue
+      
       const isWin = bet.status === "settled" 
         ? bet.result === "win" 
         : bet.outcome === "profit"

@@ -95,7 +95,16 @@ export function SportsDashboard({ userData }: SportsDashboardProps) {
         {/* Dashboard Summary */}
         <SportsDashboardSummary />
         
-        <SportTabRouter activeSport={activeSport} userData={userData} />
+        {/* TEMPORARILY DISABLED TO DEBUG REACT ERROR #185 */}
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl font-bold text-foreground">Sport Tabs Temporarily Disabled</h2>
+            <p className="text-muted-foreground">
+              Debugging React error #185 - Testing if issue is in SportTabRouter
+            </p>
+          </div>
+        </div>
+        {/* <SportTabRouter activeSport={activeSport} userData={userData} /> */}
         <FeaturePanels userData={userData} />
       </main>
     </div>

@@ -120,19 +120,7 @@ export function SportsDashboardContent() {
               </div>
             </div>
           }>
-            {/* TEMPORARILY DISABLED TO DEBUG REACT ERROR #185 */}
-            <div className="min-h-[60vh] flex items-center justify-center">
-              <div className="text-center space-y-4">
-                <h2 className="text-2xl font-bold text-foreground">Sports Dashboard Temporarily Disabled</h2>
-                <p className="text-muted-foreground">
-                  Debugging React error #185 - Maximum update depth exceeded
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  The sports dashboard has been temporarily disabled to isolate the source of the infinite rendering loop.
-                </p>
-              </div>
-            </div>
-            {/* <SportsDashboard /> */}
+            <SportsDashboard />
           </Suspense>
         </main>
 

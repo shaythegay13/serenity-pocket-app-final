@@ -172,9 +172,8 @@ export function HomeContent() {
         console.log('🔐 User data result:', profile ? 'found' : 'not found')
         setUserData(profile)
 
-        // Authenticated users should land in the main dashboard.
-        // Onboarding/survey flows should be entered explicitly, not auto-forced here.
-        setAuthFlow("landing")
+        // Authenticated users should see the main dashboard
+        // Don't set any auth flow - let user see main dashboard
         setShowSurvey(false)
         setShowInstantProfile(false)
         setShowProfilePreview(false)
@@ -182,7 +181,7 @@ export function HomeContent() {
         setShowSignup(false)
         setShowSignin(false)
         setShowTerms(false)
-        setShowLanding(false)
+        setShowLanding(false) // Explicitly hide landing page
         
       } catch (error) {
         clearTimeout(timeoutId)
@@ -206,11 +205,12 @@ export function HomeContent() {
           setAuthed(false)
           setShowLanding(true)
         } else if (session && event === 'SIGNED_IN') {
+          console.log('🔐 User signed in, showing dashboard')
           try {
             const profile = await storage.getUserData()
             setUserData(profile)
             setAuthed(true)
-            setAuthFlow("landing")
+            // Don't set any auth flow - let user see main dashboard
             setShowSurvey(false)
             setShowInstantProfile(false)
             setShowProfilePreview(false)
@@ -218,11 +218,12 @@ export function HomeContent() {
             setShowSignup(false)
             setShowSignin(false)
             setShowTerms(false)
-            setShowLanding(false)
+            setShowLanding(false) // Explicitly hide landing page
           } catch (error) {
             console.error('Error getting user data after sign in:', error)
             setAuthed(true)
             setUserData(null)
+            setShowLanding(false) // Still hide landing even if user data fails
           }
         }
       }
@@ -450,7 +451,7 @@ export function HomeContent() {
     )
   }
 
-  if (showLanding) {
+  if (showLanding && !authed) {
     const LandingComponent = lazy(() =>
       import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
     )

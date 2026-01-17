@@ -11,7 +11,7 @@ import type { UserData, BetAnalysis } from "@/lib/types"
 import { canAccessFeature, getUpgradeMessage } from "@/lib/subscription-tiers"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
-import { calculateEmotionalStability } from "@/lib/emotional-scoring"
+import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 import { LineMovementSeries } from "@/components/odds/LineMovementSeries"
 import { FeatureGate } from "@/components/feature-gate"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -31,7 +31,6 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [slipText, setSlipText] = useState("")
-  const [stability, setStability] = useState<{ score: number } | null>(null)
   const [lineMovementData, setLineMovementData] = useState<Array<{time: string, home?: number, away?: number}>>([])
   // Bet Slip Builder state
   const [builderBook, setBuilderBook] = useState("DraftKings")
@@ -68,7 +67,8 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
 
   const hasBasicAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
   const hasPsychAccess = canAccessFeature(userData.subscriptionTier || "free", "premium_plus")
-  const isGuardActive = !!userData.cooldownEnabled || ((stability?.score ?? 100) < 50)
+  const { score: emotionalScore } = useEmotionalStability(userData)
+  const isGuardActive = !!userData.cooldownEnabled || ((emotionalScore ?? 100) < 50)
   const [dailyBetCount, setDailyBetCount] = useState(0)
 
   // Check for pending bet analysis from Live Odds tab
@@ -115,12 +115,6 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
     window.addEventListener('storage', handleStorage)
 
     ;(async () => {
-      try {
-        const emotionLogs = await storage.getEmotionLogs()
-        const trades = await storage.getTrades()
-        const s = calculateEmotionalStability(emotionLogs, userData.surveyData?.score, trades)
-        setStability({ score: s.score })
-      } catch {}
       try {
         const analyses = await storage.getBetAnalyses()
         const now = new Date()
@@ -331,7 +325,7 @@ export function AnalyzeBetTab({ userData, onNavigateToTab }: AnalyzeBetTabProps)
     }
     console.log('Basic Analyzer: Limit checks passed')
     
-    if (userData.cooldownEnabled || (stability?.score !== undefined && stability.score < 50)) {
+    if (userData.cooldownEnabled || (emotionalScore !== undefined && emotionalScore < 50)) {
       toast.warning("Safety Guard Enabled", { description: "Your state suggests waiting before analyzing bets." })
       return
     }

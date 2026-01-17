@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check } from "lucide-react"
 import type { UserData } from "@/lib/types"
-import { calculateEmotionalStability, getScoreColor, shouldReceiveAIPicks } from "@/lib/emotional-scoring"
+import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import AIBetAdvisor from "@/components/ai-bet-advisor"
@@ -169,7 +169,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [isFetchingPicks, setIsFetchingPicks] = useState(false)
   const [lastPicksFetchAt, setLastPicksFetchAt] = useState<number | null>(null)
   const [picks, setPicks] = useState<any[]>([])
-  const [emotionalStability, setEmotionalStability] = useState<any>(null)
+  const { score: emotionalScore, shouldReceiveAIPicks, color, level, recommendation } = useEmotionalStability(userData)
   const [selectedSport, setSelectedSport] = useState('basketball_nba')
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
@@ -178,11 +178,6 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>([])
   const [marketplaceLoading, setMarketplaceLoading] = useState(false)
   const [marketplacePurchasing, setMarketplacePurchasing] = useState<string | null>(null)
-
-  // Calculate emotional stability for all users (not just paid ones)
-  useEffect(() => {
-    calculateUserStability()
-  }, [userData.lastEmotionCheckIn, userData.surveyData?.score])
 
   // If coming from Live Odds wanting AI Analyze My Bet, switch to advisor tab
   useEffect(() => {
@@ -307,54 +302,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   // Now we only fetch when the user explicitly requests it (e.g., via the Refresh button),
   // so we don't consume weekly usage automatically.
 
-  const calculateUserStability = async () => {
-    try {
-      const emotionLogs = await storage.getEmotionLogs()
-      const surveyScore = userData.surveyData?.score
-
-      // Get comprehensive bets and transform to Trade format for emotional scoring
-      const comprehensiveBets = await storage.getComprehensiveBets()
-      const trades = comprehensiveBets.map(bet => ({
-        id: bet.id,
-        timestamp: bet.timestamp,
-        title: `${bet.awayTeam} @ ${bet.homeTeam}`,
-        sport: bet.sport,
-        preTradeEmotion: bet.emotions.before.emotion,
-        preTradeIntensity: bet.emotions.before.intensity,
-        biasesIdentified: bet.biasesIdentified,
-        confidenceLevel: bet.confidenceLevel,
-        reasoning: bet.reasoning,
-        outcome: bet.outcome === 'win' ? 'profit' as const : bet.outcome === 'loss' ? 'loss' as const : bet.outcome === 'push' ? 'breakeven' as const : undefined,
-        postTradeEmotion: bet.emotions.after?.emotion,
-        postTradeIntensity: bet.emotions.after?.intensity,
-        reflection: bet.emotions.after?.reflection,
-        stake: bet.stake,
-        odds: bet.odds,
-        actualReturn: bet.actualReturn,
-        status: bet.outcome === 'pending' ? 'pending' as const : 'settled' as const,
-        result: bet.outcome === 'win' ? 'win' as const : bet.outcome === 'loss' ? 'loss' as const : bet.outcome === 'push' ? 'push' as const : undefined
-      }))
-
-      const stability = calculateEmotionalStability(emotionLogs, surveyScore, trades)
-      setEmotionalStability(stability)
-    } catch (error) {
-      console.error('Error calculating emotional stability:', error)
-      // Set default moderate stability
-      setEmotionalStability({
-        score: 50,
-        level: 'MODERATE',
-        recommendation: 'Unable to calculate stability. Proceed with caution.',
-        factors: { recentEmotions: 50, emotionalVariance: 50, surveyScore: 50, bettingPatterns: 50 }
-      })
-    }
-  }
-
   const fetchAIPicks = async () => {
     if (cooldown) {
       setPicks([])
       return
     }
-    if (!emotionalStability) {
+    if (!emotionalScore) {
       console.log('AI Picks: No emotional stability data yet')
       return
     }
@@ -374,7 +327,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
     console.log('AI Picks: Fetching picks...', {
       sport: selectedSport,
-      emotionalScore: emotionalStability.score,
+      emotionalScore: emotionalScore,
       riskTolerance
     })
     setLoading(true)
@@ -406,7 +359,6 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           },
           body: JSON.stringify({
             sport: selectedSport,
-            emotionalScore: emotionalStability.score,
             riskTolerance
           }),
           signal: controller.signal,
@@ -913,7 +865,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       )}
 
       {/* User Status Card */}
-      {emotionalStability && (
+      {emotionalScore !== null && (
         <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -923,7 +875,6 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             {hasAccess ? (
               <Button
                 onClick={() => {
-                  calculateUserStability()
                   fetchAIPicks()
                 }}
                 variant="outline"
@@ -945,38 +896,38 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 rounded-lg bg-background/50">
               <p className="text-xs text-muted-foreground mb-1">Emotional Stability</p>
-              <p className={`text-3xl font-bold ${getScoreColor(emotionalStability.score)}`}>
-                {emotionalStability.score}%
+              <p className={`text-3xl font-bold ${color}`}>
+                {emotionalScore}%
               </p>
               <Badge 
-                variant={emotionalStability.score >= 70 ? 'default' : 'destructive'} 
+                variant={emotionalScore >= 70 ? 'default' : 'destructive'} 
                 className="mt-2"
               >
-                {emotionalStability.level.replace('_', ' ')}
+                {level?.replace('_', ' ')}
               </Badge>
             </div>
             <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">Recent Emotions</p>
-              <p className="text-2xl font-bold text-blue-500">{emotionalStability.factors.recentEmotions}%</p>
+              <p className="text-xs text-muted-foreground mb-1">Status</p>
+              <p className={`text-2xl font-bold ${emotionalScore >= 70 ? 'text-green-500' : 'text-yellow-500'}`}>
+                {emotionalScore >= 70 ? 'Ready' : 'Caution'}
+              </p>
             </div>
             <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">Consistency</p>
-              <p className="text-2xl font-bold text-cyan-500">{emotionalStability.factors.emotionalVariance}%</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">Betting Patterns</p>
-              <p className="text-2xl font-bold text-green-500">{emotionalStability.factors.bettingPatterns}%</p>
+              <p className="text-xs text-muted-foreground mb-1">AI Access</p>
+              <p className={`text-2xl font-bold ${shouldReceiveAIPicks ? 'text-green-500' : 'text-red-500'}`}>
+                {shouldReceiveAIPicks ? 'Available' : 'Limited'}
+              </p>
             </div>
           </div>
           
           <div className="mt-4 p-4 rounded-lg bg-background/50">
             <div className="flex items-start gap-2">
-              {emotionalStability.score >= 70 ? (
+              {emotionalScore >= 70 ? (
                 <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
               ) : (
                 <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
               )}
-              <p className="text-sm text-muted-foreground">{emotionalStability.recommendation}</p>
+              <p className="text-sm text-muted-foreground">{recommendation}</p>
             </div>
           </div>
           
@@ -1044,12 +995,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       )}
 
       {/* No Picks State */}
-      {!loading && picks.length === 0 && emotionalStability && emotionalStability.score < 70 && (
+      {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 70 && (
         <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
           <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
           <p className="text-muted-foreground mb-4">
-            Your emotional stability score is {emotionalStability.score}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.
+            Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.
           </p>
           <Button variant="outline" onClick={() => onNavigateToTab('behavior')}>
             Log Your Emotions

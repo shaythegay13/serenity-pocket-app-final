@@ -41,7 +41,7 @@ export default function ContactPage() {
         `Name: ${formData.name}\nEmail: ${formData.email}\nCategory: ${formData.category}\n\nMessage:\n${formData.message}`
       )
       
-      const mailtoLink = `mailto:playmindlabsllc@gmail.com?subject=${subject}&body=${body}`
+      const mailtoLink = `mailto:info@playmindlabs.com?subject=${subject}&body=${body}`
       
       // Open email client
       window.location.href = mailtoLink
@@ -90,7 +90,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-medium text-foreground mb-1">Email</h3>
                     <p className="text-muted-foreground">
-                      playmindlabsllc@gmail.com
+                      info@playmindlabs.com
                     </p>
                   </div>
                   <div>
@@ -249,7 +249,7 @@ export default function ContactPage() {
                 <div className="mt-6 p-4 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">
                     <strong>Note:</strong> This form will open your default email client with the message pre-filled. 
-                    If you prefer, you can also email us directly at <a href="mailto:playmindlabsllc@gmail.com" className="text-primary hover:underline">playmindlabsllc@gmail.com</a>
+                    If you prefer, you can also email us directly at <a href="mailto:info@playmindlabs.com" className="text-primary hover:underline">info@playmindlabs.com</a>
                   </p>
                 </div>
               </Card>

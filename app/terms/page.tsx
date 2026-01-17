@@ -292,7 +292,7 @@ export default function TermsPage() {
                   If you have any questions about these Terms of Service, please contact us:
                 </p>
                 <div className="bg-muted/50 p-4 rounded-lg">
-                  <p><strong>Email:</strong> playmindlabsllc@gmail.com</p>
+                  <p><strong>Email:</strong> info@playmindlabs.com</p>
                   <p><strong>Company:</strong> PlayMind Labs LLC</p>
                   <p><strong>Service:</strong> Serenity Pocket</p>
                 </div>

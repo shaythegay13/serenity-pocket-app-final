@@ -129,7 +129,7 @@ export default function PrivacyPage() {
                   <li>Restrict processing of your information</li>
                 </ul>
                 <p>
-                  To exercise these rights, please contact us at playmindlabsllc@gmail.com. We will respond to your request within 30 days.
+                  To exercise these rights, please contact us at info@playmindlabs.com. We will respond to your request within 30 days.
                 </p>
               </div>
             </Card>
@@ -224,7 +224,7 @@ export default function PrivacyPage() {
                   If you have any questions about this privacy policy or our data practices, please contact us:
                 </p>
                 <div className="bg-muted/50 p-4 rounded-lg">
-                  <p><strong>Email:</strong> playmindlabsllc@gmail.com</p>
+                  <p><strong>Email:</strong> info@playmindlabs.com</p>
                   <p><strong>Company:</strong> PlayMind Labs LLC</p>
                   <p><strong>Platform:</strong> Serenity Pocket</p>
                 </div>

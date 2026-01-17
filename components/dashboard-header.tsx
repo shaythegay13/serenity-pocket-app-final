@@ -9,8 +9,7 @@ import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
-import { calculateEmotionalStability } from "@/lib/emotional-scoring"
-import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 
 interface DashboardHeaderProps {
   userData?: UserData
@@ -21,9 +20,9 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [emotionalWellness, setEmotionalWellness] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const { score: emotionalWellness, loading } = useEmotionalStability(userData || null)
 
   useEffect(() => {
     setMounted(true)
@@ -37,28 +36,6 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
     const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : ""
     return (a + b).toUpperCase()
   }, [userData?.name])
-
-  // Calculate emotional wellness score
-  useEffect(() => {
-    const calcWellness = async () => {
-      try {
-        const emotionLogs = await storage.getEmotionLogs()
-        const trades = await storage.getTrades()
-        const stability = calculateEmotionalStability(
-          emotionLogs,
-          userData?.surveyData?.score,
-          trades
-        )
-        setEmotionalWellness(stability.score)
-      } catch (error) {
-        console.error('Error calculating emotional wellness:', error)
-        setEmotionalWellness(null)
-      }
-    }
-    if (userData) {
-      calcWellness()
-    }
-  }, [userData])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -177,7 +154,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                       <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Emotional Wellness</span>
                         <span className="font-semibold text-foreground">
-                          {emotionalWellness !== null ? `${emotionalWellness}%` : 'Calculating...'}
+                          {loading ? 'Calculating...' : emotionalWellness !== null ? `${emotionalWellness}%` : 'N/A'}
                         </span>
                       </div>
                       {userData.emotionalAwarenessStreak !== undefined && (

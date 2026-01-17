@@ -17,6 +17,7 @@ import {
 } from "@/lib/services/serenityFeatureBuilder"
 import { predictSerenityBet } from "@/lib/services/sagemakerSerenityCsv"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
+import { emotionalStabilityService } from "@/lib/services/emotional-stability-service"
 
 // Increase timeout for complex AI analysis and ML predictions
 export const maxDuration = 60 // 60 seconds
@@ -39,7 +40,6 @@ function computeRecentWinRate(form?: string[]): number | undefined {
 
 interface PickerRequestBody {
   sport?: string
-  emotionalScore?: number
   riskTolerance?: "conservative" | "moderate" | "aggressive"
   weeklyBudget?: number
   currentEmotion?: string
@@ -391,8 +391,22 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as PickerRequestBody
 
     const sport = normalizeSportKey(body.sport)
-    const emotionalScore =
-      typeof body.emotionalScore === "number" ? body.emotionalScore : 70
+    
+    // Fetch user data to calculate emotional stability server-side
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (userError || !userData) {
+      console.error('Error fetching user data:', userError)
+      return NextResponse.json({ error: "Failed to fetch user data" }, { status: 500 })
+    }
+
+    // Calculate emotional stability using centralized service
+    const emotionalStability = await emotionalStabilityService.getCurrentEmotionalStability(userData)
+    const emotionalScore = emotionalStability.score
     const riskTolerance = body.riskTolerance || "moderate"
     const weeklyBudget = typeof body.weeklyBudget === "number" && body.weeklyBudget > 0
       ? body.weeklyBudget

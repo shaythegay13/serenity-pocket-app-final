@@ -249,7 +249,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               {
                 icon: BarChart3,
                 title: "Real-Time Analytics",
-                description: "Live odds comparison, line movement tracking, and sharp money indicators across multiple sportsbooks",
+                description: "Advanced analytics and insights for informed decision-making",
                 color: "from-purple-500 to-pink-500",
                 iconColor: "text-purple-400"
               },
@@ -276,8 +276,8 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               },
               {
                 icon: Activity,
-                title: "Betting Trends",
-                description: "Public vs sharp money splits, consensus picks, and betting trend analysis for informed decisions",
+                title: "Data Analytics",
+                description: "Comprehensive data analysis and trend insights for better decision-making",
                 color: "from-pink-500 to-rose-500",
                 iconColor: "text-pink-400"
               },

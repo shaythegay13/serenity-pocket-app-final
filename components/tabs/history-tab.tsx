@@ -29,7 +29,7 @@ interface HistoryTabProps {
   onNavigateToTab: (tab: string) => void
 }
 
-// Available sports (same as Live Odds tab)
+// Available sports
 const AVAILABLE_SPORTS = [
   { key: "basketball_nba", label: "NBA" },
   { key: "americanfootball_nfl", label: "NFL" },

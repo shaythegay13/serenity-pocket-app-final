@@ -179,7 +179,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [marketplaceLoading, setMarketplaceLoading] = useState(false)
   const [marketplacePurchasing, setMarketplacePurchasing] = useState<string | null>(null)
 
-  // If coming from Live Odds wanting AI Analyze My Bet, switch to advisor tab
+  // If coming from a previous flow wanting AI Analyze My Bet, switch to advisor tab
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
@@ -474,9 +474,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             }
 
             // Try to get emotional score from userData if available
-            if (typeof userData.emotionalStability?.score === 'number' && userData.emotionalStability.score > 0) {
-              const aligned = clampPct(userData.emotionalStability.score)
-              console.log('AI Picks: Using userData.emotionalStability.score:', aligned)
+            if (typeof userData.dailyRings?.emotionalAwareness === 'number' && userData.dailyRings.emotionalAwareness > 0) {
+              const aligned = clampPct(userData.dailyRings.emotionalAwareness)
+              console.log('AI Picks: Using userData.dailyRings.emotionalAwareness:', aligned)
               return aligned
             }
 
@@ -990,7 +990,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         <Card className="p-12 text-center">
           <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4 animate-spin" />
           <p className="text-lg font-semibold text-foreground">Generating SmartSlip Picks...</p>
-          <p className="text-sm text-muted-foreground mt-2">Analyzing live odds and your emotional state</p>
+          <p className="text-sm text-muted-foreground mt-2">Analyzing available data and your emotional state</p>
         </Card>
       )}
 

@@ -35,7 +35,6 @@ interface BiasInfo {
 interface AIResultScreenProps {
   analysis: ComprehensiveAnalysis
   scenario: BetScenario
-  oddsAnalysis?: OddsAnalysis | null
   onPlaceBet: () => void
   onDiscard: () => void
 }
@@ -55,8 +54,8 @@ const BIAS_DEFINITIONS: Record<string, Omit<BiasInfo, "key">> = {
     severity: "moderate",
   },
   live: {
-    title: "Live Betting Impulsivity",
-    description: "Making rushed decisions during live games without proper analysis due to in-the-moment excitement.",
+    title: "In-Game Impulsivity",
+    description: "Making rushed decisions during events without proper analysis due to in-the-moment excitement.",
     icon: Zap,
     severity: "moderate",
   },
@@ -86,7 +85,7 @@ const BIAS_DEFINITIONS: Record<string, Omit<BiasInfo, "key">> = {
   },
 }
 
-export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, onDiscard }: AIResultScreenProps) {
+export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AIResultScreenProps) {
   const { recommendation } = analysis
 
   // Calculate psychological edge score (inverse of emotional risk + factors)
@@ -299,7 +298,7 @@ export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, o
                 <ul className="text-left space-y-1">
                   <li>• Emotional risk assessment ({recommendation.emotionalAnalysis.emotionalRisk === "HIGH" ? "-40" : recommendation.emotionalAnalysis.emotionalRisk === "MODERATE" ? "-20" : "0"} points)</li>
                   <li>• Safety signals detected (-{analysis.safety.signals.length * 10} points)</li>
-                  <li>• Risk factors: {scenario.isChasingLoss && "chasing (-25), "}{scenario.isLiveBet && "live betting (-15), "}{scenario.isFavoriteTeam && "favorite team (-10)"}</li>
+                  <li>• Risk factors: {scenario.isChasingLoss && "chasing (-25), "}{scenario.isLiveBet && "in-game betting (-15), "}{scenario.isFavoriteTeam && "favorite team (-10)"}</li>
                   <li>• Budget concentration: {recommendation.budgetPercent > 10 ? `-${Math.min(30, Math.round((recommendation.budgetPercent - 10) / 5) * 5)} points` : "0 points"}</li>
                   <li>• Overall risk level: {recommendation.riskLevel === "HIGH" ? "-20" : recommendation.riskLevel === "MODERATE" ? "-10" : "0"} points</li>
                 </ul>
@@ -518,11 +517,6 @@ export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, o
           </CardContent>
         </Card>
       </div>
-
-      {/* Odds Analysis */}
-      {oddsAnalysis && (
-        <OddsAnalysisDisplay analysis={oddsAnalysis} />
-      )}
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3 pt-4">

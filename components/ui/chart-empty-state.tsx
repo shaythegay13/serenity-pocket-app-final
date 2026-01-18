@@ -10,7 +10,7 @@ interface ChartEmptyStateProps {
 }
 
 export function ChartEmptyState({
-  message = "Waiting for line movement data... check back closer to game time",
+  message = "No data available at this time",
   className
 }: ChartEmptyStateProps) {
   return (

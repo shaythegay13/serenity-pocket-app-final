@@ -193,6 +193,8 @@ export interface BetAnalysis {
     | "live"
   description: string
   stake: number
+  odds?: number
+  sport?: string
   emotionalState: string
   emotionalIntensity: number
   biasWarnings: string[]

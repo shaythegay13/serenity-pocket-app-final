@@ -34,57 +34,6 @@ export interface SubscriptionTier {
   description: string
 }
 
-export type SupportedSportKey =
-  | "basketball_nba"
-  | "americanfootball_nfl"
-  | "baseball_mlb"
-  | "icehockey_nhl"
-
-export type GameBetMarketType =
-  | "moneyline"
-  | "spread" // spread / run line / puck line
-  | "total" // over/under
-  | "parlay"
-  | "prop"
-  | "future"
-  | "live"
-
-export interface GameMarketSnapshot {
-  id: string
-  marketType: GameBetMarketType
-  // Side or orientation of the bet: team side, total side, etc.
-  side?: "home" | "away" | "over" | "under" | "draw" | "other"
-  // Numeric line when applicable (spread points, total points, etc.)
-  line?: number
-  // American odds for this outcome at the time of snapshot
-  price: number
-  // Optional human-readable label, e.g. "LeBron 25+ points" or "Division winner"
-  label?: string
-  // Optional book name for this specific quote if different from parent record
-  sportsbook?: string
-}
-
-export interface GameLineRecord {
-  id: string // stable ID per game/event (can be odds API event id)
-  sport: SupportedSportKey
-  league?: string
-  homeTeam: string
-  awayTeam: string
-  // Scheduled start time at the moment this record was captured
-  commenceTime: string
-  // Primary sportsbook for this snapshot (best line or reference book)
-  sportsbook?: string
-  // Collection of markets captured for this game at or near this time
-  markets: GameMarketSnapshot[]
-  // Final outcome (filled once game is over)
-  homeScore?: number
-  awayScore?: number
-  finalStatus?: "scheduled" | "in_progress" | "final" | "canceled" | "postponed"
-  // Timestamps for audit/history
-  createdAt: string
-  updatedAt: string
-}
-
 export interface UserData {
   name: string
   username?: string
@@ -161,8 +110,6 @@ export interface Trade {
   id: string
   timestamp: Date
   title?: string
-  sport?: string
-  betType?: "moneyline" | "spread" | "total" | "parlay" | "prop" | "future" | "live"
   preTradeEmotion: string
   preTradeIntensity: number
   biasesIdentified: string[]
@@ -174,7 +121,6 @@ export interface Trade {
   reflection?: string
   emotionalImpact?: number
   stake?: number
-  odds?: number
   actualReturn?: number
   // Add status and result for compatibility with dashboard
   status?: "pending" | "open" | "settled"
@@ -245,9 +191,7 @@ export interface BetAnalysis {
     | "prop"
     | "future"
     | "live"
-  sport: string
   description: string
-  odds: number
   stake: number
   emotionalState: string
   emotionalIntensity: number
@@ -269,21 +213,4 @@ export interface TiltAlert {
   triggers: string[]
   recommendation: string
   cooldownSuggested: boolean
-}
-
-export interface OddsComparison {
-  sportsbook: string
-  odds: number
-  link?: string
-}
-
-export interface LiveOddsData {
-  id: string
-  sport: string
-  event: string
-  eventTime: Date
-  betType: string
-  comparisons: OddsComparison[]
-  bestOdds: number
-  bestSportsbook: string
 }

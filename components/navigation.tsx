@@ -1,14 +1,13 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Home, TrendingUp, Target, Activity, Sparkles, BarChart3 } from "lucide-react"
+import { Home, Target, Activity, Sparkles, BarChart3 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const navItems = [
   { tab: "home", label: "Home", icon: Home, href: "/" },
-  { tab: "odds", label: "Sports", icon: TrendingUp, href: "/sports-dashboard" },
   { tab: "analyze", label: "Analyze", icon: Target, href: "/analyze" },
   { tab: "behavior", label: "Behavior", icon: Activity, href: "/behavior" },
   { tab: "ai-picks", label: "Insights", icon: Sparkles, href: "/insights" },
@@ -21,7 +20,6 @@ export function Navigation() {
   // Determine active tab based on current pathname
   const getActiveTab = () => {
     if (pathname === "/") return "home"
-    if (pathname === "/sports-dashboard") return "odds"
     if (pathname === "/analyze") return "analyze"
     if (pathname === "/behavior") return "behavior"
     if (pathname === "/insights") return "ai-picks"

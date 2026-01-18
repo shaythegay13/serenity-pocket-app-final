@@ -42,7 +42,6 @@ export function HomeContent() {
 
   // Dynamic imports for tab components
   const HomeTab = lazy(() => import("@/components/tabs/home-tab").then((m) => ({ default: m.HomeTab })))
-  const OddsTab = lazy(() => import("@/components/tabs/live-odds-tab").then((m) => ({ default: m.LiveOddsTab })))
   const AnalyzeTab = lazy(() => import("@/components/tabs/analyze-bet-tab").then((m) => ({ default: m.AnalyzeBetTab })))
   const BehaviorTab = lazy(() => import("@/components/tabs/behavior-tab").then((m) => ({ default: m.BehaviorTab })))
   const AiPicksTab = lazy(() => import("@/components/tabs/ai-picks-tab").then((m) => ({ default: m.AIPicksTab })))
@@ -69,7 +68,7 @@ export function HomeContent() {
       return
     }
     
-    if (tab && ["home", "odds", "analyze", "behavior", "ai-picks", "analytics", "account"].includes(tab)) {
+    if (tab && ["home", "analyze", "behavior", "ai-picks", "analytics", "account"].includes(tab)) {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -505,7 +504,6 @@ export function HomeContent() {
                   refreshKey={refreshKey}
                 />
               )}
-              {activeTab === "odds" && <OddsTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
               {activeTab === "analyze" && <AnalyzeTab userData={userData as any} onNavigateToTab={handleNavigateToTab} />}
               {activeTab === "behavior" && (
                 <BehaviorTab userData={userData as any} updateUserData={updateUserData} refreshKey={refreshKey} />

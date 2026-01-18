@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SemiCircleGauge } from "@/components/ui/semi-circle-gauge"
 import { BiasCard, BiasCarousel } from "@/components/ui/bias-card"
-import { OddsAnalysisDisplay } from "@/components/odds-analysis-display"
-import type { OddsAnalysis } from "@/lib/odds-calculator"
 import {
   CheckCircle,
   AlertTriangle,

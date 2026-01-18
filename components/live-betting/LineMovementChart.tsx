@@ -11,14 +11,11 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import type { SupportedSportKey } from "@/lib/types"
 import type { LineMovementData, LineMovementSnapshot } from "@/lib/types/live-betting"
-import { formatOdds, calculateOddsChange } from "@/lib/utils/betting-calculations"
-import { TrendingUp, TrendingDown, AlertCircle, ZapIcon } from "lucide-react"
 import { ChartEmptyState } from "@/components/ui/chart-empty-state"
 
 interface LineMovementChartProps {
-  sport: SupportedSportKey
+  sport: string
   gameId: string
 }
 

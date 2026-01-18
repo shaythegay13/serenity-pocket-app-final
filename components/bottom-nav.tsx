@@ -1,13 +1,12 @@
 "use client"
 
-import { Home, Sparkles, Brain, BarChart3, Target } from "lucide-react"
+import { Home, Sparkles, Brain, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const navItems = [
   { id: "home", label: "Home", icon: Home, href: "/" },
-  { id: "analyze", label: "Analyze", icon: Target, href: "/analyze" },
   { id: "behavior", label: "My Mind", icon: Brain, href: "/behavior" },
   { id: "ai-picks", label: "Insight Hub", icon: Sparkles, href: "/insights" },
   { id: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
@@ -19,7 +18,6 @@ export function BottomNav() {
   // Determine active tab based on current pathname
   const getActiveTab = () => {
     if (pathname === "/") return "home"
-    if (pathname === "/analyze") return "analyze"
     if (pathname === "/behavior") return "behavior"
     if (pathname === "/insights") return "ai-picks"
     if (pathname === "/analytics") return "analytics"

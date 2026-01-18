@@ -1,20 +1,15 @@
 /**
- * AWS Bedrock Client for Claude AI
- * Provides enhanced AI analysis for the Bet Advisor feature
+ * AI Service - Gemini Integration
+ * Provides enhanced AI analysis for the Bet Advisor features (TiltLab & SmartSlip)
  */
 
 import { geminiGenerateText } from "./gemini"
 
 // Check if enhanced AI is enabled.
-// Backward-compatible with old Bedrock flag, but Gemini-first:
-// - If ENABLE_ENHANCED_AI_ANALYSIS is explicitly set, respect it.
-// - Otherwise default to enabled when a Gemini key is present.
 const enhancedFlag = (process.env.ENABLE_ENHANCED_AI_ANALYSIS || "").trim().toLowerCase()
 const hasExplicitEnhancedFlag = enhancedFlag === "true" || enhancedFlag === "false"
 
 // Gemini configuration
-// - Default model: GOOGLE_GEMINI_MODEL
-// - Enhanced AI model (TiltLab/SmartSlip): GOOGLE_GEMINI_MODEL_AI (optional)
 const hasGeminiKey = Boolean((process.env.GOOGLE_GEMINI_API_KEY || "").trim())
 
 const isEnhancedAIEnabled = hasExplicitEnhancedFlag ? enhancedFlag === "true" : hasGeminiKey
@@ -33,13 +28,13 @@ if (isEnhancedAIEnabled && hasGeminiKey) {
   console.log("ℹ️  Enhanced AI analysis disabled - using built-in algorithms")
 }
 
-export interface ClaudeMessage {
+export interface AIMessage {
   role: "user" | "assistant"
   content: string
 }
 
-export interface ClaudeRequest {
-  messages: ClaudeMessage[]
+export interface AIRequest {
+  messages: AIMessage[]
   max_tokens: number
   temperature?: number
   top_p?: number
@@ -48,7 +43,7 @@ export interface ClaudeRequest {
   response_schema?: any
 }
 
-export interface ClaudeResponse {
+export interface AIResponse {
   content: Array<{
     type: string
     text: string
@@ -68,9 +63,9 @@ export function isEnhancedAIAvailable(): boolean {
 }
 
 /**
- * Invoke Claude via AWS Bedrock
+ * Invoke Gemini AI
  */
-export async function invokeClaude(request: ClaudeRequest): Promise<string> {
+export async function invokeAI(request: AIRequest): Promise<string> {
   try {
     if (!isEnhancedAIAvailable()) {
       throw new Error(
@@ -136,7 +131,7 @@ export async function invokeClaude(request: ClaudeRequest): Promise<string> {
 }
 
 /**
- * Enhanced bet analysis using Claude
+ * Enhanced bet analysis using Gemini AI
  * Returns enhanced reasoning and recommendations
  */
 export async function getEnhancedBetAnalysis(params: {
@@ -160,7 +155,6 @@ export async function getEnhancedBetAnalysis(params: {
     favoriteTeamForm?: string[]
     underdogTeamForm?: string[]
   }
-  // Analysis from built-in algorithms
   builtInAnalysis: {
     analyticalInsights: string[]
     emotionalRisk: string
@@ -190,9 +184,9 @@ export async function getEnhancedBetAnalysis(params: {
 4. Give clear, actionable recommendations
 5. Use empathy while being direct about risks
 
-You must perform an 'Enhanced Analysis'. 
+You must perform an 'Enhanced Analysis'.
 STRICT LOGIC RULES:
-- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the refinedRecommendation as 'PROCEED WITH CAUTION'. 
+- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the refinedRecommendation as 'PROCEED WITH CAUTION'.
 - **Devigged EV Calculation**:
   1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
   2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
@@ -280,9 +274,9 @@ Remember: Prioritize the user's emotional and financial wellbeing. If there are 
       numericRisk: {
         type: "object",
         properties: {
-          ev: { 
+          ev: {
             type: "number",
-            description: "Expected Value as a standard decimal (no scientific notation)" 
+            description: "Expected Value as a standard decimal (no scientific notation)"
           },
         },
         required: ["ev"],
@@ -292,7 +286,7 @@ Remember: Prioritize the user's emotional and financial wellbeing. If there are 
   }
 
   try {
-    const response = await invokeClaude({
+    const response = await invokeAI({
       system: systemPrompt,
       messages: [
         {
@@ -321,7 +315,6 @@ Remember: Prioritize the user's emotional and financial wellbeing. If there are 
     }
   } catch (error) {
     console.error("Error parsing Gemini response:", error)
-    // Return a safe fallback using built-in analysis
     throw error
   }
 }

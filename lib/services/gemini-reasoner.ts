@@ -1,4 +1,4 @@
-import { invokeClaude } from "../aws-bedrock"
+import { invokeAI } from "../ai-service"
 import type {
   BetAnalyzerReasoningInput,
   BetAnalyzerReasoningOutput,
@@ -26,12 +26,12 @@ async function callGeminiAsJson(
     response_schema: responseSchema,
   }
 
-  const raw = await invokeClaude(baseRequest)
+  const raw = await invokeAI(baseRequest)
   try {
     return JSON.parse(raw)
   } catch (e1) {
     // Retry once with temperature 0 if parsing fails
-    const retryRaw = await invokeClaude({
+    const retryRaw = await invokeAI({
       ...baseRequest,
       temperature: 0,
     })
@@ -226,9 +226,9 @@ You must combine:
 
 You MUST always prioritize emotional and financial safety over potential profit.
 You DO NOT hallucinate stats or odds and rely only on provided inputs.
-You must perform an 'Enhanced Analysis'. 
+You must perform an 'Enhanced Analysis'.
 STRICT LOGIC RULES:
-- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the betSafetyCategory as 'DISCOURAGED'. 
+- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the betSafetyCategory as 'DISCOURAGED'.
 - **Devigged EV Calculation**:
   1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
   2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
@@ -273,7 +273,7 @@ ${JSON.stringify(args.bet, null, 2)}`
       numericRisk: {
         type: "object",
         properties: {
-          ev: { 
+          ev: {
             type: "number",
             description: "Expected Value as a standard decimal (no scientific notation)"
           },

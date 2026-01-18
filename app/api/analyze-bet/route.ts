@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { invokeClaude, isEnhancedAIAvailable, type ClaudeMessage } from "@/lib/aws-bedrock"
+import { invokeAI, isEnhancedAIAvailable, type AIMessage } from "@/lib/ai-service"
 
 type BiasWarning = {
   type: string
@@ -18,7 +18,7 @@ const impliedProbabilityFromAmerican = (american: number) => {
 }
 
 async function callClaudeAsJson(system: string, userPrompt: string, maxTokens: number): Promise<any> {
-  const raw = await invokeClaude({
+  const raw = await invokeAI({
     system,
     messages: [{ role: "user", content: userPrompt }],
     max_tokens: maxTokens,

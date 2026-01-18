@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
-import { generatePickerRecommendations } from "@/lib/services/bedrockClaudeReasoner"
+import { generatePickerRecommendations } from "@/lib/services/gemini-reasoner"
 import type {
   CurrentGameContext,
   HistoricalFeatureVector,
@@ -10,7 +10,7 @@ import type {
   PickerReasoningOutput,
   UserPsychologySnapshot,
 } from "@/lib/types/ai-models"
-import { isEnhancedAIAvailable } from "@/lib/aws-bedrock"
+import { isEnhancedAIAvailable } from "@/lib/ai-service"
 import {
   buildFeaturesCsv,
   type SerenityFeatureInput,

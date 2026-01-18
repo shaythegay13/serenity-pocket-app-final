@@ -8,7 +8,7 @@
  * 3. Unified Recommendation: Combined analysis with confidence scoring
  */
 
-import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './aws-bedrock'
+import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './ai-service'
 import { SupportedSportKey, GameBetMarketType } from './types'
 
 export interface BetScenario {

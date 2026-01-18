@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { analyzeScenario, type BetScenario } from "@/lib/ai-bet-advisor"
-import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from "@/lib/aws-bedrock"
+import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from "@/lib/ai-service"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { predictGameOutcomes, scoreUserBet } from "@/lib/services/sagemakerSportsModel"
-import { analyzeUserBet } from "@/lib/services/bedrockClaudeReasoner"
+import { analyzeUserBet } from "@/lib/services/gemini-reasoner"
 import type {
   BetAnalyzerReasoningInput,
   BetAnalyzerReasoningOutput,

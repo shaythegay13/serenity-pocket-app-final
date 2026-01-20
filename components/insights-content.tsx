@@ -5,6 +5,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { PremiumFeatureWall } from "@/components/premium-feature-wall"
 import { supabase } from "@/lib/supabase"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
@@ -33,21 +34,23 @@ export function InsightsContent() {
     
     const checkAuth = async () => {
       try {
-        // Run auth check and user data fetch in parallel
-        const [sessionResult, userDataResult] = await Promise.allSettled([
-          supabase.auth.getSession(),
-          storage.getUserData().catch(() => null)
-        ])
-
+        // Simple auth check first
+        const { data: { session } } = await supabase.auth.getSession()
+        
         if (!isMounted) return
-
-        const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
-        const storedUserData = userDataResult.status === 'fulfilled' ? userDataResult.value : null
         
         setAuthed(!!session)
         
         if (session) {
-          setUserData(storedUserData)
+          // Fetch user data in background
+          try {
+            const storedUserData = await storage.getUserData()
+            if (isMounted) {
+              setUserData(storedUserData)
+            }
+          } catch (error) {
+            console.error('Failed to fetch user data:', error)
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -68,7 +71,11 @@ export function InsightsContent() {
 
   const handleNavigateToTab = (tab: string) => {
     // Handle navigation to other tabs if needed
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
+    if (tab === 'account' || tab === 'pricing') {
+      window.location.href = "/pricing"
+    } else {
+      window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
+    }
   }
 
   // Show loading state only during initial auth check
@@ -91,16 +98,32 @@ export function InsightsContent() {
         
         <main className="container mx-auto px-4 py-6">
           {userData ? (
-            <Suspense fallback={
-              <div className="min-h-[60vh] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <div className="animate-pulse text-muted-foreground">Loading AI Insights...</div>
+            userData.subscriptionTier === 'free' ? (
+              <PremiumFeatureWall 
+                title="Insight Hub"
+                description="Personalized bet suggestions based on your psychology + real-time data"
+                featureName="SmartSlip and TiltLab"
+              />
+            ) : (
+              <Suspense fallback={
+                <div className="min-h-[60vh] flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="animate-pulse text-muted-foreground">Loading AI Insights...</div>
+                  </div>
                 </div>
-              </div>
-            }>
-              <AIPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />
-            </Suspense>
+              }>
+                <div>
+                  <div className="text-center space-y-2 mb-6">
+                    <h2 className="text-3xl font-bold text-foreground">Insight Hub</h2>
+                    <p className="text-muted-foreground">
+                      Get AI-generated picks or analyze your own bets with comprehensive psychological insights
+                    </p>
+                  </div>
+                  <AIPicksTab userData={userData} onNavigateToTab={handleNavigateToTab} />
+                </div>
+              </Suspense>
+            )
           ) : (
             <div className="text-center py-12">
               <p>Please sign in to access the AI insights feature.</p>

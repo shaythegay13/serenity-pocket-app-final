@@ -133,8 +133,6 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
 
   const signOut = async () => {
     try {
-      console.log('🔐 Profile tab: Starting logout...')
-      
       // Reset any error handling flags that might interfere
       const { resetErrorHandling } = await import('@/lib/auth-utils')
       resetErrorHandling()
@@ -148,7 +146,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
         localStorage.clear()
       }
       
-      // Redirect with delay
+      // Use setTimeout to break out of any potential render cycles
       setTimeout(() => {
         window.location.href = "/"
       }, 100)

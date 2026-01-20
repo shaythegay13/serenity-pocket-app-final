@@ -77,7 +77,7 @@ export function useEmotionalStability(userData: UserData | null): UseEmotionalSt
   }, [userData])
 
   // Calculate derived values
-  const shouldReceiveAIPicks = score !== null && score >= 70
+  const shouldReceiveAIPicks = score !== null && score >= 50
   
   const getScoreColor = (score: number): string => {
     if (score >= 85) return 'text-green-500'
@@ -88,8 +88,8 @@ export function useEmotionalStability(userData: UserData | null): UseEmotionalSt
   }
 
   const getScoreBadgeVariant = (score: number): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (score >= 70) return 'default'
-    if (score >= 50) return 'secondary'
+    if (score >= 50) return 'default'
+    if (score >= 30) return 'secondary'
     return 'destructive'
   }
 

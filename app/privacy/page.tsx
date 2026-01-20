@@ -1,9 +1,8 @@
 import { Card } from "@/components/ui/card"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
 
 export default function PrivacyPage() {
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -225,7 +224,7 @@ export default function PrivacyPage() {
                 </p>
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <p><strong>Email:</strong> info@playmindlabs.com</p>
-                  <p><strong>Company:</strong> PlayMind Labs LLC</p>
+                  <p><strong>Company:</strong> PlayMind Labs</p>
                   <p><strong>Platform:</strong> Serenity Pocket</p>
                 </div>
               </div>
@@ -233,6 +232,6 @@ export default function PrivacyPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

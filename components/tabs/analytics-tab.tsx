@@ -73,7 +73,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           <Button
             size="lg"
             className="gap-2"
-            onClick={() => onNavigateToTab?.('account')}
+            onClick={() => window.location.href = "/pricing"}
           >
             <Crown className="h-5 w-5" />
             Upgrade to Premium
@@ -90,6 +90,26 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [trades, setTrades] = useState<Trade[]>([])
   const [comprehensiveBets, setComprehensiveBets] = useState<ComprehensiveBet[]>([])
   const [activeSubTab, setActiveSubTab] = useState<SubTab>("performance")
+
+  // Read subtab from URL path
+  useEffect(() => {
+    const path = window.location.pathname
+    const pathSegments = path.split('/').filter(Boolean)
+    
+    // Check if we have a subtab in the path (e.g., /analytics/correlation)
+    if (pathSegments.length >= 2) {
+      const potentialSubtab = pathSegments[1] as SubTab
+      if (["correlation", "performance", "mental-health"].includes(potentialSubtab)) {
+        setActiveSubTab(potentialSubtab)
+      }
+    }
+  }, [])
+
+  // Helper function to update subtab and URL
+  const handleSubTabChange = (subtab: SubTab) => {
+    setActiveSubTab(subtab)
+    window.history.replaceState(null, '', `/analytics/${subtab}`)
+  }
 
   // Load data on mount - only run once
   useEffect(() => {
@@ -132,73 +152,65 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         ])
         
         const emotionLogs = emotionLogsResult.status === 'fulfilled' ? emotionLogsResult.value : []
-        const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value : []
+        const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value.slice(0, 50) : [] // Reduced from 100
         const trades = tradesData.status === 'fulfilled' ? tradesData.value : []
-        const comprehensiveBets = comprehensiveBetsData.status === 'fulfilled' ? comprehensiveBetsData.value : []
+        const comprehensiveBets = comprehensiveBetsData.status === 'fulfilled' ? comprehensiveBetsData.value.slice(0, 50) : [] // Reduced from 50
         
         const loadTime = performance.now() - startTime
         
         if (cancelled) return
 
-        // Process bet analyses to trades
-        const performanceTradesFromAnalyses: Trade[] = betAnalyses.slice(0, 100).map((analysis: BetAnalysis) => ({
-          id: analysis.id,
-          timestamp: analysis.timestamp,
-          title: analysis.description || 'Unknown Bet',
-          sport: analysis.sport,
-          betType: analysis.betType === 'straight' ? 'moneyline' as const : analysis.betType,
-          stake: analysis.stake,
-          odds: analysis.odds,
-          actualReturn: analysis.actualReturn,
-          outcome: analysis.outcome === 'push' ? 'breakeven' : 
-                  analysis.outcome === 'win' ? 'profit' : 
-                  analysis.outcome === 'loss' ? 'loss' : 
-                  analysis.outcome === 'pending' ? undefined :
-                  undefined,
-          preTradeEmotion: analysis.emotionalState,
-          preTradeIntensity: analysis.emotionalIntensity,
-          biasesIdentified: analysis.biasWarnings,
-          confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
-          reasoning: analysis.aiRecommendation || '',
-        }))
+        // Optimized data processing with Map for faster duplicate removal
+        const tradesMap = new Map<string, Trade>()
+        
+        // Process bet analyses to trades (prioritized)
+        betAnalyses.forEach((analysis: BetAnalysis) => {
+          tradesMap.set(analysis.id, {
+            id: analysis.id,
+            timestamp: analysis.timestamp,
+            title: analysis.description || 'Unknown Bet',
+            stake: analysis.stake,
+            actualReturn: analysis.actualReturn,
+            outcome: analysis.outcome === 'push' ? 'breakeven' : 
+                    analysis.outcome === 'win' ? 'profit' : 
+                    analysis.outcome === 'loss' ? 'loss' : 
+                    analysis.outcome === 'pending' ? undefined :
+                    undefined,
+            preTradeEmotion: analysis.emotionalState,
+            preTradeIntensity: analysis.emotionalIntensity,
+            biasesIdentified: analysis.biasWarnings,
+            confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
+            reasoning: analysis.aiRecommendation || '',
+          })
+        })
 
-        // Process comprehensive bets to trades
-        const performanceTradesFromComprehensive: Trade[] = comprehensiveBets.slice(0, 100).map((bet: ComprehensiveBet) => ({
-          id: bet.id,
-          timestamp: bet.timestamp,
-          title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
-          sport: bet.sport,
-          betType: bet.betType,
-          stake: bet.stake,
-          odds: bet.odds,
-          actualReturn: bet.actualReturn || 0,
-          outcome: bet.outcome === 'push' ? 'breakeven' : 
-                  bet.outcome === 'win' ? 'profit' : 
-                  bet.outcome === 'loss' ? 'loss' : 
-                  bet.outcome === 'pending' ? undefined :
-                  undefined,
-          preTradeEmotion: bet.emotions.before.emotion,
-          preTradeIntensity: bet.emotions.before.intensity,
-          biasesIdentified: bet.biasesIdentified,
-          confidenceLevel: bet.confidenceLevel,
-          reasoning: bet.reasoning || '',
-        }))
-
-        // Combine all trades, prioritizing bet analyses and removing duplicates by ID
-        const allTrades = [...performanceTradesFromAnalyses]
-        comprehensiveBets.forEach(bet => {
-          if (!allTrades.find(trade => trade.id === bet.id)) {
-            const comprehensiveTrade = performanceTradesFromComprehensive.find(trade => trade.id === bet.id)
-            if (comprehensiveTrade) {
-              allTrades.push(comprehensiveTrade)
-            }
+        // Add comprehensive bets only if not already present (using Map for O(1) lookup)
+        comprehensiveBets.forEach((bet: ComprehensiveBet) => {
+          if (!tradesMap.has(bet.id)) {
+            tradesMap.set(bet.id, {
+              id: bet.id,
+              timestamp: bet.timestamp,
+              title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+              stake: bet.stake,
+              actualReturn: bet.actualReturn || 0,
+              outcome: bet.outcome === 'push' ? 'breakeven' : 
+                      bet.outcome === 'win' ? 'profit' : 
+                      bet.outcome === 'loss' ? 'loss' : 
+                      bet.outcome === 'pending' ? undefined :
+                      undefined,
+              preTradeEmotion: bet.emotions.before.emotion,
+              preTradeIntensity: bet.emotions.before.intensity,
+              biasesIdentified: bet.biasesIdentified,
+              confidenceLevel: bet.confidenceLevel,
+              reasoning: bet.reasoning || '',
+            })
           }
         })
 
-        // Sort by timestamp (newest first) and limit to 100
-        const performanceTrades = allTrades
+        // Convert Map to array and sort (more efficient than previous approach)
+        const performanceTrades = Array.from(tradesMap.values())
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 100)
+          .slice(0, 100) // Final limit to 100
 
         // Update state
         setLogs(emotionLogs)
@@ -263,87 +275,58 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         })
       ])
       
-      const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value : []
-      const comprehensiveBets = comprehensiveBetsResult.status === 'fulfilled' ? comprehensiveBetsResult.value : []
-      console.log('🔄 Bet analyses refreshed:', betAnalyses.length)
-      console.log('🔄 Comprehensive bets refreshed:', comprehensiveBets.length)
+      const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value.slice(0, 50) : []
+      const comprehensiveBets = comprehensiveBetsResult.status === 'fulfilled' ? comprehensiveBetsResult.value.slice(0, 50) : []
       
-      // Debug: Log sample data
-      const settledBets = betAnalyses.filter(bet => bet.outcome !== 'pending')
-      console.log('🔄 Settled bets found:', settledBets.length)
-      if (settledBets.length > 0) {
-        console.log('🔄 Sample settled bet:', settledBets[0])
-      }
+      // Use same optimized Map approach for refresh
+      const tradesMap = new Map<string, Trade>()
+      
+      betAnalyses.forEach((analysis: BetAnalysis) => {
+        tradesMap.set(analysis.id, {
+          id: analysis.id,
+          timestamp: analysis.timestamp,
+          title: analysis.description || 'Unknown Bet',
+          stake: analysis.stake,
+          actualReturn: analysis.actualReturn,
+          outcome: analysis.outcome === 'push' ? 'breakeven' : 
+                  analysis.outcome === 'win' ? 'profit' : 
+                  analysis.outcome === 'loss' ? 'loss' : 
+                  analysis.outcome === 'pending' ? undefined :
+                  undefined,
+          preTradeEmotion: analysis.emotionalState,
+          preTradeIntensity: analysis.emotionalIntensity,
+          biasesIdentified: analysis.biasWarnings,
+          confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
+          reasoning: analysis.aiRecommendation || '',
+        })
+      })
 
-      // Process bet analyses to trades
-      const performanceTradesFromAnalyses: Trade[] = betAnalyses.slice(0, 100).map((analysis: BetAnalysis) => ({
-        id: analysis.id,
-        timestamp: analysis.timestamp,
-        title: analysis.description || 'Unknown Bet',
-        sport: analysis.sport,
-        betType: analysis.betType === 'straight' ? 'moneyline' as const : analysis.betType,
-        stake: analysis.stake,
-        odds: analysis.odds,
-        actualReturn: analysis.actualReturn,
-        outcome: analysis.outcome === 'push' ? 'breakeven' : 
-                analysis.outcome === 'win' ? 'profit' : 
-                analysis.outcome === 'loss' ? 'loss' : 
-                analysis.outcome === 'pending' ? undefined :
-                undefined,
-        preTradeEmotion: analysis.emotionalState,
-        preTradeIntensity: analysis.emotionalIntensity,
-        biasesIdentified: analysis.biasWarnings,
-        confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
-        reasoning: analysis.aiRecommendation || '',
-      }))
-
-      // Process comprehensive bets to trades
-      const performanceTradesFromComprehensive: Trade[] = comprehensiveBets.slice(0, 100).map((bet: ComprehensiveBet) => ({
-        id: bet.id,
-        timestamp: bet.timestamp,
-        title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
-        sport: bet.sport,
-        betType: bet.betType,
-        stake: bet.stake,
-        odds: bet.odds,
-        actualReturn: bet.actualReturn || 0,
-        outcome: bet.outcome === 'push' ? 'breakeven' : 
-                bet.outcome === 'win' ? 'profit' : 
-                bet.outcome === 'loss' ? 'loss' : 
-                bet.outcome === 'pending' ? undefined :
-                undefined,
-        preTradeEmotion: bet.emotions.before.emotion,
-        preTradeIntensity: bet.emotions.before.intensity,
-        biasesIdentified: bet.biasesIdentified,
-        confidenceLevel: bet.confidenceLevel,
-        reasoning: bet.reasoning || '',
-      }))
-
-      // Combine all trades, prioritizing bet analyses and removing duplicates by ID
-      const allTrades = [...performanceTradesFromAnalyses]
-      comprehensiveBets.forEach(bet => {
-        if (!allTrades.find(trade => trade.id === bet.id)) {
-          const comprehensiveTrade = performanceTradesFromComprehensive.find(trade => trade.id === bet.id)
-          if (comprehensiveTrade) {
-            allTrades.push(comprehensiveTrade)
-          }
+      comprehensiveBets.forEach((bet: ComprehensiveBet) => {
+        if (!tradesMap.has(bet.id)) {
+          tradesMap.set(bet.id, {
+            id: bet.id,
+            timestamp: bet.timestamp,
+            title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+            stake: bet.stake,
+            actualReturn: bet.actualReturn || 0,
+            outcome: bet.outcome === 'push' ? 'breakeven' : 
+                    bet.outcome === 'win' ? 'profit' : 
+                    bet.outcome === 'loss' ? 'loss' : 
+                    bet.outcome === 'pending' ? undefined :
+                    undefined,
+            preTradeEmotion: bet.emotions.before.emotion,
+            preTradeIntensity: bet.emotions.before.intensity,
+            biasesIdentified: bet.biasesIdentified,
+            confidenceLevel: bet.confidenceLevel,
+            reasoning: bet.reasoning || '',
+          })
         }
       })
 
-      // Sort by timestamp (newest first) and limit to 100
-      const performanceTrades = allTrades
+      const performanceTrades = Array.from(tradesMap.values())
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 100)
 
-      // Debug: Log final trades data
-      const completedTrades = performanceTrades.filter(t => t.outcome && t.actualReturn != null)
-      console.log('🔄 Final performance trades:', performanceTrades.length)
-      console.log('🔄 Completed trades with actual returns:', completedTrades.length)
-      if (completedTrades.length > 0) {
-        console.log('🔄 Sample completed trade:', completedTrades[0])
-      }
-
-      // Update only the trades data (keep emotion logs the same)
       setTrades(performanceTrades)
       setComprehensiveBets(comprehensiveBets)
       markDataLoaded(logs.length + performanceTrades.length)
@@ -395,7 +378,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       <div className="flex flex-wrap gap-2 justify-center">
         <Button
           variant={activeSubTab === "performance" ? "default" : "outline"}
-          onClick={() => setActiveSubTab("performance")}
+          onClick={() => handleSubTabChange("performance")}
           className="gap-2"
         >
           <TrendingUp className="h-4 w-4" />
@@ -403,7 +386,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         </Button>
         <Button
           variant={activeSubTab === "mental-health" ? "default" : "outline"}
-          onClick={() => setActiveSubTab("mental-health")}
+          onClick={() => handleSubTabChange("mental-health")}
           className="gap-2"
         >
           <Brain className="h-4 w-4" />
@@ -411,11 +394,11 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         </Button>
         <Button
           variant={activeSubTab === "correlation" ? "default" : "outline"}
-          onClick={() => setActiveSubTab("correlation")}
+          onClick={() => handleSubTabChange("correlation")}
           className="gap-2"
         >
           <Activity className="h-4 w-4" />
-          Emotion Correlation
+          Correlation
         </Button>
       </div>
 

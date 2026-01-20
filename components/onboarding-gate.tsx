@@ -154,8 +154,6 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
 
   const handleSignOut = async () => {
     try {
-      console.log('🔐 Onboarding gate: Starting logout...')
-      
       // Reset any error handling flags that might interfere
       const { resetErrorHandling } = await import('@/lib/auth-utils')
       resetErrorHandling()
@@ -169,7 +167,7 @@ export function OnboardingGate({ userData, updateUserData, onComplete }: Onboard
         localStorage.clear()
       }
       
-      // Redirect with delay
+      // Use setTimeout to break out of any potential render cycles
       setTimeout(() => {
         window.location.href = "/"
       }, 100)

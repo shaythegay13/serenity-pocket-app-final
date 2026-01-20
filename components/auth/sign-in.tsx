@@ -194,7 +194,7 @@ export function SignIn({ onSwitchToSignUp, onForgotPassword, onResendConfirmatio
         // Clear rate limit tracking on success
         localStorage.removeItem(RATE_LIMIT_KEY)
         // Navigate into the app (hard redirect is most reliable across deployments)
-        window.location.href = "/"
+        window.location.href = "/home"
       }
     } catch (e: any) {
       console.error('Full error:', e)

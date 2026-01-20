@@ -1,15 +1,28 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
 import { toast } from "sonner"
 
+// Dynamically import Select component to avoid hydration issues
+const Select = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.Select })), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-10 border border-input bg-background rounded-md flex items-center px-3">
+      <span className="text-muted-foreground text-sm">Loading...</span>
+    </div>
+  )
+})
+
+const SelectContent = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.SelectContent })), { ssr: false })
+const SelectItem = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.SelectItem })), { ssr: false })
+const SelectTrigger = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.SelectTrigger })), { ssr: false })
+const SelectValue = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.SelectValue })), { ssr: false })
 export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
@@ -67,7 +80,7 @@ export default function ContactPage() {
   }
 
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -96,7 +109,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-medium text-foreground mb-1">Company</h3>
                     <p className="text-muted-foreground">
-                      PlayMind Labs LLC
+                      PlayMind Labs
                     </p>
                   </div>
                   <div>
@@ -291,6 +304,6 @@ export default function ContactPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

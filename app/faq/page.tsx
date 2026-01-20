@@ -1,5 +1,4 @@
 import { Card } from "@/components/ui/card"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
 
 const faqs = [
   {
@@ -40,7 +39,7 @@ const faqs = [
   },
   {
     question: "Can I use Serenity Pocket on mobile?",
-    answer: "Yes! Serenity Pocket is fully responsive and works great on mobile devices. We also offer native mobile apps for iOS and Android for the best experience."
+    answer: "Yes! Serenity Pocket is fully responsive and works great on mobile devices."
   },
   {
     question: "What payment methods do you accept?",
@@ -50,7 +49,7 @@ const faqs = [
 
 export default function FAQPage() {
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -93,6 +92,6 @@ export default function FAQPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

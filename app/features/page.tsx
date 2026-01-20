@@ -3,19 +3,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Check, Star, TrendingUp, Brain, Shield, Target } from "lucide-react"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
+import Link from "next/link"
 
 const featuredFeatures = [
   {
     icon: Brain,
     title: "AI-Powered Analysis",
     description: "Get personalized betting insights powered by advanced machine learning algorithms that analyze your patterns and behavior.",
-    tier: "premium"
-  },
-  {
-    icon: TrendingUp,
-    title: "Real-Time Odds Comparison",
-    description: "Compare odds across all major sportsbooks in real-time to find the best value and maximize your potential returns.",
     tier: "premium"
   },
   {
@@ -29,12 +23,18 @@ const featuredFeatures = [
     title: "SmartSlip AI Picks",
     description: "Receive daily AI-powered betting recommendations tailored to your profile and risk tolerance.",
     tier: "premium_plus"
+  },
+  {
+    icon: TrendingUp,
+    title: "TiltLab Emotional Analysis",
+    description: "Deep behavioral analysis to identify emotional triggers and patterns that affect your betting decisions.",
+    tier: "premium_plus"
   }
 ]
 
 export default function FeaturesPage() {
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Hero Section */}
@@ -43,8 +43,8 @@ export default function FeaturesPage() {
               Platform Features
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Discover the powerful tools and insights that make Serenity Pocket the most comprehensive 
-              betting analytics platform available.
+              Discover the powerful behavioral and AI tools that make Serenity Pocket the most comprehensive 
+              responsible betting platform available.
             </p>
           </div>
 
@@ -107,13 +107,6 @@ export default function FeaturesPage() {
                   <tbody>
                     {/* Core Features */}
                     <tr className="border-b border-border">
-                      <td className="py-3 px-4 font-medium text-foreground">DSM-5 Based Assessment</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
-                    <tr className="border-b border-border">
                       <td className="py-3 px-4 font-medium text-foreground">Emotion Tracking & Check-ins</td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
@@ -150,50 +143,8 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Live Odds Comparison</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Line Movement Charts & Timeline</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Analyze Your Bet (AI-powered)</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">SmartSlip AI Picks</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">TiltLab Emotional Analysis</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
-                    </tr>
                     
                     {/* Premium Plus Features */}
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Advanced Bias Detection & Analysis</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
                     <tr className="border-b border-border bg-muted/50">
                       <td className="py-3 px-4 font-medium text-foreground">Emotional Volatility Warnings</td>
                       <td className="text-center py-3 px-2">-</td>
@@ -208,35 +159,28 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Enhanced Analytics with EV Tracking</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
                     
                     {/* Elite Features */}
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">Emotionally-Aware AI Bet Recommendations</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">EV-Ranked Picks with Confidence Scores</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
-                    </tr>
                     <tr className="border-b border-border bg-muted/50">
                       <td className="py-3 px-4 font-medium text-foreground">Priority Support & Early Feature Access</td>
                       <td className="text-center py-3 px-2">-</td>
                       <td className="text-center py-3 px-2">-</td>
                       <td className="text-center py-3 px-2">-</td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
+                    </tr>
+                    <tr className="border-b border-border bg-muted/50">
+                      <td className="py-3 px-4 font-medium text-foreground">TiltLab Emotional Analysis</td>
+                      <td className="text-center py-3 px-2">-</td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
+                    </tr>
+                    <tr className="border-b border-border bg-muted/50">
+                      <td className="py-3 px-4 font-medium text-foreground">SmartSlip AI Picks</td>
+                      <td className="text-center py-3 px-2">-</td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -265,6 +209,6 @@ export default function FeaturesPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

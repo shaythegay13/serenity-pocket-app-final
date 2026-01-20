@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check } from "lucide-react"
-import type { UserData } from "@/lib/types"
+import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check, ExternalLink, X } from "lucide-react"
+import type { UserData, EmotionLog } from "@/lib/types"
 import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import AIBetAdvisor from "@/components/ai-bet-advisor"
 import { supabase } from "@/lib/supabase"
 import { AIUsageIndicator } from "@/components/ai-usage-indicator"
+import { PremiumFeatureWall } from "@/components/premium-feature-wall"
 
 interface MarketplaceProduct {
   id: string
@@ -183,6 +184,13 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
+      // Check for target section from URL parameters
+      const targetSection = sessionStorage.getItem('targetSection')
+      if (targetSection && ['picks', 'advisor', 'marketplace'].includes(targetSection)) {
+        setActiveSection(targetSection as 'picks' | 'advisor' | 'marketplace')
+        sessionStorage.removeItem('targetSection')
+      }
+      
       const flag = localStorage.getItem('aiAdvisorFromLiveOdds')
       if (flag) {
         setActiveSection('advisor')
@@ -714,114 +722,17 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
   if (!hasAccess) {
     return (
-      <div className="space-y-6 fade-in">
-        <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">Insight Hub</h2>
-          <p className="text-muted-foreground">
-            Personalized bet suggestions based on your psychology + real-time data
-          </p>
-        </div>
-
-        <Card className="p-12 text-center bg-linear-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
-          <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full bg-amber-500/20">
-              <Lock className="h-12 w-12 text-amber-500" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-bold text-foreground mb-3">Paid Feature</h3>
-          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            SmartSlip and TiltLab are available on paid plans (Premium, Premium Plus, Elite).
-            Upgrade to unlock personalized bet recommendations and analysis.
-          </p>
-          <div className="mb-6">
-            <p className="text-sm text-muted-foreground mb-4">
-              What you'll get with paid plans (Elite includes more weekly uses):
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-              <div className="p-4 rounded-lg bg-background/50">
-                <Sparkles className="h-6 w-6 text-amber-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">AI-Generated Picks</p>
-                <p className="text-xs text-muted-foreground mt-1">Straight bets, parlays, and props</p>
-              </div>
-              <div className="p-4 rounded-lg bg-background/50">
-                <Brain className="h-6 w-6 text-purple-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">Psychology-Filtered</p>
-                <p className="text-xs text-muted-foreground mt-1">Aligned with your emotional state</p>
-              </div>
-              <div className="p-4 rounded-lg bg-background/50">
-                <Shield className="h-6 w-6 text-green-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">Bankroll Optimization</p>
-                <p className="text-xs text-muted-foreground mt-1">Personalized stake recommendations</p>
-              </div>
-            </div>
-          </div>
-          <Button size="lg" onClick={() => onNavigateToTab("account")}>
-            View Subscription Plans
-          </Button>
-        </Card>
-
-        {/* Preview of what's available */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-50 pointer-events-none blur-sm">
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <Badge variant="outline">NBA</Badge>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-semibold text-amber-500">78% Confidence</span>
-              </div>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Lakers vs Warriors</h3>
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 mb-3">
-              <p className="text-xl font-bold text-primary">Lakers -3.5</p>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Expected Value:</span>
-                <span className="font-semibold text-green-500">+$8.50</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Emotional Alignment:</span>
-                <span className="font-semibold">85%</span>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <Badge variant="outline">NFL</Badge>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-semibold text-amber-500">72% Confidence</span>
-              </div>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Chiefs vs Bills</h3>
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 mb-3">
-              <p className="text-xl font-bold text-primary">Over 52.5</p>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Expected Value:</span>
-                <span className="font-semibold text-green-500">+$6.20</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Emotional Alignment:</span>
-                <span className="font-semibold">90%</span>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
+      <PremiumFeatureWall 
+        title="Insight Hub"
+        description="Personalized bet suggestions based on your psychology + real-time data"
+        featureName="SmartSlip and TiltLab"
+        onUpgrade={() => onNavigateToTab("account")}
+      />
     )
   }
 
   return (
-    <div className="space-y-6 fade-in">
-      <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-foreground">Insight Hub</h2>
-        <p className="text-muted-foreground">
-          Get AI-generated picks or analyze your own bets with comprehensive psychological insights
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <Tabs value={activeSection} onValueChange={(v: string) => setActiveSection(v as 'picks' | 'advisor' | 'marketplace')} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="picks">
@@ -932,7 +843,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           </div>
           
           {!hasAccess && (
-            <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
+            <div className="mt-4 p-4 rounded-lg bg-linear-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">Want AI Picks?</p>

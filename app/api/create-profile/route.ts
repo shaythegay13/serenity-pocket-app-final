@@ -58,7 +58,7 @@ export async function POST(req: Request) {
         total_breathing_exercises: 0,
         most_productive_day: 0,
         subscription_tier: 'free',
-        subscription_status: 'inactive',
+        subscription_status: 'active',
       })
       .select()
 

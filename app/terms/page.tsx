@@ -1,9 +1,8 @@
 import { Card } from "@/components/ui/card"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
 
 export default function TermsPage() {
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -29,7 +28,7 @@ export default function TermsPage() {
                   If you do not agree to these Terms, you may not access or use the Service.
                 </p>
                 <p>
-                  PlayMind Labs LLC ("we," "us," or "our") reserves the right to modify these Terms at any time. 
+                  PlayMind Labs ("we," "us," or "our") reserves the right to modify these Terms at any time. 
                   We will notify users of any changes by posting the updated Terms on our platform.
                 </p>
               </div>
@@ -163,7 +162,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  The Service and its original content, features, and functionality are owned by PlayMind Labs LLC and are protected by 
+                  The Service and its original content, features, and functionality are owned by PlayMind Labs and are protected by 
                   international copyright, trademark, and other intellectual property laws.
                 </p>
                 <p>
@@ -212,7 +211,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  <strong>TO THE MAXIMUM EXTENT PERMITTED BY LAW,</strong> PlayMind Labs LLC shall not be liable for any indirect, 
+                  <strong>TO THE MAXIMUM EXTENT PERMITTED BY LAW,</strong> PlayMind Labs shall not be liable for any indirect, 
                   incidental, special, or consequential damages arising out of or in connection with your use of the Service.
                 </p>
                 <p>
@@ -231,7 +230,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  You agree to indemnify and hold PlayMind Labs LLC harmless from any claims, damages, or expenses 
+                  You agree to indemnify and hold PlayMind Labs harmless from any claims, damages, or expenses 
                   arising from your use of the Service, violation of these Terms, or violation of any rights of another party.
                 </p>
               </div>
@@ -260,7 +259,7 @@ export default function TermsPage() {
               <div className="space-y-3 text-muted-foreground">
                 <p>
                   Any disputes arising from these Terms or your use of the Service shall be governed by the laws of the state 
-                  in which PlayMind Labs LLC is incorporated, without regard to conflict of law principles.
+                  in which PlayMind Labs is incorporated, without regard to conflict of law principles.
                 </p>
                 <p>
                   Any disputes shall be resolved through binding arbitration in accordance with the rules of the American Arbitration Association.
@@ -274,7 +273,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <ul className="list-disc list-inside space-y-2 ml-4">
-                  <li><strong>Entire Agreement:</strong> These Terms constitute the entire agreement between you and PlayMind Labs LLC</li>
+                  <li><strong>Entire Agreement:</strong> These Terms constitute the entire agreement between you and PlayMind Labs</li>
                   <li><strong>Severability:</strong> If any provision is invalid, the remaining provisions remain in effect</li>
                   <li><strong>No Waiver:</strong> Our failure to enforce any provision does not waive our right to enforce it later</li>
                   <li><strong>Assignment:</strong> You may not assign your rights under these Terms without our consent</li>
@@ -293,7 +292,7 @@ export default function TermsPage() {
                 </p>
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <p><strong>Email:</strong> info@playmindlabs.com</p>
-                  <p><strong>Company:</strong> PlayMind Labs LLC</p>
+                  <p><strong>Company:</strong> PlayMind Labs</p>
                   <p><strong>Service:</strong> Serenity Pocket</p>
                 </div>
               </div>
@@ -301,6 +300,6 @@ export default function TermsPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

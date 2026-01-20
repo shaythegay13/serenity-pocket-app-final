@@ -203,3 +203,4 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
 }
 
 export default IntegratedSurveyWrapper;
+// Deployed: 2026-01-20T02:29:00Z - Survey Flow v2.0

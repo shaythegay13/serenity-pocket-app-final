@@ -5,7 +5,8 @@ import { AlertTriangle, Shield, Eye } from "lucide-react"
 
 export default function ResponsibleUsePage() {
   return (
-    <div className="container mx-auto px-4 py-10 max-w-4xl">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-10 max-w-4xl">
       <div className="text-center space-y-2 mb-8">
         <h1 className="text-4xl font-bold text-foreground">Responsible Use</h1>
         <p className="text-muted-foreground">Harm reduction, clarity, and user protection are built-in.</p>
@@ -41,6 +42,7 @@ export default function ResponsibleUsePage() {
             We explain risk clearly, avoid predatory friction, and always provide context before sensitive actions. You control your data and privacy.
           </p>
         </Card>
+      </div>
       </div>
     </div>
   )

@@ -10,7 +10,7 @@ export function Footer() {
         <div className="space-y-8">
           {/* Logo and Description - Full width on all screens */}
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <Image
                 src="/logo.png"
                 alt="Serenity Pocket Logo"
@@ -22,7 +22,7 @@ export function Footer() {
                 <h3 className="text-lg font-bold text-foreground">Serenity Pocket</h3>
                 <p className="text-sm text-muted-foreground">by PlayMind Labs</p>
               </div>
-            </div>
+            </Link>
             <p className="text-sm text-muted-foreground max-w-sm">
               AI-powered sports betting analytics platform for smarter decisions.
             </p>

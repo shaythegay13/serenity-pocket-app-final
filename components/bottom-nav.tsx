@@ -6,7 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const navItems = [
-  { id: "home", label: "Home", icon: Home, href: "/" },
+  { id: "home", label: "Home", icon: Home, href: "/home" },
   { id: "behavior", label: "My Mind", icon: Brain, href: "/behavior" },
   { id: "ai-picks", label: "Insight Hub", icon: Sparkles, href: "/insights" },
   { id: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
@@ -17,6 +17,7 @@ export function BottomNav() {
   
   // Determine active tab based on current pathname
   const getActiveTab = () => {
+    if (pathname === "/home") return "home"
     if (pathname === "/") return "home"
     if (pathname === "/behavior") return "behavior"
     if (pathname === "/insights") return "ai-picks"

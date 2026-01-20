@@ -15,6 +15,7 @@ import type { UserData, EmotionLog, Trade, Challenge } from "@/lib/types"
 import { Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 
 interface EmotionsTabProps {
   userData: UserData
@@ -163,7 +164,6 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [isLogging, setIsLogging] = useState<boolean>(false)
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
-  const [challenges, setChallenges] = useState<Challenge[]>([])
   const [behaviorStats, setBehaviorStats] = useState<{
     betterDecisions: number
     roiImprovement: number
@@ -190,17 +190,13 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       lastRefreshRef.current = refreshKey
 
       try {
-        const [emotionLogsData, tradesData, challengesData] = await Promise.all([
+        const [emotionLogsData, tradesData] = await Promise.all([
           storage.getEmotionLogs().catch(error => {
             console.error("Error loading emotion logs:", error)
             return []
           }),
           storage.getTrades().catch(error => {
             console.error("Error loading trades:", error)
-            return []
-          }),
-          storage.getChallenges().catch(error => {
-            console.error("Error loading challenges:", error)
             return []
           })
         ])
@@ -209,18 +205,15 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
         const safeLogs = Array.isArray(emotionLogsData) ? emotionLogsData : []
         const safeTrades = Array.isArray(tradesData) ? tradesData : []
-        const safeChallenges = Array.isArray(challengesData) ? challengesData : []
 
         setLogs(safeLogs)
         setTrades(safeTrades)
-        setChallenges(safeChallenges)
         setBehaviorStats(computeBehaviorStats(safeLogs, safeTrades))
       } catch (error) {
         console.error("Error loading behavior tab data:", error)
         if (!cancelled) {
           setLogs([])
           setTrades([])
-          setChallenges([])
           setBehaviorStats(null)
         }
       }
@@ -277,7 +270,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setIntensity([3])
     setContext("")
     setPhase("before")
-    setOutcome("")
+    setOutcome(undefined)
     setSelectedBiases([])
     setSport("")
     setStake("")
@@ -291,31 +284,57 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       return
     }
 
-    // Check for duplicate log to prevent double logging
+    // Create a unique ID for this emotion log attempt
     const now = new Date()
+    const uniqueId = `${selectedEmotion}-${phase}-${Math.floor(now.getTime() / 1000)}` // Unique per second
+
+    const newLog: EmotionLog = {
+      id: uniqueId,
+      timestamp: now,
+      emotion: selectedEmotion,
+      intensity: intensity[0],
+      phase: phase,
+      context: context,
+    }
+
+    // Check for duplicate in current state
     const recentLogs = logs.filter(log => 
       log.emotion === selectedEmotion && 
       log.phase === phase &&
-      Math.abs(now.getTime() - log.timestamp.getTime()) < 5000 // Within 5 seconds
+      Math.abs(now.getTime() - log.timestamp.getTime()) < 2000 // Within 2 seconds
     )
 
-    if (recentLogs.length > 0) {
+    // Check for duplicate in localStorage
+    let localStorageDuplicate = false
+    if (typeof window !== "undefined") {
+      const storedLogs = JSON.parse(localStorage.getItem("emotion_logs") || "[]")
+      localStorageDuplicate = storedLogs.some((log: any) => 
+        log.emotion === selectedEmotion && 
+        log.phase === phase &&
+        Math.abs(now.getTime() - new Date(log.timestamp).getTime()) < 2000
+      )
+    }
+
+    // Check for duplicate trade creation (for before phase)
+    let tradeDuplicate = false
+    if (phase === "before") {
+      tradeDuplicate = trades.some(trade => 
+        trade.preTradeEmotion === selectedEmotion &&
+        Math.abs(now.getTime() - trade.timestamp.getTime()) < 2000 // Within 2 seconds
+      )
+    }
+
+    if (recentLogs.length > 0 || localStorageDuplicate || tradeDuplicate) {
       console.log('Duplicate emotion detected, skipping:', selectedEmotion)
       toast.error('You just logged this emotion! Please wait a moment before logging again.')
       return
     }
 
-    const newLog: EmotionLog = {
-      id: Date.now().toString(),
-      timestamp: now,
-      emotion: selectedEmotion,
-      intensity: intensity[0],
-      context,
-      phase,
-    }
-
     // Add to storage
     await storage.addEmotionLog(newLog)
+
+    // Emit event to update analytics
+    analyticsEvents.emit(ANALYTICS_EVENTS.EMOTION_LOGGED, newLog)
     
     // Update local state optimistically to avoid double-fetching
     setLogs(prevLogs => [...prevLogs, newLog])
@@ -339,18 +358,19 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         id: Date.now().toString(),
         timestamp: new Date(),
         title: defaultTitle,
-        sport: sport || undefined,
         preTradeEmotion: selectedEmotion,
         preTradeIntensity: intensity[0],
         biasesIdentified: selectedBiases,
         confidenceLevel: 5,
         reasoning: context || "No context provided",
         stake: stake ? parseFloat(stake) : undefined,
-        odds: odds ? parseFloat(odds) : undefined,
       }
       await storage.addTrade(newTrade)
       const updatedTrades = await storage.getTrades()
       setTrades(updatedTrades ?? [])
+      
+      // Emit event to update analytics
+      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED, newTrade)
       
       updates = {
         ...updates,
@@ -361,18 +381,6 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           ...userData.dailyRings,
           biasRecognition: newBiasRingProgress,
         },
-      }
-
-      // Update pause challenge
-      const updatedChallenges = challenges.map((c: any) => {
-        if (c.id === "pause-challenge" && c.progress < c.maxProgress) {
-          return { ...c, progress: c.progress + 1 }
-        }
-        return c
-      })
-      if (JSON.stringify(updatedChallenges) !== JSON.stringify(challenges)) {
-        await storage.updateChallenges(updatedChallenges)
-        setChallenges(updatedChallenges)
       }
     } else if (phase === "after") {
       // Post-trade: +20 XP, update mindfulness ring
@@ -389,7 +397,6 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           reflection: context,
           outcome: outcome || "breakeven", // Use selected outcome or default to breakeven
           stake: stake ? parseFloat(stake) : pendingTrade.stake,
-          odds: odds ? parseFloat(odds) : pendingTrade.odds,
         })
         const updatedTrades = await storage.getTrades()
         setTrades(updatedTrades ?? [])

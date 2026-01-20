@@ -1763,6 +1763,8 @@ function getDefaultUserData(): UserData {
     totalModulesCompleted: 0,
     totalBreathingExercises: 0,
     mostProductiveDay: 0,
+    subscriptionTier: 'free',
+    subscriptionStatus: 'active',
   }
 }
 

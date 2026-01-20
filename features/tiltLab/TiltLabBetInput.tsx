@@ -1,0 +1,351 @@
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertCircle, Clipboard, FileText, Zap } from 'lucide-react';
+
+export interface BetData {
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  market: string;
+  odds: number;
+  stake: number;
+  result: 'win' | 'loss' | 'pending';
+  sportsbook: string;
+  gameDate?: Date;
+  notes?: string;
+}
+
+interface TiltLabBetInputProps {
+  onBetSubmit: (betData: BetData) => void;
+  initialData?: Partial<BetData>;
+}
+
+const SPORTSBOOKS = [
+  'DraftKings', 'FanDuel', 'BetMGM', 'Caesars', 'PointsBet', 'BetRivers', 'Other'
+];
+
+const LEAGUES = [
+  'NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College Football', 'College Basketball', 'Other'
+];
+
+const MARKETS = [
+  'Moneyline', 'Spread', 'Over/Under', 'Player Prop', 'Team Prop', 'Parlay', 'Other'
+];
+
+const RESULTS = [
+  { value: 'loss', label: 'Lost' },
+  { value: 'win', label: 'Won' },
+  { value: 'pending', label: 'Pending' }
+];
+
+export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputProps) {
+  const [inputMode, setInputMode] = useState<'manual' | 'paste'>('manual');
+  const [formData, setFormData] = useState<Partial<BetData>>({
+    league: '',
+    homeTeam: '',
+    awayTeam: '',
+    market: '',
+    odds: 0,
+    stake: 0,
+    result: 'loss',
+    sportsbook: '',
+    notes: '',
+    ...initialData
+  });
+  const [pasteText, setPasteText] = useState('');
+  const [parseError, setParseError] = useState('');
+
+  const handleManualSubmit = useCallback(() => {
+    if (!formData.league || !formData.homeTeam || !formData.awayTeam || 
+        !formData.market || !formData.odds || !formData.stake || !formData.sportsbook) {
+      setParseError('Please fill in all required fields');
+      return;
+    }
+
+    const betData: BetData = {
+      league: formData.league!,
+      homeTeam: formData.homeTeam!,
+      awayTeam: formData.awayTeam!,
+      market: formData.market!,
+      odds: formData.odds!,
+      stake: formData.stake!,
+      result: formData.result as 'win' | 'loss' | 'pending',
+      sportsbook: formData.sportsbook!,
+      notes: formData.notes,
+      gameDate: new Date()
+    };
+
+    onBetSubmit(betData);
+  }, [formData, onBetSubmit]);
+
+  const parsePasteText = useCallback(() => {
+    setParseError('');
+    
+    if (!pasteText.trim()) {
+      setParseError('Please paste your bet information');
+      return;
+    }
+
+    const text = pasteText.toLowerCase();
+    
+    // Try to extract odds (American format like -110, +150)
+    const oddsMatch = text.match(/([+-]\d+)/);
+    const odds = oddsMatch ? parseInt(oddsMatch[1]) : 0;
+    
+    // Try to extract stake (numbers with $ or just numbers)
+    const stakeMatch = text.match(/\$(\d+)|(\d+)\s*(?:dollars?|bucks?)/i);
+    const stake = stakeMatch ? parseInt(stakeMatch[1] || stakeMatch[2]) : 0;
+    
+    // Try to identify league
+    let league = 'Other';
+    if (text.includes('nfl') || text.includes('football')) league = 'NFL';
+    else if (text.includes('nba') || text.includes('basketball')) league = 'NBA';
+    else if (text.includes('mlb') || text.includes('baseball')) league = 'MLB';
+    else if (text.includes('nhl') || text.includes('hockey')) league = 'NHL';
+    
+    // Try to identify sportsbook
+    let sportsbook = 'Other';
+    if (text.includes('draftkings') || text.includes('dk')) sportsbook = 'DraftKings';
+    else if (text.includes('fanduel') || text.includes('fd')) sportsbook = 'FanDuel';
+    else if (text.includes('betmgm') || text.includes('mgm')) sportsbook = 'BetMGM';
+    
+    // Try to identify market
+    let market = 'Other';
+    if (text.includes('spread') || text.includes('handicap')) market = 'Spread';
+    else if (text.includes('over') || text.includes('under') || text.includes('total')) market = 'Over/Under';
+    else if (text.includes('moneyline') || text.includes('ml')) market = 'Moneyline';
+    
+    // Extract teams (simplified - look for common patterns)
+    const teamPattern = /(\w+(?:\s+\w+)*)\s+(?:vs|at|-)\s+(\w+(?:\s+\w+)*)/i;
+    const teamMatch = text.match(teamPattern);
+    const homeTeam = teamMatch?.[1] || '';
+    const awayTeam = teamMatch?.[2] || '';
+
+    const parsedData: Partial<BetData> = {
+      league,
+      homeTeam,
+      awayTeam,
+      market,
+      odds,
+      stake,
+      sportsbook,
+      result: 'loss', // Default to loss for TiltLab
+      notes: `Parsed from: ${pasteText.substring(0, 100)}...`
+    };
+
+    setFormData(parsedData);
+    setInputMode('manual');
+  }, [pasteText]);
+
+  const updateFormData = useCallback((field: keyof BetData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Bet Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Input Mode Toggle */}
+          <div className="flex gap-2">
+            <Button
+              variant={inputMode === 'manual' ? 'default' : 'outline'}
+              onClick={() => setInputMode('manual')}
+              size="sm"
+            >
+              Manual Entry
+            </Button>
+            <Button
+              variant={inputMode === 'paste' ? 'default' : 'outline'}
+              onClick={() => setInputMode('paste')}
+              size="sm"
+            >
+              <Clipboard className="h-4 w-4 mr-1" />
+              Paste & Parse
+            </Button>
+          </div>
+
+          {inputMode === 'paste' ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="paste-text">Paste your bet information</Label>
+                <Textarea
+                  id="paste-text"
+                  placeholder="Paste your bet slip text here... Example: 'NFL - Chiefs vs Broncos -7 (-110) $110 to win $100'"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+              
+              {parseError && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  {parseError}
+                </div>
+              )}
+              
+              <Button onClick={parsePasteText} className="w-full">
+                <Zap className="h-4 w-4 mr-2" />
+                Parse Bet Information
+              </Button>
+              
+              <div className="text-xs text-muted-foreground">
+                This will attempt to extract teams, odds, stake, and other details from your text.
+                You can review and edit the parsed information in manual mode.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* League */}
+              <div>
+                <Label htmlFor="league">League *</Label>
+                <Select value={formData.league} onValueChange={(value) => updateFormData('league', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select league" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEAGUES.map(league => (
+                      <SelectItem key={league} value={league}>{league}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Teams */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="home-team">Home Team *</Label>
+                  <Input
+                    id="home-team"
+                    placeholder="e.g., Chiefs"
+                    value={formData.homeTeam || ''}
+                    onChange={(e) => updateFormData('homeTeam', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="away-team">Away Team *</Label>
+                  <Input
+                    id="away-team"
+                    placeholder="e.g., Broncos"
+                    value={formData.awayTeam || ''}
+                    onChange={(e) => updateFormData('awayTeam', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Market */}
+              <div>
+                <Label htmlFor="market">Market Type *</Label>
+                <Select value={formData.market} onValueChange={(value) => updateFormData('market', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select market" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MARKETS.map(market => (
+                      <SelectItem key={market} value={market}>{market}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Odds and Stake */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="odds">Odds (American) *</Label>
+                  <Input
+                    id="odds"
+                    type="number"
+                    placeholder="e.g., -110"
+                    value={formData.odds || ''}
+                    onChange={(e) => updateFormData('odds', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="stake">Stake ($) *</Label>
+                  <Input
+                    id="stake"
+                    type="number"
+                    placeholder="e.g., 110"
+                    value={formData.stake || ''}
+                    onChange={(e) => updateFormData('stake', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+
+              {/* Sportsbook */}
+              <div>
+                <Label htmlFor="sportsbook">Sportsbook *</Label>
+                <Select value={formData.sportsbook} onValueChange={(value) => updateFormData('sportsbook', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sportsbook" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SPORTSBOOKS.map(book => (
+                      <SelectItem key={book} value={book}>{book}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Result */}
+              <div>
+                <Label>Result *</Label>
+                <RadioGroup 
+                  value={formData.result} 
+                  onValueChange={(value) => updateFormData('result', value)}
+                  className="flex gap-4"
+                >
+                  {RESULTS.map(result => (
+                    <div key={result.value} className="flex items-center space-x-2">
+                      <RadioGroupItem value={result.value} id={result.value} />
+                      <Label htmlFor={result.value}>{result.label}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <Label htmlFor="notes">Notes (optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any additional context..."
+                  value={formData.notes || ''}
+                  onChange={(e) => updateFormData('notes', e.target.value)}
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              {parseError && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  {parseError}
+                </div>
+              )}
+
+              <Button onClick={handleManualSubmit} className="w-full">
+                Continue to Analysis
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default TiltLabBetInput;

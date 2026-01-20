@@ -1,9 +1,8 @@
 import { Card } from "@/components/ui/card"
-import { AuthenticatedLayout } from "@/components/authenticated-layout"
 
 export default function DemoPage() {
   return (
-    <AuthenticatedLayout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -93,6 +92,6 @@ export default function DemoPage() {
           </div>
         </div>
       </div>
-    </AuthenticatedLayout>
+    </div>
   )
 }

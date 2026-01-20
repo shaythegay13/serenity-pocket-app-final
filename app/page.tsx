@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { LandingPage } from "@/components/landing-page"
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -41,11 +41,15 @@ export default function Home() {
     checkAuthAndFlow()
   }, [router, searchParams])
 
+  return <LandingPage onLogin={() => window.location.href = "/login"} />
+}
+
+export default function Home() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
       <div className="animate-pulse text-muted-foreground">Loading...</div>
     </div>}>
-      <LandingPage onLogin={() => window.location.href = "/login"} />
+      <HomeContent />
     </Suspense>
   )
 }

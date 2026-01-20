@@ -309,14 +309,8 @@ export function getActiveSports(): SportConfig[] {
 }
 
 export function getPopularSports(): SportConfig[] {
-  // Return major US sports + popular international sports
-  const popularIds = [
-    'basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl',
-    'basketball_ncaab', 'americanfootball_ncaaf',
-    'soccer_epl', 'soccer_mls',
-    'mma_ufc', 'tennis_atp', 'golf_pga'
-  ];
-  return popularIds.map(id => SUPPORTED_SPORTS[id]).filter(Boolean);
+  // Return all supported sports for maximum coverage
+  return Object.values(SUPPORTED_SPORTS);
 }
 
 export function searchSports(query: string): SportConfig[] {

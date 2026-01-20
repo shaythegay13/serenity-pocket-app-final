@@ -15,6 +15,7 @@ import AIBetAdvisor from "@/components/ai-bet-advisor"
 import { supabase } from "@/lib/supabase"
 import { AIUsageIndicator } from "@/components/ai-usage-indicator"
 import { PremiumFeatureWall } from "@/components/premium-feature-wall"
+import { getPopularSports, getSportById } from "@/lib/sports-config"
 
 interface MarketplaceProduct {
   id: string
@@ -175,6 +176,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
   const [activeSection, setActiveSection] = useState<'picks' | 'advisor' | 'marketplace'>('picks')
+  
+  // Get available sports dynamically
+  const availableSports = getPopularSports()
 
   const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>([])
   const [marketplaceLoading, setMarketplaceLoading] = useState(false)
@@ -865,14 +869,15 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Sport</label>
             <div className="flex flex-wrap gap-2">
-              {['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl'].map((sport) => (
+              {availableSports.map((sport) => (
                 <Button
-                  key={sport}
-                  variant={selectedSport === sport ? 'default' : 'outline'}
+                  key={sport.id}
+                  variant={selectedSport === sport.id ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setSelectedSport(sport)}
+                  onClick={() => setSelectedSport(sport.id)}
+                  title={sport.displayName}
                 >
-                  {sport.split('_')[1].toUpperCase()}
+                  {sport.icon} {sport.name}
                 </Button>
               ))}
             </div>

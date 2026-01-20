@@ -15,6 +15,7 @@ import {
   Zap,
   ChevronRight
 } from 'lucide-react';
+import { getPopularSports } from '@/lib/sports-config';
 
 export interface GameCard {
   id: string;
@@ -97,6 +98,9 @@ export function SmartSlipGameList({ league, aggression, onComplete, onBack }: Sm
   const [loading, setLoading] = useState(true);
   const [selectedLeague, setSelectedLeague] = useState(league);
   const [selectedAggression, setSelectedAggression] = useState(aggression);
+
+  // Get available sports dynamically
+  const availableSports = getPopularSports();
 
   useEffect(() => {
     // Simulate API call
@@ -185,15 +189,16 @@ export function SmartSlipGameList({ league, aggression, onComplete, onBack }: Sm
           <div className="flex gap-4 p-4 bg-muted/50 rounded-lg justify-end">
             <div className="flex-1">
               <div className="flex flex-col items-center space-y-2">
-                <Select value={selectedLeague} onValueChange={(value: "NFL" | "NBA" | "MLB" | "NHL") => setSelectedLeague(value)}>
+                <Select value={selectedLeague} onValueChange={(value: string) => setSelectedLeague(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NFL">NFL</SelectItem>
-                    <SelectItem value="NBA">NBA</SelectItem>
-                    <SelectItem value="MLB">MLB</SelectItem>
-                    <SelectItem value="NHL">NHL</SelectItem>
+                    {availableSports.map((sport) => (
+                      <SelectItem key={sport.id} value={sport.id}>
+                        {sport.icon} {sport.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <span className="text-sm font-medium">Sport</span>

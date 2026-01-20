@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Clipboard, FileText, Zap } from 'lucide-react';
+import { getPopularSports, mapTiltLabSportToConfig } from '@/lib/sports-config';
 
 export interface BetData {
   league: string;
@@ -36,6 +37,25 @@ const LEAGUES = [
   'NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College Football', 'College Basketball', 'Other'
 ];
 
+// Enhanced sport mapping for better parsing
+const SPORT_KEYWORDS = {
+  'NFL': ['nfl', 'football', 'super bowl', 'afc', 'nfc'],
+  'NBA': ['nba', 'basketball', 'playoffs', 'eastern', 'western'],
+  'MLB': ['mlb', 'baseball', 'world series', 'al', 'nl'],
+  'NHL': ['nhl', 'hockey', 'stanley cup'],
+  'Soccer': ['soccer', 'football', 'premier league', 'epl', 'mls', 'champions league', 'la liga', 'bundesliga', 'serie a'],
+  'College Football': ['college football', 'ncaaf', 'college', 'ncaa football'],
+  'College Basketball': ['college basketball', 'ncaab', 'march madness', 'ncaa basketball'],
+  'UFC': ['ufc', 'mma', 'fight', 'cage'],
+  'Tennis': ['tennis', 'wimbledon', 'us open', 'french open', 'australian open'],
+  'Golf': ['golf', 'pga', 'masters', 'open championship', 'us open golf'],
+  'F1': ['f1', 'formula 1', 'grand prix'],
+  'NASCAR': ['nascar', 'cup series', 'daytona'],
+  'Boxing': ['boxing', 'fight', 'knockout'],
+  'LoL': ['league of legends', 'lol', 'lcs', 'worlds'],
+  'CS:GO': ['csgo', 'counter strike', 'major']
+};
+
 const MARKETS = [
   'Moneyline', 'Spread', 'Over/Under', 'Player Prop', 'Team Prop', 'Parlay', 'Other'
 ];
@@ -62,6 +82,9 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
   });
   const [pasteText, setPasteText] = useState('');
   const [parseError, setParseError] = useState('');
+
+  // Get available sports dynamically
+  const availableSports = getPopularSports();
 
   const handleManualSubmit = useCallback(() => {
     if (!formData.league || !formData.homeTeam || !formData.awayTeam || 
@@ -104,12 +127,20 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
     const stakeMatch = text.match(/\$(\d+)|(\d+)\s*(?:dollars?|bucks?)/i);
     const stake = stakeMatch ? parseInt(stakeMatch[1] || stakeMatch[2]) : 0;
     
-    // Try to identify league
+    // Enhanced league identification with keyword matching
     let league = 'Other';
-    if (text.includes('nfl') || text.includes('football')) league = 'NFL';
-    else if (text.includes('nba') || text.includes('basketball')) league = 'NBA';
-    else if (text.includes('mlb') || text.includes('baseball')) league = 'MLB';
-    else if (text.includes('nhl') || text.includes('hockey')) league = 'NHL';
+    for (const [sportName, keywords] of Object.entries(SPORT_KEYWORDS)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        league = sportName;
+        break;
+      }
+    }
+    
+    // Map to sport config if possible
+    const sportConfig = mapTiltLabSportToConfig(league);
+    if (sportConfig && sportConfig.id !== league) {
+      league = sportConfig.name; // Use the standardized name
+    }
     
     // Try to identify sportsbook
     let sportsbook = 'Other';
@@ -221,6 +252,14 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
                     {LEAGUES.map(league => (
                       <SelectItem key={league} value={league}>{league}</SelectItem>
                     ))}
+                    {/* Add popular sports from config */}
+                    {availableSports
+                      .filter(sport => !LEAGUES.includes(sport.name))
+                      .map(sport => (
+                        <SelectItem key={sport.id} value={sport.name}>
+                          {sport.icon} {sport.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

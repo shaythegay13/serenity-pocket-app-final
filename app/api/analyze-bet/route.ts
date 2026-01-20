@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { invokeAI, isEnhancedAIAvailable, type AIMessage } from "@/lib/ai-service"
+import { conductSportsResearch, type SportsResearchInput } from "@/lib/sports-research"
 
 type BiasWarning = {
   type: string
@@ -52,10 +53,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { description, odds, stake, emotionalState, recentBets, includeBiasDetection } = body ?? {}
+    const { description, odds, stake, emotionalState, recentBets, includeBiasDetection, sport } = body ?? {}
 
     if (!description || typeof description !== "string") {
       return NextResponse.json({ error: "Missing bet description" }, { status: 400 })
+    }
+
+    // Extract teams from description for sports research
+    const teamMatch = description.match(/(\w+(?:\s+\w+)*)\s+(?:vs|at|-)\s+(\w+(?:\s+\w+)*)/i);
+    let sportsResearch = null;
+    
+    if (teamMatch && sport) {
+      try {
+        console.log(`🔍 Conducting sports research for ${teamMatch[1]} vs ${teamMatch[2]}`);
+        sportsResearch = await conductSportsResearch({
+          homeTeam: teamMatch[1],
+          awayTeam: teamMatch[2],
+          sport: sport,
+          league: body.league
+        });
+        console.log(`✅ Sports research completed: ${sportsResearch.dataSource}`);
+      } catch (error) {
+        console.warn('⚠️ Sports research failed, continuing with analysis:', error);
+      }
     }
 
     const oddsNum = Number(odds)
@@ -71,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const system = `You are a Betting Risk Analyst and reasoning engine for a responsible sports betting advisor.
 You must prioritize emotional and financial safety over potential profit.
-You must NOT hallucinate statistics. Only use the bet details provided.
+You must perform comprehensive analysis including sports research data when available.
 You must perform an 'Enhanced Analysis'.
 STRICT LOGIC RULES:
 - If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH' and recommendation as 'DON'T PLACE BET'.
@@ -82,6 +102,7 @@ STRICT LOGIC RULES:
 - The expectedValue must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
 - If expectedValue is negative, the reasoning must explain that the user is paying 'juice' and has no mathematical edge.
 - If riskLevel is 'HIGH' or 'VERY_HIGH', the reasoning must start with a bold cautionary warning.
+- **Sports Research Integration**: When sports research data is available, incorporate team form, head-to-head records, key player injuries, and expert predictions into your analysis.
 Return STRICT JSON matching the schema exactly.`
 
     const userPrompt = `BET INPUT:
@@ -95,10 +116,42 @@ ${JSON.stringify(
         emotionalState: typeof emotionalState === "string" ? emotionalState : undefined,
         recentBets: Array.isArray(recentBets) ? recentBets : undefined,
         includeBiasDetection: !!includeBiasDetection,
+        sportsResearch: sportsResearch ? {
+          dataSource: sportsResearch.dataSource,
+          homeTeam: {
+            name: sportsResearch.homeTeam.teamInfo?.strTeam,
+            recentForm: sportsResearch.homeTeam.recentForm,
+            strengths: sportsResearch.homeTeam.strengths,
+            weaknesses: sportsResearch.homeTeam.weaknesses,
+            currentForm: sportsResearch.homeTeam.currentForm
+          },
+          awayTeam: {
+            name: sportsResearch.awayTeam.teamInfo?.strTeam,
+            recentForm: sportsResearch.awayTeam.recentForm,
+            strengths: sportsResearch.awayTeam.strengths,
+            weaknesses: sportsResearch.awayTeam.weaknesses,
+            currentForm: sportsResearch.awayTeam.currentForm
+          },
+          headToHead: sportsResearch.headToHead,
+          keyFactors: sportsResearch.keyFactors,
+          prediction: sportsResearch.prediction
+        } : null
       },
       null,
       2,
     )}
+
+${sportsResearch ? `
+SPORTS RESEARCH DATA AVAILABLE:
+- Home Team: ${sportsResearch.homeTeam.teamInfo?.strTeam} (Form: ${sportsResearch.homeTeam.currentForm})
+- Away Team: ${sportsResearch.awayTeam.teamInfo?.strTeam} (Form: ${sportsResearch.awayTeam.currentForm})
+- Head-to-Head: ${sportsResearch.headToHead ? `${sportsResearch.headToHead.totalMatches} matches, Home wins: ${sportsResearch.headToHead.homeTeamWins}, Away wins: ${sportsResearch.headToHead.awayTeamWins}` : 'No data'}
+- Key Factors: ${sportsResearch.keyFactors.join(', ')}
+- Expert Prediction: ${sportsResearch.prediction.winner} with ${Math.round(sportsResearch.prediction.confidence * 100)}% confidence
+- Research Reasoning: ${sportsResearch.prediction.reasoning}
+
+IMPORTANT: Incorporate this sports research data into your analysis. Consider team form, head-to-head records, and expert predictions when making your recommendation.
+` : ''}
 
 Return ONLY JSON in this TypeScript shape:
 {
@@ -115,6 +168,7 @@ Rules:
 - estimatedWinProbability must be between 0 and 1.
 - expectedValue should reflect estimatedWinProbability and the provided odds/stake.
 - Keep reasoning concise (2-6 sentences).
+- If sports research is available, reference key insights from the research data.
 - If info is missing/uncertain, prefer PROCEED WITH CAUTION or DON'T PLACE BET and explain why.`
 
     const parsed = await callClaudeAsJson(system, userPrompt, 2000)
@@ -163,6 +217,30 @@ Rules:
         confidenceScore,
         riskLevel,
         recommendation,
+        sportsResearch: sportsResearch ? {
+          dataSource: sportsResearch.dataSource,
+          researchTimestamp: sportsResearch.researchTimestamp,
+          homeTeam: {
+            name: sportsResearch.homeTeam.teamInfo?.strTeam,
+            currentForm: sportsResearch.homeTeam.currentForm,
+            strengths: sportsResearch.homeTeam.strengths.slice(0, 3), // Limit to top 3
+            recentForm: sportsResearch.homeTeam.recentForm?.last5 || []
+          },
+          awayTeam: {
+            name: sportsResearch.awayTeam.teamInfo?.strTeam,
+            currentForm: sportsResearch.awayTeam.currentForm,
+            strengths: sportsResearch.awayTeam.strengths.slice(0, 3), // Limit to top 3
+            recentForm: sportsResearch.awayTeam.recentForm?.last5 || []
+          },
+          headToHead: sportsResearch.headToHead ? {
+            totalMatches: sportsResearch.headToHead.totalMatches,
+            homeWins: sportsResearch.headToHead.homeTeamWins,
+            awayWins: sportsResearch.headToHead.awayTeamWins,
+            draws: sportsResearch.headToHead.draws
+          } : null,
+          keyFactors: sportsResearch.keyFactors.slice(0, 5), // Limit to top 5
+          expertPrediction: sportsResearch.prediction
+        } : null
       },
       usedAI: true,
     })

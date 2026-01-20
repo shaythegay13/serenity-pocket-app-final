@@ -17,7 +17,7 @@ const CACHE_TTL = {
 const API_BASE = 'https://www.thesportsdb.com/api/v2/json';
 
 // Get API key from environment
-const API_KEY = process.env.THESPORTSDB_API_KEY || '';
+const API_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || '';
 
 function getCacheKey(endpoint: string, params: string): string {
   return `${endpoint}:${params}`;

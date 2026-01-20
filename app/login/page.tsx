@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { SignIn } from "@/components/auth/sign-in"
 import { supabase } from "@/lib/supabase"
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -18,7 +18,7 @@ export default function LoginPage() {
   }, [router])
 
   // Get flow from URL parameters
-  const flow = searchParams.get("flow")
+  const flow = searchParams?.get("flow") || "default"
 
   return (
     <SignIn
@@ -34,5 +34,13 @@ export default function LoginPage() {
         window.location.href = "/"
       }}
     />
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }

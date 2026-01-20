@@ -551,10 +551,25 @@ export async function POST(request: NextRequest) {
 
     const enrichedGames = await Promise.all(
       limitedGames.map(async (game) => {
-        const homeTeam: string = game.homeTeam || game.home_team
-        const awayTeam: string = game.awayTeam || game.away_team
+        const homeTeam: string = game.homeTeam || game.home_team || 'Home Team'
+        const awayTeam: string = game.awayTeam || game.away_team || 'Away Team'
         const league: string = game.sportKey || game.sport_key || sport
         const gameId: string | undefined = game.id
+
+        console.log(`[SmartSlip] Game data extraction:`, {
+          gameId,
+          homeTeam,
+          awayTeam,
+          league,
+          rawGame: {
+            homeTeam: game.homeTeam,
+            home_team: game.home_team,
+            awayTeam: game.awayTeam,
+            away_team: game.away_team,
+            sportKey: game.sportKey,
+            sport_key: game.sport_key
+          }
+        })
 
         let context: CurrentGameContext | null = null
         let features: HistoricalFeatureVector | null = null

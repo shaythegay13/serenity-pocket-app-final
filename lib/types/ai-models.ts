@@ -122,6 +122,7 @@ export interface PickerRecommendationItem {
   riskLevel: RiskLevel
   numericRisk?: {
     ev: number
+    evPercentage?: number
   }
   shortExplanation: string
 }
@@ -197,6 +198,7 @@ export interface BetAnalyzerReasoningOutput {
   detailedExplanation: string
   numericRisk?: {
     ev: number
+    evPercentage?: number
   }
   responsibleGamblingReminder?: string
 }

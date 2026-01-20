@@ -12,9 +12,10 @@ import { Progress } from '@/components/ui/progress';
 interface AccountCreationFlowProps {
   email: string;
   surveyId?: string;
+  onComplete?: () => void;
 }
 
-export default function AccountCreationFlow({ email, surveyId }: AccountCreationFlowProps) {
+export default function AccountCreationFlow({ email, surveyId, onComplete }: AccountCreationFlowProps) {
   const router = useRouter();
   const [emailValue, setEmailValue] = useState(email || '');
   const [username, setUsername] = useState('');
@@ -130,6 +131,7 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         }
 
         // Show success message instead of error
+        onComplete?.();
         router.push(`/signup-success?email=${encodeURIComponent(emailValue)}`);
         return;
       }
@@ -161,8 +163,9 @@ export default function AccountCreationFlow({ email, surveyId }: AccountCreation
         console.error('Survey linking error:', linkError);
       }
 
-      // Navigate to complete the remaining survey questions
-      router.push('/gambling-survey');
+      // Navigate to the dedicated survey page
+      onComplete?.();
+      router.push('/survey');
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Account creation error:', err);

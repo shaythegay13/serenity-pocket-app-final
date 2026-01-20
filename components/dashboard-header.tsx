@@ -62,31 +62,47 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
   }, [menuOpen])
 
   const handleLogout = async () => {
+    console.log('🔧 Logout button clicked - starting logout process')
     try {
-      console.log('🔐 Starting logout process...')
-      
       // Reset any error handling flags that might interfere
-      const { resetErrorHandling } = await import('@/lib/auth-utils')
-      resetErrorHandling()
-      
-      // Force sign out with global scope to ensure complete logout
-      await supabase.auth.signOut({ scope: 'global' })
-      
-      if (typeof window !== "undefined") {
-        console.log('🔐 Clearing local storage...')
-        sessionStorage.clear()
-        localStorage.clear()
+      console.log('🔧 Attempting to reset error handling...')
+      try {
+        const { resetErrorHandling } = await import('@/lib/auth-utils')
+        console.log('🔧 Auth utils imported successfully')
+        resetErrorHandling()
+        console.log('🔧 Error handling reset completed')
+      } catch (importError) {
+        console.error('🔧 Failed to import or use auth utils:', importError)
+        // Continue with logout anyway
       }
       
-      console.log('🔐 Redirecting to home...')
+      // Force sign out with global scope to ensure complete logout
+      console.log('🔧 Signing out from Supabase...')
+      await supabase.auth.signOut({ scope: 'global' })
+      console.log('🔧 Supabase sign out completed')
+      
+      if (typeof window !== "undefined") {
+        console.log('🔧 Clearing storage...')
+        // Clear emotion check-in flag specifically
+        sessionStorage.removeItem('emotionCheckInShown')
+        console.log('🔧 Emotion check-in flag cleared')
+        // Clear all storage
+        sessionStorage.clear()
+        localStorage.clear()
+        console.log('🔧 All storage cleared')
+      }
+      
       // Use setTimeout to break out of any potential render cycles
+      console.log('🔧 Preparing redirect to /')
       setTimeout(() => {
+        console.log('🔧 Redirecting to / now')
         window.location.href = "/"
       }, 100)
       
     } catch (error) {
-      console.error("Error logging out:", error)
+      console.error("🔧 Error logging out:", error)
       // Fallback: force redirect even if logout fails
+      console.log('🔧 Using fallback redirect')
       setTimeout(() => {
         window.location.href = "/"
       }, 100)
@@ -235,7 +251,9 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   role="menuitem"
                   type="button"
                   onClick={() => {
+                    console.log('🔧 Logout button clicked in UI')
                     setMenuOpen(false)
+                    console.log('🔧 Menu closed, calling handleLogout')
                     void handleLogout()
                   }}
                 >

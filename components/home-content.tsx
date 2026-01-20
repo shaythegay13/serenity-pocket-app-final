@@ -46,6 +46,9 @@ export function HomeContent() {
   const AiPicksTab = lazy(() => import("@/components/tabs/ai-picks-tab").then((m) => ({ default: m.AIPicksTab })))
   const AnalyticsTab = lazy(() => import("@/components/tabs/analytics-tab").then((m) => ({ default: m.AnalyticsTab })))
   const AccountTab = lazy(() => import("@/components/tabs/account-tab").then((m) => ({ default: m.AccountTab })))
+  
+  // Emotion check-in dialog
+  const EmotionCheckInDialog = lazy(() => import("@/components/emotion-check-in-dialog").then((m) => ({ default: m.EmotionCheckInDialog })))
 
   const updateUserData = async (updates: Partial<UserData>) => {
     setUserData((prev) => {
@@ -59,6 +62,7 @@ export function HomeContent() {
   // Read tab parameter from URL
   useEffect(() => {
     const tab = searchParams.get("tab")
+    const section = searchParams.get("section")
     
     // Redirect old history tab to analytics performance tab
     if (tab === "history") {
@@ -69,47 +73,64 @@ export function HomeContent() {
     
     if (tab && ["home", "behavior", "ai-picks", "analytics", "account"].includes(tab)) {
       setActiveTab(tab)
+      
+      // If we have a section parameter and the tab is ai-picks, we need to handle it
+      if (tab === "ai-picks" && section) {
+        // We'll handle this in the AiPicksTab component by checking URL params
+        // Store the section in sessionStorage for the AiPicksTab to pick up
+        sessionStorage.setItem("targetSection", section)
+      }
     }
   }, [searchParams])
 
   // Check for signup trigger
   useEffect(() => {
     const signup = searchParams.get("signup")
+    const flow = searchParams.get("flow")
     
-    if (signup === "true" && !loading && authed === false) {
-      setShowLanding(false)
-      setShowTerms(true)
-      // Clean up the URL
-      window.history.replaceState(null, "", "/")
+    console.log('🔧 Home-content signup check:', { signup, flow, loading, authed, userData })
+    
+    if (signup === "true" && !loading) {
+      console.log('🔧 Signup flow detected in home-content!')
+      if (authed === false) {
+        // User is not authenticated, start signup flow
+        console.log('🔧 Starting signup flow for unauthenticated user')
+        setShowLanding(false)
+        setShowTerms(true)
+        // Store the flow for after signup completion
+        if (flow === "tiltlab" || flow === "smartslip") {
+          localStorage.setItem("entry_flow", flow)
+        }
+        // Clean up the URL
+        window.history.replaceState(null, "", "/")
+      } else if (authed === true && userData) {
+        // User is already authenticated, go directly to the feature
+        console.log('🔧 Authenticated user detected, but should show survey first')
+        // For now, let's not redirect - let the survey show first
+        // The survey will handle navigation after completion
+      }
     }
-  }, [searchParams, loading, authed])
+  }, [searchParams, loading, authed, userData])
 
-  // Check for emotion check-in trigger
+  // Old entry_flow logic removed - users now go to /home after survey
+
+  // Check for emotion check-in trigger (once per login session)
   useEffect(() => {
     const checkEmotionTrigger = async () => {
       if (!userData || activeTab !== "home") return
       
       try {
-        const data = await storage.getUserData()
-
-        // Check if user data exists before accessing properties
-        if (!data) {
-          setShowEmotionCheckIn(true)
+        // Check if we've already shown emotion check-in this login session
+        const sessionShown = sessionStorage.getItem('emotionCheckInShown')
+        if (sessionShown) {
+          setShowEmotionCheckIn(false)
           return
         }
 
-        // lastEmotionCheckIn is stored as a Date (or may be missing)
-        const last = data.lastEmotionCheckIn
-        if (!last) {
-          setShowEmotionCheckIn(true)
-          return
-        }
-
-        const lastTime = last instanceof Date ? last.getTime() : new Date(last as any).getTime()
-        const daysSinceCheckIn = Math.floor((Date.now() - lastTime) / (24 * 60 * 60 * 1000))
-        if (daysSinceCheckIn >= 1) {
-          setShowEmotionCheckIn(true)
-        }
+        // Show emotion check-in for this login session (first visit to /home)
+        setShowEmotionCheckIn(true)
+        // Mark that we've shown it this session
+        sessionStorage.setItem('emotionCheckInShown', 'true')
       } catch (error) {
         console.error('Error checking emotion trigger:', error)
       }
@@ -120,62 +141,47 @@ export function HomeContent() {
 
   // Initialize user data and check auth
   useEffect(() => {
-    console.log('🏠 HomeContent: Starting auth initialization...')
-    
     const initAuth = async () => {
       // Add timeout to prevent infinite loading
       const timeoutId = setTimeout(() => {
-        console.log('🔐 Auth initialization timeout - forcing loading to false')
         setLoading(false)
         setAuthed(false)
         setShowLanding(true)
       }, 10000) // 10 second timeout
 
       try {
-        console.log('🔐 Getting session and user data...')
         // Run auth check and user data fetch in parallel
         const [sessionResult, userDataResult] = await Promise.allSettled([
           supabase.auth.getSession(),
-          storage.getUserData().catch(() => null)
+          storage.getUserData()
         ])
 
         clearTimeout(timeoutId)
 
         const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
-        console.log('🔐 Session result:', session ? 'found' : 'not found')
         
         // Check for refresh token errors
         if (sessionResult.status === 'rejected') {
           const error = sessionResult.reason
-          console.log('🔐 Session rejected:', error)
           if (error?.message?.includes('Invalid Refresh Token') || error?.message?.includes('Refresh Token Not Found')) {
-            console.log('Clearing stale auth tokens due to refresh error')
             const { clearStaleAuth } = await import('@/lib/supabase')
             await clearStaleAuth()
           }
         }
         
         if (!session) {
-          console.log('🔐 No session found, showing landing')
           setAuthed(false)
           setShowLanding(true)
           setLoading(false)
           return
         }
 
-        console.log('🔐 Session found, setting authed to true')
         setAuthed(true)
         
         const profile = userDataResult.status === 'fulfilled' ? userDataResult.value : null
-        console.log('🔐 User data result:', profile ? 'found' : 'not found')
         setUserData(profile)
 
         // Authenticated users should see the main dashboard
-        // Don't set any auth flow - let user see main dashboard
-        setShowSurvey(false)
-        setShowInstantProfile(false)
-        setShowProfilePreview(false)
-        setShowSoftGate(false)
         setShowSignup(false)
         setShowSignin(false)
         setShowTerms(false)
@@ -183,11 +189,9 @@ export function HomeContent() {
         
       } catch (error) {
         clearTimeout(timeoutId)
-        console.error('Auth initialization error:', error)
         setAuthed(false)
         setShowLanding(true)
       } finally {
-        console.log('🔐 Auth initialization complete, setting loading to false')
         setLoading(false)
       }
     }
@@ -197,13 +201,11 @@ export function HomeContent() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 Auth state change:', event, session ? 'with session' : 'no session')
         if (event === 'SIGNED_OUT') {
           setUserData(null)
           setAuthed(false)
           setShowLanding(true)
         } else if (session && event === 'SIGNED_IN') {
-          console.log('🔐 User signed in, showing dashboard')
           try {
             const profile = await storage.getUserData()
             setUserData(profile)
@@ -218,7 +220,6 @@ export function HomeContent() {
             setShowTerms(false)
             setShowLanding(false) // Explicitly hide landing page
           } catch (error) {
-            console.error('Error getting user data after sign in:', error)
             setAuthed(true)
             setUserData(null)
             setShowLanding(false) // Still hide landing even if user data fails
@@ -230,13 +231,21 @@ export function HomeContent() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const handleNavigateToTab = (tab: string) => {
-    console.log('🔄 Navigating to tab:', tab)
+  const handleNavigateToTab = (tab: string, subtab?: string) => {
+    // Update the active tab state immediately
     setActiveTab(tab)
+    
+    // Update URL with clean paths for other tabs
+    if (subtab) {
+      window.history.replaceState(null, '', `/${tab}/${subtab}`)
+    } else {
+      window.history.replaceState(null, '', `/${tab}`)
+    }
   }
 
   const handleEmotionCheckInComplete = () => {
     setShowEmotionCheckIn(false)
+    // sessionStorage flag already prevents showing again this session
     // Only refresh if not on the behavior tab to avoid interfering with emotion logging
     if (activeTab !== "behavior") {
       setRefreshKey(prev => prev + 1)
@@ -263,13 +272,18 @@ export function HomeContent() {
 
   const handleSurveyComplete = (surveyData: SurveyData) => {
     setShowSurvey(false)
-    setAuthFlow("instant-profile")
-    setShowInstantProfile(true)
+    // For new users, always redirect to /home after survey completion
+    // They can access premium features later when they subscribe
+    localStorage.removeItem("entry_flow")
+    setTimeout(() => {
+      window.location.href = "/home"
+    }, 100)
   }
 
   const handleSignupComplete = () => {
-    setShowSignup(false)
-    setShowSurvey(true)
+    console.log('🔧 handleSignupComplete called - redirecting to /survey')
+    // The AccountCreationFlow will handle redirecting to /survey
+    // No need to manage survey state here anymore
   }
 
   const handleSigninComplete = () => {
@@ -288,15 +302,6 @@ export function HomeContent() {
   }
 
   // Render different auth flows
-  // Debug logging to track auth state
-  console.log('🔐 Current auth state:', { 
-    authed, 
-    loading, 
-    showLanding, 
-    hasUserData: !!userData,
-    activeTab 
-  })
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -305,7 +310,6 @@ export function HomeContent() {
           <div className="animate-pulse text-muted-foreground">Loading...</div>
           <button 
             onClick={() => {
-              console.log('🔄 Manual retry triggered')
               setLoading(false)
               setAuthed(false)
               setShowLanding(true)
@@ -331,6 +335,7 @@ export function HomeContent() {
   }
 
   if (showSurvey) {
+    console.log('🔧 Rendering survey component - showSurvey is true')
     const SurveyComponent = lazy(() =>
       import("@/components/integrated-survey-flow/IntegratedSurveyWrapper").then((m) => ({
         default: m.IntegratedSurveyWrapper,
@@ -342,15 +347,19 @@ export function HomeContent() {
       </div>}>
         <SurveyComponent 
           onComplete={(score, level, email) => {
+            console.log('🔧 Survey completed with:', { score, level, email })
             handleSurveyComplete({ score, level } as any)
           }}
           onSwitchToLogin={() => {
+            console.log('🔧 Survey switch to login')
             setShowSurvey(false)
             setShowSignin(true)
           }}
         />
       </Suspense>
     )
+  } else {
+    console.log('🔧 Not rendering survey - showSurvey is false')
   }
 
   if (showInstantProfile) {
@@ -420,6 +429,7 @@ export function HomeContent() {
       </div>}>
         <SignupComponent 
           email=""
+          onComplete={handleSignupComplete}
         />
       </Suspense>
     )
@@ -459,7 +469,6 @@ export function HomeContent() {
   }
 
   if (showLanding && !authed) {
-    console.log('🔐 Showing landing page - showLanding:', showLanding, 'authed:', authed)
     const LandingComponent = lazy(() =>
       import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
     )
@@ -469,7 +478,6 @@ export function HomeContent() {
       </div>}>
         <LandingComponent 
           onLogin={() => {
-            console.log('🔐 Landing page login clicked')
             window.location.href = "/login"
           }}
         />
@@ -477,7 +485,8 @@ export function HomeContent() {
     )
   }
 
-  console.log('🔐 Showing main dashboard - showLanding:', showLanding, 'authed:', authed)
+  // EntryFlowOrchestrator completely removed - too much friction for users
+  // All authenticated users should go directly to /home dashboard
 
   // Main dashboard
   return (
@@ -486,7 +495,7 @@ export function HomeContent() {
         <DashboardHeader userData={userData ?? undefined} onNavigateToTab={handleNavigateToTab} />
         
         <div className="hidden md:block">
-          <Navigation />
+          <Navigation onNavigateToTab={handleNavigateToTab} isHomePage={true} />
         </div>
         
         <main className="pb-20 md:pb-0">
@@ -527,6 +536,19 @@ export function HomeContent() {
         <div className="md:hidden">
           <BottomNav />
         </div>
+        
+        {/* Emotion Check-in Dialog */}
+        {showEmotionCheckIn && (
+          <Suspense fallback={null}>
+            <EmotionCheckInDialog
+              open={showEmotionCheckIn}
+              onOpenChange={setShowEmotionCheckIn}
+              onComplete={handleEmotionCheckInComplete}
+              userData={userData ?? undefined}
+              updateUserData={updateUserData}
+            />
+          </Suspense>
+        )}
       </div>
     </ErrorBoundary>
   )

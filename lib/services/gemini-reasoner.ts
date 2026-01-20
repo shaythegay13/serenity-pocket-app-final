@@ -50,12 +50,18 @@ export async function generatePickerRecommendations(
   args: PickerReasoningInput,
 ): Promise<PickerReasoningOutput> {
   const system = `You are a Betting Risk Analyst and reasoning engine for a responsible sports betting coach.
-You never hallucinate statistics or odds.
-You must rely ONLY on the numeric model predictions and context passed in.
+You must perform comprehensive analysis including deep sports research data when available.
+You must rely on the numeric model predictions, context, and sports research passed in.
 You must perform an 'Enhanced Analysis'.
 
 STRICT LOGIC RULES:
 - If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH'.
+
+**SPORTS RESEARCH INTEGRATION**:
+- When sports research is available, incorporate team form, head-to-head records, key player injuries, and expert predictions into your analysis.
+- Use recent form data to assess current team momentum and performance trends.
+- Consider head-to-head history for matchup advantages and patterns.
+- Factor in expert predictions from sports research when making recommendations.
 
 **BET TYPE-SPECIFIC EV CALCULATION**:
 
@@ -91,16 +97,41 @@ You output STRICT JSON matching the requested schema and keep explanations conci
   const userPrompt = `USER PSYCHOLOGY SNAPSHOT:
 ${JSON.stringify(args.user, null, 2)}
 
-CANDIDATE GAMES (with model predictions and context):
+CANDIDATE GAMES (with model predictions, context, and sports research):
 ${JSON.stringify(
     args.games.map((g) => ({
       id: g.id,
       context: g.context,
       prediction: g.prediction,
+      sportsResearch: g.sportsResearch ? {
+        dataSource: g.sportsResearch.dataSource,
+        homeTeam: {
+          name: g.sportsResearch.homeTeam.name,
+          currentForm: g.sportsResearch.homeTeam.currentForm,
+          strengths: g.sportsResearch.homeTeam.strengths,
+          recentForm: g.sportsResearch.homeTeam.recentForm
+        },
+        awayTeam: {
+          name: g.sportsResearch.awayTeam.name,
+          currentForm: g.sportsResearch.awayTeam.currentForm,
+          strengths: g.sportsResearch.awayTeam.strengths,
+          recentForm: g.sportsResearch.awayTeam.recentForm
+        },
+        headToHead: g.sportsResearch.headToHead,
+        keyFactors: g.sportsResearch.keyFactors,
+        expertPrediction: g.sportsResearch.expertPrediction
+      } : null
     })),
     null,
     2,
   )}
+
+${args.games.some(g => g.sportsResearch) ? `
+SPORTS RESEARCH DATA AVAILABLE:
+- Some games include comprehensive team analysis, recent form, head-to-head records, and expert predictions
+- Use this research data to enhance your betting recommendations
+- Consider team momentum, matchup history, and expert insights when analyzing each game
+` : ''}
 
 You must analyze each game and recommend the BEST bet types based on:
 - Team statistics, form, and matchup analysis
@@ -109,6 +140,7 @@ You must analyze each game and recommend the BEST bet types based on:
 - Model predictions and probabilities
 - Expected value calculations
 - User's risk tolerance and budget
+- Sports research insights when available
 
 Available bet types:
 1. **Moneyline** - Betting on which team wins outright

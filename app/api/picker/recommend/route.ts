@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { generatePickerRecommendations } from "@/lib/services/gemini-reasoner"
+import { conductSportsResearch, type SportsResearchInput, type SportsResearchOutput } from "@/lib/sports-research"
 import type {
   CurrentGameContext,
   HistoricalFeatureVector,
@@ -557,6 +558,32 @@ export async function POST(request: NextRequest) {
 
         let context: CurrentGameContext | null = null
         let features: HistoricalFeatureVector | null = null
+        let sportsResearch: SportsResearchOutput | null = null
+
+        // Conduct enhanced sports research for this game
+        try {
+          console.log(`[SmartSlip] Conducting sports research for ${homeTeam} vs ${awayTeam}`);
+          const researchPromise = conductSportsResearch({
+            homeTeam,
+            awayTeam,
+            sport: sport,
+            league: league
+          });
+          
+          // Wait max 6 seconds for sports research to keep SmartSlip fast
+          sportsResearch = await Promise.race([
+            researchPromise,
+            new Promise<SportsResearchOutput | null>((resolve) => setTimeout(() => resolve(null), 6000))
+          ]);
+          
+          if (sportsResearch) {
+            console.log(`[SmartSlip] ✅ Sports research completed: ${sportsResearch.dataSource}`);
+          } else {
+            console.log(`[SmartSlip] ⏱️ Sports research timeout, continuing without it`);
+          }
+        } catch (error) {
+          console.warn('[SmartSlip] ⚠️ Sports research failed, continuing with analysis:', error);
+        }
 
         // Context from live odds - extract ALL bet types (moneyline, spread, totals)
         if (!context) {
@@ -832,6 +859,30 @@ export async function POST(request: NextRequest) {
           features,
           prediction,
           probs: serenityProbs,
+          sportsResearch: sportsResearch ? {
+            dataSource: sportsResearch.dataSource,
+            researchTimestamp: sportsResearch.researchTimestamp,
+            homeTeam: {
+              name: sportsResearch.homeTeam.teamInfo?.strTeam,
+              currentForm: sportsResearch.homeTeam.currentForm,
+              strengths: sportsResearch.homeTeam.strengths.slice(0, 3),
+              recentForm: sportsResearch.homeTeam.recentForm?.last5 || []
+            },
+            awayTeam: {
+              name: sportsResearch.awayTeam.teamInfo?.strTeam,
+              currentForm: sportsResearch.awayTeam.currentForm,
+              strengths: sportsResearch.awayTeam.strengths.slice(0, 3),
+              recentForm: sportsResearch.awayTeam.recentForm?.last5 || []
+            },
+            headToHead: sportsResearch.headToHead ? {
+              totalMatches: sportsResearch.headToHead.totalMatches,
+              homeWins: sportsResearch.headToHead.homeTeamWins,
+              awayWins: sportsResearch.headToHead.awayTeamWins,
+              draws: sportsResearch.headToHead.draws
+            } : null,
+            keyFactors: sportsResearch.keyFactors.slice(0, 5),
+            expertPrediction: sportsResearch.prediction
+          } : null
         }
       }),
     )

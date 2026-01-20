@@ -133,6 +133,35 @@ export interface PickerReasoningInput {
     context: CurrentGameContext
     features: HistoricalFeatureVector
     prediction: ModelPrediction
+    sportsResearch?: {
+      dataSource: string
+      researchTimestamp: string
+      homeTeam: {
+        name?: string
+        currentForm?: string
+        strengths: string[]
+        recentForm: string[]
+      }
+      awayTeam: {
+        name?: string
+        currentForm?: string
+        strengths: string[]
+        recentForm: string[]
+      }
+      headToHead: {
+        totalMatches: number
+        homeWins: number
+        awayWins: number
+        draws: number
+      } | null
+      keyFactors: string[]
+      expertPrediction: {
+        winner: string
+        confidence: number
+        reasoning: string
+        riskFactors: string[]
+      }
+    } | null
   }>
 }
 

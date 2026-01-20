@@ -11,7 +11,7 @@ const CACHE_TTL = {
   PLAYER_INFO: 12 * 60 * 60 * 1000, // 12 hours
   LEAGUE_INFO: 7 * 24 * 60 * 60 * 1000, // 7 days
   EVENT_INFO: 2 * 60 * 60 * 1000, // 2 hours
-  RECENT_FORM: 30 * 60 * 1000, // 30 minutes
+  RECENT_FORM: 15 * 60 * 1000, // 15 minutes (reduced from 30 for faster updates)
 };
 
 const API_BASE = 'https://www.thesportsdb.com/api/v2/json';

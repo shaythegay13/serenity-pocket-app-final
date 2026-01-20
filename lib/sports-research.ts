@@ -72,14 +72,17 @@ export interface SportsResearchOutput {
 
 /**
  * Enhanced sports research using TheSportsDB + Gemini AI
+ * Optimized for speed with parallel execution and timeouts
  */
 export async function conductSportsResearch(input: SportsResearchInput): Promise<SportsResearchOutput> {
   console.log(`🔍 Starting sports research for ${input.homeTeam} vs ${input.awayTeam}`);
   
   try {
-    // Step 1: Get team information
-    const homeTeamSearch = await searchTeams(input.homeTeam);
-    const awayTeamSearch = await searchTeams(input.awayTeam);
+    // Step 1: Get team information (parallel)
+    const [homeTeamSearch, awayTeamSearch] = await Promise.all([
+      searchTeams(input.homeTeam),
+      searchTeams(input.awayTeam)
+    ]);
     
     const homeTeam = homeTeamSearch.length > 0 ? homeTeamSearch[0] : null;
     const awayTeam = awayTeamSearch.length > 0 ? awayTeamSearch[0] : null;
@@ -89,42 +92,71 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
       return generateFallbackResearch(input);
     }
     
-    // Step 2: Get detailed team information
-    const homeTeamInfo = await getTeamInfo(homeTeam.idTeam);
-    const awayTeamInfo = await getTeamInfo(awayTeam.idTeam);
+    // Step 2: Get detailed team information (parallel with timeout)
+    const researchPromises = await Promise.allSettled([
+      withTimeout(getTeamInfo(homeTeam.idTeam), 3000),
+      withTimeout(getTeamInfo(awayTeam.idTeam), 3000),
+      withTimeout(getTeamRecentForm(homeTeam.idTeam), 2000),
+      withTimeout(getTeamRecentForm(awayTeam.idTeam), 2000),
+      withTimeout(getHeadToHead(homeTeam.idTeam, awayTeam.idTeam), 2000),
+      withTimeout(getTeamRoster(homeTeam.idTeam), 3000),
+      withTimeout(getTeamRoster(awayTeam.idTeam), 3000)
+    ]);
     
-    // Step 3: Get recent form for both teams
-    const homeRecentForm = await getTeamRecentForm(homeTeam.idTeam);
-    const awayRecentForm = await getTeamRecentForm(awayTeam.idTeam);
+    // Extract results safely
+    const homeTeamInfo = researchPromises[0].status === 'fulfilled' ? researchPromises[0].value : null;
+    const awayTeamInfo = researchPromises[1].status === 'fulfilled' ? researchPromises[1].value : null;
+    const homeRecentForm = researchPromises[2].status === 'fulfilled' ? researchPromises[2].value : null;
+    const awayRecentForm = researchPromises[3].status === 'fulfilled' ? researchPromises[3].value : null;
+    const headToHead = researchPromises[4].status === 'fulfilled' ? researchPromises[4].value : null;
+    const homeRoster = researchPromises[5].status === 'fulfilled' ? researchPromises[5].value : [];
+    const awayRoster = researchPromises[6].status === 'fulfilled' ? researchPromises[6].value : [];
     
-    // Step 4: Get head-to-head record
-    const headToHead = await getHeadToHead(homeTeam.idTeam, awayTeam.idTeam);
+    const homeKeyPlayers = homeRoster.slice(0, 3); // Reduced from 5 to 3 for speed
+    const awayKeyPlayers = awayRoster.slice(0, 3); // Reduced from 5 to 3 for speed
     
-    // Step 5: Get key players (top 5 from each team)
-    const homeRoster = await getTeamRoster(homeTeam.idTeam);
-    const awayRoster = await getTeamRoster(awayTeam.idTeam);
+    // Step 3: Get league information (fast, cached)
+    let leagueInfo = null;
+    if (homeTeamInfo?.idLeague) {
+      try {
+        leagueInfo = await withTimeout(getLeagueInfo(homeTeamInfo.idLeague), 1000);
+      } catch (e) {
+        console.warn('League info timeout, continuing without it');
+      }
+    }
     
-    const homeKeyPlayers = homeRoster.slice(0, 5);
-    const awayKeyPlayers = awayRoster.slice(0, 5);
+    // Step 4: Use Gemini AI for deep analysis (with timeout)
+    let aiAnalysis;
+    try {
+      aiAnalysis = await withTimeout(analyzeWithGemini({
+        homeTeam: homeTeamInfo,
+        awayTeam: awayTeamInfo,
+        homeRecentForm,
+        awayRecentForm,
+        headToHead,
+        homeKeyPlayers,
+        awayKeyPlayers,
+        leagueInfo,
+        sport: input.sport,
+        league: input.league
+      }), 5000); // 5 second timeout for AI analysis
+    } catch (e) {
+      console.warn('AI analysis timeout, using fallback');
+      aiAnalysis = generateFallbackAIAnalysis({
+        homeTeam: homeTeamInfo,
+        awayTeam: awayTeamInfo,
+        homeRecentForm,
+        awayRecentForm,
+        headToHead,
+        homeKeyPlayers,
+        awayKeyPlayers,
+        leagueInfo,
+        sport: input.sport,
+        league: input.league
+      });
+    }
     
-    // Step 6: Get league information
-    const leagueInfo = homeTeamInfo?.idLeague ? await getLeagueInfo(homeTeamInfo.idLeague) : null;
-    
-    // Step 7: Use Gemini AI for deep analysis
-    const aiAnalysis = await analyzeWithGemini({
-      homeTeam: homeTeamInfo,
-      awayTeam: awayTeamInfo,
-      homeRecentForm,
-      awayRecentForm,
-      headToHead,
-      homeKeyPlayers,
-      awayKeyPlayers,
-      leagueInfo,
-      sport: input.sport,
-      league: input.league
-    });
-    
-    // Step 8: Compile final research output
+    // Step 5: Compile final research output
     const researchOutput: SportsResearchOutput = {
       homeTeam: {
         teamInfo: homeTeamInfo,
@@ -173,6 +205,17 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
     console.error('❌ Error in sports research:', error);
     return generateFallbackResearch(input);
   }
+}
+
+/**
+ * Timeout helper for performance optimization
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+  });
+  
+  return Promise.race([promise, timeoutPromise]);
 }
 
 /**
@@ -241,7 +284,7 @@ async function analyzeWithGemini(data: any): Promise<any> {
     const response = await invokeAI({
       system,
       messages: [{ role: 'user', content: userPrompt }],
-      max_tokens: 2000,
+      max_tokens: 1000, // Reduced from 2000 for speed
       temperature: 0.3
     });
 

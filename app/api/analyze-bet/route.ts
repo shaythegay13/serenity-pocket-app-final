@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { invokeAI, isEnhancedAIAvailable, type AIMessage } from "@/lib/ai-service"
-import { conductSportsResearch, type SportsResearchInput } from "@/lib/sports-research"
+import { conductSportsResearch, type SportsResearchInput, type SportsResearchOutput } from "@/lib/sports-research"
 
 type BiasWarning = {
   type: string
@@ -59,20 +59,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing bet description" }, { status: 400 })
     }
 
-    // Extract teams from description for sports research
+    // Extract teams from description for sports research (optional, fast)
     const teamMatch = description.match(/(\w+(?:\s+\w+)*)\s+(?:vs|at|-)\s+(\w+(?:\s+\w+)*)/i);
-    let sportsResearch = null;
+    let sportsResearch: SportsResearchOutput | null = null;
     
     if (teamMatch && sport) {
       try {
-        console.log(`🔍 Conducting sports research for ${teamMatch[1]} vs ${teamMatch[2]}`);
-        sportsResearch = await conductSportsResearch({
+        console.log(`🔍 Conducting fast sports research for ${teamMatch[1]} vs ${teamMatch[2]}`);
+        // Run sports research with timeout to ensure fast response
+        const researchPromise = conductSportsResearch({
           homeTeam: teamMatch[1],
           awayTeam: teamMatch[2],
           sport: sport,
           league: body.league
         });
-        console.log(`✅ Sports research completed: ${sportsResearch.dataSource}`);
+        
+        // Wait max 8 seconds for sports research, then continue
+        sportsResearch = await Promise.race([
+          researchPromise,
+          new Promise<SportsResearchOutput | null>((resolve) => setTimeout(() => resolve(null), 8000))
+        ]);
+        
+        if (sportsResearch) {
+          console.log(`✅ Fast sports research completed: ${sportsResearch.dataSource}`);
+        } else {
+          console.log(`⏱️ Sports research timeout, continuing without it`);
+        }
       } catch (error) {
         console.warn('⚠️ Sports research failed, continuing with analysis:', error);
       }

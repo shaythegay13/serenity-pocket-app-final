@@ -26,9 +26,12 @@ async function isAdmin(request: NextRequest): Promise<boolean> {
     }
 
     // Check if user is admin (you might want to store this in user metadata)
-    const isAdminUser = user.email === 'info@playmindlabs.com' || 
-                      user.user_metadata?.role === 'admin' ||
-                      user.email?.endsWith('@playmindlabs.com');
+    const isAdminUser = Boolean(
+      user.email === 'info@playmindlabs.com' || 
+      user.email === 'playmindlabsllc@gmail.com' || // Add your Gmail
+      user.user_metadata?.role === 'admin' ||
+      (user.email && user.email.endsWith('@playmindlabs.com'))
+    );
 
     return isAdminUser;
   } catch (error) {

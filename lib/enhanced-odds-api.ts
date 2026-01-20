@@ -126,19 +126,160 @@ export async function fetchEnhancedLiveOdds(
   
   console.log(`📊 Enhanced Odds API: Fetching odds for ${sportName}`);
   
-  return {
-    success: true,
-    data: getMockOddsData(sport),
-    source: 'mock',
-    timestamp: new Date(),
-  };
+  // Try real APIs first, fall back to mock if needed
+  try {
+    // Try TheOddsAPI first (more reliable for live odds)
+    if (isTheOddsAPIConfigured()) {
+      console.log(`📊 Trying TheOddsAPI for ${sportName}`);
+      const theOddsResult = await fetchFromTheOddsAPI(sport);
+      if (theOddsResult.success && theOddsResult.data.length > 0) {
+        console.log(`✅ TheOddsAPI returned ${theOddsResult.data.length} games`);
+        return theOddsResult;
+      }
+    }
+
+    // Try RapidAPI as fallback
+    if (isRapidAPIConfigured()) {
+      console.log(`📊 Trying RapidAPI for ${sportName}`);
+      const rapidResult = await fetchFromRapidAPI(sport);
+      if (rapidResult.success && rapidResult.data.length > 0) {
+        console.log(`✅ RapidAPI returned ${rapidResult.data.length} games`);
+        return rapidResult;
+      }
+    }
+
+    console.log(`⚠️ No real API data available, using mock data for ${sportName}`);
+    return {
+      success: true,
+      data: getMockOddsData(sport),
+      source: 'mock',
+      timestamp: new Date(),
+    };
+  } catch (error) {
+    console.error(`❌ Error fetching odds:`, error);
+    return {
+      success: true,
+      data: getMockOddsData(sport),
+      source: 'mock',
+      timestamp: new Date(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Fetch from TheOddsAPI
+ */
+async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse> {
+  const apiKey = process.env.NEXT_PUBLIC_ODDS_API_KEY;
+  if (!apiKey) {
+    return { success: false, data: [], source: 'theodds', timestamp: new Date(), error: 'API key not configured' };
+  }
+
+  const sportKey = sport === 'basketball_nba' ? 'basketball_nba' : 
+                   sport === 'football_nfl' ? 'american_football_nfl' :
+                   sport === 'baseball_mlb' ? 'baseball_mlb' :
+                   sport ? sport : 'basketball_nba';
+
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`TheOddsAPI error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return {
+      success: true,
+      data: data.map((game: any) => ({
+        id: game.id,
+        sport: sportKey,
+        sportName: sport,
+        league: game.sport_title,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        homeOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price } },
+        awayOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price } },
+        commenceTime: game.commence_time,
+        lastUpdate: new Date()
+      })),
+      source: 'theodds',
+      timestamp: new Date()
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      data: [], 
+      source: 'theodds', 
+      timestamp: new Date(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Fetch from RapidAPI
+ */
+async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> {
+  const apiKey = process.env.NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY;
+  if (!apiKey) {
+    return { success: false, data: [], source: 'rapidapi', timestamp: new Date(), error: 'API key not configured' };
+  }
+
+  const sportKey = sport === 'basketball_nba' ? 'NBA' : 
+                   sport === 'football_nfl' ? 'NFL' :
+                   sport === 'baseball_mlb' ? 'MLB' :
+                   sport ? sport.toUpperCase() : 'NBA';
+
+  const url = `https://odds.p.rapidapi.com/v4/sports/${sportKey}/odds`;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'odds.p.rapidapi.com'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`RapidAPI error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return {
+      success: true,
+      data: data.map((game: any) => ({
+        id: game.id,
+        sport: sportKey,
+        sportName: sport,
+        league: game.sport_title,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        homeOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price } },
+        awayOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price } },
+        commenceTime: game.commence_time,
+        lastUpdate: new Date()
+      })),
+      source: 'rapidapi',
+      timestamp: new Date()
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      data: [], 
+      source: 'rapidapi', 
+      timestamp: new Date(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }
 
 /**
  * Check if RapidAPI is configured
  */
 export function isRapidAPIConfigured(): boolean {
-  return !!process.env.RAPIDAPI_KEY; // Check for actual API key
+  return !!process.env.NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY; // Check for actual API key
 }
 
 /**

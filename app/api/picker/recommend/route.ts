@@ -395,7 +395,7 @@ export async function POST(request: NextRequest) {
     
     // Fetch user data to calculate emotional stability server-side
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('*')
       .eq('id', user.id)
       .single()

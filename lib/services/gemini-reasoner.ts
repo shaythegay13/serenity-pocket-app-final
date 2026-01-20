@@ -149,16 +149,18 @@ Available bet types:
 
 **CRITICAL REQUIREMENTS**:
 1. You MUST return at least 3 recommendations (or as many games as available if less than 3)
-2. Bet type distribution should be FLEXIBLE based on what the data suggests:
+2. For each recommendation, the 'teams' field MUST contain the actual team names in "Home Team vs Away Team" format
+3. Bet type distribution should be FLEXIBLE based on what the data suggests:
    - If spreads have the best value, recommend 2-3 spreads
    - If totals look good, recommend multiple over/unders
    - Don't force 1 moneyline, 1 spread, 1 total if that's not what the data supports
-3. Risk tolerance affects STAKE SIZE, not bet selection:
+4. Risk tolerance affects STAKE SIZE, not bet selection:
    - Conservative: smaller stakes (4% of budget)
    - Moderate: medium stakes (6% of budget)
    - Aggressive: larger stakes (8% of budget)
-4. **NEVER** base recommendations solely on favorites vs underdogs or over vs under preferences
-5. Base ALL picks on actual statistics, model predictions, and expected value
+5. **NEVER** base recommendations solely on favorites vs underdogs or over vs under preferences
+6. Base ALL picks on actual statistics, model predictions, and expected value
+7. **IMPORTANT**: Always use the actual team names from the game context, never generic descriptions
 
 **NEGATIVE EV HANDLING**:
 - If EV is negative, you MUST include this exact warning in ALL CAPS in the shortExplanation:
@@ -176,7 +178,10 @@ Available bet types:
           type: "object",
           properties: {
             gameId: { type: "string" },
-            teams: { type: "string" },
+            teams: { 
+              type: "string",
+              description: "Team names in format 'Home Team vs Away Team' - MUST be actual team names from the game context"
+            },
             startTime: { type: "string" },
             betType: {
               type: "string",

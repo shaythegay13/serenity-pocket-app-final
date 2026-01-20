@@ -39,8 +39,8 @@ function getMockOddsData(sport?: string): any[] {
       sport: sport.id,
       sportName: sport.name,
       league: sport.oddsApiLeague || sport.id,
-      homeTeam: `${sport.name} Team A`,
-      awayTeam: `${sport.name} Team B`,
+      homeTeam: getRealTeamName(sport.id, 'home'),
+      awayTeam: getRealTeamName(sport.id, 'away'),
       odds: -110,
       market: 'Moneyline',
       startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
@@ -55,8 +55,8 @@ function getMockOddsData(sport?: string): any[] {
       sport: sportConfig.id,
       sportName: sportConfig.name,
       league: sportConfig.oddsApiLeague || sportConfig.id,
-      homeTeam: `${sportConfig.name} Home Team`,
-      awayTeam: `${sportConfig.name} Away Team`,
+      homeTeam: getRealTeamName(sportConfig.id, 'home'),
+      awayTeam: getRealTeamName(sportConfig.id, 'away'),
       odds: -110,
       market: sportConfig.popularMarkets[0] || 'Moneyline',
       startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
@@ -67,14 +67,51 @@ function getMockOddsData(sport?: string): any[] {
       sport: sportConfig.id,
       sportName: sportConfig.name,
       league: sportConfig.oddsApiLeague || sportConfig.id,
-      homeTeam: `${sportConfig.name} Favorite`,
-      awayTeam: `${sportConfig.name} Underdog`,
+      homeTeam: getRealTeamName(sportConfig.id, 'favorite'),
+      awayTeam: getRealTeamName(sportConfig.id, 'underdog'),
       odds: +150,
       market: sportConfig.popularMarkets[0] || 'Moneyline',
       startTime: new Date(Date.now() + 4 * 60 * 60 * 1000),
       lastUpdate: new Date()
     }
   ];
+}
+
+/**
+ * Get realistic team names for mock data
+ */
+function getRealTeamName(sport: string, type: 'home' | 'away' | 'favorite' | 'underdog'): string {
+  const teamNames: Record<string, Record<string, string[]>> = {
+    'basketball_nba': {
+      home: ['Los Angeles Lakers', 'Boston Celtics', 'Golden State Warriors', 'Miami Heat'],
+      away: ['Denver Nuggets', 'Phoenix Suns', 'Milwaukee Bucks', 'Philadelphia 76ers'],
+      favorite: ['Los Angeles Lakers', 'Boston Celtics'],
+      underdog: ['Orlando Magic', 'Detroit Pistons']
+    },
+    'football_nfl': {
+      home: ['Kansas City Chiefs', 'Buffalo Bills', 'Dallas Cowboys', 'Philadelphia Eagles'],
+      away: ['New England Patriots', 'Green Bay Packers', 'San Francisco 49ers', 'Detroit Lions'],
+      favorite: ['Kansas City Chiefs', 'Buffalo Bills'],
+      underdog: ['Arizona Cardinals', 'Washington Commanders']
+    },
+    'baseball_mlb': {
+      home: ['New York Yankees', 'Boston Red Sox', 'Los Angeles Dodgers', 'Houston Astros'],
+      away: ['Chicago Cubs', 'San Francisco Giants', 'Atlanta Braves', 'St. Louis Cardinals'],
+      favorite: ['New York Yankees', 'Los Angeles Dodgers'],
+      underdog: ['Pittsburgh Pirates', 'Oakland Athletics']
+    },
+    'soccer_epl': {
+      home: ['Manchester United', 'Liverpool', 'Arsenal', 'Chelsea'],
+      away: ['Manchester City', 'Tottenham', 'Newcastle', 'Leicester City'],
+      favorite: ['Manchester City', 'Arsenal'],
+      underdog: ['Nottingham Forest', 'Bournemouth']
+    }
+  };
+
+  const sportTeams = teamNames[sport] || teamNames['basketball_nba'];
+  const typeTeams = sportTeams[type] || sportTeams.home;
+  
+  return typeTeams[Math.floor(Math.random() * typeTeams.length)];
 }
 
 /**

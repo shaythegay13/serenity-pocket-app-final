@@ -33,10 +33,6 @@ const SPORTSBOOKS = [
   'DraftKings', 'FanDuel', 'BetMGM', 'Caesars', 'PointsBet', 'BetRivers', 'Other'
 ];
 
-const LEAGUES = [
-  'NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College Football', 'College Basketball', 'Other'
-];
-
 // Enhanced sport mapping for better parsing
 const SPORT_KEYWORDS = {
   'NFL': ['nfl', 'football', 'super bowl', 'afc', 'nfc'],
@@ -249,17 +245,12 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
                     <SelectValue placeholder="Select league" />
                   </SelectTrigger>
                   <SelectContent>
-                    {LEAGUES.map(league => (
-                      <SelectItem key={league} value={league}>{league}</SelectItem>
+                    {availableSports.map(sport => (
+                      <SelectItem key={sport.id} value={sport.name}>
+                        {sport.icon} {sport.name}
+                      </SelectItem>
                     ))}
-                    {/* Add popular sports from config */}
-                    {availableSports
-                      .filter(sport => !LEAGUES.includes(sport.name))
-                      .map(sport => (
-                        <SelectItem key={sport.id} value={sport.name}>
-                          {sport.icon} {sport.name}
-                        </SelectItem>
-                      ))}
+                    <SelectItem value="Other">🏷️ Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

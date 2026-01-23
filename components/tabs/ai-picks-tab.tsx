@@ -461,17 +461,43 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             const odds = Number(rec.odds)
             return clampPct(impliedProbFromAmericanOdds(odds) * 100)
           })(),
-          suggestedStake: rec.suggestedStakeAbsolute ?? 0,
+          suggestedStake: (() => {
+            // Try enhanced analysis stake recommendation first
+            if (data.enhanced?.numericRisk && typeof data.enhanced.numericRisk.ev === 'number') {
+              // Calculate suggested stake based on EV and user budget
+              const ev = data.enhanced.numericRisk.ev
+              const baseStake = Math.max(10, Math.min(100, (userData.weeklyBankroll || 500) * 0.02)) // 2% of weekly bankroll
+              
+              // Adjust stake based on EV
+              if (ev > 0) {
+                return Math.round(baseStake * (1 + ev / 10)) // Increase for positive EV
+              } else if (ev < -2) {
+                return Math.round(baseStake * 0.5) // Decrease for negative EV
+              }
+              return baseStake
+            }
+            
+            // Fallback to API suggested stake
+            return rec.suggestedStakeAbsolute ?? 0
+          })(),
           riskLevel: rec.riskLevel || 'MEDIUM',
           emotionalAlignment: (() => {
             // Debug logging
             console.log('AI Picks: Emotional alignment data', {
               recAlignment: rec.emotionalAlignment,
+              enhancedAlignment: data.enhanced?.emotionalAlignment,
               emotionalScore: data.emotionalScore,
               recData: rec
             })
 
-            // Try API-returned emotional alignment first
+            // Try enhanced analysis emotional alignment first (from Gemini)
+            if (typeof data.enhanced?.emotionalAlignment === 'number' && Number.isFinite(data.enhanced.emotionalAlignment) && data.enhanced.emotionalAlignment > 0) {
+              const aligned = clampPct(data.enhanced.emotionalAlignment)
+              console.log('AI Picks: Using enhanced.emotionalAlignment:', aligned)
+              return aligned
+            }
+
+            // Try API-returned emotional alignment from recommendation
             if (typeof rec.emotionalAlignment === 'number' && Number.isFinite(rec.emotionalAlignment) && rec.emotionalAlignment > 0) {
               const aligned = clampPct(rec.emotionalAlignment)
               console.log('AI Picks: Using rec.emotionalAlignment:', aligned)
@@ -604,6 +630,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             console.log('AI Picks: Calculated evPercentage:', evPct)
             return evPct
           })(),
+          // isRecommended is set by the backend based on relative value comparison
+          // This is used for badge display, decoupled from EV sign
+          isRecommended: rec.isRecommended ?? undefined,
         }))
 
         console.log('AI Picks: Mapped picks created, setting picks state')
@@ -683,8 +712,10 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       return
     }
 
-    if (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0) {
-      toast.warning('Do not bet', { description: 'This pick has negative expected value based on current odds/probabilities.' })
+    // Only block if pick is explicitly NOT recommended (not just negative EV)
+    // Recommended picks can have negative EV due to sportsbook vig
+    if (pick.isRecommended === false) {
+      toast.warning('Not Recommended', { description: 'The opposite team offers better value. Consider that pick instead.' })
       return
     }
     const limitReached = userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit
@@ -932,8 +963,23 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <div className="flex items-center justify-between mb-4">
                 <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-semibold text-amber-500 tabular-nums">{pick.confidence}% Confidence</span>
+                  {/* Use isRecommended flag if available (set by backend based on relative value) */}
+                  {/* Fallback to expectedValue > 0 for backward compatibility */}
+                  {(pick.isRecommended === true || (pick.isRecommended === undefined && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue > 0)) ? (
+                    <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Recommended
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Not Recommended
+                    </Badge>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm font-semibold text-amber-500 tabular-nums">{pick.confidence}% Confidence</span>
+                  </div>
                 </div>
               </div>
 
@@ -961,11 +1007,21 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                   </div>
                 </div>
 
-                {typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
+                {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
+                {pick.isRecommended === false && (
                   <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                    <p className="text-sm font-semibold text-red-500">Do not bet on this game</p>
+                    <p className="text-sm font-semibold text-red-500">Not Recommended</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      This pick is currently negative EV. Consider skipping or waiting for a better line.
+                      The opposite team offers better relative value. Look for the "Recommended" badge on the other team.
+                    </p>
+                  </div>
+                )}
+                {/* Show EV info for recommended picks with negative EV (explains vig situation) */}
+                {pick.isRecommended === true && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <p className="text-sm font-semibold text-amber-600">Negative EV Due to Vig</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Both teams show negative EV due to sportsbook vig. This team offers the best relative value.
                     </p>
                   </div>
                 )}
@@ -1060,7 +1116,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                   disabled={
                     cooldown ||
                     (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) ||
-                    (typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0)
+                    pick.isRecommended === false
                   }
                 >
                   Log Bet

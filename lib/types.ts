@@ -94,6 +94,7 @@ export interface UserData {
   behaviorNudgesEnabled?: boolean
   dailyBetLimit?: number
   maxStakeLimit?: number
+  weeklyBankroll?: number
 }
 
 export interface EmotionLog {

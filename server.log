@@ -1,0 +1,16 @@
+
+> my-v0-project@0.1.0 dev
+> next dev
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://100.115.92.202:3000
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+ ✓ Ready in 8.9s
+ ○ Compiling /betlab ...
+ GET /betlab 200 in 82s (compile: 78s, render: 4.0s)
+[?25h

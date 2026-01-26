@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation"
 const navItems = [
   { tab: "home", label: "Home", icon: Home, href: "/home" },
   { tab: "behavior", label: "Behavior", icon: Activity, href: "/behavior" },
-  { tab: "ai-picks", label: "Insights", icon: Sparkles, href: "/insights" },
+  { tab: "ai-picks", label: "BetLab", icon: Sparkles, href: "/betlab" },
   { tab: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
 ]
 
@@ -26,7 +26,7 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
     if (pathname === "/home") return "home"
     if (pathname === "/") return "home"
     if (pathname === "/behavior") return "behavior"
-    if (pathname?.startsWith("/insights")) return "ai-picks"
+    if (pathname?.startsWith("/betlab")) return "ai-picks"
     if (pathname === "/analytics") return "analytics"
     return "home"
   }
@@ -35,9 +35,9 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
 
   const handleNavClick = (tab: string, href: string) => {
     if (isHomePage && onNavigateToTab) {
-      // Use direct navigation for insights, internal navigation for other tabs
+      // Use direct navigation for betlab, internal navigation for other tabs
       if (tab === 'ai-picks') {
-        window.location.href = '/insights'
+        window.location.href = '/betlab'
       } else {
         onNavigateToTab(tab)
       }

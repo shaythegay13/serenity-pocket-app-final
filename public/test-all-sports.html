@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All Sports Dynamic Values Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .sport-section { border: 1px solid #ccc; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .sport-header { background: #f0f0f0; padding: 10px; margin: -15px -15px 10px -15px; border-radius: 5px 5px 0 0; font-weight: bold; }
+        .test-case { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .result { background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 3px; font-size: 12px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        .dynamic { color: blue; }
+        .loading { color: #666; }
+        button { padding: 8px 16px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🌍 All Sports Dynamic Values Test</h1>
+    <p>Testing dynamic emotional alignment and stake amounts across all supported sports.</p>
+    
+    <button onclick="testAllSports()">🧪 Test All Sports</button>
+    <button onclick="testMajorSports()">🏈 Test Major Sports Only</button>
+    <button onclick="clearResults()">🗑️ Clear Results</button>
+    
+    <div id="test-results"></div>
+
+    <script>
+        const sports = [
+            // Major US Sports
+            { id: 'basketball_nba', name: 'NBA Basketball', category: 'team' },
+            { id: 'americanfootball_nfl', name: 'NFL Football', category: 'team' },
+            { id: 'baseball_mlb', name: 'MLB Baseball', category: 'team' },
+            { id: 'icehockey_nhl', name: 'NHL Hockey', category: 'team' },
+            { id: 'basketball_ncaab', name: 'College Basketball', category: 'team' },
+            { id: 'americanfootball_ncaaf', name: 'College Football', category: 'team' },
+            
+            // Soccer
+            { id: 'soccer_epl', name: 'English Premier League', category: 'team' },
+            { id: 'soccer_mls', name: 'Major League Soccer', category: 'team' },
+            
+            // Combat Sports
+            { id: 'mma_ufc', name: 'UFC/MMA', category: 'combat' },
+            { id: 'boxing', name: 'Professional Boxing', category: 'combat' },
+            
+            // Individual Sports
+            { id: 'tennis_atp', name: 'ATP Tennis', category: 'individual' },
+            { id: 'tennis_wta', name: 'WTA Tennis', category: 'individual' },
+            { id: 'golf_pga', name: 'PGA Tour Golf', category: 'individual' },
+            { id: 'motorsports_f1', name: 'Formula 1', category: 'individual' },
+            { id: 'motorsports_nascar', name: 'NASCAR', category: 'individual' },
+            
+            // Esports
+            { id: 'esports_lol', name: 'League of Legends', category: 'esports' },
+            { id: 'esports_csgo', name: 'Counter-Strike', category: 'esports' }
+        ];
+
+        const majorSports = ['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl'];
+
+        async function testSport(sport) {
+            try {
+                const response = await fetch('/api/picker/recommend', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sport: sport.id,
+                        riskTolerance: 'moderate',
+                        weeklyBudget: 500,
+                        currentEmotion: 'Confident',
+                        currentEmotionIntensity: 7
+                    })
+                });
+
+                if (!response.ok) {
+                    return { error: `API Error: ${response.status} ${response.statusText}` };
+                }
+
+                const data = await response.json();
+                return { sport, data };
+            } catch (error) {
+                return { sport, error: error.message };
+            }
+        }
+
+        function analyzeResults(results) {
+            let html = '';
+            
+            results.forEach(result => {
+                const { sport, data, error } = result;
+                
+                html += `<div class="sport-section">`;
+                html += `<div class="sport-header">${sport.icon || '🏆'} ${sport.name} (${sport.id})</div>`;
+                
+                if (error) {
+                    html += `<div class="result error">❌ Error: ${error}</div>`;
+                } else if (data.recommendations && data.recommendations.length > 0) {
+                    const picks = data.recommendations.slice(0, 2); // Sample first 2 picks
+                    
+                    picks.forEach((pick, index) => {
+                        const isDynamicAlignment = pick.emotionalAlignment && pick.emotionalAlignment !== 80;
+                        const isDynamicStake = pick.suggestedStakeAbsolute && pick.suggestedStakeAbsolute !== 30;
+                        
+                        html += `<div class="test-case">`;
+                        html += `<strong>Pick ${index + 1}:</strong> ${pick.teams}<br>`;
+                        html += `<strong>Type:</strong> ${pick.betType} - ${pick.line}<br>`;
+                        html += `<strong>Odds:</strong> ${pick.odds}<br>`;
+                        html += `<strong>Emotional Alignment:</strong> ${pick.emotionalAlignment}% `;
+                        if (isDynamicAlignment) {
+                            html += `<span class="success dynamic">✅ Dynamic</span>`;
+                        } else {
+                            html += `<span class="warning">⚠️ Might be hardcoded</span>`;
+                        }
+                        html += `<br>`;
+                        html += `<strong>Stake:</strong> $${pick.suggestedStakeAbsolute} `;
+                        if (isDynamicStake) {
+                            html += `<span class="success dynamic">✅ Dynamic</span>`;
+                        } else {
+                            html += `<span class="warning">⚠️ Might be hardcoded</span>`;
+                        }
+                        html += `<br>`;
+                        html += `<strong>EV:</strong> $${pick.numericRisk?.ev || 'N/A'}`;
+                        html += `</div>`;
+                    });
+                    
+                    // Overall sport assessment
+                    const hasDynamicAlignment = data.recommendations.some(p => p.emotionalAlignment !== 80);
+                    const hasDynamicStake = data.recommendations.some(p => p.suggestedStakeAbsolute !== 30);
+                    
+                    if (hasDynamicAlignment && hasDynamicStake) {
+                        html += `<div class="result success">✅ ${sport.name}: Both values are dynamic!</div>`;
+                    } else if (hasDynamicAlignment || hasDynamicStake) {
+                        html += `<div class="result warning">⚠️ ${sport.name}: Partially dynamic</div>`;
+                    } else {
+                        html += `<div class="result error">❌ ${sport.name}: Values appear hardcoded</div>`;
+                    }
+                } else {
+                    html += `<div class="result warning">⚠️ No recommendations returned</div>`;
+                }
+                
+                html += `</div>`;
+            });
+            
+            return html;
+        }
+
+        async function testAllSports() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<p class="loading">Testing all 16 sports... This may take a moment...</p>';
+            
+            const results = [];
+            for (const sport of sports) {
+                const result = await testSport(sport);
+                results.push(result);
+                
+                // Update progress
+                const progress = sports.indexOf(sport) + 1;
+                resultsDiv.innerHTML = `<p class="loading">Testing sport ${progress}/${sports.length}: ${sport.name}...</p>`;
+            }
+            
+            resultsDiv.innerHTML = analyzeResults(results);
+        }
+
+        async function testMajorSports() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<p class="loading">Testing major US sports...</p>';
+            
+            const majorSportData = sports.filter(s => majorSports.includes(s.id));
+            const results = [];
+            
+            for (const sport of majorSportData) {
+                const result = await testSport(sport);
+                results.push(result);
+                
+                const progress = majorSportData.indexOf(sport) + 1;
+                resultsDiv.innerHTML = `<p class="loading">Testing sport ${progress}/${majorSportData.length}: ${sport.name}...</p>`;
+            }
+            
+            resultsDiv.innerHTML = analyzeResults(results);
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

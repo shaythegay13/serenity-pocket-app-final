@@ -124,7 +124,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
     switch (tab) {
       case "home":
         setTimeout(() => {
-          window.location.href = "/"
+          window.location.href = "/home"
         }, 100)
         break
       case "odds": // Sports
@@ -159,7 +159,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         break
       default:
         setTimeout(() => {
-          window.location.href = "/"
+          window.location.href = "/home"
         }, 100)
     }
   }
@@ -175,7 +175,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
   if (!authed || !userData) {
     // Redirect to home for authentication
     setTimeout(() => {
-      window.location.href = "/"
+      window.location.href = "/home"
     }, 100)
     return null
   }

@@ -171,6 +171,7 @@ export async function getEnhancedBetAnalysis(params: {
   numericRisk?: {
     ev: number
   }
+  emotionalAlignment?: number
 }> {
   if (!isEnhancedAIAvailable()) {
     throw new Error("Enhanced AI analysis not available")

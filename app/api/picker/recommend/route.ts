@@ -19,6 +19,7 @@ import {
 import { predictSerenityBet } from "@/lib/services/sagemakerSerenityCsv"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
 import { emotionalStabilityService } from "@/lib/services/emotional-stability-service"
+import { computeEvFromProbAndOdds } from "@/lib/ev-calculator"
 
 // Increase timeout for complex AI analysis and ML predictions
 export const maxDuration = 60 // 60 seconds
@@ -110,10 +111,9 @@ function buildFallbackRecommendations(args: {
       0.035 // 3.5% edge for moderate
 
     const calculateEVWithEdge = (odds: number, stake: number, impliedProb: number): number => {
-      // Add bettor edge to implied probability to get our estimated true probability
-      const estimatedTrueProb = Math.min(0.95, impliedProb + bettorEdge)
-      const profit = odds > 0 ? stake * (odds / 100) : stake * (100 / Math.abs(odds))
-      return (estimatedTrueProb * profit) - ((1 - estimatedTrueProb) * stake)
+      const trueProb = Math.min(0.95, impliedProb + bettorEdge)
+      const { evDollars } = computeEvFromProbAndOdds(trueProb, odds, stake)
+      return evDollars
     }
 
     // Calculate Kelly Criterion stake size based on EV and confidence

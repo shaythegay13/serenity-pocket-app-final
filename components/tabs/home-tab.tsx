@@ -57,23 +57,23 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
           </CardContent>
         </Card>
 
-        {/* Insights Button */}
+        {/* BetLab Button */}
         <Card 
           className="cursor-pointer transition-all duration-300 hover:scale-105 border-0 overflow-hidden rounded-3xl shadow-lg hover:shadow-xl"
-          onClick={() => window.location.href = '/insights'}
+          onClick={() => window.location.href = '/betlab'}
         >
           <CardContent className="p-8 sm:p-10 space-y-6 text-center bg-linear-to-br from-purple-400 via-purple-500 to-pink-400 hover:from-purple-500 hover:via-purple-600 hover:to-pink-500 transition-all duration-300 rounded-3xl">
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 mx-auto items-center justify-center rounded-full bg-white/25 backdrop-blur-sm shadow-lg">
               <Brain className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
             </div>
             <div className="space-y-3">
-              <h3 className="text-xl sm:text-2xl font-bold text-white">Insights</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-white">BetLab</h3>
               <p className="text-sm sm:text-base text-white/90">
-                View your performance analytics and behavioral patterns
+                Receive aid on what games to bet on and analyze your bets
               </p>
             </div>
             <Button className="w-full bg-white/25 hover:bg-white/35 text-white border border-white/40 backdrop-blur-sm rounded-full font-medium">
-              View Insights
+              View BetLab
             </Button>
           </CardContent>
         </Card>
@@ -81,7 +81,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         {/* Marketplace Button */}
         <Card 
           className="cursor-pointer transition-all duration-300 hover:scale-105 border-0 overflow-hidden rounded-3xl shadow-lg hover:shadow-xl"
-          onClick={() => window.location.href = '/insights/marketplace'}
+          onClick={() => window.location.href = '/betlab/marketplace'}
         >
           <CardContent className="p-8 sm:p-10 space-y-6 text-center bg-linear-to-br from-green-400 via-green-500 to-emerald-400 hover:from-green-500 hover:via-green-600 hover:to-emerald-500 transition-all duration-300 rounded-3xl">
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 mx-auto items-center justify-center rounded-full bg-white/25 backdrop-blur-sm shadow-lg">

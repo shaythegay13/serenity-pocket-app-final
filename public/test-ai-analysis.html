@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Analysis Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>🧪 AI Bet Analysis Test</h1>
+    <p>This page tests the fixes for hardcoded values and betting logic.</p>
+    
+    <div id="test-results"></div>
+
+    <script>
+        async function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<p>Running tests...</p>';
+
+            const testCases = [
+                {
+                    name: 'Broncos vs Patriots (AI thinks Broncos will win)',
+                    payload: {
+                        sport: 'americanfootball_nfl',
+                        betType: 'Moneyline',
+                        betAmount: 30,
+                        budget: 500,
+                        favoriteTeam: 'New England Patriots',
+                        underdogTeam: 'Denver Broncos',
+                        favoriteRecord: '10-6',
+                        underdogRecord: '8-8',
+                        odds: -150,
+                        selection: 'away',
+                        currentEmotion: 'Centered',
+                        lastOutcome: 'None',
+                        emotionalTriggers: '',
+                        bettingSlip: '',
+                        history: '',
+                        notes: '',
+                        hasKeyInjuries: false,
+                        hasAdverseWeather: false,
+                        isLiveBet: false,
+                        isFavoriteTeam: false,
+                        isChasingLoss: false,
+                        confidenceLevel: 5,
+                        reasoning: '',
+                        sportsbook: 'DraftKings'
+                    }
+                },
+                {
+                    name: 'Seahawks vs Opponent (AI thinks Seahawks will win)',
+                    payload: {
+                        sport: 'americanfootball_nfl',
+                        betType: 'Moneyline',
+                        betAmount: 30,
+                        budget: 500,
+                        favoriteTeam: 'Favorite Team',
+                        underdogTeam: 'Seattle Seahawks',
+                        favoriteRecord: '9-7',
+                        underdogRecord: '7-9',
+                        odds: +130,
+                        selection: 'away',
+                        currentEmotion: 'Confident',
+                        lastOutcome: 'Won',
+                        emotionalTriggers: '',
+                        bettingSlip: '',
+                        history: 'Recent win streak',
+                        notes: '',
+                        hasKeyInjuries: false,
+                        hasAdverseWeather: false,
+                        isLiveBet: false,
+                        isFavoriteTeam: false,
+                        isChasingLoss: false,
+                        confidenceLevel: 7,
+                        reasoning: '',
+                        sportsbook: 'DraftKings'
+                    }
+                }
+            ];
+
+            let html = '';
+
+            for (const testCase of testCases) {
+                html += `<div class="test-case">`;
+                html += `<h3>📊 ${testCase.name}</h3>`;
+                html += `<p>Odds: ${testCase.payload.odds}, Selection: ${testCase.payload.selection}</p>`;
+                
+                try {
+                    const response = await fetch('/api/ai/analyze-bet', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(testCase.payload)
+                    });
+
+                    if (!response.ok) {
+                        html += `<div class="result error">❌ API Error: ${response.status} ${response.statusText}</div>`;
+                        continue;
+                    }
+
+                    const data = await response.json();
+                    
+                    html += `<div class="result">`;
+                    html += `<h4>✅ Analysis Results:</h4>`;
+                    html += `<p><strong>Recommendation:</strong> ${data.analysis?.recommendation?.recommendation}</p>`;
+                    html += `<p><strong>Reason:</strong> ${data.analysis?.recommendation?.reason}</p>`;
+                    
+                    if (data.enhanced) {
+                        html += `<h4>🧠 Enhanced Analysis:</h4>`;
+                        html += `<p><strong>Emotional Alignment:</strong> ${data.enhanced.emotionalAlignment}%</p>`;
+                        html += `<p><strong>Enhanced Reasoning:</strong> ${data.enhanced.enhancedReasoning?.substring(0, 150)}...</p>`;
+                        html += `<p><strong>Numeric Risk EV:</strong> $${data.enhanced.numericRisk?.ev}</p>`;
+                        
+                        // Check for dynamic values
+                        const emotionalAlignment = data.enhanced.emotionalAlignment;
+                        if (emotionalAlignment && emotionalAlignment !== 80) {
+                            html += `<p class="success">✅ Dynamic emotional alignment detected (${emotionalAlignment}%)</p>`;
+                        } else {
+                            html += `<p class="warning">⚠️ Emotional alignment might still be hardcoded (${emotionalAlignment}%)</p>`;
+                        }
+                    }
+                    
+                    html += `</div>`;
+                    
+                } catch (error) {
+                    html += `<div class="result error">❌ Test failed: ${error.message}</div>`;
+                }
+                
+                html += `</div>`;
+            }
+
+            html += `<div class="test-case">`;
+            html += `<h2>🏁 Test Summary</h2>`;
+            html += `<p>If you see dynamic emotional alignment values (not 80%) and proper betting recommendations, the fixes are working!</p>`;
+            html += `<p><strong>Expected behavior:</strong></p>`;
+            html += `<ul>`;
+            html += `<li>When AI probability > implied probability → Should recommend betting</li>`;
+            html += `<li>When AI probability < implied probability → Should discourage betting</li>`;
+            html += `<li>Emotional alignment should vary based on psychology</li>`;
+            html += `<li>Stake amounts should be dynamic, not always $30</li>`;
+            html += `</ul>`;
+            html += `</div>`;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // Run tests when page loads
+        runTests();
+    </script>
+</body>
+</html>

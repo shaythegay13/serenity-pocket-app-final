@@ -108,6 +108,25 @@ export interface BetRiskAssessment {
   flags: string[]
 }
 
+/**
+ * EV Validation Result
+ * Based on industry standards: +1-5% typical sharp edges
+ * Sources: Pinnacle, OddsJam, professional betting forums
+ *
+ * Typical ranges:
+ * - Typical profitable +EV: +1% to +5% (most common 1-3%)
+ * - Strong +EV: +3% to +5%
+ * - Above +5%: Rare, flag as high-variance/risky
+ * - Negative EV: -2% to -10% common for losers; below -10% extreme
+ */
+export interface EVValidation {
+  ev: number
+  evPercentage: number
+  isRealistic: boolean
+  flag: string
+  category: 'high-variance' | 'strong-edge' | 'solid-value' | 'marginal' | 'near-fair' | 'negative-ev'
+}
+
 export interface PickerRecommendationItem {
   gameId?: string
   teams: string
@@ -125,6 +144,11 @@ export interface PickerRecommendationItem {
     evPercentage?: number
   }
   shortExplanation: string
+  // Indicates if this pick is the recommended side for this game/bet-type
+  // Used by frontend for badge display (decoupled from EV sign)
+  isRecommended?: boolean
+  // EV validation result with realistic assessment
+  evValidation?: EVValidation
 }
 
 export interface PickerReasoningInput {
@@ -194,6 +218,7 @@ export interface BetAnalyzerReasoningOutput {
     explanation: string
   }
   psychologyFlags: string[]
+  emotionalAlignment: number
   summary: string
   detailedExplanation: string
   numericRisk?: {
@@ -201,4 +226,23 @@ export interface BetAnalyzerReasoningOutput {
     evPercentage?: number
   }
   responsibleGamblingReminder?: string
+}
+
+// Parlay-related types
+export interface ParlayLeg {
+  pickId: string
+  gameId?: string
+  teams: string
+  betType: string
+  line: string
+  odds: number
+  confidence?: number
+  aiWinProbability?: number
+}
+
+export interface CorrelationWarning {
+  type: 'same-game' | 'same-team' | 'excessive-legs'
+  severity: 'low' | 'medium' | 'high'
+  message: string
+  affectedLegs: string[]
 }

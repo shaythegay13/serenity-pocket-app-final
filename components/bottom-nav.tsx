@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation"
 const navItems = [
   { id: "home", label: "Home", icon: Home, href: "/home" },
   { id: "behavior", label: "My Mind", icon: Brain, href: "/behavior" },
-  { id: "ai-picks", label: "Insight Hub", icon: Sparkles, href: "/insights" },
+  { id: "ai-picks", label: "BetLab", icon: Sparkles, href: "/betlab" },
   { id: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
 ]
 
@@ -20,7 +20,7 @@ export function BottomNav() {
     if (pathname === "/home") return "home"
     if (pathname === "/") return "home"
     if (pathname === "/behavior") return "behavior"
-    if (pathname === "/insights") return "ai-picks"
+    if (pathname === "/betlab") return "ai-picks"
     if (pathname === "/analytics") return "analytics"
     return "home"
   }

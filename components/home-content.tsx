@@ -101,8 +101,8 @@ export function HomeContent() {
         if (flow === "tiltlab" || flow === "smartslip") {
           localStorage.setItem("entry_flow", flow)
         }
-        // Clean up the URL
-        window.history.replaceState(null, "", "/")
+        // Clean up the URL but preserve /home for authenticated users
+        window.history.replaceState(null, "", "/home")
       } else if (authed === true && userData) {
         // User is already authenticated, go directly to the feature
         console.log('🔧 Authenticated user detected, but should show survey first')

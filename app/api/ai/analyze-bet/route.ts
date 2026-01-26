@@ -284,6 +284,7 @@ export async function POST(request: NextRequest) {
         keyInsights,
         oddsSource,
         numericRisk: betRiskAssessment,
+        emotionalAlignment: reasoning.emotionalAlignment,
         meta: {
           usedSageMaker,
           usedGemini,

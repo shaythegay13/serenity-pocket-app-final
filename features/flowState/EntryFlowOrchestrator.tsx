@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Sparkles } from 'lucide-react';
 import { useEntryFlowGuard } from '@/hooks/useEntryFlowGuard';
 import { useFlow } from '@/contexts/FlowContext';
-import { TiltLabFlowController } from '@/features/tiltLab';
-import { SmartSlipFlowController } from '@/features/smartSlip';
 import { SerenitySurveyModal } from '@/features/serenitySurvey';
 
 interface EntryFlowOrchestratorProps {
@@ -89,18 +87,6 @@ export function EntryFlowOrchestrator({ children, onFlowComplete }: EntryFlowOrc
     );
   }
 
-  // TiltLab flow (when user lost a bet recently)
-  if (currentStep === 'tiltlab') {
-    return (
-      <TiltLabFlowController
-        onComplete={() => {
-          handleTiltLabComplete();
-          onFlowComplete?.();
-        }}
-      />
-    );
-  }
-
   // Serenity Survey flow (when user didn't lose bet, show survey first)
   if (currentStep === 'smartslip' && !flow.serenitySurveyCompleted) {
     return (
@@ -121,18 +107,6 @@ export function EntryFlowOrchestrator({ children, onFlowComplete }: EntryFlowOrc
           <div className="animate-pulse text-muted-foreground">Loading survey...</div>
         </div>
       </>
-    );
-  }
-
-  // SmartSlip flow
-  if (currentStep === 'smartslip') {
-    return (
-      <SmartSlipFlowController
-        onComplete={() => {
-          handleSmartSlipComplete();
-          onFlowComplete?.();
-        }}
-      />
     );
   }
 

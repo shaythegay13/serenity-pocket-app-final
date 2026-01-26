@@ -98,7 +98,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           }
         }
 
-        // Show compelling stats for marketing - use real data if substantial, otherwise use attractive fake stats
+        // Only show stats when we have substantial real data
         const meetsThresholds = totalUsers >= 50 && totalBets >= 100 && avgROI !== 0
 
         if (meetsThresholds) {
@@ -110,23 +110,13 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             winRateImprovement
           })
         } else {
-          // Use compelling fake stats for marketing until real data is substantial
-          setUserStats({
-            totalUsers: 2847,      // "2.8K+ Users Worldwide"
-            totalBets: 45892,      // "45.9K+ Bets Analyzed" 
-            avgROI: 23.4,          // "+23.4% ROI Increase"
-            winRateImprovement: 34.7 // "+34.7% Win Rate Improvement"
-          })
+          // Don't show any stats until we have substantial real data
+          setUserStats(null)
         }
       } catch (error) {
         console.error('Error fetching user stats:', error)
-        // Still show compelling stats even if API fails
-        setUserStats({
-          totalUsers: 2847,
-          totalBets: 45892,
-          avgROI: 23.4,
-          winRateImprovement: 34.7
-        })
+        // Don't show fake stats on error
+        setUserStats(null)
       } finally {
         setLoading(false)
       }
@@ -240,7 +230,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                   // User didn't lose a bet recently - go to SmartSlip for AI picks
                   window.location.href = "/?signup=true&flow=smartslip"
                 }}
-                className="border-2 border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500 px-10 py-4 text-lg rounded-xl min-w-[160px] shadow-lg"
+                className="border-2 border-gray-600 text-white bg-gray-800/50 hover:bg-gray-800 hover:border-gray-500 px-10 py-4 text-lg rounded-xl min-w-[160px] shadow-lg"
               >
                 No
               </Button>

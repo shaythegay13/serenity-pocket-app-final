@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
       }
 
       if (data.session) {
-        // Redirect to home page - session will be picked up by client
-        return NextResponse.redirect(new URL('/', requestUrl.origin))
+        // Redirect to home page for logged-in users - session will be picked up by client
+        return NextResponse.redirect(new URL('/home', requestUrl.origin))
       }
     } catch (err) {
       console.error('Unexpected error in callback:', err)
@@ -38,6 +38,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // No code provided, redirect to home
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+  // No code provided, redirect to home page
+  return NextResponse.redirect(new URL('/home', requestUrl.origin))
 }

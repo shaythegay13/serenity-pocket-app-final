@@ -2,9 +2,88 @@ import { invokeAI } from "../ai-service"
 import type {
   BetAnalyzerReasoningInput,
   BetAnalyzerReasoningOutput,
+  EVValidation,
   PickerReasoningInput,
   PickerReasoningOutput,
 } from "../types/ai-models"
+
+/**
+ * Validates EV calculations against realistic sports betting ranges
+ * Based on industry standards: +1-5% typical sharp edges
+ * Sources: Pinnacle, OddsJam, professional betting forums
+ *
+ * Typical ranges:
+ * - Typical profitable +EV: +1% to +5% (most common 1-3%)
+ * - Strong +EV: +3% to +5%
+ * - Above +5%: Rare in major markets, flag as high-variance/risky
+ * - Negative EV: -2% to -10% common; below -10% extreme
+ *
+ * @param evPercent - EV as percentage of stake (e.g., 2.5 means +2.5%)
+ * @param evDollars - EV in dollars (raw value)
+ * @returns EVValidation object with realistic assessment and flags
+ */
+function validateEV(evPercent: number, evDollars: number): EVValidation {
+  // Handle NaN or undefined
+  if (!Number.isFinite(evPercent)) {
+    return {
+      ev: evDollars || 0,
+      evPercentage: 0,
+      isRealistic: false,
+      flag: 'Invalid EV calculation; check inputs',
+      category: 'negative-ev'
+    }
+  }
+
+  if (evPercent > 5) {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: false,
+      flag: 'High EV (>5%) - rare in major markets; double-check probs or consider niche prop/live bet',
+      category: 'high-variance'
+    }
+  } else if (evPercent > 3) {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: true,
+      flag: 'Strong edge (+3-5%); bet harder if confident',
+      category: 'strong-edge'
+    }
+  } else if (evPercent > 1) {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: true,
+      flag: 'Solid +EV (+1-3%); good for volume',
+      category: 'solid-value'
+    }
+  } else if (evPercent > 0) {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: true,
+      flag: 'Marginal +EV; line-shop for better',
+      category: 'marginal'
+    }
+  } else if (evPercent > -2) {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: true,
+      flag: 'Near-fair; pass unless volume play',
+      category: 'near-fair'
+    }
+  } else {
+    return {
+      ev: evDollars,
+      evPercentage: evPercent,
+      isRealistic: evPercent > -10, // Extreme negative EV is flagged as unrealistic
+      flag: evPercent <= -10 ? 'Extreme negative EV (<-10%); avoid' : 'Negative EV; avoid unless hedging',
+      category: 'negative-ev'
+    }
+  }
+}
 
 async function callGeminiAsJson(
   system: string,
@@ -49,48 +128,97 @@ async function callGeminiAsJson(
 export async function generatePickerRecommendations(
   args: PickerReasoningInput,
 ): Promise<PickerReasoningOutput> {
-  const system = `You are a Betting Risk Analyst and reasoning engine for a responsible sports betting coach.
-You must perform comprehensive analysis including deep sports research data when available.
-You must rely on the numeric model predictions, context, and sports research passed in.
-You must perform an 'Enhanced Analysis'.
+  const system = `You are an Expert Sports Betting Analyst AI that generates INDEPENDENT probability predictions.
 
-STRICT LOGIC RULES:
-- If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the riskLevel as 'HIGH'.
+**YOUR CORE TASK - GENERATE YOUR OWN PREDICTIONS**:
+You are NOT simply re-using market odds. You must analyze the provided data and form YOUR OWN opinion about each team's win probability. Your predictions should DIFFER from the market implied probabilities based on:
+- Team current form and momentum (recent wins/losses)
+- Head-to-head historical records
+- Key factors like injuries, home advantage, scheduling
+- Expert analysis provided in the research data
+- Statistical patterns that the market may have missed
 
-**SPORTS RESEARCH INTEGRATION**:
-- When sports research is available, incorporate team form, head-to-head records, key player injuries, and expert predictions into your analysis.
-- Use recent form data to assess current team momentum and performance trends.
-- Consider head-to-head history for matchup advantages and patterns.
-- Factor in expert predictions from sports research when making recommendations.
+**CRITICAL: CREATING REAL VALUE (POSITIVE/NEGATIVE EV)**:
+The whole point of sports betting analysis is finding where YOUR probability estimate differs from the market:
+- If YOU think Team A has 55% chance but market implies 50% → This is POSITIVE EV (+EV)
+- If YOU think Team A has 45% chance but market implies 50% → This is NEGATIVE EV (-EV)
+- NOT ALL PICKS SHOULD BE THE SAME SIGN - some games you'll find value, others you won't
+
+Example of proper analysis:
+- Market odds: Team A -150 (implied 60%), Team B +130 (implied 43.5%)
+- YOUR analysis: Team A has been in poor form, lost 3 of last 5. You predict: Team A 52%, Team B 48%
+- EV calculation for Team A: (0.52 × $6.67) - (0.48 × $10) = $3.47 - $4.80 = -$1.33 (NEGATIVE EV)
+- EV calculation for Team B: (0.48 × $13) - (0.52 × $10) = $6.24 - $5.20 = +$1.04 (POSITIVE EV)
+- RECOMMEND: Team B because your analysis shows the market is undervaluing them
+
+**RULES FOR PROBABILITY PREDICTIONS**:
+1. Your predicted probabilities must be based on RESEARCH DATA, not market odds
+2. If a team is in hot form (3+ recent wins), increase their probability 5-15% vs market
+3. If a team is struggling (3+ recent losses), decrease their probability 5-15% vs market
+4. Consider H2H records - if one team dominates historically, adjust probabilities
+5. Factor in expert predictions when available
+6. Your probabilities for a matchup don't need to sum to 100% (account for draws in some sports)
+
+**FOR EVERY GAME YOU MUST**:
+1. State your independent predicted probability for each side
+2. Compare to market implied probability
+3. Calculate EV using YOUR probability (not market's)
+4. Recommend the side where YOUR analysis shows value
 
 **BET TYPE-SPECIFIC EV CALCULATION**:
 
 For **MONEYLINE** bets:
-  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100))
-  2. Calculate Profit: If odds > 0: Profit = Stake × (Odds/100); If odds < 0: Profit = Stake × (100/|Odds|)
-  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$
-  4. Calculate EV Percentage: $(EV / Stake) \times 100$
+  1. Calculate Implied Probability from odds: (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100))
+  2. Form YOUR OWN win probability estimate based on research data
+  3. Calculate Profit: If odds > 0: Profit = Stake × (Odds/100); If odds < 0: Profit = Stake × (100/|Odds|)
+  4. Calculate True EV: EV = (YOUR_WinProb × Profit) - ((1 - YOUR_WinProb) × Stake)
+  5. EV Percentage: (EV / Stake) × 100
 
 For **SPREAD** bets:
-  1. Spreads typically have -110 odds (sometimes varying)
-  2. Calculate Profit: Usually Stake × (100/110) ≈ Stake × 0.909
-  3. Assess Win Probability: Does the AI model suggest the team will cover the spread?
-  4. Calculate True EV: $EV = (CoverProb \times Profit) - ((1-CoverProb) \times Stake)$
-  5. Calculate EV Percentage: $(EV / Stake) \times 100$
+  1. Form YOUR OWN cover probability based on team scoring patterns and spread size
+  2. Calculate Profit from odds (usually ~0.909 × Stake at -110)
+  3. Calculate True EV: EV = (YOUR_CoverProb × Profit) - ((1 - YOUR_CoverProb) × Stake)
 
 For **TOTAL (Over/Under)** bets:
-  1. Similar to spreads, usually -110 odds on both Over and Under
-  2. Calculate Profit: Stake × (100/110) ≈ Stake × 0.909
-  3. Assess Probability: Based on team scoring trends, does Over or Under have value?
-  4. Calculate True EV: $EV = (OverProb \times Profit) - (UnderProb \times Stake)$
-  5. Calculate EV Percentage: $(EV / Stake) \times 100$
+  1. Analyze team scoring trends, pace of play
+  2. Form YOUR OWN over/under probability
+  3. Calculate True EV using YOUR probability
 
-GENERAL RULES:
-- The numericRisk.ev must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
-- If EV is negative, the shortExplanation must explain that the user is paying 'juice' and has no mathematical edge.
-- If riskLevel is 'HIGH', the shortExplanation must start with a cautionary warning.
-- PRIORITIZE recommendations with POSITIVE EV across all bet types.
-- Include the confidence level (0-100) for each recommendation.
+**EXPECTED OUTCOME**:
+- Some games you'll find +EV opportunities (your prediction differs favorably from market)
+- Some games you'll find -EV (market is efficient or better informed)
+- This VARIETY is NORMAL and EXPECTED
+- Do NOT artificially make all picks positive or all negative
+
+**RECOMMENDATION RULES**:
+- ALWAYS recommend one team per game as the BETTER VALUE pick
+- The "better value" = the side where YOUR predicted probability most exceeds market implied
+- ALWAYS include BOTH sides of moneyline so users can compare
+- Include confidence level (0-100) based on how much research data supports your prediction
+
+**SPORTS RESEARCH INTEGRATION**:
+Use ALL available research to form your predictions:
+- Recent form: Hot teams get probability boost, cold teams get reduction
+- Head-to-head: Dominance patterns adjust probability
+- Expert predictions: Factor these into your analysis
+- Key factors: Injuries, rest days, travel, etc.
+
+**DYNAMIC STAKE CALCULATION**:
+- Base stake: 4-8% of budget based on risk tolerance
+- INCREASE stake for +EV picks with high confidence
+- DECREASE stake for -EV picks or low confidence
+- NEVER use hardcoded values
+
+**EMOTIONAL ALIGNMENT**:
+- Start at 50% baseline
+- +15-25% if your predicted win prob > market implied (positive edge)
+- +10-20% for positive user emotional state
+- -15-25% for negative emotional state or chasing losses
+- Consider EV impact on alignment
+
+STRICT LOGIC RULES:
+- If stake > 20% of weekly budget, label riskLevel as 'HIGH'
+- If riskLevel is 'HIGH', shortExplanation must start with cautionary warning
 
 You output STRICT JSON matching the requested schema and keep explanations concise.`
 
@@ -163,9 +291,12 @@ Available bet types:
 7. **IMPORTANT**: Always use the actual team names from the game context, never generic descriptions
 
 **NEGATIVE EV HANDLING**:
-- If EV is negative, you MUST include this exact warning in ALL CAPS in the shortExplanation:
-  "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-- Still include these picks for educational purposes so users understand why to avoid them
+- Negative EV is acceptable when AI win probability > implied probability (this means you're paying juice for a statistical edge)
+- Only recommend "DON'T BET" when BOTH conditions are met:
+  1. AI win probability < implied probability (no statistical edge)
+  2. EV is significantly negative (more than -10% of stake)
+- If AI probability > implied probability but EV is slightly negative, recommend the bet with explanation about paying juice for edge
+- If EV is very negative (< -20% of stake) regardless of probability, recommend caution
 
 **DO NOT** return an empty recommendations array unless there are literally zero games with odds available.`
 
@@ -238,8 +369,42 @@ Available bet types:
   try {
     const parsed = await callGeminiAsJson(system, userPrompt, 2400, responseSchema)
 
+    // Debug: Log what Gemini actually returned
+    console.log('[Gemini] Raw response sample:', {
+      emotionalAlignments: parsed.recommendations?.map((r: any) => r.emotionalAlignment),
+      stakeAmounts: parsed.recommendations?.map((r: any) => r.suggestedStakeAbsolute),
+      firstRec: parsed.recommendations?.[0]
+    })
+
+    // Apply EV validation to each recommendation
+    // This validates EV against realistic sports betting ranges
+    const validatedRecommendations = (parsed.recommendations ?? []).map((rec: any) => {
+      const evDollars = rec.numericRisk?.ev ?? 0
+      const evPercentage = rec.numericRisk?.evPercentage ?? 0
+
+      // Validate EV and attach validation result
+      const evValidation = validateEV(evPercentage, evDollars)
+
+      // Log warnings for unrealistic EVs
+      if (!evValidation.isRealistic) {
+        console.warn(`[Gemini EV Validation] ⚠️ Unrealistic EV detected for ${rec.teams} - ${rec.line}:`, {
+          evPercent: evPercentage.toFixed(2) + '%',
+          evDollars: '$' + evDollars.toFixed(2),
+          flag: evValidation.flag,
+          category: evValidation.category
+        })
+      } else {
+        console.log(`[Gemini EV Validation] ✓ ${rec.teams} - ${rec.line}: ${evPercentage.toFixed(2)}% (${evValidation.category})`)
+      }
+
+      return {
+        ...rec,
+        evValidation
+      }
+    })
+
     const output: PickerReasoningOutput = {
-      recommendations: parsed.recommendations ?? [],
+      recommendations: validatedRecommendations,
     }
 
     return output
@@ -261,17 +426,36 @@ You must combine:
 - The user's psychology and history
 - Current game context
 
+CRITICAL BETTING LOGIC:
+- **RECOMMEND BETTING when AI win probability > implied probability from odds**, even if EV is slightly negative due to juice
+- **DISCOURAGE BETTING when AI win probability < implied probability** (no mathematical edge)
+- If AI win probability equals implied probability, recommend CAUTION
+- **PRIORITIZE positive EV bets** but don't require positive EV when AI model shows edge
+
+DYNAMIC STAKE CALCULATION:
+- Base stake: 1-3% of weekly budget for standard bets
+- Increase stake (up to 5%) when: AI probability > implied probability AND confidence > 70%
+- Decrease stake (to 0.5-1%) when: AI probability < implied probability OR high emotional risk
+- Consider user's risk tolerance and emotional state
+
+EMOTIONAL ALIGNMENT SCORING (0-100%):
+- Start at 50% baseline
+- Add 20% if AI probability > implied probability
+- Add 15% if user emotional state is positive/calm
+- Add 10% if confidence > 75% and risk is LOW/MEDIUM
+- Subtract 20% if emotional risk is HIGH
+- Subtract 15% if chasing losses detected
+- Subtract 10% if stake > 10% of budget
+
 You MUST always prioritize emotional and financial safety over potential profit.
 You DO NOT hallucinate stats or odds and rely only on provided inputs.
 You must perform an 'Enhanced Analysis'.
+
 STRICT LOGIC RULES:
 - If you detect a budget use (stake) higher than 20% of the weekly budget, you must override any 'Positive' sentiment and label the betSafetyCategory as 'DISCOURAGED'.
-- **Devigged EV Calculation**:
-  1. Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
-  2. Account for the 'Juice': Acknowledge the house edge (sum of implied probabilities > 100%).
-  3. Calculate True EV: $EV = (WinProb_{AI} \times Profit) - (LossProb_{AI} \times Stake)$.
+- Calculate Implied Probability: Convert American odds to implied probability (Negative: |Odds|/(|Odds|+100), Positive: 100/(Odds+100)).
 - The numericRisk.ev must be returned as a standard decimal number (e.g., -4.54), representing the expected dollar gain/loss for the provided stake. Never use scientific notation.
-- If EV is negative, the summary must explain that the user is paying 'juice' and has no mathematical edge.
+- If EV is negative but AI probability > implied probability, explain this as "paying juice for statistical edge"
 - If betSafetyCategory is 'DISCOURAGED' or 'CAUTION', the summary must start with a bold cautionary warning.
 Output must be STRICT JSON matching the requested schema.`
 
@@ -304,6 +488,10 @@ ${JSON.stringify(args.bet, null, 2)}`
         type: "array",
         items: { type: "string" },
       },
+      emotionalAlignment: {
+        type: "number",
+        description: "Emotional alignment score from 0-100% based on user psychology and bet analysis"
+      },
       summary: { type: "string" },
       detailedExplanation: { type: "string" },
       responsibleGamblingReminder: { type: "string" },
@@ -322,6 +510,7 @@ ${JSON.stringify(args.bet, null, 2)}`
       "betSafetyCategory",
       "stakeRecommendation",
       "psychologyFlags",
+      "emotionalAlignment",
       "summary",
       "detailedExplanation",
       "numericRisk",
@@ -334,6 +523,7 @@ ${JSON.stringify(args.bet, null, 2)}`
     betSafetyCategory: parsed.betSafetyCategory,
     stakeRecommendation: parsed.stakeRecommendation,
     psychologyFlags: parsed.psychologyFlags ?? [],
+    emotionalAlignment: parsed.emotionalAlignment ?? 50,
     summary: parsed.summary,
     detailedExplanation: parsed.detailedExplanation,
     numericRisk: parsed.numericRisk || { ev: 0 },

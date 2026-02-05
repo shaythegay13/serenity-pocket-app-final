@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Brain, 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
+import {
+  Brain,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
   CheckCircle2,
   ChevronRight,
   Loader2,
@@ -28,11 +28,11 @@ interface TiltLabAnalysisViewProps {
   onBack?: () => void;
 }
 
-export function TiltLabAnalysisView({ 
-  betData, 
-  emotionDrivers, 
-  onComplete, 
-  onBack 
+export function TiltLabAnalysisView({
+  betData,
+  emotionDrivers,
+  onComplete,
+  onBack
 }: TiltLabAnalysisViewProps) {
   const [analysis, setAnalysis] = useState<AIEnhancedAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,15 +58,15 @@ export function TiltLabAnalysisView({
       homeTeam: betData.homeTeam,
       awayTeam: betData.awayTeam,
       gameDate: betData.gameDate || new Date(),
-      betType: betData.market.includes('Spread') ? 'Spread' : 
-               betData.market.includes('Over') || betData.market.includes('Under') ? 'Over/Under' : 
-               'Moneyline',
+      betType: betData.market.includes('Spread') ? 'Spread' :
+        betData.market.includes('Over') || betData.market.includes('Under') ? 'Over/Under' :
+          'Moneyline',
       selection: 'home', // Default - could be enhanced with parsing
       line: betData.market.includes('Spread') ? -7 : undefined, // Default spread
       odds: betData.odds,
       betAmount: betData.stake,
       budget: 1000, // Default budget - could be enhanced
-      
+
       // Legacy fields (for compatibility)
       favoriteTeam: betData.homeTeam,
       underdogTeam: betData.awayTeam,
@@ -74,14 +74,14 @@ export function TiltLabAnalysisView({
       underdogRecord: 'Unknown',
       injuries: 'Unknown',
       weather: 'Unknown',
-      
+
       // Boolean fields
       hasKeyInjuries: false,
       hasAdverseWeather: false,
       isLiveBet: false,
       isFavoriteTeam: false,
       isChasingLoss: betData.result === 'loss',
-      
+
       // Emotional data
       currentEmotion: primaryEmotion?.emotion || 'Unknown',
       currentEmotionIntensity: primaryEmotion?.intensity || 5,
@@ -89,7 +89,10 @@ export function TiltLabAnalysisView({
       emotionalTriggers: emotionText,
       bettingSlip: `${betData.league}: ${betData.homeTeam} vs ${betData.awayTeam}`,
       history: 'Recent loss detected',
-      notes: betData.notes || ''
+      notes: betData.notes || '',
+      confidenceLevel: betData.confidenceLevel, // Pass the new slider value
+      biasesIdentified: [],
+      reasoning: ''
     };
   }, [betData, emotionDrivers]);
 
@@ -245,7 +248,7 @@ export function TiltLabAnalysisView({
                     {analysis.recommendation.recommendation}
                   </Badge>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span>Confidence</span>
@@ -253,7 +256,7 @@ export function TiltLabAnalysisView({
                   </div>
                   <Progress value={analysis.recommendation.confidence} className="h-2" />
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span>Risk Level</span>
@@ -269,6 +272,9 @@ export function TiltLabAnalysisView({
                     <li>• Risk Level: {analysis.recommendation.riskLevel}</li>
                     <li>• Budget Impact: {analysis.recommendation.budgetPercent}% of weekly budget</li>
                     <li>• Safety Score: {analysis.safety.percent}%</li>
+                    {analysis.safety.signals.filter(s => s.type === 'behavioral').map((s, i) => (
+                      <li key={i} className="text-destructive font-medium">• Alert: {s.label}</li>
+                    ))}
                   </ul>
                 </div>
               </CardContent>
@@ -302,8 +308,16 @@ export function TiltLabAnalysisView({
                 {analysis.recommendation.emotionalAnalysis.shouldWait && (
                   <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
                     <p className="text-sm text-orange-800 dark:text-orange-200">
-                      <strong>Recommendation:</strong> {analysis.recommendation.emotionalAnalysis.waitingPeriod} 
+                      <strong>Recommendation:</strong> {analysis.recommendation.emotionalAnalysis.waitingPeriod}
                       waiting period suggested before betting.
+                    </p>
+                  </div>
+                )}
+
+                {analysis.safety.signals.some(s => s.label.includes('Safety Guard')) && (
+                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Safety Guard Active:</strong> System has detected high emotional volatility and is throttling stake recommendations.
                     </p>
                   </div>
                 )}
@@ -322,9 +336,8 @@ export function TiltLabAnalysisView({
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${
-                    analysis.recommendation.recommendation === 'PLACE BET' ? 'bg-green-500' : 'bg-red-500'
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full mt-2 ${analysis.recommendation.recommendation === 'PLACE BET' ? 'bg-green-500' : 'bg-red-500'
+                    }`} />
                   <div>
                     <p className="text-sm font-medium">AI Recommendation:</p>
                     <p className="text-sm text-muted-foreground">
@@ -334,9 +347,8 @@ export function TiltLabAnalysisView({
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${
-                    analysis.recommendation.emotionalAnalysis.shouldWait ? 'bg-orange-500' : 'bg-green-500'
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full mt-2 ${analysis.recommendation.emotionalAnalysis.shouldWait ? 'bg-orange-500' : 'bg-green-500'
+                    }`} />
                   <div>
                     <p className="text-sm font-medium">Emotional Management:</p>
                     <p className="text-sm text-muted-foreground">

@@ -38,8 +38,17 @@ export function BehaviorContent() {
 
   useEffect(() => {
     let isMounted = true
-    
+
     const checkAuth = async () => {
+      // Safety timeout to prevent permanent loading state
+      const timeoutId = setTimeout(() => {
+        if (isMounted && loading) {
+          console.warn('Behavior auth check timed out, forcing loading state to false');
+          setLoading(false);
+          setAuthed(false);
+        }
+      }, 5000); // 5 second timeout
+
       try {
         // Run auth check and user data fetch in parallel
         const [sessionResult, userDataResult] = await Promise.allSettled([
@@ -47,13 +56,16 @@ export function BehaviorContent() {
           storage.getUserData().catch(() => null)
         ])
 
-        if (!isMounted) return
+        if (!isMounted) {
+          clearTimeout(timeoutId);
+          return;
+        }
 
         const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
         const storedUserData = userDataResult.status === 'fulfilled' ? userDataResult.value : null
-        
+
         setAuthed(!!session)
-        
+
         if (session) {
           setUserData(storedUserData)
         }
@@ -61,6 +73,7 @@ export function BehaviorContent() {
         console.error('Auth check failed:', error)
         setAuthed(false)
       } finally {
+        clearTimeout(timeoutId);
         if (isMounted) {
           setLoading(false)
         }
@@ -96,7 +109,7 @@ export function BehaviorContent() {
       <div className="min-h-screen bg-background">
         <DashboardHeader userData={userData || undefined} />
         <Navigation />
-        
+
         <main className="container mx-auto px-4 py-6">
           {userData ? (
             <Suspense fallback={

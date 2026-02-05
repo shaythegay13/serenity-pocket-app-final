@@ -29,9 +29,9 @@ export function LandingPage({ onLogin }: LandingPageProps) {
   useEffect(() => {
     const signup = searchParams.get("signup")
     const flow = searchParams.get("flow")
-    
+
     console.log('Landing page signup check:', { signup, flow })
-    
+
     if (signup === "true" && flow && (flow === "tiltlab" || flow === "smartslip")) {
       // Store the flow for after signup completion
       localStorage.setItem("entry_flow", flow)
@@ -43,6 +43,14 @@ export function LandingPage({ onLogin }: LandingPageProps) {
 
   useEffect(() => {
     const fetchUserStats = async () => {
+      // Safety timeout to prevent permanent loading state
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          console.warn('Landing page stats fetch timed out');
+          setLoading(false);
+        }
+      }, 5000);
+
       try {
         // Fetch total users count
         const { count: userCount } = await supabase
@@ -62,7 +70,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
         // Calculate real stats
         const totalUsers = userCount || 0
         const totalBets = betAnalyses?.length || 0
-        
+
         // Calculate average ROI
         const completedBets = betAnalyses?.filter(bet => bet.outcome !== 'pending' && bet.actual_return) || []
         const totalROI = completedBets.reduce((sum, bet) => {
@@ -78,21 +86,21 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           const sortedBets = betAnalyses
             .filter(bet => bet.outcome !== 'pending' && bet.created_at)
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          
+
           if (sortedBets.length >= 50) {
             // Calculate early period win rate (first 25% of bets)
             const earlyPeriod = sortedBets.slice(0, Math.floor(sortedBets.length * 0.25))
             const earlyWins = earlyPeriod.filter(bet => bet.outcome === 'win').length
             const earlyWinRate = earlyWins / earlyPeriod.length
-            
+
             // Calculate recent period win rate (last 25% of bets)
             const recentPeriod = sortedBets.slice(-Math.floor(sortedBets.length * 0.25))
             const recentWins = recentPeriod.filter(bet => bet.outcome === 'win').length
             const recentWinRate = recentWins / recentPeriod.length
-            
+
             // Calculate improvement
             winRateImprovement = ((recentWinRate - earlyWinRate) * 100)
-            
+
             // Cap improvement at reasonable range (-50% to +50%)
             winRateImprovement = Math.max(-50, Math.min(50, winRateImprovement))
           }
@@ -118,6 +126,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
         // Don't show fake stats on error
         setUserStats(null)
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false)
       }
     }
@@ -151,7 +160,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                 </p>
               </div>
             </div>
-            
+
             {/* Login Button */}
             <Button
               onClick={onLogin}
@@ -169,7 +178,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
 
         <div className="container mx-auto px-4 pt-20 pb-32 relative">
           <div className="max-w-4xl mx-auto text-center space-y-8">
-            
+
             {/* Main Headline */}
             <h1 className="text-6xl md:text-7xl font-bold tracking-tight">
               <span className="text-white">Win with </span>
@@ -194,7 +203,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       {/* Entry Flow Question */}
       <section className="py-16 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" />
-        
+
         <div className="container mx-auto px-4 relative">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             {/* Question */}
@@ -205,7 +214,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               </span>
               <span className="text-white"> recently?</span>
             </h2>
-            
+
             <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
               Your answer helps us personalize your experience and provide the right tools for your journey.
             </p>
@@ -222,7 +231,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               >
                 Yes
               </Button>
-              
+
               <Button
                 size="lg"
                 variant="outline"
@@ -263,7 +272,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               </div>
               <div className="text-center space-y-2">
                 <div className="text-4xl md:text-5xl font-bold text-blue-400">
-                  {userStats.totalUsers >= 1000 
+                  {userStats.totalUsers >= 1000
                     ? `${(userStats.totalUsers / 1000).toFixed(1)}K+`
                     : `${userStats.totalUsers}+`
                   }
@@ -272,9 +281,9 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               </div>
               <div className="text-center space-y-2">
                 <div className="text-4xl md:text-5xl font-bold text-purple-400">
-                  {userStats.totalBets >= 1000000 
+                  {userStats.totalBets >= 1000000
                     ? `${(userStats.totalBets / 1000000).toFixed(1)}M+`
-                    : userStats.totalBets >= 1000 
+                    : userStats.totalBets >= 1000
                       ? `${(userStats.totalBets / 1000).toFixed(1)}K+`
                       : `${userStats.totalBets}+`
                   }
@@ -289,7 +298,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               </div>
             </div>
           ) : null // Don't show stats section until we have substantial real data
-        }
+          }
         </div>
       </section>
 

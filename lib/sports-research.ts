@@ -76,55 +76,52 @@ export interface SportsResearchOutput {
  */
 export async function conductSportsResearch(input: SportsResearchInput): Promise<SportsResearchOutput> {
   console.log(`🔍 Starting sports research for ${input.homeTeam} vs ${input.awayTeam}`);
-  
+
   try {
     // Step 1: Get team information (parallel)
     const [homeTeamSearch, awayTeamSearch] = await Promise.all([
       searchTeams(input.homeTeam),
       searchTeams(input.awayTeam)
     ]);
-    
+
     const homeTeam = homeTeamSearch.length > 0 ? homeTeamSearch[0] : null;
     const awayTeam = awayTeamSearch.length > 0 ? awayTeamSearch[0] : null;
-    
+
     if (!homeTeam || !awayTeam) {
       console.warn('⚠️ Teams not found in TheSportsDB, using fallback');
       return generateFallbackResearch(input);
     }
-    
-    // Step 2: Get detailed team information (parallel with timeout)
-    const researchPromises = await Promise.allSettled([
-      withTimeout(getTeamInfo(homeTeam.idTeam), 3000),
-      withTimeout(getTeamInfo(awayTeam.idTeam), 3000),
-      withTimeout(getTeamRecentForm(homeTeam.idTeam), 2000),
-      withTimeout(getTeamRecentForm(awayTeam.idTeam), 2000),
-      withTimeout(getHeadToHead(homeTeam.idTeam, awayTeam.idTeam), 2000),
-      withTimeout(getTeamRoster(homeTeam.idTeam), 3000),
-      withTimeout(getTeamRoster(awayTeam.idTeam), 3000)
+
+    // Step 2: Get team info FIRST to populate cache (used by getTeamRecentForm internally)
+    // This sequential call saves duplicate API requests
+    const [homeTeamInfo, awayTeamInfo] = await Promise.all([
+      withTimeout(getTeamInfo(homeTeam.idTeam), 3000).catch(() => null),
+      withTimeout(getTeamInfo(awayTeam.idTeam), 3000).catch(() => null),
     ]);
-    
+
+    // Step 3: Get form and H2H data (parallel with timeout)
+    // OPTIMIZED: Skip roster and league info calls to reduce API usage
+    // - Roster: Only used for Gemini narrative, not calculations
+    // - League info: Just metadata, not needed for analysis
+    // - RecentForm and H2H share the same getRecentEvents cache (both use limit=20)
+    const researchPromises = await Promise.allSettled([
+      withTimeout(getTeamRecentForm(homeTeam.idTeam), 3000),
+      withTimeout(getTeamRecentForm(awayTeam.idTeam), 3000),
+      withTimeout(getHeadToHead(homeTeam.idTeam, awayTeam.idTeam), 3000),
+    ]);
+
     // Extract results safely
-    const homeTeamInfo = researchPromises[0].status === 'fulfilled' ? researchPromises[0].value : null;
-    const awayTeamInfo = researchPromises[1].status === 'fulfilled' ? researchPromises[1].value : null;
-    const homeRecentForm = researchPromises[2].status === 'fulfilled' ? researchPromises[2].value : null;
-    const awayRecentForm = researchPromises[3].status === 'fulfilled' ? researchPromises[3].value : null;
-    const headToHead = researchPromises[4].status === 'fulfilled' ? researchPromises[4].value : null;
-    const homeRoster = researchPromises[5].status === 'fulfilled' ? researchPromises[5].value : [];
-    const awayRoster = researchPromises[6].status === 'fulfilled' ? researchPromises[6].value : [];
-    
-    const homeKeyPlayers = homeRoster.slice(0, 3); // Reduced from 5 to 3 for speed
-    const awayKeyPlayers = awayRoster.slice(0, 3); // Reduced from 5 to 3 for speed
-    
-    // Step 3: Get league information (fast, cached)
-    let leagueInfo = null;
-    if (homeTeamInfo?.idLeague) {
-      try {
-        leagueInfo = await withTimeout(getLeagueInfo(homeTeamInfo.idLeague), 1000);
-      } catch (e) {
-        console.warn('League info timeout, continuing without it');
-      }
-    }
-    
+    const homeRecentForm = researchPromises[0].status === 'fulfilled' ? researchPromises[0].value : null;
+    const awayRecentForm = researchPromises[1].status === 'fulfilled' ? researchPromises[1].value : null;
+    const headToHead = researchPromises[2].status === 'fulfilled' ? researchPromises[2].value : null;
+
+    // Skip roster calls - only used for Gemini narrative, adds 2 API calls per game
+    const homeKeyPlayers: PlayerInfo[] = [];
+    const awayKeyPlayers: PlayerInfo[] = [];
+
+    // Skip league info call - just metadata
+    const leagueInfo = null;
+
     // Step 4: Use Gemini AI for deep analysis (with timeout)
     let aiAnalysis;
     try {
@@ -155,7 +152,7 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
         league: input.league
       });
     }
-    
+
     // Step 5: Compile final research output
     const researchOutput: SportsResearchOutput = {
       homeTeam: {
@@ -197,10 +194,10 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
       researchTimestamp: new Date().toISOString(),
       dataSource: 'thesportsdb'
     };
-    
+
     console.log(`✅ Sports research completed for ${input.homeTeam} vs ${input.awayTeam}`);
     return researchOutput;
-    
+
   } catch (error) {
     console.error('❌ Error in sports research:', error);
     return generateFallbackResearch(input);
@@ -214,7 +211,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   const timeoutPromise = new Promise<T>((_, reject) => {
     setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
   });
-  
+
   return Promise.race([promise, timeoutPromise]);
 }
 
@@ -314,10 +311,10 @@ async function analyzeWithGemini(data: any): Promise<any> {
  */
 function determineTrend(h2h: any): 'home_dominant' | 'away_dominant' | 'balanced' | 'unknown' {
   if (!h2h || h2h.matches < 3) return 'unknown';
-  
+
   const homeWinRate = h2h.team1Wins / h2h.matches;
   const awayWinRate = h2h.team2Wins / h2h.matches;
-  
+
   if (homeWinRate > 0.6) return 'home_dominant';
   if (awayWinRate > 0.6) return 'away_dominant';
   return 'balanced';
@@ -328,14 +325,14 @@ function determineTrend(h2h: any): 'home_dominant' | 'away_dominant' | 'balanced
  */
 function generateFallbackResearch(input: SportsResearchInput): SportsResearchOutput {
   console.log('🔄 Using fallback sports research');
-  
+
   return {
     homeTeam: {
       teamInfo: null,
       recentForm: null,
       keyPlayers: [],
-      strengths: ['Unknown - Limited Data'],
-      weaknesses: ['Unknown - Limited Data'],
+      strengths: [],
+      weaknesses: [],
       currentForm: 'average',
       motivationLevel: 'medium'
     },
@@ -343,8 +340,8 @@ function generateFallbackResearch(input: SportsResearchInput): SportsResearchOut
       teamInfo: null,
       recentForm: null,
       keyPlayers: [],
-      strengths: ['Unknown - Limited Data'],
-      weaknesses: ['Unknown - Limited Data'],
+      strengths: [],
+      weaknesses: [],
       currentForm: 'average',
       motivationLevel: 'medium'
     },
@@ -356,12 +353,12 @@ function generateFallbackResearch(input: SportsResearchInput): SportsResearchOut
       venue: 'Unknown',
       travelFactor: 'neutral'
     },
-    keyFactors: ['Limited data available', 'Using odds-based analysis only'],
+    keyFactors: ['Limited data available for these teams'],
     prediction: {
-      winner: 'home',
-      confidence: 0.5,
-      reasoning: 'Limited sports data available - prediction based on minimal information',
-      riskFactors: ['Insufficient team data', 'No recent form information']
+      winner: 'draw',
+      confidence: 0,
+      reasoning: 'Insufficient sports data available for a reliable prediction.',
+      riskFactors: ['Missing team data', 'Missing recent form']
     },
     researchTimestamp: new Date().toISOString(),
     dataSource: 'fallback'
@@ -374,30 +371,30 @@ function generateFallbackResearch(input: SportsResearchInput): SportsResearchOut
 function generateFallbackAIAnalysis(data: any): any {
   return {
     homeTeam: {
-      strengths: ['Unknown - Limited Data'],
-      weaknesses: ['Unknown - Limited Data'],
+      strengths: [],
+      weaknesses: [],
       currentForm: 'average',
       motivationLevel: 'medium'
     },
     awayTeam: {
-      strengths: ['Unknown - Limited Data'],
-      weaknesses: ['Unknown - Limited Data'],
+      strengths: [],
+      weaknesses: [],
       currentForm: 'average',
       motivationLevel: 'medium'
     },
     headToHead: {
-      insights: ['Limited head-to-head data available']
+      insights: ['Insufficient head-to-head data available']
     },
     matchContext: {
       importance: 'medium',
       weather: 'good'
     },
-    keyFactors: ['Limited data available'],
+    keyFactors: ['Insufficient data available for AI analysis'],
     prediction: {
-      winner: 'home',
-      confidence: 0.5,
-      reasoning: 'Limited data - conservative prediction',
-      riskFactors: ['Insufficient data for accurate prediction']
+      winner: 'draw',
+      confidence: 0,
+      reasoning: 'Data processing timeout or missing source data. Analysis cannot be securely performed.',
+      riskFactors: ['Data availability issue']
     }
   };
 }
@@ -422,10 +419,10 @@ export async function getTeamFormSummary(teamName: string): Promise<string> {
   try {
     const teams = await searchTeams(teamName);
     if (teams.length === 0) return 'Team not found';
-    
+
     const form = await getTeamRecentForm(teams[0].idTeam);
     if (!form) return 'No recent form data available';
-    
+
     return `${form.team}: Last 5: ${form.last5.join('-')} | Win Rate: ${form.winRate.toFixed(1)}% | GF: ${form.goalsFor} | GA: ${form.goalsAgainst}`;
   } catch (error) {
     console.error('Team form summary error:', error);

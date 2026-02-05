@@ -32,61 +32,61 @@ const STORAGE_KEYS = {
 export const storageHybrid: {
   // Get current user ID
   getCurrentUserId(): Promise<string | null>
-  
+
   // Bet Analyses Operations
   getBetAnalyses(): Promise<BetAnalysis[]>
   addBetAnalysis(bet: BetAnalysis): Promise<void>
   updateBetAnalysis(bet: BetAnalysis): Promise<void>
-  
+
   // Comprehensive Bet Operations
   getComprehensiveBets(): Promise<ComprehensiveBet[]>
   addComprehensiveBet(bet: ComprehensiveBet): Promise<void>
   updateComprehensiveBet(updated: ComprehensiveBet): Promise<void>
-  
+
   // Trade Operations
   getTrades(): Promise<Trade[]>
   addTrade(trade: Trade): Promise<void>
   updateTrade(tradeId: string, updates: Partial<Trade>): Promise<void>
-  
+
   // Bias Profile Operations
   getBiasProfile(): Promise<BiasProfile | null>
   setBiasProfile(profile: BiasProfile): Promise<void>
-  
+
   // Bias History Operations
   getBiasHistory(): Promise<BiasQuizHistory[]>
   addBiasHistory(history: BiasQuizHistory): Promise<void>
   getBiasQuizHistory(): Promise<BiasQuizHistory[]>
   addBiasQuizHistory(history: BiasQuizHistory): Promise<void>
-  
+
   // Achievement Operations
   getAchievements(): Promise<Achievement[]>
   updateAchievements(achievements: Achievement[]): Promise<void>
-  
+
   // Challenge Operations
   getChallenges(): Promise<Challenge[]>
   updateChallenges(challenges: Challenge[]): Promise<void>
-  
+
   // Emotion Log Operations
   getEmotionLogs(): Promise<EmotionLog[]>
   addEmotionLog(log: EmotionLog): Promise<void>
-  
+
   // User Data Operations
   getUserData(): Promise<UserData | null>
   setUserData(data: UserData): Promise<void>
-  
+
   // Game Lines Operations
   getGameLines(): Promise<GameLineRecord[]>
   setGameLines(lines: GameLineRecord[]): Promise<void>
   upsertGameLine(line: GameLineRecord): Promise<void>
   bulkUpsertGameLines(lines: GameLineRecord[]): Promise<void>
-  
+
   // AI Service Usage Operations
   getAIServiceUsage(): Promise<AIServiceUsage[]>
-  
+
   // Check-in Operations
   getLastCheckIn(): Promise<Date | null>
   setLastCheckIn(date: Date): Promise<void>
-  
+
   // Daily Rings Operations
   updateDailyRingsForEmotion(): Promise<void>
 } = {
@@ -181,11 +181,23 @@ export const storageHybrid: {
           .select()
 
         if (error) {
+          // Supabase error objects may have non-enumerable properties; serialize them properly
+          const rawError = (() => {
+            try {
+              return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)))
+            } catch {
+              return error
+            }
+          })()
+
           console.error("Error saving bet analysis to Supabase:", {
             status,
             statusText,
-            error,
+            error: rawError,
+            code: (error as any)?.code,
             message: (error as any)?.message,
+            details: (error as any)?.details,
+            hint: (error as any)?.hint,
           })
         } else {
           console.log('✅ Successfully saved bet analysis to Supabase:', data)
@@ -483,7 +495,9 @@ export const storageHybrid: {
               if (parsed.maxStakeLimit !== undefined) (profile as any).maxStakeLimit = parsed.maxStakeLimit as any
             }
           }
-        } catch {}
+        } catch (err) {
+          console.warn('[StorageHybrid] Failed to parse cached user data from localStorage:', err)
+        }
       }
 
       return profile
@@ -677,9 +691,9 @@ export const storageHybrid: {
           sessionUserId: sessionData.session?.user?.id,
           getUserError: getUserError
             ? {
-                name: getUserError.name,
-                message: getUserError.message,
-              }
+              name: getUserError.name,
+              message: getUserError.message,
+            }
             : null,
           getUserId: userDataRes.user?.id,
           attemptedUserId: userId,
@@ -720,14 +734,14 @@ export const storageHybrid: {
 
       const supabaseLogs: EmotionLog[] = !error && data
         ? data.map((log: any): EmotionLog => ({
-            id: log.id,
-            timestamp: new Date(log.timestamp),
-            emotion: log.emotion,
-            intensity: log.intensity,
-            context: log.notes || "",
-            phase: log.phase,
-            tradeId: undefined,
-          }))
+          id: log.id,
+          timestamp: new Date(log.timestamp),
+          emotion: log.emotion,
+          intensity: log.intensity,
+          context: log.notes || "",
+          phase: log.phase,
+          tradeId: undefined,
+        }))
         : []
 
       if (error) {
@@ -753,8 +767,8 @@ export const storageHybrid: {
                   tradeId: log.tradeId,
                 }))
             }
-          } catch {
-            // ignore
+          } catch (err) {
+            console.warn('[StorageHybrid] Failed to parse emotion logs from localStorage:', err)
           }
         }
       }
@@ -820,19 +834,19 @@ export const storageHybrid: {
 
       const supabaseTrades: Trade[] = !error && data
         ? (data || []).map(trade => ({
-            id: trade.id,
-            timestamp: new Date(trade.timestamp),
-            preTradeEmotion: trade.pre_trade_emotion || "",
-            preTradeIntensity: trade.pre_trade_intensity || 3,
-            biasesIdentified: trade.biases_identified || [],
-            confidenceLevel: trade.pre_trade_confidence || 50,
-            reasoning: trade.pre_trade_notes || "",
-            outcome: trade.outcome,
-            postTradeEmotion: trade.post_trade_emotion,
-            postTradeIntensity: trade.post_trade_intensity,
-            reflection: trade.post_trade_notes,
-            emotionalImpact: trade.emotional_impact,
-          }))
+          id: trade.id,
+          timestamp: new Date(trade.timestamp),
+          preTradeEmotion: trade.pre_trade_emotion || "",
+          preTradeIntensity: trade.pre_trade_intensity || 3,
+          biasesIdentified: trade.biases_identified || [],
+          confidenceLevel: trade.pre_trade_confidence || 50,
+          reasoning: trade.pre_trade_notes || "",
+          outcome: trade.outcome,
+          postTradeEmotion: trade.post_trade_emotion,
+          postTradeIntensity: trade.post_trade_intensity,
+          reflection: trade.post_trade_notes,
+          emotionalImpact: trade.emotional_impact,
+        }))
         : []
 
       if (error) {
@@ -865,8 +879,8 @@ export const storageHybrid: {
                   emotionalImpact: t.emotionalImpact,
                 }))
             }
-          } catch {
-            // ignore
+          } catch (err) {
+            console.warn('[StorageHybrid] Failed to parse trades from localStorage:', err)
           }
         }
       }
@@ -1450,7 +1464,7 @@ export const storageHybrid: {
     // Check if rings need to be reset (new day)
     const now = new Date()
     const lastReset = userData.lastRingReset || new Date(0)
-    
+
     if (now.toDateString() !== lastReset.toDateString()) {
       // Reset rings for new day
       await this.setUserData({
@@ -1548,7 +1562,7 @@ export const storageHybrid: {
     }
 
     if (typeof window === "undefined") return []
-    
+
     const data = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
     if (!data) return []
 
@@ -1560,17 +1574,17 @@ export const storageHybrid: {
         completedAt: bet.completedAt ? new Date(bet.completedAt) : undefined,
         emotions: {
           ...bet.emotions,
-          before: { 
-            ...bet.emotions.before, 
-            timestamp: new Date(bet.emotions.before.timestamp) 
+          before: {
+            ...bet.emotions.before,
+            timestamp: new Date(bet.emotions.before.timestamp)
           },
-          during: bet.emotions.during ? { 
-            ...bet.emotions.during, 
-            timestamp: new Date(bet.emotions.during.timestamp) 
+          during: bet.emotions.during ? {
+            ...bet.emotions.during,
+            timestamp: new Date(bet.emotions.during.timestamp)
           } : undefined,
-          after: { 
-            ...bet.emotions.after, 
-            timestamp: new Date(bet.emotions.after.timestamp) 
+          after: {
+            ...bet.emotions.after,
+            timestamp: new Date(bet.emotions.after.timestamp)
           }
         }
       }))
@@ -1629,14 +1643,14 @@ export const storageHybrid: {
     }
 
     if (typeof window === "undefined") return
-    
+
     const localData = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
     let localBets: any[] = localData ? JSON.parse(localData) : []
     // Simple check to avoid duplicates if ID exists
     if (!localBets.find((b: any) => b.id === bet.id)) {
-        localBets.push(bet)
-        if (localBets.length > 50) localBets = localBets.slice(-50)
-        localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
+      localBets.push(bet)
+      if (localBets.length > 50) localBets = localBets.slice(-50)
+      localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
     }
   },
 
@@ -1670,19 +1684,19 @@ export const storageHybrid: {
     }
 
     if (typeof window === "undefined") return
-    
+
     const localData = localStorage.getItem(STORAGE_KEYS.COMPREHENSIVE_BETS)
     if (localData) {
-        try {
-            let localBets: any[] = JSON.parse(localData)
-            const idx = localBets.findIndex((b: any) => b.id === updated.id)
-            if (idx !== -1) {
-                localBets[idx] = { ...localBets[idx], ...updated }
-                localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
-            }
-        } catch (e) {
-            console.error("Error updating local comprehensive bet", e)
+      try {
+        let localBets: any[] = JSON.parse(localData)
+        const idx = localBets.findIndex((b: any) => b.id === updated.id)
+        if (idx !== -1) {
+          localBets[idx] = { ...localBets[idx], ...updated }
+          localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(localBets))
         }
+      } catch (e) {
+        console.error("Error updating local comprehensive bet", e)
+      }
     }
   },
 
@@ -1718,8 +1732,8 @@ export const storageHybrid: {
           if (typeof window !== "undefined") {
             try {
               localStorage.setItem(STORAGE_KEYS.AI_USAGE, JSON.stringify(mapped))
-            } catch {
-              // ignore
+            } catch (err) {
+              console.warn('[StorageHybrid] Failed to cache AI usage to localStorage:', err)
             }
           }
 

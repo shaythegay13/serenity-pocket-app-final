@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Clipboard, FileText, Zap } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { AlertCircle, Clipboard, FileText, Zap, Info } from 'lucide-react';
 import { getPopularSports, mapTiltLabSportToConfig } from '@/lib/sports-config';
 
 export interface BetData {
@@ -20,6 +21,7 @@ export interface BetData {
   stake: number;
   result: 'win' | 'loss' | 'pending';
   sportsbook: string;
+  confidenceLevel: number;
   gameDate?: Date;
   notes?: string;
 }
@@ -73,6 +75,7 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
     stake: 0,
     result: 'loss',
     sportsbook: '',
+    confidenceLevel: 75,
     notes: '',
     ...initialData
   });
@@ -83,8 +86,8 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
   const availableSports = getPopularSports();
 
   const handleManualSubmit = useCallback(() => {
-    if (!formData.league || !formData.homeTeam || !formData.awayTeam || 
-        !formData.market || !formData.odds || !formData.stake || !formData.sportsbook) {
+    if (!formData.league || !formData.homeTeam || !formData.awayTeam ||
+      !formData.market || !formData.odds || !formData.stake || !formData.sportsbook) {
       setParseError('Please fill in all required fields');
       return;
     }
@@ -98,6 +101,7 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
       stake: formData.stake!,
       result: formData.result as 'win' | 'loss' | 'pending',
       sportsbook: formData.sportsbook!,
+      confidenceLevel: formData.confidenceLevel || 75,
       notes: formData.notes,
       gameDate: new Date()
     };
@@ -107,22 +111,22 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
 
   const parsePasteText = useCallback(() => {
     setParseError('');
-    
+
     if (!pasteText.trim()) {
       setParseError('Please paste your bet information');
       return;
     }
 
     const text = pasteText.toLowerCase();
-    
+
     // Try to extract odds (American format like -110, +150)
     const oddsMatch = text.match(/([+-]\d+)/);
     const odds = oddsMatch ? parseInt(oddsMatch[1]) : 0;
-    
+
     // Try to extract stake (numbers with $ or just numbers)
     const stakeMatch = text.match(/\$(\d+)|(\d+)\s*(?:dollars?|bucks?)/i);
     const stake = stakeMatch ? parseInt(stakeMatch[1] || stakeMatch[2]) : 0;
-    
+
     // Enhanced league identification with keyword matching
     let league = 'Other';
     for (const [sportName, keywords] of Object.entries(SPORT_KEYWORDS)) {
@@ -131,30 +135,30 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
         break;
       }
     }
-    
+
     // Map to sport config if possible
     const sportConfig = mapTiltLabSportToConfig(league);
     if (sportConfig && sportConfig.id !== league) {
       league = sportConfig.name; // Use the standardized name
     }
-    
+
     // Try to identify sportsbook
     let sportsbook = 'Other';
     if (text.includes('draftkings') || text.includes('dk')) sportsbook = 'DraftKings';
     else if (text.includes('fanduel') || text.includes('fd')) sportsbook = 'FanDuel';
     else if (text.includes('betmgm') || text.includes('mgm')) sportsbook = 'BetMGM';
-    
+
     // Try to identify market
     let market = 'Other';
     if (text.includes('spread') || text.includes('handicap')) market = 'Spread';
     else if (text.includes('over') || text.includes('under') || text.includes('total')) market = 'Over/Under';
     else if (text.includes('moneyline') || text.includes('ml')) market = 'Moneyline';
-    
-    // Extract teams (simplified - look for common patterns)
-    const teamPattern = /(\w+(?:\s+\w+)*)\s+(?:vs|at|-)\s+(\w+(?:\s+\w+)*)/i;
+
+    // Extract teams (supports team names with special chars like O'Neill, St. Louis, etc.)
+    const teamPattern = /([\w'.]+(?:\s+[\w'.]+)*)\s+(?:vs\.?|at|@|-)\s+([\w'.]+(?:\s+[\w'.]+)*)/i;
     const teamMatch = text.match(teamPattern);
-    const homeTeam = teamMatch?.[1] || '';
-    const awayTeam = teamMatch?.[2] || '';
+    const homeTeam = teamMatch?.[2]?.trim() || ''; // Team after "vs/at" is typically home
+    const awayTeam = teamMatch?.[1]?.trim() || ''; // Team before "vs/at" is typically away
 
     const parsedData: Partial<BetData> = {
       league,
@@ -164,6 +168,7 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
       odds,
       stake,
       sportsbook,
+      confidenceLevel: 75,
       result: 'loss', // Default to loss for TiltLab
       notes: `Parsed from: ${pasteText.substring(0, 100)}...`
     };
@@ -217,19 +222,19 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
                   className="min-h-[100px]"
                 />
               </div>
-              
+
               {parseError && (
                 <div className="flex items-center gap-2 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4" />
                   {parseError}
                 </div>
               )}
-              
+
               <Button onClick={parsePasteText} className="w-full">
                 <Zap className="h-4 w-4 mr-2" />
                 Parse Bet Information
               </Button>
-              
+
               <div className="text-xs text-muted-foreground">
                 This will attempt to extract teams, odds, stake, and other details from your text.
                 You can review and edit the parsed information in manual mode.
@@ -331,11 +336,36 @@ export function TiltLabBetInput({ onBetSubmit, initialData }: TiltLabBetInputPro
                 </Select>
               </div>
 
+              {/* Confidence */}
+              <div className="space-y-3 py-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="confidence" className="flex items-center gap-1.5">
+                    How confident are you?
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Label>
+                  <span className="text-sm font-medium">{formData.confidenceLevel}%</span>
+                </div>
+                <Slider
+                  id="confidence"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={[formData.confidenceLevel || 75]}
+                  onValueChange={(value) => updateFormData('confidenceLevel', value[0])}
+                  className="py-4"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Hesitant</span>
+                  <span>Neutral</span>
+                  <span>Extremely Confident</span>
+                </div>
+              </div>
+
               {/* Result */}
               <div>
                 <Label>Result *</Label>
-                <RadioGroup 
-                  value={formData.result} 
+                <RadioGroup
+                  value={formData.result}
                   onValueChange={(value) => updateFormData('result', value)}
                   className="flex gap-4"
                 >

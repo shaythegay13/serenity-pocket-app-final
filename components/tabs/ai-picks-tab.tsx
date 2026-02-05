@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check, ExternalLink, X } from "lucide-react"
 import type { UserData, EmotionLog } from "@/lib/types"
@@ -166,7 +167,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const tier = userData.subscriptionTier || "free"
   const hasAccess = tier !== "free" // All paid tiers get AI Picks; free sees paywall
   const cooldown = !!userData.cooldownEnabled
-  
+
   const [loading, setLoading] = useState(false)
   const [isFetchingPicks, setIsFetchingPicks] = useState(false)
   const [lastPicksFetchAt, setLastPicksFetchAt] = useState<number | null>(null)
@@ -176,7 +177,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
   const [activeSection, setActiveSection] = useState<'picks' | 'advisor' | 'marketplace'>('picks')
-  
+
   // Get available sports dynamically
   const availableSports = getPopularSports()
 
@@ -194,12 +195,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         setActiveSection(targetSection as 'picks' | 'advisor' | 'marketplace')
         sessionStorage.removeItem('targetSection')
       }
-      
+
       const flag = localStorage.getItem('aiAdvisorFromLiveOdds')
       if (flag) {
         setActiveSection('advisor')
         localStorage.removeItem('aiAdvisorFromLiveOdds')
-        
+
         // Check for pre-filled game data
         const pendingGame = sessionStorage.getItem('pendingBetGame')
         if (pendingGame) {
@@ -306,7 +307,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate()
         }).length
         setDailyBetCount(todayCount)
-      } catch {}
+      } catch { }
     })()
   }, [])
 
@@ -314,7 +315,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   // Now we only fetch when the user explicitly requests it (e.g., via the Refresh button),
   // so we don't consume weekly usage automatically.
 
-  const fetchAIPicks = async () => {
+  const fetchAIPicks = async (force: boolean = false) => {
     if (cooldown) {
       setPicks([])
       return
@@ -327,6 +328,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     const now = Date.now()
     if (isFetchingPicks) {
       console.log('AI Picks: Skipping fetch because a request is already in flight')
+      return
+    }
+    // Reduce cache to 30s to ensure user picks up my new multi-market logic
+    if (!force && lastPicksFetchAt && now - lastPicksFetchAt < 1000 * 30) {
+      console.log('AI Picks: Using cached picks (30s TTL)')
+      setLoading(false)
       return
     }
     if (lastPicksFetchAt && now - lastPicksFetchAt < 60_000) {
@@ -360,7 +367,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         console.log('AI Picks: Request timeout, aborting...')
         controller.abort()
       }, 60000) // Increased timeout to 60 seconds for AI analysis + ML predictions
-      
+
       let response: Response
       try {
         response = await fetch('/api/picker/recommend', {
@@ -462,177 +469,48 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             return clampPct(impliedProbFromAmericanOdds(odds) * 100)
           })(),
           suggestedStake: (() => {
-            // Try enhanced analysis stake recommendation first
-            if (data.enhanced?.numericRisk && typeof data.enhanced.numericRisk.ev === 'number') {
-              // Calculate suggested stake based on EV and user budget
-              const ev = data.enhanced.numericRisk.ev
-              const baseStake = Math.max(10, Math.min(100, (userData.weeklyBankroll || 500) * 0.02)) // 2% of weekly bankroll
-              
-              // Adjust stake based on EV
-              if (ev > 0) {
-                return Math.round(baseStake * (1 + ev / 10)) // Increase for positive EV
-              } else if (ev < -2) {
-                return Math.round(baseStake * 0.5) // Decrease for negative EV
-              }
-              return baseStake
-            }
-            
-            // Fallback to API suggested stake
-            return rec.suggestedStakeAbsolute ?? 0
+            const stake = Number(rec.suggestedStakeAbsolute)
+            return Number.isFinite(stake) && stake > 0 ? stake : 0
           })(),
           riskLevel: rec.riskLevel || 'MEDIUM',
           emotionalAlignment: (() => {
-            // Debug logging
-            console.log('AI Picks: Emotional alignment data', {
-              recAlignment: rec.emotionalAlignment,
-              enhancedAlignment: data.enhanced?.emotionalAlignment,
-              emotionalScore: data.emotionalScore,
-              recData: rec
-            })
-
-            // Try enhanced analysis emotional alignment first (from Gemini)
-            if (typeof data.enhanced?.emotionalAlignment === 'number' && Number.isFinite(data.enhanced.emotionalAlignment) && data.enhanced.emotionalAlignment > 0) {
-              const aligned = clampPct(data.enhanced.emotionalAlignment)
-              console.log('AI Picks: Using enhanced.emotionalAlignment:', aligned)
-              return aligned
-            }
-
-            // Try API-returned emotional alignment from recommendation
+            // Try API-returned emotional alignment from recommendation first
             if (typeof rec.emotionalAlignment === 'number' && Number.isFinite(rec.emotionalAlignment) && rec.emotionalAlignment > 0) {
-              const aligned = clampPct(rec.emotionalAlignment)
-              console.log('AI Picks: Using rec.emotionalAlignment:', aligned)
-              return aligned
+              return clampPct(rec.emotionalAlignment)
             }
 
             // Try the emotional score passed to API
             if (typeof data.emotionalScore === 'number' && Number.isFinite(data.emotionalScore) && data.emotionalScore > 0) {
-              const aligned = clampPct(data.emotionalScore)
-              console.log('AI Picks: Using data.emotionalScore:', aligned)
-              return aligned
+              return clampPct(data.emotionalScore)
             }
 
             // Try to get emotional score from userData if available
             if (typeof userData.dailyRings?.emotionalAwareness === 'number' && userData.dailyRings.emotionalAwareness > 0) {
-              const aligned = clampPct(userData.dailyRings.emotionalAwareness)
-              console.log('AI Picks: Using userData.dailyRings.emotionalAwareness:', aligned)
-              return aligned
+              return clampPct(userData.dailyRings.emotionalAwareness)
             }
 
-            // Fallback to a reasonable default instead of 0
-            console.log('AI Picks: Using fallback emotional alignment: 75')
+            // Fallback to a reasonable default
             return 75
           })(),
           reasoning: rec.shortExplanation || '',
           commenceTime: rec.startTime,
           expectedValue: (() => {
-            // Try to use EV from API response first (from numericRisk.ev)
             if (rec.numericRisk && typeof rec.numericRisk.ev === 'number' && Number.isFinite(rec.numericRisk.ev)) {
-              console.log('AI Picks: Using EV from API response:', rec.numericRisk.ev)
               return rec.numericRisk.ev
             }
-
-            // Fallback to calculating EV if not provided
-            const odds = Number(rec.odds)
-            const stake = Number(rec.suggestedStakeAbsolute ?? 0)
-
-            // Debug logging
-            console.log('AI Picks: EV calculation data', {
-              odds,
-              stake,
-              suggestedStakeAbsolute: rec.suggestedStakeAbsolute,
-              rec
-            })
-
-            if (!Number.isFinite(odds) || odds === 0 || stake <= 0) {
-              console.log('AI Picks: EV calculation returning 0 - invalid odds or stake')
-              return 0
-            }
-
-            const gameId = rec.gameId ? String(rec.gameId) : undefined
-            const probs = gameId ? probsByGameId[gameId] : undefined
-
-            const side = guessSideFromLine({
-              teamsText: String(rec.teams ?? ""),
-              line: String(rec.line ?? ""),
-            })
-
-            if (probs && (typeof probs.pWin === "number" || typeof probs.pLoss === "number")) {
-              const pWinHome = clamp01(Number(probs.pWin ?? 0.5))
-              const pWinAway = clamp01(Number(probs.pLoss ?? (1 - pWinHome)))
-              const pPush = clamp01(Number(probs.pPush ?? 0))
-
-              if (side === "home") {
-                const ev = computeExpectedValueDollars({
-                  stake,
-                  odds,
-                  pWin: pWinHome,
-                  pLoss: clamp01(1 - pWinHome - pPush),
-                  pPush,
-                })
-                console.log('AI Picks: EV calculated (home side):', ev)
-                return ev
-              }
-              if (side === "away") {
-                const ev = computeExpectedValueDollars({
-                  stake,
-                  odds,
-                  pWin: pWinAway,
-                  pLoss: clamp01(1 - pWinAway - pPush),
-                  pPush,
-                })
-                console.log('AI Picks: EV calculated (away side):', ev)
-                return ev
-              }
-            }
-
-            const implied = odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
-            const pWin = clamp01(implied)
-            const pLoss = clamp01(1 - pWin)
-            const ev = computeExpectedValueDollars({
-              stake,
-              odds,
-              pWin,
-              pLoss,
-            })
-            console.log('AI Picks: EV calculated (implied probability):', ev)
-            return ev
+            return 0
           })(),
           evPercentage: (() => {
-            // Try to use evPercentage from API response first (from numericRisk.evPercentage)
             if (rec.numericRisk && typeof rec.numericRisk.evPercentage === 'number' && Number.isFinite(rec.numericRisk.evPercentage)) {
-              console.log('AI Picks: Using evPercentage from API response:', rec.numericRisk.evPercentage)
               return rec.numericRisk.evPercentage
             }
-
-            // Fallback to calculating evPercentage if not provided
-            const stake = Number(rec.suggestedStakeAbsolute ?? 0)
-            if (stake <= 0) {
-              console.log('AI Picks: evPercentage calculation returning 0 - invalid stake')
-              return 0
-            }
-
-            // Use the EV we already calculated or will calculate
-            let ev = 0
-            if (rec.numericRisk && typeof rec.numericRisk.ev === 'number' && Number.isFinite(rec.numericRisk.ev)) {
-              ev = rec.numericRisk.ev
-            } else {
-              // Recalculate EV for percentage calculation
-              const odds = Number(rec.odds)
-              if (Number.isFinite(odds) && odds !== 0) {
-                const implied = odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100)
-                const pWin = clamp01(implied)
-                const pLoss = clamp01(1 - pWin)
-                ev = computeExpectedValueDollars({ stake, odds, pWin, pLoss })
-              }
-            }
-
-            const evPct = (ev / stake) * 100
-            console.log('AI Picks: Calculated evPercentage:', evPct)
-            return evPct
+            return 0
           })(),
           // isRecommended is set by the backend based on relative value comparison
           // This is used for badge display, decoupled from EV sign
           isRecommended: rec.isRecommended ?? undefined,
+          informational: rec.informational ?? false,
+          informationalLabel: rec.informationalLabel ?? undefined,
         }))
 
         console.log('AI Picks: Mapped picks created, setting picks state')
@@ -697,7 +575,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
-      } catch {}
+      } catch { }
 
       setActiveSection('advisor')
       toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
@@ -746,7 +624,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
-      } catch {}
+      } catch { }
 
       setActiveSection('advisor')
       toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
@@ -757,7 +635,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
   if (!hasAccess) {
     return (
-      <PremiumFeatureWall 
+      <PremiumFeatureWall
         title="Insight Hub"
         description="Personalized bet suggestions based on your psychology + real-time data"
         featureName="SmartSlip and TiltLab"
@@ -785,356 +663,393 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         </TabsList>
 
         <TabsContent value="picks" className="space-y-6 mt-6">
-      {/* Existing AI Picks content */}
+          {/* Existing AI Picks content */}
 
-      {(cooldown) && (
-        <Card className="p-4 bg-red-500/10 border-red-500/30">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <div>
-              <p className="text-sm font-medium text-foreground">Safety Guard Active</p>
-              <p className="text-xs text-muted-foreground">SmartSlip picks are limited while cooldown is enabled.</p>
-            </div>
-          </div>
-        </Card>
-      )}
-      {userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit && (
-        <Card className="p-4 bg-yellow-500/10 border-yellow-500/30">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            <div>
-              <p className="text-sm font-medium text-foreground">Daily Bet Limit Reached</p>
-              <p className="text-xs text-muted-foreground">You have reached your daily bet limit.</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* User Status Card */}
-      {emotionalScore !== null && (
-        <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-500" />
-              Your Emotional State
-            </h3>
-            {hasAccess ? (
-              <Button
-                onClick={() => {
-                  fetchAIPicks()
-                }}
-                variant="outline"
-                size="sm"
-                className="bg-background/50 hover:bg-background/80"
-                disabled={loading || cooldown || isFetchingPicks}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            ) : (
-              <Badge variant="secondary" className="text-xs">
-                <Lock className="h-3 w-3 mr-1" />
-                Upgrade to refresh
-              </Badge>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">Emotional Stability</p>
-              <p className={`text-3xl font-bold ${color}`}>
-                {emotionalScore}%
-              </p>
-              <Badge 
-                variant={emotionalScore >= 70 ? 'default' : 'destructive'} 
-                className="mt-2"
-              >
-                {level?.replace('_', ' ')}
-              </Badge>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">Status</p>
-              <p className={`text-2xl font-bold ${emotionalScore >= 70 ? 'text-green-500' : 'text-yellow-500'}`}>
-                {emotionalScore >= 70 ? 'Ready' : 'Caution'}
-              </p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-background/50">
-              <p className="text-xs text-muted-foreground mb-1">AI Access</p>
-              <p className={`text-2xl font-bold ${shouldReceiveAIPicks ? 'text-green-500' : 'text-red-500'}`}>
-                {shouldReceiveAIPicks ? 'Available' : 'Limited'}
-              </p>
-            </div>
-          </div>
-          
-          <div className="mt-4 p-4 rounded-lg bg-background/50">
-            <div className="flex items-start gap-2">
-              {emotionalScore >= 70 ? (
-                <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
-              )}
-              <p className="text-sm text-muted-foreground">{recommendation}</p>
-            </div>
-          </div>
-          
-          {!hasAccess && (
-            <div className="mt-4 p-4 rounded-lg bg-linear-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
-              <div className="flex items-center justify-between">
+          {(cooldown) && (
+            <Card className="p-4 bg-red-500/10 border-red-500/30">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">Want AI Picks?</p>
-                  <p className="text-xs text-muted-foreground">Upgrade to get personalized betting recommendations</p>
+                  <p className="text-sm font-medium text-foreground">Safety Guard Active</p>
+                  <p className="text-xs text-muted-foreground">SmartSlip picks are limited while cooldown is enabled.</p>
                 </div>
-                <Button size="sm" onClick={() => setActiveSection('marketplace')}>
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Upgrade
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Sport and Risk Controls */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Sport</label>
-            <div className="flex flex-wrap gap-2">
-              {availableSports.map((sport) => (
-                <Button
-                  key={sport.id}
-                  variant={selectedSport === sport.id ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedSport(sport.id)}
-                  title={sport.displayName}
-                >
-                  {sport.icon} {sport.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Risk Tolerance</label>
-            <div className="flex gap-2">
-              {(['conservative', 'moderate', 'aggressive'] as const).map((risk) => (
-                <Button
-                  key={risk}
-                  variant={riskTolerance === risk ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setRiskTolerance(risk)}
-                  className="flex-1 capitalize"
-                >
-                  {risk}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Loading State */}
-      {loading && (
-        <Card className="p-12 text-center">
-          <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4 animate-spin" />
-          <p className="text-lg font-semibold text-foreground">Generating SmartSlip Picks...</p>
-          <p className="text-sm text-muted-foreground mt-2">Analyzing available data and your emotional state</p>
-        </Card>
-      )}
-
-      {/* No Picks State */}
-      {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 70 && (
-        <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
-          <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
-          <p className="text-muted-foreground mb-4">
-            Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.
-          </p>
-          <Button variant="outline" onClick={() => onNavigateToTab('behavior')}>
-            Log Your Emotions
-          </Button>
-        </Card>
-      )}
-
-      {/* AI Picks */}
-      {!loading && picks.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {picks.map((pick: any, idx: number) => (
-            <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
-                <div className="flex items-center gap-2">
-                  {/* Use isRecommended flag if available (set by backend based on relative value) */}
-                  {/* Fallback to expectedValue > 0 for backward compatibility */}
-                  {(pick.isRecommended === true || (pick.isRecommended === undefined && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue > 0)) ? (
-                    <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Recommended
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      Not Recommended
-                    </Badge>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-semibold text-amber-500 tabular-nums">{pick.confidence}% Confidence</span>
-                  </div>
-                </div>
-              </div>
-
-              <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
-
-              <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
-                <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
-                <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
-                  {pick.odds > 0 ? '+' : ''}{pick.odds}
-                </p>
-              </div>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Expected Value:</span>
-                  <div className="text-right">
-                    <span className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {pick.expectedValue >= 0 ? '+' : ''}${pick.expectedValue.toFixed(2)}
-                    </span>
-                    {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
-                      <span className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ({pick.evPercentage >= 0 ? '+' : ''}{pick.evPercentage.toFixed(1)}%)
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
-                {pick.isRecommended === false && (
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                    <p className="text-sm font-semibold text-red-500">Not Recommended</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      The opposite team offers better relative value. Look for the "Recommended" badge on the other team.
-                    </p>
-                  </div>
-                )}
-                {/* Show EV info for recommended picks with negative EV (explains vig situation) */}
-                {pick.isRecommended === true && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                    <p className="text-sm font-semibold text-amber-600">Negative EV Due to Vig</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Both teams show negative EV due to sportsbook vig. This team offers the best relative value.
-                    </p>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Suggested Stake:</span>
-                  <span className="text-lg font-semibold text-foreground tabular-nums">${pick.suggestedStake}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Risk Level:</span>
-                  <Badge 
-                    variant="outline"
-                    className={`${
-                      pick.riskLevel === 'HIGH' ? 'border-red-500 text-red-500' :
-                      pick.riskLevel === 'MEDIUM' ? 'border-yellow-500 text-yellow-500' :
-                      'border-green-500 text-green-500'
-                    }`}
-                  >
-                    {pick.riskLevel}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Emotional Alignment:</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-muted rounded-full h-2">
-                      <div
-                        className="bg-purple-500 h-2 rounded-full"
-                        style={{ width: `${pick.emotionalAlignment}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-semibold tabular-nums">{pick.emotionalAlignment}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-muted mb-4">
-                <div className="flex items-start gap-2">
-                  <Brain className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
-                </div>
-              </div>
-
-              {/* Why this pick? Accordion */}
-              <Accordion type="single" collapsible className="mb-4">
-                <AccordionItem value="reasons" className="border-none">
-                  <AccordionTrigger className="py-2 hover:no-underline">
-                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                      <HelpCircle className="h-4 w-4" />
-                      Why this pick?
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-3 pt-2">
-                    <div className="space-y-3">
-                      {getTop3Reasons(pick).map((reason, reasonIdx) => {
-                        const IconComponent = reason.icon
-                        return (
-                          <div key={reasonIdx} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                            <div className="shrink-0 p-2 rounded-lg bg-primary/10">
-                              <IconComponent className="h-4 w-4 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h5 className="text-sm font-semibold text-foreground mb-1">{reason.title}</h5>
-                              <p className="text-xs text-muted-foreground leading-relaxed">{reason.explanation}</p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-
-              {(() => {
-                const raw = pick.commenceTime
-                if (!raw) return null
-                const d = new Date(raw)
-                if (!Number.isFinite(d.getTime())) return null
-                return (
-                  <p className="text-xs text-muted-foreground mb-4 text-center">
-                    Starts: {d.toLocaleString()}
-                  </p>
-                )
-              })()}
-
-              <div className="flex gap-2">
-                <Button className="flex-1" variant="outline" onClick={() => handleAnalyzePick(pick)}>
-                  <Target className="h-4 w-4 mr-2" />
-                  Analyze
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={() => handleLogBet(pick)}
-                  disabled={
-                    cooldown ||
-                    (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) ||
-                    pick.isRecommended === false
-                  }
-                >
-                  Log Bet
-                </Button>
               </div>
             </Card>
-          ))}
-        </div>
-      )}
+          )}
+          {userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit && (
+            <Card className="p-4 bg-yellow-500/10 border-yellow-500/30">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Daily Bet Limit Reached</p>
+                  <p className="text-xs text-muted-foreground">You have reached your daily bet limit.</p>
+                </div>
+              </div>
+            </Card>
+          )}
 
-      {/* Disclaimer */}
-      <Card className="p-4 bg-muted">
-        <p className="text-xs text-muted-foreground text-center">
-          <strong>Disclaimer:</strong> SmartSlip picks are suggestions based on data analysis and your behavioral profile.
-          Always bet responsibly and never wager more than you can afford to lose.
-        </p>
-      </Card>
-        </TabsContent>
+          {/* User Status Card */}
+          {emotionalScore !== null && (
+            <Card className="p-6 bg-linear-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-purple-500" />
+                  Your Emotional State
+                </h3>
+
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">Emotional Stability</p>
+                  <p className={`text-3xl font-bold ${color}`}>
+                    {emotionalScore}%
+                  </p>
+                  <Badge
+                    variant={emotionalScore >= 70 ? 'default' : 'destructive'}
+                    className="mt-2"
+                  >
+                    {level?.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <p className={`text-2xl font-bold ${emotionalScore >= 70 ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {emotionalScore >= 70 ? 'Ready' : 'Caution'}
+                  </p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">AI Access</p>
+                  <p className={`text-2xl font-bold ${shouldReceiveAIPicks ? 'text-green-500' : 'text-red-500'}`}>
+                    {shouldReceiveAIPicks ? 'Available' : 'Limited'}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => fetchAIPicks(true)}
+                  variant="ghost"
+                  className="h-full w-full flex flex-col items-center justify-center p-4 rounded-lg bg-background/50 hover:bg-background/80 transition-colors border-none"
+                  disabled={loading || cooldown || isFetchingPicks}
+                >
+                  <p className="text-xs text-muted-foreground mb-1">Action</p>
+                  <div className="flex items-center gap-2">
+                    {loading || isFetchingPicks ? (
+                      <RefreshCw className="h-5 w-5 animate-spin text-purple-500" />
+                    ) : (
+                      <Sparkles className="h-5 w-5 text-purple-500" />
+                    )}
+                    <span className="text-2xl font-bold text-foreground">
+                      {lastPicksFetchAt === null ? 'Run' : 'Run Again'}
+                    </span>
+                  </div>
+                </Button>
+              </div>
+
+              <div className="mt-4 p-4 rounded-lg bg-background/50">
+                <div className="flex items-start gap-2">
+                  {emotionalScore >= 70 ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                  )}
+                  <p className="text-sm text-muted-foreground">{recommendation}</p>
+                </div>
+              </div>
+
+              {!hasAccess && (
+                <div className="mt-4 p-4 rounded-lg bg-linear-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Want AI Picks?</p>
+                      <p className="text-xs text-muted-foreground">Upgrade to get personalized betting recommendations</p>
+                    </div>
+                    <Button size="sm" onClick={() => setActiveSection('marketplace')}>
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Upgrade
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Sport and Risk Controls */}
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Sport</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableSports.map((sport) => (
+                    <Button
+                      key={sport.id}
+                      variant={selectedSport === sport.id ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedSport(sport.id)}
+                      title={sport.displayName}
+                    >
+                      {sport.icon} {sport.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Risk Tolerance</label>
+                <div className="flex gap-2">
+                  {(['conservative', 'moderate', 'aggressive'] as const).map((risk) => (
+                    <Button
+                      key={risk}
+                      variant={riskTolerance === risk ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setRiskTolerance(risk)}
+                      className="flex-1 capitalize"
+                    >
+                      {risk}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Loading State */}
+          {loading && (
+            <Card className="p-12 text-center">
+              <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4 animate-spin" />
+              <p className="text-lg font-semibold text-foreground">Generating SmartSlip Picks...</p>
+              <p className="text-sm text-muted-foreground mt-2">Analyzing available data and your emotional state</p>
+            </Card>
+          )}
+
+          {/* No Picks State */}
+          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 70 && (
+            <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
+              <p className="text-muted-foreground mb-4">
+                Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.
+              </p>
+              <Button variant="outline" onClick={() => onNavigateToTab('behavior')}>
+                Log Your Emotions
+              </Button>
+            </Card>
+          )}
+          {/* No Picks State: emotionally OK but no edges */}
+          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore >= 70 && (
+            <Card className="p-8 text-center bg-linear-to-br from-slate-500/10 to-slate-900/10 border-slate-500/30">
+              <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No +EV edges found</h3>
+              <p className="text-muted-foreground mb-4">
+                SmartSlip scanned today&apos;s slate and didn&apos;t find any bets that beat the market and your risk settings.
+                The best move is to pass and protect your bankroll.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Try a different sport or risk tolerance, or check back later when lines move.
+              </p>
+            </Card>
+          )}
+
+          {/* AI Picks */}
+          {!loading && picks.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {picks.map((pick: any, idx: number) => (
+                <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
+                    <div className="flex items-center gap-2">
+                      {pick.informational ? (
+                        <Badge variant="secondary" className="text-xs bg-gray-800">
+                          {pick.informationalLabel ?? "Market Efficient"}
+                        </Badge>
+                      ) : (pick.isRecommended === true ||
+                        (pick.isRecommended === undefined &&
+                          typeof pick.expectedValue === "number" &&
+                          Number.isFinite(pick.expectedValue) &&
+                          pick.expectedValue > 0)
+                      ) ? (
+                        <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Recommended
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Not Recommended
+                        </Badge>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        {pick.informational && (
+                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                            {pick.informationalLabel || 'Market Efficient'}
+                          </Badge>
+                        )}
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-semibold text-amber-500 tabular-nums">
+                          {pick.confidence}% Confidence
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
+
+                  <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
+                    <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
+                    <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
+                      {pick.odds > 0 ? '+' : ''}{pick.odds}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 mb-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Expected Value:</span>
+                      <div className="text-right">
+                        <span
+                          className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'
+                            }`}
+                        >
+                          {pick.expectedValue >= 0 ? '+' : ''}
+                          {pick.expectedValue.toFixed(2)}
+                        </span>
+                        {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
+                          <span
+                            className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'
+                              }`}
+                          >
+                            ({pick.evPercentage >= 0 ? '+' : ''}
+                            {pick.evPercentage.toFixed(1)}%)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
+                    {pick.isRecommended === false && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                        <p className="text-sm font-semibold text-red-500">Not Recommended</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The opposite team offers better relative value. Look for the "Recommended" badge on the other team.
+                        </p>
+                      </div>
+                    )}
+                    {/* Show EV info for recommended picks with negative EV (explains vig situation) */}
+                    {pick.isRecommended === true && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                        <p className="text-sm font-semibold text-amber-600">Negative EV Due to Vig</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Both teams show negative EV due to sportsbook vig. This team offers the best relative value.
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Suggested Stake:</span>
+                      <span className="text-lg font-semibold text-foreground tabular-nums">${pick.suggestedStake}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Risk Level:</span>
+                      <Badge
+                        variant="outline"
+                        className={`${pick.riskLevel === 'HIGH' ? 'border-red-500 text-red-500' :
+                          pick.riskLevel === 'MEDIUM' ? 'border-yellow-500 text-yellow-500' :
+                            'border-green-500 text-green-500'
+                          }`}
+                      >
+                        {pick.riskLevel}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Emotional Alignment:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-muted rounded-full h-2">
+                          <div
+                            className="bg-purple-500 h-2 rounded-full"
+                            style={{ width: `${pick.emotionalAlignment}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums">{pick.emotionalAlignment}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted mb-4">
+                    <div className="flex items-start gap-2">
+                      <Brain className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                      <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
+                    </div>
+                  </div>
+
+                  {/* Why this pick? Accordion */}
+                  < Accordion type="single" collapsible className="mb-4" >
+                    <AccordionItem value="reasons" className="border-none">
+                      <AccordionTrigger className="py-2 hover:no-underline">
+                        <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                          <HelpCircle className="h-4 w-4" />
+                          Why this pick?
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-3 pt-2">
+                        <div className="space-y-3">
+                          {getTop3Reasons(pick).map((reason, reasonIdx) => {
+                            const IconComponent = reason.icon
+                            return (
+                              <div key={reasonIdx} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                                <div className="shrink-0 p-2 rounded-lg bg-primary/10">
+                                  <IconComponent className="h-4 w-4 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="text-sm font-semibold text-foreground mb-1">{reason.title}</h5>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">{reason.explanation}</p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+
+                  {(() => {
+                    const raw = pick.commenceTime
+                    if (!raw) return null
+                    const d = new Date(raw)
+                    if (!Number.isFinite(d.getTime())) return null
+                    return (
+                      <p className="text-xs text-muted-foreground mb-4 text-center">
+                        Starts: {d.toLocaleString()}
+                      </p>
+                    )
+                  })()}
+
+                  <div className="flex gap-2">
+                    <Button className="flex-1" variant="outline" onClick={() => handleAnalyzePick(pick)}>
+                      <Target className="h-4 w-4 mr-2" />
+                      Analyze
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => handleLogBet(pick)}
+                      disabled={
+                        cooldown ||
+                        (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) ||
+                        pick.isRecommended === false
+                      }
+                    >
+                      Log Bet
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )
+          }
+
+          {/* Disclaimer */}
+          <Card className="p-4 bg-muted">
+            <p className="text-xs text-muted-foreground text-center">
+              <strong>Disclaimer:</strong> SmartSlip picks are suggestions based on data analysis and your behavioral profile.
+              Always bet responsibly and never wager more than you can afford to lose.
+            </p>
+          </Card>
+        </TabsContent >
 
         <TabsContent value="advisor" className="space-y-6 mt-6">
           <AIBetAdvisor />
@@ -1176,9 +1091,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               {marketplaceProducts.map((product) => (
                 <Card
                   key={product.id}
-                  className={`p-6 flex flex-col transition-all hover:shadow-lg ${
-                    product.is_bundle ? 'border-purple-500/50 bg-linear-to-br from-purple-500/5 to-blue-500/5' : ''
-                  }`}
+                  className={`p-6 flex flex-col transition-all hover:shadow-lg ${product.is_bundle ? 'border-purple-500/50 bg-linear-to-br from-purple-500/5 to-blue-500/5' : ''
+                    }`}
                 >
                   {product.is_bundle && (
                     <Badge className="w-fit mb-3" variant="default">
@@ -1234,7 +1148,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </div>
           )}
         </TabsContent>
-      </Tabs>
-    </div>
+      </Tabs >
+    </div >
   )
 }

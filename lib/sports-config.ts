@@ -13,6 +13,7 @@ export interface SportConfig {
   hasLiveOdds: boolean;
   hasPlayerProps: boolean;
   popularMarkets: string[];
+  supportedMarkets?: string[];
   teamCount?: number;
   seasonActive?: boolean;
   icon?: string;
@@ -30,6 +31,7 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under', 'Player Props'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 30,
     seasonActive: true,
     icon: '🏀'
@@ -44,6 +46,7 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under', 'Player Props'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 32,
     seasonActive: true,
     icon: '🏈'
@@ -58,6 +61,7 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Run Line', 'Over/Under', 'Player Props'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 30,
     seasonActive: true,
     icon: '⚾'
@@ -72,6 +76,7 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Puck Line', 'Over/Under', 'Player Props'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 32,
     seasonActive: true,
     icon: '🏒'
@@ -88,6 +93,7 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     hasLiveOdds: true,
     hasPlayerProps: false,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 350,
     seasonActive: true,
     icon: '🎓'
@@ -114,10 +120,11 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     displayName: 'English Premier League',
     category: 'team',
     oddsApiSport: 'soccer',
-    oddsApiLeague: 'epl',
+    oddsApiLeague: 'soccer_epl', // Correct Key
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under', 'Both Teams to Score'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 20,
     seasonActive: true,
     icon: '⚽'
@@ -128,10 +135,11 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     displayName: 'Major League Soccer',
     category: 'team',
     oddsApiSport: 'soccer',
-    oddsApiLeague: 'mls',
+    oddsApiLeague: 'soccer_usa_mls', // Correct Key
     hasLiveOdds: true,
     hasPlayerProps: false,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 29,
     seasonActive: true,
     icon: '⚽'
@@ -142,10 +150,11 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     displayName: 'UEFA Champions League',
     category: 'team',
     oddsApiSport: 'soccer',
-    oddsApiLeague: 'uefa_champions_league',
+    oddsApiLeague: 'soccer_uefa_champs_league', // Correct Key
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Spread', 'Over/Under'],
+    supportedMarkets: ['moneyline', 'spread', 'total'],
     teamCount: 32,
     seasonActive: false, // Tournament-based
     icon: '🏆'
@@ -158,10 +167,11 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     displayName: 'UFC/MMA',
     category: 'combat',
     oddsApiSport: 'mma',
-    oddsApiLeague: 'ufc',
+    oddsApiLeague: 'mma_mixed_martial_arts', // Correct Key
     hasLiveOdds: true,
     hasPlayerProps: true,
     popularMarkets: ['Moneyline', 'Method of Victory', 'Round Betting'],
+    supportedMarkets: ['moneyline'], // Moneyline only typically available via main API
     teamCount: 0, // Individual fighters
     seasonActive: true, // Events year-round
     icon: '🥊'
@@ -303,7 +313,7 @@ export function getSportsWithPlayerProps(): SportConfig[] {
 }
 
 export function getActiveSports(): SportConfig[] {
-  return Object.values(SUPPORTED_SPORTS).filter(sport => 
+  return Object.values(SUPPORTED_SPORTS).filter(sport =>
     sport.seasonActive !== false // Include year-round and seasonal sports
   );
 }
@@ -346,7 +356,7 @@ export function mapTiltLabSportToConfig(sportName: string): SportConfig | undefi
   if (mappedId) {
     return SUPPORTED_SPORTS[mappedId];
   }
-  
+
   // Fallback: search by name
   return searchSports(sportName)[0];
 }

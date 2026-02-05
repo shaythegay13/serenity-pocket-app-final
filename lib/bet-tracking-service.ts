@@ -21,27 +21,34 @@ export class BetTrackingService {
     // Map bet type to standardized format
     const betTypeMap: Record<string, GameBetMarketType> = {
       "Moneyline": "moneyline",
-      "Spread": "spread", 
+      "Spread": "spread",
       "Over/Under": "total",
       "Parlay": "parlay"
     }
 
+    // Parse game date from scenario, falling back to current date
+    const gameDate = betScenario.gameDate
+      ? new Date(betScenario.gameDate)
+      : betScenario.startTime
+        ? new Date(betScenario.startTime)
+        : new Date()
+
     const comprehensiveBet: ComprehensiveBet = {
       id: betId,
       timestamp: new Date(),
-      
+
       // Core bet details
       sport: betScenario.sport,
       homeTeam: betScenario.homeTeam || betScenario.favoriteTeam,
       awayTeam: betScenario.awayTeam || betScenario.underdogTeam,
-      gameDate: new Date(),
+      gameDate,
       betType: betTypeMap[betScenario.betType] || "moneyline",
       selection: betScenario.selection || "away",
       line: betScenario.line,
       odds: betScenario.odds || -110, // Default if not provided
       stake: betScenario.betAmount,
-      
-      // Emotions timeline
+
+      // Emotions timeline (include all three phases)
       emotions: {
         before: {
           emotion: betScenario.currentEmotion || "neutral",
@@ -49,13 +56,18 @@ export class BetTrackingService {
           timestamp: new Date(),
           triggers: betScenario.emotionalTriggers
         },
+        during: {
+          emotion: "",
+          intensity: 5,
+          timestamp: new Date()
+        },
         after: {
           emotion: "",
           intensity: 5,
           timestamp: new Date()
         }
       },
-      
+
       // Psychological factors
       biasesIdentified: betScenario.biasesIdentified || [],
       confidenceLevel: betScenario.confidenceLevel || 5,
@@ -63,13 +75,13 @@ export class BetTrackingService {
       isLiveBet: betScenario.isLiveBet || false,
       isChasingLoss: betScenario.isChasingLoss || false,
       isFavoriteTeam: betScenario.isFavoriteTeam || false,
-      
+
       // AI analysis
       aiRecommendation: analysis.recommendation?.reason || analysis.recommendation?.recommendation,
       expectedValue: analysis.recommendation?.expectedValue,
       probabilityEstimate: analysis.recommendation?.probabilityEstimate || analysis.recommendation?.confidenceScore,
       riskLevel: analysis.recommendation?.riskLevel?.toLowerCase(),
-      
+
       // Metadata
       source: "tiltlab",
       sportsbook: betScenario.sportsbook || "DraftKings",
@@ -78,10 +90,10 @@ export class BetTrackingService {
 
     // Save to storage
     await this.saveComprehensiveBet(comprehensiveBet)
-    
+
     // Emit event to refresh analytics data across the app
     analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-    
+
     return comprehensiveBet
   }
 
@@ -106,23 +118,28 @@ export class BetTrackingService {
     const comprehensiveBet: ComprehensiveBet = {
       id: betId,
       timestamp: new Date(),
-      
+
       // Core bet details
       sport: sport || "americanfootball_nfl",
       homeTeam: homeTeam || "Unknown",
       awayTeam: awayTeam || "Unknown",
-      gameDate: new Date(),
+      gameDate: new Date(), // For bet analyzer, we don't have game date info
       betType,
       selection: selection || "away",
       line,
       odds,
       stake,
-      
-      // Emotions timeline
+
+      // Emotions timeline (include all three phases)
       emotions: {
         before: {
           emotion: emotionalState || "neutral",
           intensity: emotionalIntensity || 5,
+          timestamp: new Date()
+        },
+        during: {
+          emotion: "",
+          intensity: 5,
           timestamp: new Date()
         },
         after: {
@@ -131,7 +148,7 @@ export class BetTrackingService {
           timestamp: new Date()
         }
       },
-      
+
       // Psychological factors
       biasesIdentified: analysis.biasWarnings || [],
       confidenceLevel: Math.round((analysis.confidenceScore || 0) * 10), // Convert 0-1 to 1-10
@@ -139,23 +156,23 @@ export class BetTrackingService {
       isLiveBet: false,
       isChasingLoss: false,
       isFavoriteTeam: false,
-      
+
       // AI analysis
       aiRecommendation: analysis.recommendation,
       expectedValue: analysis.expectedValue,
       probabilityEstimate: analysis.probability,
       riskLevel: analysis.riskLevel?.toLowerCase(),
-      
+
       // Metadata
       source: "bet-analyzer",
       outcome: "pending"
     }
 
     await this.saveComprehensiveBet(comprehensiveBet)
-    
+
     // Emit event to refresh analytics data across the app
     analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-    
+
     return comprehensiveBet
   }
 
@@ -171,15 +188,15 @@ export class BetTrackingService {
   ): Promise<ComprehensiveBet | null> {
     const bets = await this.getAllBets()
     const betIndex = bets.findIndex(bet => bet.id === betId)
-    
+
     if (betIndex === -1) return null
-    
+
     const bet = bets[betIndex]
-    
+
     // Calculate return and P/L
     const actualReturn = calculateBetReturn(bet.odds, bet.stake, outcome)
     const profitLoss = calculateProfitLoss(bet.odds, bet.stake, outcome)
-    
+
     // Update bet with outcome
     const updatedBet: ComprehensiveBet = {
       ...bet,
@@ -201,7 +218,65 @@ export class BetTrackingService {
     // Save updated bet
     bets[betIndex] = updatedBet
     await this.saveAllBets(bets)
-    
+
+    return updatedBet
+  }
+
+  /**
+   * Update emotion state for a specific phase (before/during/after)
+   */
+  static async updateBetEmotion(
+    betId: string,
+    phase: "before" | "during" | "after",
+    emotion: string,
+    intensity: number,
+    context?: string
+  ): Promise<ComprehensiveBet | null> {
+    const bets = await this.getAllBets()
+    const betIndex = bets.findIndex(bet => bet.id === betId)
+
+    if (betIndex === -1) return null
+
+    const bet = bets[betIndex]
+
+    // Create updated emotions object
+    const updatedEmotions = { ...bet.emotions }
+
+    if (phase === "before") {
+      updatedEmotions.before = {
+        ...updatedEmotions.before,
+        emotion,
+        intensity,
+        timestamp: new Date(),
+        triggers: context ? [context] : updatedEmotions.before.triggers
+      }
+    } else if (phase === "during") {
+      updatedEmotions.during = {
+        emotion,
+        intensity,
+        timestamp: new Date()
+      }
+    } else if (phase === "after") {
+      updatedEmotions.after = {
+        emotion,
+        intensity,
+        timestamp: new Date(),
+        reflection: context
+      }
+    }
+
+    // Update bet
+    const updatedBet: ComprehensiveBet = {
+      ...bet,
+      emotions: updatedEmotions
+    }
+
+    // Save updated bet
+    bets[betIndex] = updatedBet
+    await this.saveAllBets(bets)
+
+    analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+
     return updatedBet
   }
 
@@ -303,7 +378,7 @@ export class BetTrackingService {
     if (spreadMatch && result.betType === "moneyline") {
       result.betType = "spread"
       result.line = parseFloat(spreadMatch[2])
-      
+
       // Determine selection based on which team is mentioned
       if (result.awayTeam && spreadMatch[1].trim().toLowerCase().includes(result.awayTeam.toLowerCase())) {
         result.selection = "away"

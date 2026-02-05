@@ -29,3 +29,6 @@ yarn-error.log*
 android/
 ios/
 .capacitor/
+
+# large non-project files
+/aws/

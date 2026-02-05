@@ -3,7 +3,7 @@ import type { SubscriptionTier } from "./types"
 export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "free",
-    name: "Mindful Bettor",
+    name: "Foundation",
     displayName: "Free",
     price: 0,
     interval: "month",
@@ -17,7 +17,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   },
   {
     id: "premium",
-    name: "Sharp Insights",
+    name: "Focus",
     displayName: "Premium",
     price: 19.99,
     interval: "month",
@@ -31,7 +31,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   },
   {
     id: "premium_plus",
-    name: "Behavioral Advantage",
+    name: "Mastery",
     displayName: "Premium Plus",
     price: 39.99,
     interval: "month",
@@ -46,7 +46,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   },
   {
     id: "elite",
-    name: "AI Sharp Mode",
+    name: "Apex",
     displayName: "Elite",
     price: 79.99,
     interval: "month",
@@ -72,6 +72,13 @@ export function canAccessFeature(
   const tierOrder = ["free", "premium", "premium_plus", "elite"]
   const userTierIndex = tierOrder.indexOf(userTier)
   const requiredTierIndex = tierOrder.indexOf(requiredTier)
+
+  // If either tier is invalid (not found), deny access to be safe
+  if (userTierIndex === -1 || requiredTierIndex === -1) {
+    console.warn(`Invalid tier detected: userTier="${userTier}", requiredTier="${requiredTier}"`)
+    return false
+  }
+
   return userTierIndex >= requiredTierIndex
 }
 

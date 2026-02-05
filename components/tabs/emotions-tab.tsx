@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, EmotionLog, Trade, Challenge } from "@/lib/types"
+import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import { Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -176,6 +177,14 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [sport, setSport] = useState<string>("")
   const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | undefined>(undefined)
 
+  // Betting data fields for after-betting check-ins (matching popup dialog flow)
+  const [betDataMode, setBetDataMode] = useState<"manual" | "select">("manual")
+  const [savedBets, setSavedBets] = useState<ComprehensiveBet[]>([])
+  const [selectedBet, setSelectedBet] = useState<ComprehensiveBet | null>(null)
+  const [loadingBets, setLoadingBets] = useState(false)
+  const [gameDescription, setGameDescription] = useState<string>("")
+  const [actualReturn, setActualReturn] = useState<string>("")
+
   // Track last refresh to prevent unnecessary reloads
   const lastRefreshRef = useRef<number>(refreshKey)
 
@@ -233,12 +242,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
   const handleSubSelect = (subEmotion: string) => {
     setSelectedEmotion(subEmotion)
-    // Go to bias checking if pre-trade or post-trade, otherwise details
-    if (phase === "before" || phase === "after") {
-      setStep("biases")
-    } else {
-      setStep("details")
-    }
+    // Skip biases step to match popup flow - go straight to details
+    setStep("details")
   }
 
   const handleBiasToggle = (biasId: string) => {
@@ -249,17 +254,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     if (step === "sub") {
       setStep("core")
       setSelectedCore(null)
-    } else if (step === "biases") {
+    } else if (step === "details") {
+      // Go back to sub, skipping biases
       setStep("sub")
       setSelectedEmotion("")
-    } else if (step === "details") {
-      // Go back to biases if pre/post-trade, otherwise to sub
-      if (phase === "before" || phase === "after") {
-        setStep("biases")
-      } else {
-        setStep("sub")
-        setSelectedEmotion("")
-      }
     }
   }
 
@@ -275,6 +273,56 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setSport("")
     setStake("")
     setOdds("")
+    // Reset betting data fields
+    setBetDataMode("manual")
+    setSavedBets([])
+    setSelectedBet(null)
+    setLoadingBets(false)
+    setGameDescription("")
+    setActualReturn("")
+  }
+
+  // Load saved bets from storage for "Select Saved Bet" mode
+  const loadSavedBets = async () => {
+    if (savedBets.length > 0) return // Already loaded
+
+    setLoadingBets(true)
+    try {
+      const bets = await storage.getComprehensiveBets()
+      // Filter for bets from bet analyzer or tiltlab that don't have outcomes yet
+      const relevantBets = bets.filter(bet =>
+        (bet.source === "bet-analyzer" || bet.source === "tiltlab") &&
+        bet.outcome === "pending"
+      ).slice(0, 20) // Limit to 20 most recent
+
+      setSavedBets(relevantBets)
+    } catch (error) {
+      console.error("Error loading saved bets:", error)
+      toast.error("Failed to load saved bets")
+    } finally {
+      setLoadingBets(false)
+    }
+  }
+
+  // Handle bet selection from saved bets list
+  const handleBetSelect = (bet: ComprehensiveBet) => {
+    setSelectedBet(bet)
+    // Auto-fill form with selected bet data
+    setStake(bet.stake.toString())
+    setOdds(bet.odds.toString())
+    setGameDescription(`${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+    setActualReturn("") // User still needs to enter actual return
+  }
+
+  // Handle mode change between manual entry and select saved bet
+  const handleModeChange = (mode: "manual" | "select") => {
+    setBetDataMode(mode)
+    if (mode === "select") {
+      loadSavedBets()
+    } else {
+      // Clear selected bet when switching back to manual
+      setSelectedBet(null)
+    }
   }
 
   const handleLogEmotion = async () => {
@@ -298,8 +346,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     }
 
     // Check for duplicate in current state
-    const recentLogs = logs.filter(log => 
-      log.emotion === selectedEmotion && 
+    const recentLogs = logs.filter(log =>
+      log.emotion === selectedEmotion &&
       log.phase === phase &&
       Math.abs(now.getTime() - log.timestamp.getTime()) < 2000 // Within 2 seconds
     )
@@ -308,8 +356,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     let localStorageDuplicate = false
     if (typeof window !== "undefined") {
       const storedLogs = JSON.parse(localStorage.getItem("emotion_logs") || "[]")
-      localStorageDuplicate = storedLogs.some((log: any) => 
-        log.emotion === selectedEmotion && 
+      localStorageDuplicate = storedLogs.some((log: any) =>
+        log.emotion === selectedEmotion &&
         log.phase === phase &&
         Math.abs(now.getTime() - new Date(log.timestamp).getTime()) < 2000
       )
@@ -318,7 +366,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     // Check for duplicate trade creation (for before phase)
     let tradeDuplicate = false
     if (phase === "before") {
-      tradeDuplicate = trades.some(trade => 
+      tradeDuplicate = trades.some(trade =>
         trade.preTradeEmotion === selectedEmotion &&
         Math.abs(now.getTime() - trade.timestamp.getTime()) < 2000 // Within 2 seconds
       )
@@ -335,7 +383,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
     // Emit event to update analytics
     analyticsEvents.emit(ANALYTICS_EVENTS.EMOTION_LOGGED, newLog)
-    
+
     // Update local state optimistically to avoid double-fetching
     setLogs(prevLogs => [...prevLogs, newLog])
 
@@ -351,8 +399,53 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       xpEarned = 15
       const biasCount = selectedBiases.length
       const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
-      
-      // Create new trade entry
+
+      // V2 Betting Data Logic (New)
+      if ((betDataMode === "manual" && stake && odds && gameDescription) || selectedBet) {
+        try {
+          const { BetTrackingService } = await import("@/lib/bet-tracking-service")
+
+          if (betDataMode === "manual" && stake && odds && gameDescription) {
+            const stakeAmount = parseFloat(stake)
+            let oddsNumber = 0
+            try {
+              if (odds.startsWith('+')) {
+                oddsNumber = parseFloat(odds.substring(1))
+              } else if (odds.startsWith('-')) {
+                oddsNumber = parseFloat(odds.substring(1))
+              } else {
+                oddsNumber = parseFloat(odds)
+              }
+            } catch (error) { oddsNumber = 100 }
+
+            await BetTrackingService.saveBetAnalyzerBet(
+              gameDescription,
+              oddsNumber,
+              stakeAmount,
+              {
+                recommendation: context || "Manual entry",
+                confidenceScore: 0.5,
+                biasWarnings: []
+              },
+              selectedEmotion,
+              intensity[0]
+            )
+          } else if (selectedBet) {
+            await BetTrackingService.updateBetEmotion(
+              selectedBet.id,
+              "before",
+              selectedEmotion,
+              intensity[0],
+              context
+            )
+          }
+          analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+        } catch (e) {
+          console.error("Error saving betting data:", e)
+        }
+      }
+
+      // Create new trade entry (Legacy - Keep for backward compatibility)
       const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` — ${sport}` : ''}`
       const newTrade: Trade = {
         id: Date.now().toString(),
@@ -368,10 +461,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       await storage.addTrade(newTrade)
       const updatedTrades = await storage.getTrades()
       setTrades(updatedTrades ?? [])
-      
+
       // Emit event to update analytics
       analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED, newTrade)
-      
+
       updates = {
         ...updates,
         xp: userData.xp + xpEarned,
@@ -387,21 +480,81 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       xpEarned = 20
       const mindfulTrade = selectedBiases.length > 0
       const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
-      
-      // Find most recent trade without an outcome and update it
+
+      // 1. Logic for the new betting data (matches popup dialog)
+      if ((stake && odds && gameDescription && outcome) || selectedBet) {
+        // NOTE: Modified strict check to allow for saved bet selection without manual entry
+
+        // Manual Entry Logic
+        if (betDataMode === "manual" && stake && odds && gameDescription && outcome) {
+          const stakeAmount = parseFloat(stake)
+          const returnAmount = actualReturn ? parseFloat(actualReturn) : 0
+          let oddsNumber = 0
+          try {
+            if (odds.startsWith('+')) {
+              oddsNumber = parseFloat(odds.substring(1))
+            } else if (odds.startsWith('-')) {
+              oddsNumber = parseFloat(odds.substring(1))
+            } else {
+              oddsNumber = parseFloat(odds)
+            }
+          } catch (error) { oddsNumber = 100 }
+
+          const betAnalysis = {
+            id: `bet_${Date.now()}`,
+            timestamp: new Date(),
+            betType: "straight" as const,
+            sport: selectedBet?.sport || "general",
+            description: gameDescription,
+            odds: oddsNumber,
+            stake: stakeAmount,
+            emotionalState: selectedEmotion,
+            emotionalIntensity: intensity[0],
+            biasWarnings: [],
+            aiRecommendation: "",
+            expectedValue: 0,
+            probabilityEstimate: 0.5,
+            outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+            actualReturn: returnAmount
+          }
+          await storage.addBetAnalysis(betAnalysis)
+        }
+
+        // Saved Bet Logic
+        if (selectedBet) {
+          try {
+            const { BetTrackingService } = await import("@/lib/bet-tracking-service")
+            await BetTrackingService.updateBetOutcome(
+              selectedBet.id,
+              (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+              selectedEmotion,
+              intensity[0],
+              `Emotional check-in: ${context || "No additional context"}`
+            )
+            console.log('✅ Updated comprehensive bet with outcome and emotional data')
+          } catch (error) {
+            console.error('Error updating comprehensive bet:', error)
+          }
+        }
+
+        // Emit event to refresh analytics data across the app
+        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+      }
+
+      // 2. Logic for legacy trades system (keeping for backward compatibility)
       const pendingTrade = [...trades].reverse().find(t => !t.outcome)
       if (pendingTrade) {
         await storage.updateTrade(pendingTrade.id, {
           postTradeEmotion: selectedEmotion,
           postTradeIntensity: intensity[0],
           reflection: context,
-          outcome: outcome || "breakeven", // Use selected outcome or default to breakeven
+          outcome: outcome || "breakeven",
           stake: stake ? parseFloat(stake) : pendingTrade.stake,
         })
         const updatedTrades = await storage.getTrades()
         setTrades(updatedTrades ?? [])
       }
-      
+
       updates = {
         ...updates,
         xp: userData.xp + xpEarned,
@@ -416,6 +569,52 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       // During-trade: +5 XP, update emotional awareness ring
       xpEarned = 5
       const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 10, 100)
+
+      // V2 Betting Data Logic (New)
+      if ((betDataMode === "manual" && stake && odds && gameDescription) || selectedBet) {
+        try {
+          const { BetTrackingService } = await import("@/lib/bet-tracking-service")
+
+          if (betDataMode === "manual" && stake && odds && gameDescription) {
+            const stakeAmount = parseFloat(stake)
+            let oddsNumber = 0
+            try {
+              if (odds.startsWith('+')) {
+                oddsNumber = parseFloat(odds.substring(1))
+              } else if (odds.startsWith('-')) {
+                oddsNumber = parseFloat(odds.substring(1))
+              } else {
+                oddsNumber = parseFloat(odds)
+              }
+            } catch (error) { oddsNumber = 100 }
+
+            await BetTrackingService.saveBetAnalyzerBet(
+              gameDescription,
+              oddsNumber,
+              stakeAmount,
+              {
+                recommendation: context || "Manual entry (During)",
+                confidenceScore: 0.5,
+                biasWarnings: []
+              },
+              selectedEmotion,
+              intensity[0]
+            )
+          } else if (selectedBet) {
+            await BetTrackingService.updateBetEmotion(
+              selectedBet.id,
+              "during",
+              selectedEmotion,
+              intensity[0],
+              context
+            )
+          }
+          analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+        } catch (e) {
+          console.error("Error saving betting data:", e)
+        }
+      }
+
       updates = {
         ...updates,
         xp: userData.xp + xpEarned,
@@ -444,97 +643,97 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       </div>
 
       {/* Log Emotion */}
-        <div className="space-y-6">
-          {/* Section Above Check-in */}
-          <Card className="p-6 bg-linear-to-br from-blue-50/10 to-purple-50/10 border-blue-30">
-            <div className="text-center space-y-4">
-              <div className="inline-flex p-3 rounded-full bg-blue-500/10">
-                <Lightbulb className="h-6 w-6 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">Emotional Awareness Matters</h3>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-                  Tracking your emotions before, during, and after betting helps you identify patterns, 
-                  avoid bias-driven decisions, and improve your overall performance.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                {behaviorStats ? (
-                  <>
-                    <div className="text-center p-4 rounded-lg bg-background/50">
-                      <div className="text-2xl font-bold text-blue-400 mb-1">{behaviorStats.betterDecisions}%</div>
-                      <div className="text-xs text-muted-foreground">Better decisions when emotionally aware</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-background/50">
-                      <div className="text-2xl font-bold text-purple-400 mb-1">{behaviorStats.roiImprovement}x</div>
-                      <div className="text-xs text-muted-foreground">ROI improvement with consistent tracking</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-background/50">
-                      <div className="text-2xl font-bold text-green-400 mb-1">-{behaviorStats.impulsiveReduction}%</div>
-                      <div className="text-xs text-muted-foreground">Reduction in impulsive bets</div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-3 text-center p-8 rounded-lg bg-background/30">
-                    <div className="text-sm text-muted-foreground">
-                      Track more emotions and bets to see your personalized behavioral insights
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Statistics will appear once you have sufficient data (10+ tracked bets, 20+ emotion logs)
-                    </div>
-                  </div>
-                )}
-              </div>
+      <div className="space-y-6">
+        {/* Section Above Check-in */}
+        <Card className="p-6 bg-linear-to-br from-blue-50/10 to-purple-50/10 border-blue-30">
+          <div className="text-center space-y-4">
+            <div className="inline-flex p-3 rounded-full bg-blue-500/10">
+              <Lightbulb className="h-6 w-6 text-blue-400" />
             </div>
-          </Card>
-
-          {/* Pending Trades Alert */}
-          {trades.filter(t => !t.outcome).length > 0 && (
-            <Card className="p-6 bg-linear-to-br from-amber/10 to-orange/10 border-amber/30">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-amber/20">
-                    <FileText className="h-5 w-5 text-amber" />
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Emotional Awareness Matters</h3>
+              <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+                Tracking your emotions before, during, and after betting helps you identify patterns,
+                avoid bias-driven decisions, and improve your overall performance.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              {behaviorStats ? (
+                <>
+                  <div className="text-center p-4 rounded-lg bg-background/50">
+                    <div className="text-2xl font-bold text-blue-400 mb-1">{behaviorStats.betterDecisions}%</div>
+                    <div className="text-xs text-muted-foreground">Better decisions when emotionally aware</div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">Pending Post-Betting Emotions</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Complete these to earn +20 XP and track your outcomes
-                    </p>
+                  <div className="text-center p-4 rounded-lg bg-background/50">
+                    <div className="text-2xl font-bold text-purple-400 mb-1">{behaviorStats.roiImprovement}x</div>
+                    <div className="text-xs text-muted-foreground">ROI improvement with consistent tracking</div>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-background/50">
+                    <div className="text-2xl font-bold text-green-400 mb-1">-{behaviorStats.impulsiveReduction}%</div>
+                    <div className="text-xs text-muted-foreground">Reduction in impulsive bets</div>
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-3 text-center p-8 rounded-lg bg-background/30">
+                  <div className="text-sm text-muted-foreground">
+                    Track more emotions and bets to see your personalized behavioral insights
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Statistics will appear once you have sufficient data (10+ tracked bets, 20+ emotion logs)
                   </div>
                 </div>
-                <Badge variant="outline" className="bg-amber/10">
-                  {trades.filter(t => !t.outcome).length} pending
-                </Badge>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Pending Trades Alert */}
+        {trades.filter(t => !t.outcome).length > 0 && (
+          <Card className="p-6 bg-linear-to-br from-amber/10 to-orange/10 border-amber/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-amber/20">
+                  <FileText className="h-5 w-5 text-amber" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Pending Post-Betting Emotions</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Complete these to earn +20 XP and track your outcomes
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
-                {trades.filter(t => !t.outcome).slice(0, 3).map((trade) => (
-                  <div key={trade.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-card border border-border">
-                    <div className="flex-1 pointer-events-none">
-                      <p className="text-sm font-medium text-foreground">{trade.preTradeEmotion}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(trade.timestamp), "MMM d, yyyy 'at' h:mm a")}
-                      </p>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      className="shrink-0"
-                      onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                        e.stopPropagation()
-                        handleReset()
-                        setTimeout(() => {
-                          setPhase("after")
-                          emotionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        }, 100)
-                      }}
-                    >
-                      Complete (+20 XP)
-                    </Button>
+              <Badge variant="outline" className="bg-amber/10">
+                {trades.filter(t => !t.outcome).length} pending
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {trades.filter(t => !t.outcome).slice(0, 3).map((trade) => (
+                <div key={trade.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-card border border-border">
+                  <div className="flex-1 pointer-events-none">
+                    <p className="text-sm font-medium text-foreground">{trade.preTradeEmotion}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(trade.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </Card>
-          )}
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation()
+                      handleReset()
+                      setTimeout(() => {
+                        setPhase("after")
+                        emotionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }, 100)
+                    }}
+                  >
+                    Complete (+20 XP)
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card className="p-6" ref={emotionFormRef}>
           {/* Step indicator */}
@@ -596,14 +795,14 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               {/* Circular container that mimics the large circle size */}
               <div className="relative w-full max-w-lg aspect-square mx-auto flex items-center justify-center" style={{ padding: 0, margin: '0 auto', boxSizing: 'border-box' }}>
                 {/* Outer circle boundary using emotion color */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-full shadow-2xl"
-                  style={{ 
+                  style={{
                     backgroundColor: `${selectedCore.color}15`
                   }}
                 />
-                
-                
+
+
                 {/* 10 circles: 1 center + 9 in optimal packing ring */}
                 <div className="absolute inset-0" style={{ transformOrigin: 'center center' }}>
                   {selectedCore.subEmotions.map((subEmotion: string, index: number) => {
@@ -623,14 +822,14 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     const parentRadius = 50
                     const angleStep = Math.PI / 9 // 20° in radians
                     const sinAngle = Math.sin(angleStep) // sin(20°) ≈ 0.342
-                    
+
                     // Calculate optimal circle radius
                     const circleRadiusPercent = parentRadius / (1 / sinAngle + 1) // ≈ 12.74%
                     const circleDiameter = circleRadiusPercent * 2
                     const circleSize = `${circleDiameter}%`
-                    
+
                     let x = 0, y = 0
-                    
+
                     if (index === 0) {
                       // Center circle at exact geometric center
                       x = 0
@@ -638,16 +837,16 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     } else {
                       // Ring radius calculated for adjacent tangency
                       const ringRadius = circleRadiusPercent / sinAngle // ≈ 37.26%
-                      
+
                       const angleIndex = index - 1
                       const angleDegrees = (360 / 9) * angleIndex // 0°, 40°, 80°, ...
                       const angleRadians = (angleDegrees * Math.PI) / 180
-                      
+
                       // Position using polar coordinates, starting from top
                       x = ringRadius * Math.cos(angleRadians - Math.PI / 2)
                       y = ringRadius * Math.sin(angleRadians - Math.PI / 2)
                     }
-                    
+
                     return (
                       <button
                         key={subEmotion}
@@ -675,7 +874,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   })}
                 </div>
               </div>
-              
+
               <p className="text-center text-sm text-muted-foreground mt-6">
                 Select a specific emotion
               </p>
@@ -695,11 +894,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   {commonBiases.map((bias) => (
                     <div
                       key={bias.id}
-                      className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                        selectedBiases.includes(bias.id)
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50"
-                      }`}
+                      className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${selectedBiases.includes(bias.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                        }`}
                       onClick={() => handleBiasToggle(bias.id)}
                     >
                       <Checkbox
@@ -747,12 +945,12 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       {intensity[0]}
                     </span>
                   </div>
-                  <Slider 
-                    value={intensity} 
-                    onValueChange={setIntensity} 
-                    min={1} 
-                    max={5} 
-                    step={1} 
+                  <Slider
+                    value={intensity}
+                    onValueChange={setIntensity}
+                    min={1}
+                    max={5}
+                    step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -780,47 +978,6 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   </RadioGroup>
                 </div>
 
-                {/* Sport (optional) */}
-                <div className="space-y-3">
-                  <Label htmlFor="sport">Sport (optional)</Label>
-                  <Input
-                    id="sport"
-                    placeholder="e.g., NBA, NFL"
-                    value={sport}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSport(e.target.value)}
-                  />
-                </div>
-
-                {/* Stake Amount */}
-                <div className="space-y-3">
-                  <Label htmlFor="stake">Stake Amount ($) (optional)</Label>
-                  <Input
-                    id="stake"
-                    type="number"
-                    placeholder="100"
-                    value={stake}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setStake(e.target.value)}
-                    min="0.01"
-                    step="0.01"
-                  />
-                </div>
-
-                {/* Odds */}
-                <div className="space-y-3">
-                  <Label htmlFor="odds">Odds (American format) (optional)</Label>
-                  <Input
-                    id="odds"
-                    type="number"
-                    placeholder="e.g., -110 or +150"
-                    value={odds}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setOdds(e.target.value)}
-                    step="1"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter American odds (e.g., -110 for favorites, +150 for underdogs)
-                  </p>
-                </div>
-
                 {/* Outcome (only for after betting) */}
                 {phase === "after" && (
                   <div className="space-y-3">
@@ -842,20 +999,172 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                   </div>
                 )}
 
+                {/* Betting Details Section - For ALL phases */}
+                <div className="space-y-3 border-t pt-4">
+                  <Label className="text-base font-medium">Betting Details</Label>
+
+                  {/* Mode Selection Toggle */}
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">How would you like to enter betting data?</Label>
+                    <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange("manual")}
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "manual"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        Manual Entry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange("select")}
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "select"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        Select Saved Bet
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Manual Entry Mode */}
+                  {betDataMode === "manual" && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stake">Amount Bet ($)</Label>
+                          <Input
+                            id="stake"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="50.00"
+                            value={stake}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setStake(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="odds">Odds (e.g., +110, -110)</Label>
+                          <Input
+                            id="odds"
+                            type="text"
+                            placeholder="+110"
+                            value={odds}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setOdds(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="gameDescription">Game/Match Description</Label>
+                        <Input
+                          id="gameDescription"
+                          type="text"
+                          placeholder="e.g., Lakers vs Warriors - NBA"
+                          value={gameDescription}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setGameDescription(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Select Saved Bet Mode */}
+                  {betDataMode === "select" && (
+                    <div className="space-y-4">
+                      {loadingBets ? (
+                        <div className="text-center py-4">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          <p className="text-sm text-muted-foreground mt-2">Loading saved bets...</p>
+                        </div>
+                      ) : savedBets.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-muted-foreground">No saved bets found (pending outcome).</p>
+                          <p className="text-xs text-muted-foreground mt-1">Analyze some bets or create manual entries first.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label className="text-sm text-muted-foreground">Select a bet from your analysis history:</Label>
+                          <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-2">
+                            {savedBets.map((bet) => (
+                              <button
+                                key={bet.id}
+                                type="button"
+                                onClick={() => handleBetSelect(bet)}
+                                className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedBet?.id === bet.id
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:border-primary/50 hover:bg-accent"
+                                  }`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">
+                                      {bet.awayTeam} vs {bet.homeTeam}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {bet.betType} • {bet.sport} • ${bet.stake} @ {bet.odds}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Source: {bet.source === "bet-analyzer" ? "Bet Analyzer" : "TiltLab"}
+                                    </p>
+                                  </div>
+                                  {selectedBet?.id === bet.id && (
+                                    <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                      <span className="text-primary-foreground text-xs">✓</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+
+                          {selectedBet && (
+                            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                              <p className="text-sm font-medium text-green-600 dark:text-green-400">Selected bet details auto-filled</p>
+                              <p className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">
+                                {selectedBet.awayTeam} vs {selectedBet.homeTeam} - {selectedBet.betType}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actual Return field (when outcome is selected) */}
+                  {phase === "after" && outcome && (
+                    <div className="space-y-2">
+                      <Label htmlFor="actualReturn">Actual Return ($)</Label>
+                      <Input
+                        id="actualReturn"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={outcome === "profit" ? "105.00" : outcome === "loss" ? "0.00" : "50.00"}
+                        value={actualReturn}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setActualReturn(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* Context */}
                 <div className="space-y-3">
                   <Label htmlFor="context">Optional context</Label>
                   <Textarea
                     id="context"
-                    placeholder="What triggered this emotion? What were you thinking about?"
+                    placeholder="e.g., I was profitable today"
                     value={context}
                     onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setContext(e.target.value)}
-                    rows={4}
+                    rows={3}
                   />
                 </div>
               </div>
 
-              <Button 
+              <Button
                 onClick={handleLogEmotion}
                 disabled={!selectedEmotion || isLogging}
                 className="w-full"

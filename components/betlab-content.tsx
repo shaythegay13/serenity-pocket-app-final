@@ -31,16 +31,28 @@ export function BetLabContent() {
 
   useEffect(() => {
     let isMounted = true
-    
+
     const checkAuth = async () => {
+      // Safety timeout to prevent permanent loading state
+      const timeoutId = setTimeout(() => {
+        if (isMounted && loading) {
+          console.warn('BetLab auth check timed out, forcing loading state to false');
+          setLoading(false);
+          setAuthed(false);
+        }
+      }, 5000);
+
       try {
         // Simple auth check first
         const { data: { session } } = await supabase.auth.getSession()
-        
-        if (!isMounted) return
-        
+
+        if (!isMounted) {
+          clearTimeout(timeoutId);
+          return;
+        }
+
         setAuthed(!!session)
-        
+
         if (session) {
           // Fetch user data in background
           try {
@@ -56,6 +68,7 @@ export function BetLabContent() {
         console.error('Auth check failed:', error)
         setAuthed(false)
       } finally {
+        clearTimeout(timeoutId);
         if (isMounted) {
           setLoading(false)
         }
@@ -95,11 +108,11 @@ export function BetLabContent() {
       <div className="min-h-screen bg-background">
         <DashboardHeader userData={userData || undefined} />
         <Navigation />
-        
+
         <main className="container mx-auto px-4 py-6">
           {userData ? (
             userData.subscriptionTier === 'free' ? (
-              <PremiumFeatureWall 
+              <PremiumFeatureWall
                 title="BetLab"
                 description="Personalized bet suggestions based on your psychology + real-time data"
                 featureName="SmartSlip and TiltLab"

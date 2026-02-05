@@ -41,18 +41,18 @@ const STADIUM_LOCATIONS: Record<string, { lat: number; lon: number; city: string
   'Jacksonville Jaguars': { lat: 30.3240, lon: -81.6373, city: 'Jacksonville' },
   'Houston Texans': { lat: 29.6847, lon: -95.4107, city: 'Houston' },
   'Indianapolis Colts': { lat: 39.7601, lon: -86.1639, city: 'Indianapolis' },
-  
+
   // NBA - Major arenas
   'Los Angeles Lakers': { lat: 34.0430, lon: -118.2673, city: 'Los Angeles' },
   'Boston Celtics': { lat: 42.3662, lon: -71.0621, city: 'Boston' },
   'Golden State Warriors': { lat: 37.7680, lon: -122.3878, city: 'San Francisco' },
   'Miami Heat': { lat: 25.7814, lon: -80.1870, city: 'Miami' },
-  
+
   // MLB - Major stadiums
   'New York Yankees': { lat: 40.8296, lon: -73.9262, city: 'Bronx' },
   'Los Angeles Dodgers': { lat: 34.0739, lon: -118.2400, city: 'Los Angeles' },
   'Boston Red Sox': { lat: 42.3467, lon: -71.0972, city: 'Boston' },
-  
+
   // NHL - Major arenas
   'Toronto Maple Leafs': { lat: 43.6435, lon: -79.3791, city: 'Toronto' },
   'Montreal Canadiens': { lat: 45.4961, lon: -73.5693, city: 'Montreal' },
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const gameDate = new Date(gameTime)
     const now = new Date()
     const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000)
-    
+
     if (gameDate > fourDaysFromNow) {
       return NextResponse.json({
         available: false,
@@ -93,37 +93,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Use OpenWeatherMap API (free tier)
-    const apiKey = process.env.OPENWEATHER_API_KEY || 'demo' // Add to .env.local
-    
-    // For demo purposes, return mock data if no API key
-    if (apiKey === 'demo') {
+    const apiKey = process.env.OPENWEATHER_API_KEY
+    if (!apiKey) {
       return NextResponse.json({
-        available: true,
-        location: location.city,
-        forecast: {
-          temp: Math.floor(Math.random() * 30) + 50, // 50-80°F
-          condition: ['Clear', 'Partly Cloudy', 'Cloudy', 'Light Rain'][Math.floor(Math.random() * 4)],
-          windSpeed: Math.floor(Math.random() * 20) + 5, // 5-25 mph
-          humidity: Math.floor(Math.random() * 40) + 40, // 40-80%
-          precipitation: Math.floor(Math.random() * 30), // 0-30%
-        },
-        impact: {
-          level: 'low',
-          description: 'Weather conditions should have minimal impact on gameplay'
-        }
-      })
+        available: false,
+        message: 'Weather API not configured. Please add OPENWEATHER_API_KEY to environment variables.'
+      }, { status: 503 })
     }
 
     // Fetch real weather data
     const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${location.lat}&lon=${location.lon}&appid=${apiKey}&units=imperial`
     const response = await fetch(weatherUrl)
-    
+
     if (!response.ok) {
       throw new Error('Weather API request failed')
     }
 
     const weatherData = await response.json()
-    
+
     // Find forecast closest to game time
     const forecasts = weatherData.list || []
     const gameForecast = forecasts.find((f: any) => {
@@ -147,7 +134,7 @@ export async function GET(request: NextRequest) {
     // Determine impact level
     let impactLevel = 'low'
     let impactDescription = 'Weather conditions should have minimal impact on gameplay'
-    
+
     if (windSpeed > 15 || precipitation > 50 || temp < 32 || temp > 95) {
       impactLevel = 'high'
       if (windSpeed > 15) {

@@ -95,14 +95,15 @@ export function calculateBetMetrics(bets: ComprehensiveBet[]): BetPerformanceMet
   
   completedBets.forEach(bet => {
     if (!bet.actualReturn) return
-    
+
     const date = new Date(bet.timestamp)
     const dayKey = date.toISOString().split('T')[0]
-    const weekKey = `${date.getFullYear()}-W${Math.ceil(date.getDate() / 7)}`
-    const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`
-    
+    // Calculate ISO week number correctly
+    const weekKey = getISOWeekKey(date)
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
     const pnl = bet.actualReturn - bet.stake
-    
+
     dailyProfitLoss[dayKey] = (dailyProfitLoss[dayKey] || 0) + pnl
     weeklyProfitLoss[weekKey] = (weeklyProfitLoss[weekKey] || 0) + pnl
     monthlyProfitLoss[monthKey] = (monthlyProfitLoss[monthKey] || 0) + pnl
@@ -147,4 +148,20 @@ export function calculateBetReturn(odds: number, stake: number, outcome: "win" |
 export function calculateProfitLoss(odds: number, stake: number, outcome: "win" | "loss" | "push" | "pending"): number {
   const returned = calculateBetReturn(odds, stake, outcome)
   return returned - stake
+}
+
+/**
+ * Calculate ISO week number for a date
+ * Returns format: "YYYY-WXX" (e.g., "2024-W01")
+ */
+function getISOWeekKey(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  // Set to nearest Thursday: current date + 4 - current day number (makes Sunday 7)
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  // Get first day of year
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  // Calculate full weeks to nearest Thursday
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
 }

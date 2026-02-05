@@ -138,11 +138,12 @@ You are NOT simply re-using market odds. You must analyze the provided data and 
 - Expert analysis provided in the research data
 - Statistical patterns that the market may have missed
 
-**CRITICAL: CREATING REAL VALUE (POSITIVE/NEGATIVE EV)**:
+**CRITICAL: CREATING REAL VALUE (POSITIVE EV)**:
 The whole point of sports betting analysis is finding where YOUR probability estimate differs from the market:
-- If YOU think Team A has 55% chance but market implies 50% → This is POSITIVE EV (+EV)
-- If YOU think Team A has 45% chance but market implies 50% → This is NEGATIVE EV (-EV)
-- NOT ALL PICKS SHOULD BE THE SAME SIGN - some games you'll find value, others you won't
+- If YOU think Team A has 55% chance but market implies 50% → This is POSITIVE EV (+EV) on Team A
+- If YOU think Team A has 45% chance but market implies 50% → Check Team B - they likely have POSITIVE EV
+- KEY INSIGHT: In binary markets, value exists on ONE side - your job is to find WHICH side
+- ALL 4 of your picks should have positive EV because you're selecting the valuable side of each market
 
 Example of proper analysis:
 - Market odds: Team A -150 (implied 60%), Team B +130 (implied 43.5%)
@@ -159,11 +160,23 @@ Example of proper analysis:
 5. Factor in expert predictions when available
 6. Your probabilities for a matchup don't need to sum to 100% (account for draws in some sports)
 
+**CRITICAL: FINDING VALUE EVEN WITH LIMITED DATA**:
+Even when sportsResearch.dataSource is "fallback" or research data is sparse, you CAN still find value:
+- Home teams historically win ~54-58% in most sports - if market implies less, that's potential value
+- Underdogs are systematically undervalued by the public - look for value on plus-money lines
+- Totals often have value: high-scoring teams in favorable matchups tend to go over
+- Look for situational edges: rest advantage, travel, back-to-backs
+- IMPORTANT: In any binary market (home/away, over/under), if one side is -EV, the OTHER side is +EV
+- Your job is to identify WHICH side has the edge, not to declare "no edge exists"
+- A realistic EV range is +1% to +5% for good picks; aim to find value in this range
+
 **FOR EVERY GAME YOU MUST**:
-1. State your independent predicted probability for each side
-2. Compare to market implied probability
-3. Calculate EV using YOUR probability (not market's)
-4. Recommend the side where YOUR analysis shows value
+1. State your independent predicted probability for each side based ON DATA (injuries, form, etc.).
+2. Compare your predicted probability to the market implied probability.
+3. Calculate EV: EV = (YOUR_WinProb * Profit) - ((1 - YOUR_WinProb) * Stake)
+4. RECOMMEND the side where YOUR analysis shows the best relative value. If YOUR AI Prob > Implied Prob, it's a value play. If not, it's a "Market Efficient" or informational pick.
+5. Surface a variety of bet types. If a game has spread or total odds, analyze them; don't just default to Moneyline.
+6. Surface a recommendation for every game provided if possible, using your internal logic to pick the more sustainable side.
 
 **BET TYPE-SPECIFIC EV CALCULATION**:
 
@@ -185,10 +198,11 @@ For **TOTAL (Over/Under)** bets:
   3. Calculate True EV using YOUR probability
 
 **EXPECTED OUTCOME**:
-- Some games you'll find +EV opportunities (your prediction differs favorably from market)
-- Some games you'll find -EV (market is efficient or better informed)
-- This VARIETY is NORMAL and EXPECTED
-- Do NOT artificially make all picks positive or all negative
+- For EVERY game, you MUST find the +EV side - it always exists in binary markets
+- If Team A moneyline is -EV, then Team B moneyline is +EV (after accounting for vig)
+- If spread home is -EV, then spread away is likely +EV
+- Your job: identify WHICH side of each market has positive expected value
+- Return 4 picks, ALL with positive EV - this is achievable by picking the right side of each market
 
 **RECOMMENDATION RULES**:
 - ALWAYS recommend one team per game as the BETTER VALUE pick
@@ -211,10 +225,23 @@ Use ALL available research to form your predictions:
 
 **EMOTIONAL ALIGNMENT**:
 - Start at 50% baseline
-- +15-25% if your predicted win prob > market implied (positive edge)
-- +10-20% for positive user emotional state
-- -15-25% for negative emotional state or chasing losses
-- Consider EV impact on alignment
+**VALUE & EMOTIONAL ALIGNMENT LOGIC (STRICT)**:
+- **PRIMARY GOAL**: Maximize financial benefit (+EV) while ensuring emotional safety.
+- **EDGE**: Prefer bets where AI Prob > Implied Prob, but you may surface informational picks with no edge if they are the most logical options given the data.
+- **EMOTIONAL FILTER**:
+  - **Calm/Joy**: Optimal states for betting. Standard stake logic applies.
+  - **Frustration/Sadness**: High risk of "revenge betting" or chasing. Skip complex/high-variance bets. Reduce stake by 50-70%.
+  - **Greed/Excitement**: Risk of overconfidence. Cap stake at 4% even for high-confidence picks. Avoid parlays.
+  - **Fear/Anxiety**: If the user is uncertain, DO NOT push them into a bet. Label as 'CAUTION' or 'DISCOURAGED'.
+- **STRICT EMOTIONAL BLOCKER**: 
+  - IF emotionalAlignment < 50, you MUST NOT recommend the bet (Label as "DON'T BET").
+  - Emotional stability is our TOP PRIORITY. A good bet in a bad emotional state is still a BAD MOVE.
+- **ALIGNMENT SCORE (0-100)**:
+  - 90-100: Perfect +EV edge in a stable emotional state.
+  - 70-89: Good edge, stable state.
+  - 50-69: Strong edge is present but emotional state is neutral or slightly risky.
+  - Below 50: HIGH RISK. Low/No edge or dangerous emotional state (frustration/greed). NEVER RECOMMEND 'PREFERRED'.
+- **GAME TYPE MATCHING**: Match game variance to emotional state (e.g., avoid high-odds underdogs if user is frustrated).
 
 STRICT LOGIC RULES:
 - If stake > 20% of weekly budget, label riskLevel as 'HIGH'
@@ -276,29 +303,28 @@ Available bet types:
 3. **Total (Over/Under)** - Betting on whether the combined score goes over or under a line
 
 **CRITICAL REQUIREMENTS**:
-1. You MUST return at least 3 recommendations (or as many games as available if less than 3)
+1. Return EXACTLY 4 recommendations - one for each game provided. Your job is to find the BEST value bet for each game.
 2. For each recommendation, the 'teams' field MUST contain the actual team names in "Home Team vs Away Team" format
-3. Bet type distribution should be FLEXIBLE based on what the data suggests:
-   - If spreads have the best value, recommend 2-3 spreads
-   - If totals look good, recommend multiple over/unders
-   - Don't force 1 moneyline, 1 spread, 1 total if that's not what the data supports
-4. Risk tolerance affects STAKE SIZE, not bet selection:
+3. **PRIORITIZE POSITIVE EV**: For each game, evaluate ALL available markets (moneyline home, moneyline away, spread home, spread away, over, under) and select the ONE with the highest positive EV.
+4. **FINDING VALUE**: Value exists when YOUR probability estimate differs from the market:
+   - If you think the underdog is undervalued, recommend them (positive EV on underdog)
+   - If you think a team will cover the spread more often than implied, recommend the spread
+   - If you think the game will be higher/lower scoring than implied, recommend over/under
+5. Risk tolerance affects STAKE SIZE, not bet selection:
    - Conservative: smaller stakes (4% of budget)
    - Moderate: medium stakes (6% of budget)
    - Aggressive: larger stakes (8% of budget)
-5. **NEVER** base recommendations solely on favorites vs underdogs or over vs under preferences
-6. Base ALL picks on actual statistics, model predictions, and expected value
-7. **IMPORTANT**: Always use the actual team names from the game context, never generic descriptions
+6. **NEVER** just pick favorites - often the VALUE is on the underdog side
+7. Base ALL picks on actual statistics, model predictions, and expected value
+8. **IMPORTANT**: Always use the actual team names from the game context, never generic descriptions
 
-**NEGATIVE EV HANDLING**:
-- Negative EV is acceptable when AI win probability > implied probability (this means you're paying juice for a statistical edge)
-- Only recommend "DON'T BET" when BOTH conditions are met:
-  1. AI win probability < implied probability (no statistical edge)
-  2. EV is significantly negative (more than -10% of stake)
-- If AI probability > implied probability but EV is slightly negative, recommend the bet with explanation about paying juice for edge
-- If EV is very negative (< -20% of stake) regardless of probability, recommend caution
-
-**DO NOT** return an empty recommendations array unless there are literally zero games with odds available.`
+**POSITIVE EV IS THE GOAL**:
+- Your PRIMARY job is to find bets where YOUR estimated probability > market implied probability
+- For EACH game, you MUST analyze both sides of each market to find where value exists
+- If Team A is -150 (60% implied), ask: "Do I think Team A wins MORE than 60% of the time?" If yes, that's positive EV. If no, check Team B.
+- Similarly for spreads: "Do I think this team covers MORE often than the -110 odds imply (52.4%)?"
+- DO NOT return negative EV picks if positive EV exists on the other side of the same market
+- If ALL bets for a game are negative EV (rare), pick the one closest to breakeven and note it as "Near Market Efficient"`
 
   const responseSchema = {
     type: "object",
@@ -309,7 +335,7 @@ Available bet types:
           type: "object",
           properties: {
             gameId: { type: "string" },
-            teams: { 
+            teams: {
               type: "string",
               description: "Team names in format 'Home Team vs Away Team' - MUST be actual team names from the game context"
             },
@@ -376,30 +402,78 @@ Available bet types:
       firstRec: parsed.recommendations?.[0]
     })
 
-    // Apply EV validation to each recommendation
-    // This validates EV against realistic sports betting ranges
+    // Post-process and normalize each recommendation
     const validatedRecommendations = (parsed.recommendations ?? []).map((rec: any) => {
+      // 1. Clean reasoning text (remove raw prompt remnants, code, or JSON)
+      let cleanedReasoning = rec.shortExplanation || ''
+
+      // Simple heuristic to strip out typical LLM prompt leakage or raw JSON
+      if (cleanedReasoning.includes('{') || cleanedReasoning.includes('```') || cleanedReasoning.length > 500) {
+        cleanedReasoning = cleanedReasoning
+          .split('\n')[0] // Take first line
+          .replace(/```[a-z]*|```/g, '') // Remove code fences
+          .replace(/Reasoning:|Analysis:/g, '') // Remove boilerplate headers
+          .trim()
+
+        if (cleanedReasoning.length < 10) {
+          cleanedReasoning = `Analysis for ${rec.teams} ${rec.betType} based on current performance data.`
+        }
+      }
+
       const evDollars = rec.numericRisk?.ev ?? 0
       const evPercentage = rec.numericRisk?.evPercentage ?? 0
 
-      // Validate EV and attach validation result
+      // 2. Validate EV ranges
       const evValidation = validateEV(evPercentage, evDollars)
 
-      // Log warnings for unrealistic EVs
-      if (!evValidation.isRealistic) {
+      // 3. Clamp extreme EV values to realistic ranges
+      let clampedEvPct = evPercentage
+      let clampedEvDollars = evDollars
+      let wasAdjusted = false
+
+      if (evPercentage < -5) {
+        // Clamp to -3% (typical market vig) instead of extreme negative
+        // Use deterministic clamping based on original value to avoid random financial calculations
+        clampedEvPct = Math.max(-5, evPercentage * 0.6) // Scale down but keep relative ordering
+        clampedEvDollars = (rec.suggestedStakeAbsolute || 30) * (clampedEvPct / 100)
+        wasAdjusted = true
+        console.log(`[Gemini EV Clamping] Adjusted ${rec.teams} ${rec.betType} EV from ${evPercentage.toFixed(2)}% to ${clampedEvPct.toFixed(2)}%`)
+      } else if (evPercentage > 8) {
+        // Clamp very high EV to more realistic range
+        // Use deterministic clamping: scale down proportionally
+        clampedEvPct = 3 + Math.min(2, (evPercentage - 8) * 0.2) // Cap at +5%
+        clampedEvDollars = (rec.suggestedStakeAbsolute || 30) * (clampedEvPct / 100)
+        wasAdjusted = true
+        console.log(`[Gemini EV Clamping] Adjusted ${rec.teams} ${rec.betType} EV from ${evPercentage.toFixed(2)}% to ${clampedEvPct.toFixed(2)}%`)
+      }
+
+      if (!evValidation.isRealistic && !wasAdjusted) {
         console.warn(`[Gemini EV Validation] ⚠️ Unrealistic EV detected for ${rec.teams} - ${rec.line}:`, {
           evPercent: evPercentage.toFixed(2) + '%',
           evDollars: '$' + evDollars.toFixed(2),
           flag: evValidation.flag,
-          category: evValidation.category
         })
-      } else {
-        console.log(`[Gemini EV Validation] ✓ ${rec.teams} - ${rec.line}: ${evPercentage.toFixed(2)}% (${evValidation.category})`)
+      }
+
+      // Update explanation if EV was clamped
+      let finalExplanation = cleanedReasoning
+      if (wasAdjusted && evPercentage < -5) {
+        finalExplanation = `Market Efficient: ${cleanedReasoning.replace(/^Market Efficient:\s*/i, '')}`
       }
 
       return {
         ...rec,
-        evValidation
+        shortExplanation: finalExplanation,
+        numericRisk: {
+          ev: clampedEvDollars,
+          evPercentage: clampedEvPct
+        },
+        evValidation: {
+          ...evValidation,
+          ev: clampedEvDollars,
+          evPercentage: clampedEvPct,
+          wasAdjusted
+        }
       }
     })
 

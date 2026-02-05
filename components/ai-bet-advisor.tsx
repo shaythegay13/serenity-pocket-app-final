@@ -13,12 +13,48 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { SegmentedControl, YesNoControl } from "@/components/ui/segmented-control"
 import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles, ClipboardPaste, FileText } from "lucide-react"
-import type { BetScenario, ComprehensiveAnalysis } from "@/lib/ai-bet-advisor"
+import type { BetScenario, ComprehensiveAnalysis, SupportedSportKey, OddsAnalysis } from "@/lib/ai-bet-advisor"
 import { AIResultScreen } from "@/components/ai-result-screen"
 import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
 import { BetTrackingService } from "@/lib/bet-tracking-service"
+
+
+
+const analyzeOdds = (params: {
+  homeTeam: string
+  awayTeam: string
+  homeOdds: number
+  awayOdds: number
+  homeRecord: string
+  awayRecord: string
+}): OddsAnalysis => {
+  const { homeTeam, awayTeam, homeOdds, awayOdds, homeRecord, awayRecord } = params
+
+  // Implied probabilities
+  const homeProb = homeOdds < 0
+    ? (Math.abs(homeOdds) / (Math.abs(homeOdds) + 100))
+    : (100 / (homeOdds + 100))
+
+  const awayProb = awayOdds < 0
+    ? (Math.abs(awayOdds) / (Math.abs(awayOdds) + 100))
+    : (100 / (awayOdds + 100))
+
+  const totalProb = homeProb + awayProb
+  const normalizedHomeProb = homeProb / totalProb
+
+  const isHomeFav = homeOdds < awayOdds
+
+  return {
+    favoriteTeam: isHomeFav ? homeTeam : awayTeam,
+    underdogTeam: isHomeFav ? awayTeam : homeTeam,
+    favoriteRecord: isHomeFav ? homeRecord : awayRecord,
+    underdogRecord: isHomeFav ? awayRecord : homeRecord,
+    winProbability: Math.round((isHomeFav ? normalizedHomeProb : 1 - normalizedHomeProb) * 100),
+    isCloseMatchup: Math.abs(normalizedHomeProb - 0.5) < 0.1
+  }
+}
 
 // Core emotions with 10 sub-emotions each (matching behavior check-in)
 const coreEmotions = [
@@ -81,7 +117,7 @@ export default function AIBetAdvisor() {
     odds: 0,
     betAmount: 50,
     budget: 500,
-    
+
     // Legacy fields (kept for backward compatibility)
     favoriteTeam: "",
     underdogTeam: "",
@@ -89,14 +125,14 @@ export default function AIBetAdvisor() {
     underdogRecord: "",
     injuries: "",
     weather: "",
-    
+
     // New boolean fields for UI
     hasKeyInjuries: false,
     hasAdverseWeather: false,
     isLiveBet: false,
     isFavoriteTeam: false,
     isChasingLoss: false,
-    
+
     // Emotional data
     currentEmotion: "Centered",
     currentEmotionIntensity: 5,
@@ -105,12 +141,12 @@ export default function AIBetAdvisor() {
     bettingSlip: "",
     history: "",
     notes: "",
-    
+
     // Psychological factors
     biasesIdentified: [],
     confidenceLevel: 5,
     reasoning: "",
-    
+
     // Metadata
     sportsbook: "DraftKings",
   })
@@ -134,16 +170,20 @@ export default function AIBetAdvisor() {
         awayRecord?: string
       }
 
-      // Map internal sport keys from odds API to human-readable labels
       const sportMap: Record<string, SupportedSportKey> = {
         basketball_nba: "basketball_nba",
-        americanfootball_nfl: "americanfootball_nfl", 
+        americanfootball_nfl: "americanfootball_nfl",
         baseball_mlb: "baseball_mlb",
         icehockey_nhl: "icehockey_nhl",
+        basketball_ncaab: "basketball_ncaab",
+        americanfootball_ncaaf: "americanfootball_ncaaf",
+        soccer_epl: "soccer_epl",
+        mma_ufc: "mma_ufc",
         NBA: "basketball_nba",
         NFL: "americanfootball_nfl",
-        MLB: "baseball_mlb", 
+        MLB: "baseball_mlb",
         NHL: "icehockey_nhl",
+        UFC: "mma_ufc",
       }
 
       const mappedSport = payload.sport ? sportMap[payload.sport] || "americanfootball_nfl" : "americanfootball_nfl"
@@ -153,7 +193,7 @@ export default function AIBetAdvisor() {
       const awayOdds = typeof payload.bestAwayOdds === "number" ? payload.bestAwayOdds : NaN
 
       let oddsAnalysis: OddsAnalysis | null = null
-      
+
       if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds)) {
         oddsAnalysis = analyzeOdds({
           homeTeam: payload.homeTeam || "",
@@ -205,8 +245,8 @@ export default function AIBetAdvisor() {
 
   // Function to analyze odds when they change
   const analyzeCurrentOdds = (homeOdds: number, awayOdds: number) => {
-    if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds) && 
-        formData.homeTeam && formData.awayTeam) {
+    if (!Number.isNaN(homeOdds) && !Number.isNaN(awayOdds) &&
+      formData.homeTeam && formData.awayTeam) {
       const analysis = analyzeOdds({
         homeTeam: formData.homeTeam,
         awayTeam: formData.awayTeam,
@@ -215,9 +255,9 @@ export default function AIBetAdvisor() {
         homeRecord: formData.favoriteRecord || "",
         awayRecord: formData.underdogRecord || ""
       })
-      
+
       setCurrentOddsAnalysis(analysis)
-      
+
       // Update form data with correct favorite/underdog AND set the odds for the selected team
       setFormData(prev => {
         const selectedOdds = prev.selection === "home" ? homeOdds : awayOdds
@@ -243,7 +283,7 @@ export default function AIBetAdvisor() {
       if (prefillData) {
         const gameData = JSON.parse(prefillData)
         console.log('TiltLab: Using pre-filled game data from live scores:', gameData)
-        
+
         // Map the game data to form fields
         setFormData(prev => ({
           ...prev,
@@ -252,11 +292,11 @@ export default function AIBetAdvisor() {
           sport: gameData.sport || prev.sport,
           odds: gameData.odds?.home || prev.odds,
         }))
-        
+
         // Clear the pre-fill data after using it
         sessionStorage.removeItem('tiltLabPrefillData')
         sessionStorage.removeItem('pendingBetGame')
-        
+
         // Show success message
         console.log(`Game pre-filled: ${gameData.awayTeam} @ ${gameData.homeTeam}`)
       }
@@ -321,7 +361,7 @@ export default function AIBetAdvisor() {
 
         // Get last bet outcome
         if (allBettingData.length > 0) {
-          const lastCompletedBet = allBettingData.find(bet => 
+          const lastCompletedBet = allBettingData.find(bet =>
             bet.outcome && bet.outcome !== 'pending'
           )
 
@@ -363,20 +403,20 @@ export default function AIBetAdvisor() {
           lastMonth.setDate(lastMonth.getDate() - 30)
 
           // Calculate statistics
-          const lastWeekBets = allBettingData.filter(bet => 
+          const lastWeekBets = allBettingData.filter(bet =>
             new Date(bet.timestamp) >= lastWeek
           )
-          const lastMonthBets = allBettingData.filter(bet => 
+          const lastMonthBets = allBettingData.filter(bet =>
             new Date(bet.timestamp) >= lastMonth
           )
 
-          const wins = allBettingData.filter(bet => 
+          const wins = allBettingData.filter(bet =>
             bet.outcome === 'win' || (bet as any).outcome === 'profit'
           ).length
-          const losses = allBettingData.filter(bet => 
+          const losses = allBettingData.filter(bet =>
             bet.outcome === 'loss'
           ).length
-          const pushes = allBettingData.filter(bet => 
+          const pushes = allBettingData.filter(bet =>
             bet.outcome === 'push' || (bet as any).outcome === 'breakeven'
           ).length
 
@@ -393,13 +433,13 @@ export default function AIBetAdvisor() {
           }, {} as Record<string, number>)
 
           const topEmotions = Object.entries(emotionCounts)
-            .sort(([,a], [,b]) => b - a)
+            .sort(([, a], [, b]) => b - a)
             .slice(0, 3)
             .map(([emotion, count]) => `${emotion} (${count}x)`)
 
           // Generate detailed history summary
           let historySummary = `Recent Betting Activity:\n\n`
-          
+
           // Overall stats
           historySummary += `📊 Overall Record: ${wins}-${losses}-${pushes} (${winRate}% win rate)\n`
           historySummary += `📈 Last 7 days: ${lastWeekBets.length} bets\n`
@@ -410,9 +450,9 @@ export default function AIBetAdvisor() {
             historySummary += `🕒 Recent Results:\n`
             recentBets.slice(0, 5).forEach((bet, index) => {
               const date = new Date(bet.timestamp).toLocaleDateString()
-              const result = bet.outcome === 'win' || (bet as any).outcome === 'profit' ? '✅ WON' : 
-                           bet.outcome === 'loss' ? '❌ LOST' : 
-                           bet.outcome === 'push' || (bet as any).outcome === 'breakeven' ? '⚖️ PUSH' : '⏳ PENDING'
+              const result = bet.outcome === 'win' || (bet as any).outcome === 'profit' ? '✅ WON' :
+                bet.outcome === 'loss' ? '❌ LOST' :
+                  bet.outcome === 'push' || (bet as any).outcome === 'breakeven' ? '⚖️ PUSH' : '⏳ PENDING'
               historySummary += `${index + 1}. ${date} - ${bet.description} - ${result} ($${bet.stake})\n`
             })
             historySummary += '\n'
@@ -505,14 +545,14 @@ export default function AIBetAdvisor() {
 
       const rawText = await response.text()
       let data: any
-      
+
       console.log('AI Bet Advisor: Raw response:', {
         status: response.status,
         statusText: response.statusText,
         contentType: response.headers.get("content-type"),
         body: rawText.slice(0, 500) // First 500 chars
       })
-      
+
       try {
         data = rawText ? JSON.parse(rawText) : {}
         console.log('AI Bet Advisor: Parsed response data:', data)
@@ -558,7 +598,7 @@ export default function AIBetAdvisor() {
           data.usedEnhancedAI || false,
           data.enhanced?.keyInsights
         )
-        
+
         console.log('Comprehensive bet saved:', comprehensiveBet)
       } catch (e) {
         console.warn("AI Bet Advisor: Failed to save comprehensive bet data", e)
@@ -624,12 +664,12 @@ export default function AIBetAdvisor() {
   const updateFormData = (field: keyof BetScenario, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
-      
+
       // If team selection changes, update the odds to match the selected team
       if (field === "selection") {
         const selectedOdds = value === "home" ? homeOdds : awayOdds
         updated.odds = selectedOdds
-        
+
         // Auto-populate favorite/underdog fields based on odds analysis
         if (currentOddsAnalysis) {
           // If user selected home team
@@ -645,7 +685,7 @@ export default function AIBetAdvisor() {
               updated.favoriteRecord = currentOddsAnalysis.underdogRecord
               updated.underdogRecord = currentOddsAnalysis.favoriteRecord
             }
-          } 
+          }
           // If user selected away team
           else if (value === "away") {
             if (currentOddsAnalysis.favoriteTeam === prev.awayTeam) {
@@ -677,13 +717,13 @@ export default function AIBetAdvisor() {
               favoriteTeam = homeOdds < 0 ? prev.homeTeam : prev.awayTeam
               underdogTeam = homeOdds < 0 ? prev.awayTeam : prev.homeTeam
             }
-            
+
             updated.favoriteTeam = favoriteTeam
             updated.underdogTeam = underdogTeam
           }
         }
       }
-      
+
       return updated
     })
   }
@@ -707,23 +747,23 @@ export default function AIBetAdvisor() {
   // Parse pasted bet slip text and populate form fields
   const parseBetSlip = () => {
     if (!betSlipText.trim()) return
-    
+
     const text = betSlipText.toLowerCase()
-    
+
     // Improved Regex Patterns for DraftKings/FanDuel
     // Teams: "Kansas City Chiefs vs Buffalo Bills" or "Chiefs @ Bills"
     const vsMatch = betSlipText.match(/([A-Za-z0-9\s]+?)\s+(?:vs\.?|@|at)\s+([A-Za-z0-9\s]+?)(?:\s|$|\n|\()/i)
-    
+
     // Odds: -110, +150, -1100 (American)
     const oddsMatch = betSlipText.match(/(?:odds|price)?[\s:]*([+-]\d{3,4})/i)
-    
+
     // Stake: $50.00, 50, wager 50
     const stakeMatch = betSlipText.match(/(?:stake|wager|bet|risk|amount)[:\s]*\$?(\d+(?:\.\d{2})?)/i) ||
-                       betSlipText.match(/\$(\d+(?:\.\d{2})?)/)
-                       
+      betSlipText.match(/\$(\d+(?:\.\d{2})?)/)
+
     // Line: -3.5, +3.5, O 45.5, U 45.5
     const lineMatch = betSlipText.match(/(?:spread|line|total)?[\s:]*([+-]?\d+\.5)/i)
-    
+
     // Sport detection
     let detectedSport = formData.sport
     if (text.includes('nfl') || text.includes('football')) detectedSport = 'americanfootball_nfl'
@@ -737,7 +777,7 @@ export default function AIBetAdvisor() {
     const odds = oddsMatch ? parseInt(oddsMatch[1]) : formData.odds
     const line = lineMatch ? parseFloat(lineMatch[1]) : formData.line
     const betAmount = stakeMatch ? parseFloat(stakeMatch[1]) : formData.betAmount
-    
+
     // Bet Type detection
     let betType = formData.betType
     if (text.includes('spread') || (line && Math.abs(line) < 100 && !text.includes('total'))) betType = 'Spread'
@@ -755,7 +795,7 @@ export default function AIBetAdvisor() {
       line,
       betAmount
     }
-    
+
     // Instead of directly setting form data, we could show a preview or just fill it. 
     // The user asked for "Show 'Parsed data matches?' preview".
     // For now, I'll update the form data and toast, but ideally we'd show a modal. 
@@ -763,13 +803,13 @@ export default function AIBetAdvisor() {
     // I'll add a 'parsedPreview' state to the component in a separate edit if needed, but for now let's just populate and ask for confirmation via the UI flow.
     // Wait, the instructions say "Show 'Parsed data matches?' preview before analysis".
     // I'll simulate this by setting the data and switching to manual, but showing a success message.
-    
+
     setFormData(prev => ({
       ...prev,
       ...parsedData,
       bettingSlip: betSlipText,
     }))
-    
+
     setBetInputTab('manual')
     // In a real implementation, we might want a specific "Confirm" step. 
     // But switching to 'manual' effectively lets them review it.
@@ -781,19 +821,16 @@ export default function AIBetAdvisor() {
     return (
       <div className="mb-6 space-y-3">
         <div className="flex items-center justify-between">
-          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
-            step === "details" ? "text-primary" : "text-muted-foreground"
-          }`}>
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "details" ? "text-primary" : "text-muted-foreground"
+            }`}>
             Bet Details
           </div>
-          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
-            step === "context" ? "text-primary" : "text-muted-foreground"
-          }`}>
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "context" ? "text-primary" : "text-muted-foreground"
+            }`}>
             Logic & Context
           </div>
-          <div className={`flex-1 text-center text-sm font-medium transition-colors ${
-            step === "mindset" ? "text-primary" : "text-muted-foreground"
-          }`}>
+          <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "mindset" ? "text-primary" : "text-muted-foreground"
+            }`}>
             Mindset
           </div>
         </div>
@@ -854,8 +891,8 @@ We'll automatically extract the details and populate the form.`}
                           rows={8}
                           className="font-mono text-sm"
                         />
-                        <Button 
-                          type="button" 
+                        <Button
+                          type="button"
                           onClick={parseBetSlip}
                           disabled={!betSlipText.trim()}
                           className="w-full"
@@ -871,477 +908,489 @@ We'll automatically extract the details and populate the form.`}
 
                     {/* Manual Entry Tab */}
                     <TabsContent value="manual" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="sport">Sport/Event</Label>
-                <Select value={formData.sport} onValueChange={(value) => updateFormData("sport", value as SupportedSportKey)}>
-                  <SelectTrigger id="sport">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="americanfootball_nfl">NFL</SelectItem>
-                    <SelectItem value="basketball_nba">NBA</SelectItem>
-                    <SelectItem value="baseball_mlb">MLB</SelectItem>
-                    <SelectItem value="icehockey_nhl">NHL</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="sport">Sport/Event</Label>
+                          <Select value={formData.sport} onValueChange={(value) => updateFormData("sport", value as SupportedSportKey)}>
+                            <SelectTrigger id="sport">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="americanfootball_nfl">NFL</SelectItem>
+                              <SelectItem value="basketball_nba">NBA</SelectItem>
+                              <SelectItem value="baseball_mlb">MLB</SelectItem>
+                              <SelectItem value="icehockey_nhl">NHL</SelectItem>
+                              <SelectItem value="basketball_ncaab">College Basketball</SelectItem>
+                              <SelectItem value="americanfootball_ncaaf">College Football</SelectItem>
+                              <SelectItem value="soccer_epl">English Premier League</SelectItem>
+                              <SelectItem value="soccer_mls">MLS</SelectItem>
+                              <SelectItem value="mma_ufc">UFC/MMA</SelectItem>
+                              <SelectItem value="tennis_atp">ATP Tennis</SelectItem>
+                              <SelectItem value="tennis_wta">WTA Tennis</SelectItem>
+                              <SelectItem value="golf_pga">PGA Tour Golf</SelectItem>
+                              <SelectItem value="boxing">Boxing</SelectItem>
+                              <SelectItem value="soccer_champions_league">Champions League</SelectItem>
+                              <SelectItem value="motorsports_f1">Formula 1</SelectItem>
+                              <SelectItem value="motorsports_nascar">NASCAR</SelectItem>
+                              <SelectItem value="esports_lol">League of Legends</SelectItem>
+                              <SelectItem value="esports_csgo">Counter-Strike</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-              <div>
-                <Label htmlFor="homeTeam">Home Team</Label>
-                <Input
-                  id="homeTeam"
-                  value={formData.homeTeam}
-                  onChange={(e) => updateFormData("homeTeam", e.target.value)}
-                  placeholder="e.g., Warriors"
-                />
-              </div>
+                        <div>
+                          <Label htmlFor="homeTeam">Home Team</Label>
+                          <Input
+                            id="homeTeam"
+                            value={formData.homeTeam}
+                            onChange={(e) => updateFormData("homeTeam", e.target.value)}
+                            placeholder="e.g., Warriors"
+                          />
+                        </div>
 
-              <div>
-                <Label htmlFor="awayTeam">Away Team</Label>
-                <Input
-                  id="awayTeam"
-                  value={formData.awayTeam}
-                  onChange={(e) => updateFormData("awayTeam", e.target.value)}
-                  placeholder="e.g., Lakers"
-                />
-              </div>
+                        <div>
+                          <Label htmlFor="awayTeam">Away Team</Label>
+                          <Input
+                            id="awayTeam"
+                            value={formData.awayTeam}
+                            onChange={(e) => updateFormData("awayTeam", e.target.value)}
+                            placeholder="e.g., Lakers"
+                          />
+                        </div>
 
-              <div className="md:col-span-2">
-                <Label>Bet Type</Label>
-                <SegmentedControl
-                  options={[
-                    { value: "Spread", label: "Spread" },
-                    { value: "Moneyline", label: "Moneyline" },
-                    { value: "Over/Under", label: "Total" },
-                    { value: "Parlay", label: "Parlay" },
-                  ]}
-                  value={formData.betType}
-                  onChange={(value) => updateFormData("betType", value)}
-                />
-              </div>
+                        <div className="md:col-span-2">
+                          <Label>Bet Type</Label>
+                          <SegmentedControl
+                            options={[
+                              { value: "Spread", label: "Spread" },
+                              { value: "Moneyline", label: "Moneyline" },
+                              { value: "Over/Under", label: "Total" },
+                              { value: "Parlay", label: "Parlay" },
+                            ]}
+                            value={formData.betType}
+                            onChange={(value) => updateFormData("betType", value)}
+                          />
+                        </div>
 
-              {formData.betType === "Spread" && (
-                <>
-                  <div>
-                    <Label htmlFor="line">Line</Label>
-                    <Input
-                      id="line"
-                      type="number"
-                      step="0.5"
-                      value={formData.line || ""}
-                      onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
-                      placeholder="e.g., -3.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Selection</Label>
-                    <SegmentedControl
-                      options={[
-                        { value: "home", label: "Home" },
-                        { value: "away", label: "Away" },
-                      ]}
-                      value={formData.selection}
-                      onChange={(value) => updateFormData("selection", value)}
-                    />
-                  </div>
-                </>
-              )}
+                        {formData.betType === "Spread" && (
+                          <>
+                            <div>
+                              <Label htmlFor="line">Line</Label>
+                              <Input
+                                id="line"
+                                type="number"
+                                step="0.5"
+                                value={formData.line || ""}
+                                onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                placeholder="e.g., -3.5"
+                              />
+                            </div>
+                            <div>
+                              <Label>Selection</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "home", label: "Home" },
+                                  { value: "away", label: "Away" },
+                                ]}
+                                value={formData.selection}
+                                onChange={(value) => updateFormData("selection", value)}
+                              />
+                            </div>
+                          </>
+                        )}
 
-              {formData.betType === "Over/Under" && (
-                <>
-                  <div>
-                    <Label htmlFor="totalLine">Total Line</Label>
-                    <Input
-                      id="totalLine"
-                      type="number"
-                      step="0.5"
-                      value={formData.line || ""}
-                      onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
-                      placeholder="e.g., 225.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Selection</Label>
-                    <SegmentedControl
-                      options={[
-                        { value: "over", label: "Over" },
-                        { value: "under", label: "Under" },
-                      ]}
-                      value={formData.selection}
-                      onChange={(value) => updateFormData("selection", value)}
-                    />
-                  </div>
-                </>
-              )}
+                        {formData.betType === "Over/Under" && (
+                          <>
+                            <div>
+                              <Label htmlFor="totalLine">Total Line</Label>
+                              <Input
+                                id="totalLine"
+                                type="number"
+                                step="0.5"
+                                value={formData.line || ""}
+                                onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                placeholder="e.g., 225.5"
+                              />
+                            </div>
+                            <div>
+                              <Label>Selection</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "over", label: "Over" },
+                                  { value: "under", label: "Under" },
+                                ]}
+                                value={formData.selection}
+                                onChange={(value) => updateFormData("selection", value)}
+                              />
+                            </div>
+                          </>
+                        )}
 
-              {formData.betType === "Moneyline" && (
-                <div>
-                  <Label>Selection</Label>
-                  <SegmentedControl
-                    options={[
-                      { value: "home", label: formData.homeTeam || "Home" },
-                      { value: "away", label: formData.awayTeam || "Away" },
-                    ]}
-                    value={formData.selection}
-                    onChange={(value) => updateFormData("selection", value)}
-                  />
-                </div>
-              )}
+                        {formData.betType === "Moneyline" && (
+                          <div>
+                            <Label>Selection</Label>
+                            <SegmentedControl
+                              options={[
+                                { value: "home", label: formData.homeTeam || "Home" },
+                                { value: "away", label: formData.awayTeam || "Away" },
+                              ]}
+                              value={formData.selection}
+                              onChange={(value) => updateFormData("selection", value)}
+                            />
+                          </div>
+                        )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="homeOdds">Home Team Odds (American)</Label>
-                  <Input
-                    id="homeOdds"
-                    type="number"
-                    value={Number.isNaN(homeOdds) ? "" : homeOdds}
-                    onChange={(e) => {
-                      const odds = parseInt(e.target.value) || NaN
-                      setHomeOdds(odds)
-                      analyzeCurrentOdds(odds, awayOdds)
-                    }}
-                    placeholder="e.g., -110"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="awayOdds">Away Team Odds (American)</Label>
-                  <Input
-                    id="awayOdds"
-                    type="number"
-                    value={Number.isNaN(awayOdds) ? "" : awayOdds}
-                    onChange={(e) => {
-                      const odds = parseInt(e.target.value) || NaN
-                      setAwayOdds(odds)
-                      analyzeCurrentOdds(homeOdds, odds)
-                    }}
-                    placeholder="e.g., +105"
-                  />
-                </div>
-              </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="homeOdds">Home Team Odds (American)</Label>
+                            <Input
+                              id="homeOdds"
+                              type="number"
+                              value={Number.isNaN(homeOdds) ? "" : homeOdds}
+                              onChange={(e) => {
+                                const odds = parseInt(e.target.value) || NaN
+                                setHomeOdds(odds)
+                                analyzeCurrentOdds(odds, awayOdds)
+                              }}
+                              placeholder="e.g., -110"
+                            />
+                          </div>
 
-              <div>
-                <Label htmlFor="betAmount">Proposed Bet Amount ($)</Label>
-                <Input
-                  id="betAmount"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formData.betAmount || ""}
-                  onChange={(e) => updateFormData("betAmount", parseFloat(e.target.value) || 0)}
-                  placeholder="e.g., 50"
-                />
-              </div>
+                          <div>
+                            <Label htmlFor="awayOdds">Away Team Odds (American)</Label>
+                            <Input
+                              id="awayOdds"
+                              type="number"
+                              value={Number.isNaN(awayOdds) ? "" : awayOdds}
+                              onChange={(e) => {
+                                const odds = parseInt(e.target.value) || NaN
+                                setAwayOdds(odds)
+                                analyzeCurrentOdds(homeOdds, odds)
+                              }}
+                              placeholder="e.g., +105"
+                            />
+                          </div>
+                        </div>
 
-              <div>
-                <Label htmlFor="budget">Weekly Gambling Budget ($)</Label>
-                <Input
-                  id="budget"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formData.budget || ""}
-                  onChange={(e) => updateFormData("budget", parseFloat(e.target.value) || 0)}
-                  placeholder="e.g., 500"
-                />
-              </div>
+                        <div>
+                          <Label htmlFor="betAmount">Proposed Bet Amount ($)</Label>
+                          <Input
+                            id="betAmount"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={formData.betAmount || ""}
+                            onChange={(e) => updateFormData("betAmount", parseFloat(e.target.value) || 0)}
+                            placeholder="e.g., 50"
+                          />
+                        </div>
 
-              <div>
-                <Label htmlFor="favoriteTeam">Favorite Team</Label>
-                <Input
-                  id="favoriteTeam"
-                  value={formData.favoriteTeam}
-                  onChange={(e) => updateFormData("favoriteTeam", e.target.value)}
-                  placeholder="e.g., Lakers"
-                  className="bg-gray-50"
-                  readOnly={currentOddsAnalysis !== null}
-                />
-                {currentOddsAnalysis && (
-                  <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
-                )}
-              </div>
+                        <div>
+                          <Label htmlFor="budget">Weekly Gambling Budget ($)</Label>
+                          <Input
+                            id="budget"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={formData.budget || ""}
+                            onChange={(e) => updateFormData("budget", parseFloat(e.target.value) || 0)}
+                            placeholder="e.g., 500"
+                          />
+                        </div>
 
-              <div>
-                <Label htmlFor="underdogTeam">Underdog Team</Label>
-                <Input
-                  id="underdogTeam"
-                  value={formData.underdogTeam}
-                  onChange={(e) => updateFormData("underdogTeam", e.target.value)}
-                  placeholder="e.g., Warriors"
-                  className="bg-gray-50"
-                  readOnly={currentOddsAnalysis !== null}
-                />
-                {currentOddsAnalysis && (
-                  <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
-                )}
-              </div>
+                        <div>
+                          <Label htmlFor="favoriteTeam">Favorite Team</Label>
+                          <Input
+                            id="favoriteTeam"
+                            value={formData.favoriteTeam}
+                            onChange={(e) => updateFormData("favoriteTeam", e.target.value)}
+                            placeholder="e.g., Lakers"
+                            className="bg-gray-50"
+                            readOnly={currentOddsAnalysis !== null}
+                          />
+                          {currentOddsAnalysis && (
+                            <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
+                          )}
+                        </div>
 
-              <div>
-                <Label htmlFor="favoriteRecord">Favorite Record (W-L)</Label>
-                <Input
-                  id="favoriteRecord"
-                  value={formData.favoriteRecord}
-                  onChange={(e) => updateFormData("favoriteRecord", e.target.value)}
-                  placeholder="e.g., 8-2"
-                />
-              </div>
+                        <div>
+                          <Label htmlFor="underdogTeam">Underdog Team</Label>
+                          <Input
+                            id="underdogTeam"
+                            value={formData.underdogTeam}
+                            onChange={(e) => updateFormData("underdogTeam", e.target.value)}
+                            placeholder="e.g., Warriors"
+                            className="bg-gray-50"
+                            readOnly={currentOddsAnalysis !== null}
+                          />
+                          {currentOddsAnalysis && (
+                            <p className="text-xs text-blue-600 mt-1">Auto-filled based on odds analysis</p>
+                          )}
+                        </div>
 
-              <div>
-                <Label htmlFor="underdogRecord">Underdog Record (W-L)</Label>
-                <Input
-                  id="underdogRecord"
-                  value={formData.underdogRecord}
-                  onChange={(e) => updateFormData("underdogRecord", e.target.value)}
-                  placeholder="e.g., 5-5"
-                />
-              </div>
-            </div>
+                        <div>
+                          <Label htmlFor="favoriteRecord">Favorite Record (W-L)</Label>
+                          <Input
+                            id="favoriteRecord"
+                            value={formData.favoriteRecord}
+                            onChange={(e) => updateFormData("favoriteRecord", e.target.value)}
+                            placeholder="e.g., 8-2"
+                          />
+                        </div>
 
-            <Button type="button" onClick={() => setStep("context")} className="w-full">
-              Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
-            </Button>
+                        <div>
+                          <Label htmlFor="underdogRecord">Underdog Record (W-L)</Label>
+                          <Input
+                            id="underdogRecord"
+                            value={formData.underdogRecord}
+                            onChange={(e) => updateFormData("underdogRecord", e.target.value)}
+                            placeholder="e.g., 5-5"
+                          />
+                        </div>
+                      </div>
+
+                      <Button type="button" onClick={() => setStep("context")} className="w-full">
+                        Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
+                      </Button>
                     </TabsContent>
                   </Tabs>
-          </CardContent>
-        </Card>
-      )}
+                </CardContent>
+              </Card>
+            )}
 
-      {/* STEP 2: LOGIC & CONTEXT */}
-      {step === "context" && (
-        <Card className="fade-in">
-          <CardHeader>
-            <CardTitle>Logic & Context</CardTitle>
-            <CardDescription>Add analytical factors and your reasoning</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Are there key player injuries?</Label>
-              <YesNoControl
-                value={formData.hasKeyInjuries}
-                onChange={(value) => {
-                  updateFormData("hasKeyInjuries", value)
-                  updateFormData("injuries", value ? "Key injuries present" : "No major injuries")
-                }}
-              />
-            </div>
+            {/* STEP 2: LOGIC & CONTEXT */}
+            {step === "context" && (
+              <Card className="fade-in">
+                <CardHeader>
+                  <CardTitle>Logic & Context</CardTitle>
+                  <CardDescription>Add analytical factors and your reasoning</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label>Are there key player injuries?</Label>
+                    <YesNoControl
+                      value={formData.hasKeyInjuries}
+                      onChange={(value) => {
+                        updateFormData("hasKeyInjuries", value)
+                        updateFormData("injuries", value ? "Key injuries present" : "No major injuries")
+                      }}
+                    />
+                  </div>
 
-            <div>
-              <Label>Is there adverse weather (Rain/Snow/Wind)?</Label>
-              <YesNoControl
-                value={formData.hasAdverseWeather}
-                onChange={(value) => {
-                  updateFormData("hasAdverseWeather", value)
-                  updateFormData("weather", value ? "Adverse weather conditions" : "Clear conditions")
-                }}
-              />
-            </div>
+                  <div>
+                    <Label>Is there adverse weather (Rain/Snow/Wind)?</Label>
+                    <YesNoControl
+                      value={formData.hasAdverseWeather}
+                      onChange={(value) => {
+                        updateFormData("hasAdverseWeather", value)
+                        updateFormData("weather", value ? "Adverse weather conditions" : "Clear conditions")
+                      }}
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="bettingSlip">Betting Slip (optional)</Label>
-                <Textarea
-                  id="bettingSlip"
-                  value={formData.bettingSlip}
-                  onChange={(e) => updateFormData("bettingSlip", e.target.value)}
-                  placeholder="Paste your betting slip details or describe your bets..."
-                  rows={3}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="bettingSlip">Betting Slip (optional)</Label>
+                    <Textarea
+                      id="bettingSlip"
+                      value={formData.bettingSlip}
+                      onChange={(e) => updateFormData("bettingSlip", e.target.value)}
+                      placeholder="Paste your betting slip details or describe your bets..."
+                      rows={3}
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="notes">User Notes/Reasoning</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => updateFormData("notes", e.target.value)}
-                  placeholder="e.g., Team has strong defense, great home record"
-                  rows={2}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="notes">User Notes/Reasoning</Label>
+                    <Textarea
+                      id="notes"
+                      value={formData.notes}
+                      onChange={(e) => updateFormData("notes", e.target.value)}
+                      placeholder="e.g., Team has strong defense, great home record"
+                      rows={2}
+                    />
+                  </div>
 
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setStep("details")} className="flex-1">
-                  Back
-                </Button>
-                <Button type="button" onClick={() => setStep("mindset")} className="flex-1">
-                  Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={() => setStep("details")} className="flex-1">
+                      Back
+                    </Button>
+                    <Button type="button" onClick={() => setStep("mindset")} className="flex-1">
+                      Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* STEP 3: MINDSET */}
-        {step === "mindset" && (
-          <Card className="fade-in">
-            <CardHeader>
-              <CardTitle>Mindset & Emotional State</CardTitle>
-              <CardDescription>Reflect on your emotional state and recent betting patterns</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="emotionCategory">How are you feeling right now?</Label>
-                <div className="relative">
-                  {/* Trigger showing current selection */}
-                  <button
-                    type="button"
-                    className="w-full flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    onClick={() => {
-                      const nextOpen = !emotionMenuOpen
-                      setEmotionMenuOpen(nextOpen)
-                      if (nextOpen) {
-                        const initialCat = emotionCategory || coreEmotions[0]?.id || ""
-                        setHoveredEmotionCategory(initialCat)
-                      }
-                    }}
-                  >
-                    <span className="text-left truncate">
-                      {(() => {
-                        const categoryLabel = coreEmotions.find(c => c.id === emotionCategory)?.label
-                        if (categoryLabel && formData.currentEmotion) {
-                          return `${categoryLabel} · ${formData.currentEmotion}`
-                        }
-                        if (formData.currentEmotion) {
-                          return formData.currentEmotion
-                        }
-                        return "Select how you're feeling"
-                      })()}
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">▼</span>
-                  </button>
+            {/* STEP 3: MINDSET */}
+            {step === "mindset" && (
+              <Card className="fade-in">
+                <CardHeader>
+                  <CardTitle>Mindset & Emotional State</CardTitle>
+                  <CardDescription>Reflect on your emotional state and recent betting patterns</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="emotionCategory">How are you feeling right now?</Label>
+                    <div className="relative">
+                      {/* Trigger showing current selection */}
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        onClick={() => {
+                          const nextOpen = !emotionMenuOpen
+                          setEmotionMenuOpen(nextOpen)
+                          if (nextOpen) {
+                            const initialCat = emotionCategory || coreEmotions[0]?.id || ""
+                            setHoveredEmotionCategory(initialCat)
+                          }
+                        }}
+                      >
+                        <span className="text-left truncate">
+                          {(() => {
+                            const categoryLabel = coreEmotions.find(c => c.id === emotionCategory)?.label
+                            if (categoryLabel && formData.currentEmotion) {
+                              return `${categoryLabel} · ${formData.currentEmotion}`
+                            }
+                            if (formData.currentEmotion) {
+                              return formData.currentEmotion
+                            }
+                            return "Select how you're feeling"
+                          })()}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">▼</span>
+                      </button>
 
-                  {emotionMenuOpen && (
-                    <div className="absolute z-50 mt-2 flex w-full rounded-md border bg-popover text-popover-foreground shadow-lg">
-                      {/* Core emotion list */}
-                      <div className="w-40 max-h-64 overflow-y-auto border-r bg-background">
-                        {coreEmotions.map((category) => (
-                          <button
-                            key={category.id}
-                            type="button"
-                            className={`block w-full px-3 py-2 text-left text-xs font-semibold ${
-                              (hoveredEmotionCategory || emotionCategory) === category.id
-                                ? "bg-accent text-accent-foreground"
-                                : "hover:bg-accent/60"
-                            }`}
-                            onMouseEnter={() => setHoveredEmotionCategory(category.id)}
-                          >
-                            {category.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Sub-emotions for hovered category */}
-                      <div className="flex-1 max-h-64 overflow-y-auto bg-background">
-                        {(() => {
-                          const activeCategoryId = hoveredEmotionCategory || emotionCategory || coreEmotions[0]?.id
-                          const activeCategory = coreEmotions.find(c => c.id === activeCategoryId)
-                          if (!activeCategory) return null
-                          return (
-                            <div className="py-1">
-                              {activeCategory.subEmotions.map((emotion) => (
-                                <button
-                                  key={emotion}
-                                  type="button"
-                                  className={`block w-full px-3 py-2 text-left text-xs ${
-                                    formData.currentEmotion === emotion
-                                      ? "bg-primary/10 text-primary font-semibold"
-                                      : "hover:bg-accent/60"
+                      {emotionMenuOpen && (
+                        <div className="absolute z-50 mt-2 flex w-full rounded-md border bg-popover text-popover-foreground shadow-lg">
+                          {/* Core emotion list */}
+                          <div className="w-40 max-h-64 overflow-y-auto border-r bg-background">
+                            {coreEmotions.map((category) => (
+                              <button
+                                key={category.id}
+                                type="button"
+                                className={`block w-full px-3 py-2 text-left text-xs font-semibold ${(hoveredEmotionCategory || emotionCategory) === category.id
+                                  ? "bg-accent text-accent-foreground"
+                                  : "hover:bg-accent/60"
                                   }`}
-                                  onClick={() => {
-                                    setEmotionCategory(activeCategory.id)
-                                    updateFormData("currentEmotion", emotion)
-                                    setEmotionMenuOpen(false)
-                                  }}
-                                >
-                                  {emotion}
-                                </button>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                      </div>
+                                onMouseEnter={() => setHoveredEmotionCategory(category.id)}
+                              >
+                                {category.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Sub-emotions for hovered category */}
+                          <div className="flex-1 max-h-64 overflow-y-auto bg-background">
+                            {(() => {
+                              const activeCategoryId = hoveredEmotionCategory || emotionCategory || coreEmotions[0]?.id
+                              const activeCategory = coreEmotions.find(c => c.id === activeCategoryId)
+                              if (!activeCategory) return null
+                              return (
+                                <div className="py-1">
+                                  {activeCategory.subEmotions.map((emotion) => (
+                                    <button
+                                      key={emotion}
+                                      type="button"
+                                      className={`block w-full px-3 py-2 text-left text-xs ${formData.currentEmotion === emotion
+                                        ? "bg-primary/10 text-primary font-semibold"
+                                        : "hover:bg-accent/60"
+                                        }`}
+                                      onClick={() => {
+                                        setEmotionCategory(activeCategory.id)
+                                        updateFormData("currentEmotion", emotion)
+                                        setEmotionMenuOpen(false)
+                                      }}
+                                    >
+                                      {emotion}
+                                    </button>
+                                  ))}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              <div>
-                <Label>Last bet outcome</Label>
-                <SegmentedControl
-                  options={[
-                    { value: "Won", label: "Win" },
-                    { value: "Lost", label: "Loss" },
-                    { value: "Push", label: "Push" },
-                    { value: "None", label: "None" },
-                  ]}
-                  value={formData.lastOutcome}
-                  onChange={(value) => updateFormData("lastOutcome", value)}
-                />
-              </div>
+                  <div>
+                    <Label>Last bet outcome</Label>
+                    <SegmentedControl
+                      options={[
+                        { value: "Won", label: "Win" },
+                        { value: "Lost", label: "Loss" },
+                        { value: "Push", label: "Push" },
+                        { value: "None", label: "None" },
+                      ]}
+                      value={formData.lastOutcome}
+                      onChange={(value) => updateFormData("lastOutcome", value)}
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="emotionalTriggers">Emotional triggers (what's making you want to bet?)</Label>
-                <Textarea
-                  id="emotionalTriggers"
-                  value={formData.emotionalTriggers}
-                  onChange={(e) => updateFormData("emotionalTriggers", e.target.value)}
-                  placeholder="e.g., I need to win back my losses, I'm feeling lucky..."
-                  rows={3}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="emotionalTriggers">Emotional triggers (what's making you want to bet?)</Label>
+                    <Textarea
+                      id="emotionalTriggers"
+                      value={formData.emotionalTriggers}
+                      onChange={(e) => updateFormData("emotionalTriggers", e.target.value)}
+                      placeholder="e.g., I need to win back my losses, I'm feeling lucky..."
+                      rows={3}
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="history">Recent Betting History</Label>
-                <Textarea
-                  id="history"
-                  value={formData.history}
-                  onChange={(e) => updateFormData("history", e.target.value)}
-                  placeholder="e.g., Won $50 yesterday or Lost 3 bets this week"
-                  rows={2}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="history">Recent Betting History</Label>
+                    <Textarea
+                      id="history"
+                      value={formData.history}
+                      onChange={(e) => updateFormData("history", e.target.value)}
+                      placeholder="e.g., Won $50 yesterday or Lost 3 bets this week"
+                      rows={2}
+                    />
+                  </div>
 
-              <div className="pt-4 border-t space-y-4">
-                <h4 className="text-sm font-semibold text-foreground">Psychological Factors</h4>
+                  <div className="pt-4 border-t space-y-4">
+                    <h4 className="text-sm font-semibold text-foreground">Psychological Factors</h4>
 
-                <div>
-                  <Label>Is this a Live/In-Play bet?</Label>
-                  <YesNoControl
-                    value={formData.isLiveBet}
-                    onChange={(value) => updateFormData("isLiveBet", value)}
-                  />
-                </div>
+                    <div>
+                      <Label>Is this a Live/In-Play bet?</Label>
+                      <YesNoControl
+                        value={formData.isLiveBet}
+                        onChange={(value) => updateFormData("isLiveBet", value)}
+                      />
+                    </div>
 
-                <div>
-                  <Label>Are you betting on your favorite team?</Label>
-                  <YesNoControl
-                    value={formData.isFavoriteTeam}
-                    onChange={(value) => updateFormData("isFavoriteTeam", value)}
-                  />
-                </div>
+                    <div>
+                      <Label>Are you betting on your favorite team?</Label>
+                      <YesNoControl
+                        value={formData.isFavoriteTeam}
+                        onChange={(value) => updateFormData("isFavoriteTeam", value)}
+                      />
+                    </div>
 
-                <div>
-                  <Label>Are you chasing a previous loss?</Label>
-                  <YesNoControl
-                    value={formData.isChasingLoss}
-                    onChange={(value) => updateFormData("isChasingLoss", value)}
-                  />
-                </div>
-              </div>
+                    <div>
+                      <Label>Are you chasing a previous loss?</Label>
+                      <YesNoControl
+                        value={formData.isChasingLoss}
+                        onChange={(value) => updateFormData("isChasingLoss", value)}
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setStep("context")} className="flex-1">
-                  Back
-                </Button>
-                <Button type="submit" disabled={loading} className="flex-1">
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {loading ? "Analyzing..." : "Analyze Scenario"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </form>
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={() => setStep("context")} className="flex-1">
+                      Back
+                    </Button>
+                    <Button type="submit" disabled={loading} className="flex-1">
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {loading ? "Analyzing..." : "Analyze Scenario"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </form>
         </CardContent>
       </Card>
 
@@ -1431,7 +1480,7 @@ We'll automatically extract the details and populate the form.`}
                   </p>
                 </div>
                 <div className="flex gap-3 justify-center">
-                  <Button 
+                  <Button
                     className="bg-green-600 hover:bg-green-700"
                     onClick={() => {
                       // Navigate to SmartSlip
@@ -1443,7 +1492,7 @@ We'll automatically extract the details and populate the form.`}
                     <Sparkles className="h-4 w-4 mr-2" />
                     Start Free Week
                   </Button>
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={() => {
                       // Navigate to SmartSlip directly

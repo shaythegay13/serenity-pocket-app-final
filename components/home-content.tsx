@@ -46,7 +46,7 @@ export function HomeContent() {
   const AiPicksTab = lazy(() => import("@/components/tabs/ai-picks-tab").then((m) => ({ default: m.AIPicksTab })))
   const AnalyticsTab = lazy(() => import("@/components/tabs/analytics-tab").then((m) => ({ default: m.AnalyticsTab })))
   const AccountTab = lazy(() => import("@/components/tabs/account-tab").then((m) => ({ default: m.AccountTab })))
-  
+
   // Emotion check-in dialog
   const EmotionCheckInDialog = lazy(() => import("@/components/emotion-check-in-dialog").then((m) => ({ default: m.EmotionCheckInDialog })))
 
@@ -63,17 +63,17 @@ export function HomeContent() {
   useEffect(() => {
     const tab = searchParams.get("tab")
     const section = searchParams.get("section")
-    
+
     // Redirect old history tab to analytics performance tab
     if (tab === "history") {
       window.history.replaceState(null, "", "/?tab=analytics")
       setActiveTab("analytics")
       return
     }
-    
+
     if (tab && ["home", "behavior", "ai-picks", "analytics", "account"].includes(tab)) {
       setActiveTab(tab)
-      
+
       // If we have a section parameter and the tab is ai-picks, we need to handle it
       if (tab === "ai-picks" && section) {
         // We'll handle this in the AiPicksTab component by checking URL params
@@ -87,9 +87,9 @@ export function HomeContent() {
   useEffect(() => {
     const signup = searchParams.get("signup")
     const flow = searchParams.get("flow")
-    
+
     console.log('🔧 Home-content signup check:', { signup, flow, loading, authed, userData })
-    
+
     if (signup === "true" && !loading) {
       console.log('🔧 Signup flow detected in home-content!')
       if (authed === false) {
@@ -118,7 +118,7 @@ export function HomeContent() {
   useEffect(() => {
     const checkEmotionTrigger = async () => {
       if (!userData || activeTab !== "home") return
-      
+
       try {
         // Check if we've already shown emotion check-in this login session
         const sessionShown = sessionStorage.getItem('emotionCheckInShown')
@@ -147,7 +147,7 @@ export function HomeContent() {
         setLoading(false)
         setAuthed(false)
         setShowLanding(true)
-      }, 10000) // 10 second timeout
+      }, 5000) // 5 second timeout
 
       try {
         // Run auth check and user data fetch in parallel
@@ -159,7 +159,7 @@ export function HomeContent() {
         clearTimeout(timeoutId)
 
         const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
-        
+
         // Check for refresh token errors
         if (sessionResult.status === 'rejected') {
           const error = sessionResult.reason
@@ -168,7 +168,7 @@ export function HomeContent() {
             await clearStaleAuth()
           }
         }
-        
+
         if (!session) {
           setAuthed(false)
           setShowLanding(true)
@@ -177,7 +177,7 @@ export function HomeContent() {
         }
 
         setAuthed(true)
-        
+
         const profile = userDataResult.status === 'fulfilled' ? userDataResult.value : null
         setUserData(profile)
 
@@ -186,7 +186,7 @@ export function HomeContent() {
         setShowSignin(false)
         setShowTerms(false)
         setShowLanding(false) // Explicitly hide landing page
-        
+
       } catch (error) {
         clearTimeout(timeoutId)
         setAuthed(false)
@@ -234,7 +234,7 @@ export function HomeContent() {
   const handleNavigateToTab = (tab: string, subtab?: string) => {
     // Update the active tab state immediately
     setActiveTab(tab)
-    
+
     // Update URL with clean paths for other tabs
     if (subtab) {
       window.history.replaceState(null, '', `/${tab}/${subtab}`)
@@ -308,7 +308,7 @@ export function HomeContent() {
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <div className="animate-pulse text-muted-foreground">Loading...</div>
-          <button 
+          <button
             onClick={() => {
               setLoading(false)
               setAuthed(false)
@@ -345,7 +345,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SurveyComponent 
+        <SurveyComponent
           onComplete={(score, level, email) => {
             console.log('🔧 Survey completed with:', { score, level, email })
             handleSurveyComplete({ score, level } as any)
@@ -370,7 +370,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <InstantProfileComponent 
+        <InstantProfileComponent
           userData={userData as any}
           updateUserData={updateUserData}
           forceRefresh={() => setRefreshKey((k) => k + 1)}
@@ -387,7 +387,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <ProfilePreviewComponent 
+        <ProfilePreviewComponent
           userData={userData as any}
           updateUserData={updateUserData}
           forceRefresh={() => setRefreshKey((k) => k + 1)}
@@ -406,7 +406,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SoftGateComponent 
+        <SoftGateComponent
           onComplete={(score, level, email) => {
             handleSoftGateComplete()
           }}
@@ -427,7 +427,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SignupComponent 
+        <SignupComponent
           email=""
           onComplete={handleSignupComplete}
         />
@@ -443,10 +443,10 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <SigninComponent 
-          onSwitchToSignUp={() => {}}
-          onForgotPassword={() => {}}
-          onResendConfirmation={() => {}}
+        <SigninComponent
+          onSwitchToSignUp={() => { }}
+          onForgotPassword={() => { }}
+          onResendConfirmation={() => { }}
         />
       </Suspense>
     )
@@ -460,15 +460,17 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <TermsComponent 
+        <TermsComponent
           onAccept={handleTermsComplete}
-          onDecline={() => {}}
+          onDecline={() => { }}
         />
       </Suspense>
     )
   }
 
-  if (showLanding && !authed) {
+  // Show landing page for unauthenticated users
+  // SECURITY: This must catch ALL unauthenticated states, not just when showLanding is true
+  if (!authed) {
     const LandingComponent = lazy(() =>
       import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
     )
@@ -476,7 +478,7 @@ export function HomeContent() {
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
-        <LandingComponent 
+        <LandingComponent
           onLogin={() => {
             window.location.href = "/login"
           }}
@@ -485,19 +487,28 @@ export function HomeContent() {
     )
   }
 
-  // EntryFlowOrchestrator completely removed - too much friction for users
-  // All authenticated users should go directly to /home dashboard
+  // SECURITY: Explicit authentication check before rendering dashboard
+  // This ensures NO unauthenticated user can ever see the dashboard
+  if (authed !== true) {
+    // This should never happen, but provides a safety net
+    console.error('[HomeContent] Invalid auth state - redirecting to landing')
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Verifying authentication...</div>
+      </div>
+    )
+  }
 
-  // Main dashboard
+  // Main dashboard - ONLY renders when authed === true
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
         <DashboardHeader userData={userData ?? undefined} onNavigateToTab={handleNavigateToTab} />
-        
+
         <div className="hidden md:block">
           <Navigation onNavigateToTab={handleNavigateToTab} isHomePage={true} />
         </div>
-        
+
         <main className="pb-20 md:pb-0">
           <ErrorBoundary>
             <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
@@ -532,11 +543,11 @@ export function HomeContent() {
             </Suspense>
           </ErrorBoundary>
         </main>
-        
+
         <div className="md:hidden">
           <BottomNav />
         </div>
-        
+
         {/* Emotion Check-in Dialog */}
         {showEmotionCheckIn && (
           <Suspense fallback={null}>

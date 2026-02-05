@@ -13,7 +13,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
   const tiers = [
     {
       id: "free",
-      name: "Free",
+      name: "Foundation",
       price: 0,
       interval: "forever",
       icon: Sparkles,
@@ -31,7 +31,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
     },
     {
       id: "pro",
-      name: "Pro",
+      name: "Focus",
       price: 29,
       interval: "month",
       icon: Zap,
@@ -39,7 +39,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       description: "Unlock advanced insights and unlimited tracking",
       badge: "Popular",
       features: [
-        "Everything in Free",
+        "Everything in Foundation",
         "Advanced bias analytics",
         "Personalized bias alerts",
         "Performance correlation analysis",
@@ -50,7 +50,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
     },
     {
       id: "elite",
-      name: "Elite",
+      name: "Mastery",
       price: 79,
       interval: "month",
       icon: Crown,
@@ -58,7 +58,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       description: "Premium features with AI-powered coaching",
       badge: "Best Value",
       features: [
-        "Everything in Pro",
+        "Everything in Focus",
         "AI-powered decision assistant",
         "Real-time emotional pattern alerts",
         "Custom bias profiles & reports",
@@ -71,7 +71,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
     },
     {
       id: "master",
-      name: "Master",
+      name: "Apex",
       price: 199,
       interval: "month",
       icon: Crown,
@@ -79,7 +79,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       description: "Complete psychological mastery program",
       badge: "Ultimate",
       features: [
-        "Everything in Elite",
+        "Everything in Mastery",
         "Weekly 1-on-1 coaching sessions",
         "Custom psychological assessment",
         "Personalized training program",

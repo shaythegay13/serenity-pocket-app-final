@@ -9,7 +9,35 @@
  */
 
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './ai-service'
-import { SupportedSportKey, GameBetMarketType } from './types'
+
+export type SupportedSportKey =
+  | 'basketball_nba'
+  | 'americanfootball_nfl'
+  | 'baseball_mlb'
+  | 'icehockey_nhl'
+  | 'basketball_ncaab'
+  | 'americanfootball_ncaaf'
+  | 'soccer_epl'
+  | 'soccer_mls'
+  | 'soccer_ucl'
+  | 'mma_ufc'
+  | 'boxing'
+  | 'tennis'
+  | 'golf'
+  | 'formula1'
+  | 'nascar'
+  | 'esports_lol'
+  | 'esports_csgo'
+  | 'other'
+
+export type GameBetMarketType =
+  | 'moneyline'
+  | 'spread'
+  | 'total'
+  | 'parlay'
+  | 'prop'
+  | 'future'
+  | 'live'
 
 export interface BetScenario {
   // Core bet details
@@ -23,7 +51,7 @@ export interface BetScenario {
   odds?: number // American odds
   betAmount: number
   budget: number
-  
+
   // Legacy fields (kept for backward compatibility)
   favoriteTeam: string
   underdogTeam: string
@@ -31,14 +59,14 @@ export interface BetScenario {
   underdogRecord: string
   injuries: string
   weather: string
-  
+
   // New boolean fields for UI
   hasKeyInjuries: boolean
   hasAdverseWeather: boolean
   isLiveBet: boolean
   isFavoriteTeam: boolean
   isChasingLoss: boolean
-  
+
   // Emotional data
   currentEmotion: string
   currentEmotionIntensity: number
@@ -47,18 +75,22 @@ export interface BetScenario {
   bettingSlip: string
   history: string
   notes: string
-  
+
   // Psychological factors
   biasesIdentified: string[]
-  confidenceLevel: number // 1-10
+  confidenceLevel: number // 0-100 (standardized)
   reasoning: string
-  
+
+  // Model/Psych Picker Result (Internal)
+  psychModel?: string
+  psychMultiplier?: number
+
   // Metadata
   sportsbook?: string
 }
 
 export interface HarmSignal {
-  type: 'budget' | 'chasing' | 'frequency' | 'emotional' | 'parlay'
+  type: 'budget' | 'chasing' | 'frequency' | 'emotional' | 'parlay' | 'behavioral'
   label: string
 }
 
@@ -117,6 +149,15 @@ export interface ComprehensiveAnalysis {
   recommendation: UnifiedRecommendation
 }
 
+export interface OddsAnalysis {
+  favoriteTeam: string
+  underdogTeam: string
+  favoriteRecord: string
+  underdogRecord: string
+  winProbability: number
+  isCloseMatchup: boolean
+}
+
 export interface AIEnhancedAnalysis extends ComprehensiveAnalysis {
   ai?: {
     usedClaude: boolean
@@ -138,6 +179,8 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   const percent = budget > 0 ? Math.round((amt / budget) * 100) : 0
   const historyText = (payload.history || '').toLowerCase()
   const emotionText = (payload.currentEmotion || '').toLowerCase()
+  const confidence = payload.confidenceLevel || 50
+  const psychMultiplier = payload.psychMultiplier || 1.0
 
   const signals: HarmSignal[] = []
   const recommendations: string[] = []
@@ -150,7 +193,7 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   else if (moderateBudget) signals.push({ type: 'budget', label: `${percent}% of budget (moderately high)` })
 
   // Chasing losses
-  const chasing = /lost|loss|losing|down|behind|recover|win back/i.test(historyText)
+  const chasing = /lost|loss|losing|down|behind|recover|win back/i.test(historyText) || payload.isChasingLoss
   if (chasing) signals.push({ type: 'chasing', label: 'Potential chasing behavior detected' })
 
   // High frequency
@@ -161,6 +204,17 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   const emotional = /frustrated|angry|desperate|greedy|need to|anxious|upset/i.test(emotionText)
   if (emotional) signals.push({ type: 'emotional', label: 'Emotional state may affect judgment' })
 
+  // Behavioral Intersections (migrated from SlipAnalyzer)
+  if (confidence < 60 && amt > 25) {
+    signals.push({ type: 'behavioral', label: 'Chasing Risk: Low confidence but significant stake' })
+    recommendations.push('Your confidence is low but your stake is significant. Are you trying to recover losses?')
+  }
+
+  if (payload.psychModel === 'safety_guard_v2') {
+    signals.push({ type: 'behavioral', label: 'Safety Guard Model Active: High emotional volatility detected' })
+    recommendations.push('Safety Guard mode is active. Stake sizes have been throttled for your protection.')
+  }
+
   // Parlay after loss
   const parlayAfterLoss = payload.betType === 'Parlay' && chasing
   if (parlayAfterLoss) signals.push({ type: 'parlay', label: 'Parlay bet while chasing losses' })
@@ -169,10 +223,10 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   let risk: 'LOW' | 'MODERATE' | 'HIGH' = 'LOW'
   let color: 'risk-low' | 'risk-moderate' | 'risk-high' = 'risk-low'
 
-  if (highBudget || parlayAfterLoss || (emotional && chasing)) {
+  if (highBudget || parlayAfterLoss || (emotional && chasing) || psychMultiplier < 0.6) {
     risk = 'HIGH'
     color = 'risk-high'
-  } else if (moderateBudget || chasing || emotional || frequency) {
+  } else if (moderateBudget || chasing || emotional || frequency || confidence < 40) {
     risk = 'MODERATE'
     color = 'risk-moderate'
   }
@@ -297,27 +351,27 @@ export function emotionalPsychologyAnalysis(payload: BetScenario): EmotionalAnal
   // Parse betting slip for emotional patterns
   const slipAnalysis = parseBettingSlip(bettingSlip)
 
-  // Emotional state mapping
-  const positiveEmotions = ['happy', 'excited', 'confident', 'optimistic', 'gleeful']
-  const negativeEmotions = ['frustrated', 'annoyed', 'sad', 'disappointed', 'anxious', 'stressed', 'angry', 'upset']
-  const dangerousEmotions = ['desperate', 'greedy', 'lucky']
+  // Emotional state mapping (case-insensitive matching)
+  const positiveEmotions = ['happy', 'excited', 'confident', 'optimistic', 'gleeful', 'calm', 'content', 'hopeful']
+  const negativeEmotions = ['frustrated', 'annoyed', 'sad', 'disappointed', 'anxious', 'stressed', 'angry', 'upset', 'worried', 'nervous']
+  const dangerousEmotions = ['desperate', 'greedy', 'lucky', 'tilted', 'reckless']
 
   // Analyze current emotional state
   let emotionalRisk: 'LOW' | 'MODERATE' | 'HIGH' = 'LOW'
   let emotionalState: 'neutral' | 'positive' | 'negative' | 'dangerous' = 'neutral'
   let emotionalFactors: string[] = []
 
-  // Check current emotion
+  // Check current emotion (case-insensitive)
   const emotionText = currentEmotion.toLowerCase()
-  if (dangerousEmotions.some(e => emotionText.includes(e))) {
+  if (dangerousEmotions.some(e => emotionText.includes(e.toLowerCase()))) {
     emotionalRisk = 'HIGH'
     emotionalState = 'dangerous'
     emotionalFactors.push('Dangerous emotional state detected')
-  } else if (negativeEmotions.some(e => emotionText.includes(e))) {
+  } else if (negativeEmotions.some(e => emotionText.includes(e.toLowerCase()))) {
     emotionalRisk = 'HIGH'
     emotionalState = 'negative'
     emotionalFactors.push('Negative emotional state')
-  } else if (positiveEmotions.some(e => emotionText.includes(e))) {
+  } else if (positiveEmotions.some(e => emotionText.includes(e.toLowerCase()))) {
     emotionalRisk = 'MODERATE'
     emotionalState = 'positive'
     emotionalFactors.push('Positive but potentially overconfident state')
@@ -410,14 +464,24 @@ export function unifiedRecommendationAgent(
   const percent = budget > 0 ? Math.round((amt / budget) * 100) : 0
   const isParlay = payload.betType === 'Parlay'
 
-  // Parse team records
+  // Parse team records safely
   const favRecord = payload.favoriteRecord || ''
   const dogRecord = payload.underdogRecord || ''
-  const favWins = parseInt(favRecord.split('-')[0]) || 0
-  const favLosses = parseInt(favRecord.split('-')[1]) || 0
 
-  const dogWins = parseInt(dogRecord.split('-')[0]) || 0
-  const dogLosses = parseInt(dogRecord.split('-')[1]) || 0
+  const parseRecord = (record: string): { wins: number; losses: number } => {
+    const parts = record.split('-')
+    return {
+      wins: parts.length > 0 ? parseInt(parts[0], 10) || 0 : 0,
+      losses: parts.length > 1 ? parseInt(parts[1], 10) || 0 : 0
+    }
+  }
+
+  const favParsed = parseRecord(favRecord)
+  const dogParsed = parseRecord(dogRecord)
+  const favWins = favParsed.wins
+  const favLosses = favParsed.losses
+  const dogWins = dogParsed.wins
+  const dogLosses = dogParsed.losses
 
   const favSeasonWinPct = favWins + favLosses > 0 ? (favWins / (favWins + favLosses)) : 0.5
   const dogSeasonWinPct = dogWins + dogLosses > 0 ? (dogWins / (dogWins + dogLosses)) : 0.5
@@ -451,7 +515,10 @@ export function unifiedRecommendationAgent(
   // PRIORITY 1: Emotional Psychology - Most Important
   if (emotionalAnalysis.emotionalRisk === 'HIGH') {
     recommendation = 'DON\'T PLACE BET'
-    reason = `Emotional state (${emotionalAnalysis.emotionalState}) detected. ${emotionalAnalysis.emotionalFactors[0]}. Waiting ${emotionalAnalysis.waitingPeriod} is strongly recommended for better decision making.`
+    const primaryFactor = emotionalAnalysis.emotionalFactors.length > 0
+      ? emotionalAnalysis.emotionalFactors[0]
+      : 'Elevated emotional risk'
+    reason = `Emotional state (${emotionalAnalysis.emotionalState}) detected. ${primaryFactor}. Waiting ${emotionalAnalysis.waitingPeriod} is strongly recommended for better decision making.`
     confidence = 90
   }
   // Strong DON'T BET conditions (emotional + financial)
@@ -470,7 +537,7 @@ export function unifiedRecommendationAgent(
   }
   // Strong BET conditions
   else if (!highBudgetRisk && !moderateBudgetRisk && !chasingBehavior && !emotionalBetting &&
-           bigFavorite && !hasKeyInjuries && !badWeather && !isParlay) {
+    bigFavorite && !hasKeyInjuries && !badWeather && !isParlay) {
     recommendation = 'PLACE BET'
     reason = 'Low financial risk, no emotional patterns, favorable matchup with strong favorite and no major injuries.'
     confidence = 75
@@ -533,11 +600,11 @@ export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnh
 
   let claudeAnalysis:
     | {
-        enhancedReasoning: string
-        refinedRecommendation: 'PLACE BET' | "DON'T PLACE BET" | 'PROCEED WITH CAUTION'
-        confidenceScore: number
-        keyInsights: string[]
-      }
+      enhancedReasoning: string
+      refinedRecommendation: 'PLACE BET' | "DON'T PLACE BET" | 'PROCEED WITH CAUTION'
+      confidenceScore: number
+      keyInsights: string[]
+    }
     | undefined
   if (hasClaude) {
     try {

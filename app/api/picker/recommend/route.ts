@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { generatePickerRecommendations } from "@/lib/services/gemini-reasoner"
-import { conductSportsResearch, type SportsResearchInput, type SportsResearchOutput } from "@/lib/sports-research"
+import {
+  conductSportsResearch,
+  type SportsResearchInput,
+  type SportsResearchOutput,
+} from "@/lib/sports-research"
 import type {
   CurrentGameContext,
   HistoricalFeatureVector,
@@ -16,10 +20,64 @@ import {
   buildFeaturesCsv,
   type SerenityFeatureInput,
 } from "@/lib/services/serenityFeatureBuilder"
-import { predictSerenityBet } from "@/lib/services/sagemakerSerenityCsv"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
 import { emotionalStabilityService } from "@/lib/services/emotional-stability-service"
 import { computeEvFromProbAndOdds } from "@/lib/ev-calculator"
+import {
+  calculateRiskIndex,
+  getKellyFraction,
+  getSportVariance,
+} from "@/lib/risk-index"
+import { getSportById } from "@/lib/sports-config"
+
+
+// -- NEW EV STACK IMPORTS --
+import { computeEv, EvDiagnostics, EvInputs, impliedProbFromAmerican } from "@/lib/ev-calculator"
+import { BasicBlendingTrueProbabilityEngine } from "@/lib/true-probability-engine"
+import { SimpleEmbeddingClient, GeminiLlmClient } from "@/lib/clients/ai-clients"
+import { LlmTrueProbabilityService, GameContext } from "@/services/true-probability-llm-service"
+import { SmartSlipEvService, SmartSlipLegInput } from "@/services/smart-slip-ev"
+
+// Instantiate services (stateless/singleton safe)
+const embeddingClient = new SimpleEmbeddingClient()
+const llmClient = new GeminiLlmClient()
+const probabilityEngine = new BasicBlendingTrueProbabilityEngine()
+const llmProbService = new LlmTrueProbabilityService({
+  embeddingClient,
+  llmClient,
+  probabilityEngine
+})
+const smartSlipService = new SmartSlipEvService(llmProbService)
+
+async function callPsychPicker(
+  emotionalScore: number,
+  riskTolerance: string,
+): Promise<any> {
+  return new Promise((resolve) => {
+    const { exec } = require("child_process")
+    exec(
+      `python psych_model_picker.py ${emotionalScore} ${riskTolerance}`,
+      (error: any, stdout: string) => {
+        if (error) {
+          console.error("[PsychPicker] Failed:", error)
+          resolve({
+            model_id: "growth_optimizer_v3",
+            params: { max_stake_multiplier: 1.0 },
+          })
+        } else {
+          try {
+            resolve(JSON.parse(stdout))
+          } catch {
+            resolve({
+              model_id: "growth_optimizer_v3",
+              params: { max_stake_multiplier: 1.0 },
+            })
+          }
+        }
+      },
+    )
+  })
+}
 
 // Increase timeout for complex AI analysis and ML predictions
 export const maxDuration = 60 // 60 seconds
@@ -49,299 +107,305 @@ interface PickerRequestBody {
 }
 
 function normalizeSportKey(input?: string): string {
-  const raw = String(input || '').trim()
-  if (!raw) return 'basketball_nba'
+  const raw = String(input || "").trim()
+  if (!raw) return "basketball_nba"
   const v = raw.toLowerCase()
-  if (v === 'basketball_nba' || v.includes('basketball_nba')) return 'basketball_nba'
-  if (v === 'americanfootball_nfl' || v.includes('americanfootball_nfl')) return 'americanfootball_nfl'
-  if (v === 'baseball_mlb' || v.includes('baseball_mlb')) return 'baseball_mlb'
-  if (v === 'icehockey_nhl' || v.includes('icehockey_nhl')) return 'icehockey_nhl'
-  if (v === 'nba' || v.includes(' nba')) return 'basketball_nba'
-  if (v === 'nfl' || v.includes(' nfl')) return 'americanfootball_nfl'
-  if (v === 'mlb' || v.includes(' mlb')) return 'baseball_mlb'
-  if (v === 'nhl' || v.includes(' nhl')) return 'icehockey_nhl'
+  if (v === "basketball_nba" || v.includes("basketball_nba")) return "basketball_nba"
+  if (v === "americanfootball_nfl" || v.includes("americanfootball_nfl"))
+    return "americanfootball_nfl"
+  if (v === "baseball_mlb" || v.includes("baseball_mlb")) return "baseball_mlb"
+  if (v === "icehockey_nhl" || v.includes("icehockey_nhl")) return "icehockey_nhl"
+  if (v === "nba" || v.includes(" nba")) return "basketball_nba"
+  if (v === "nfl" || v.includes(" nfl")) return "americanfootball_nfl"
+  if (v === "mlb" || v.includes(" mlb")) return "baseball_mlb"
+  if (v === "nhl" || v.includes(" nhl")) return "icehockey_nhl"
+  if (v.includes("ncaab") || v.includes("ncaa_basketball")) return "basketball_ncaab"
+  if (v.includes("ncaaf") || v.includes("ncaa_football")) return "americanfootball_ncaaf"
+  if (v.includes("epl") || v.includes("premier league")) return "soccer_epl"
+  if (v.includes("mls")) return "soccer_mls"
+  if (v.includes("ucl") || v.includes("champions league"))
+    return "soccer_champions_league"
+  if (v.includes("ufc") || v.includes("mma")) return "mma_ufc"
+  if (v.includes("boxing")) return "boxing"
+  if (v.includes("atp")) return "tennis_atp"
+  if (v.includes("wta")) return "tennis_wta"
+  if (v.includes("tennis")) return "tennis_atp"
+  if (v.includes("pga")) return "golf_pga"
+  if (v.includes("golf")) return "golf_pga"
+  if (v.includes("f1")) return "motorsports_f1"
+  if (v.includes("nascar")) return "motorsports_nascar"
+  if (v.includes("lol")) return "esports_lol"
+  if (v.includes("csgo")) return "esports_csgo"
   return raw
 }
 
-function oddsToImpliedProb(odds: number): number {
-  if (!Number.isFinite(odds) || odds === 0) return 0.5
-  if (odds > 0) return 100 / (odds + 100)
-  return Math.abs(odds) / (Math.abs(odds) + 100)
+function oddsToImpliedProb(odds: number, sportKey: string = ""): number {
+  return impliedProbFromAmerican(odds) // Use new EV stack helper
 }
 
-function buildFallbackRecommendations(args: {
+async function buildFallbackRecommendations(args: {
   games: Array<{ id?: string; context: CurrentGameContext }>
   riskTolerance: "conservative" | "moderate" | "aggressive"
-  weeklyBudget: number
+  weeklyBudget: number // advisory only
   emotionalScore?: number
-}): PickerReasoningOutput {
-  const stakeFraction =
-    args.riskTolerance === "aggressive"
-      ? 0.08
-      : args.riskTolerance === "conservative"
-        ? 0.04
-        : 0.06
-
+}): Promise<PickerReasoningOutput> {
   const alignment =
-    typeof args.emotionalScore === "number" && Number.isFinite(args.emotionalScore)
+    typeof args.emotionalScore === "number"
       ? Math.max(0, Math.min(100, Math.round(args.emotionalScore)))
       : 70
 
-  const allPicks: PickerReasoningOutput["recommendations"] = []
+  const riskLevel =
+    args.riskTolerance === "conservative"
+      ? "LOW"
+      : args.riskTolerance === "aggressive"
+        ? "HIGH"
+        : "MEDIUM"
 
-  // Generate picks for ALL bet types based on actual odds and value
-  // Risk tolerance only affects stake size, not bet selection
+  const baseStake =
+    args.riskTolerance === "aggressive"
+      ? 40
+      : args.riskTolerance === "conservative"
+        ? 15
+        : 25
+
+  const potentialPicks: any[] = []
+
   for (const g of args.games) {
     const ctx = g.context
-    const suggestedStakeAbsolute = Math.max(5, Math.round(args.weeklyBudget * stakeFraction))
-    const riskLevel =
-      args.riskTolerance === "conservative" ? "LOW" : args.riskTolerance === "aggressive" ? "HIGH" : "MEDIUM"
+    if (!ctx) continue
 
-    // Log available bet types for this game
-    console.log(`[Fallback] Game: ${ctx.awayTeam} @ ${ctx.homeTeam}`)
-    console.log(`[Fallback] - Moneyline: home=${ctx.currentOdds?.moneylineHome}, away=${ctx.currentOdds?.moneylineAway}`)
-    console.log(`[Fallback] - Spread: homeOdds=${ctx.currentOdds?.spreadHomeOdds}, homeLine=${ctx.spreadLines?.home}, awayOdds=${ctx.currentOdds?.spreadAwayOdds}, awayLine=${ctx.spreadLines?.away}`)
-    console.log(`[Fallback] - Totals: overOdds=${ctx.currentOdds?.totalOverOdds}, underOdds=${ctx.currentOdds?.totalUnderOdds}, line=${ctx.totalLine}`)
+    // Helper to map context - include research notes for better AI probability signals
+    const teamFormNotes = ctx.teamForm
+      ? `Home form: ${ctx.teamForm.homeRecent?.join(',') || 'unknown'}. Away form: ${ctx.teamForm.awayRecent?.join(',') || 'unknown'}.`
+      : '';
 
-    // Calculate EV with an assumed bettor edge (2-5% depending on risk tolerance)
-    // This represents the edge a sharp bettor might have over the market
-    const bettorEdge =
-      args.riskTolerance === "aggressive" ? 0.05 : // 5% edge for aggressive
-      args.riskTolerance === "conservative" ? 0.02 : // 2% edge for conservative
-      0.035 // 3.5% edge for moderate
+    const mapContext = (marketType: 'moneyline' | 'spread' | 'total', marketSide: any): GameContext => ({
+      gameId: g.id || 'unknown',
+      sport: ctx.league || 'unknown',
+      teams: {
+        home: ctx.homeTeam || 'Home',
+        away: ctx.awayTeam || 'Away'
+      },
+      marketType,
+      marketSide,
+      startTime: ctx.startTime || new Date().toISOString(),
+      notes: teamFormNotes || undefined
+    })
 
-    const calculateEVWithEdge = (odds: number, stake: number, impliedProb: number): number => {
-      const trueProb = Math.min(0.95, impliedProb + bettorEdge)
-      const { evDollars } = computeEvFromProbAndOdds(trueProb, odds, stake)
-      return evDollars
-    }
-
-    // Calculate Kelly Criterion stake size based on EV and confidence
-    const calculateKellyStake = (ev: number, confidence: number, baseStake: number): number => {
-      if (ev <= 0) return baseStake // Use base stake for negative EV (will show warning)
-
-      // Fractional Kelly (use 25% of Kelly for safety)
-      const evPercentage = (ev / baseStake)
-      const kellyFraction = 0.25
-      const kellyMultiplier = 1 + (evPercentage * kellyFraction * (confidence / 100))
-
-      // Clamp between 50% and 200% of base stake
-      return Math.round(Math.max(baseStake * 0.5, Math.min(baseStake * 2, baseStake * kellyMultiplier)))
-    }
-
-    // 1. MONEYLINE picks - consider BOTH teams based on value
+    // 1. MONEYLINE
+    // Best odds = what we'd bet at (highest available from any book)
     const homeOdds = ctx.currentOdds?.moneylineHome
     const awayOdds = ctx.currentOdds?.moneylineAway
+    // Average odds = consensus across books (used to calculate true probability)
+    const homeOddsAvg = ctx.averageOdds?.moneylineHome ?? homeOdds
+    const awayOddsAvg = ctx.averageOdds?.moneylineAway ?? awayOdds
 
     if (typeof homeOdds === "number" && typeof awayOdds === "number") {
-      const homeImplied = oddsToImpliedProb(homeOdds)
-      const awayImplied = oddsToImpliedProb(awayOdds)
-      const homeConfidence = Math.round(homeImplied * 100)
-      const awayConfidence = Math.round(awayImplied * 100)
-
-      // Calculate EV for both sides with assumed bettor edge
-      const homeEV = calculateEVWithEdge(homeOdds, suggestedStakeAbsolute, homeImplied)
-      const awayEV = calculateEVWithEdge(awayOdds, suggestedStakeAbsolute, awayImplied)
-
-      // Pick the side with better value
-      if (homeEV > awayEV) {
-        const adjustedStake = calculateKellyStake(homeEV, homeConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(homeOdds, adjustedStake, homeImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "moneyline",
-          line: `${ctx.homeTeam} ML`,
-          odds: homeOdds,
-          emotionalAlignment: alignment,
-          confidence: homeConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Moneyline pick with estimated ${Math.round(homeImplied * 100 + bettorEdge * 100)}% win probability.`,
-          numericRisk: { ev, evPercentage }
-        })
-      } else {
-        const adjustedStake = calculateKellyStake(awayEV, awayConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(awayOdds, adjustedStake, awayImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "moneyline",
-          line: `${ctx.awayTeam} ML`,
-          odds: awayOdds,
-          emotionalAlignment: alignment,
-          confidence: awayConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Moneyline pick with estimated ${Math.round(awayImplied * 100 + bettorEdge * 100)}% win probability.`,
-          numericRisk: { ev, evPercentage }
-        })
+      // Enriched Home - bet at BEST odds, calculate EV using AVERAGE as consensus
+      const legHome: SmartSlipLegInput = {
+        gameContext: mapContext('moneyline', 'home'),
+        offeredAmericanOdds: homeOdds, // Best available odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: homeOddsAvg ?? homeOdds, sideB: awayOddsAvg ?? awayOdds } // Average/consensus for true prob
       }
+      const homeResult = await smartSlipService.enrichLegWithEv(legHome)
+
+      // Enriched Away
+      const legAway: SmartSlipLegInput = {
+        gameContext: mapContext('moneyline', 'away'),
+        offeredAmericanOdds: awayOdds, // Best available odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: homeOddsAvg ?? homeOdds, sideB: awayOddsAvg ?? awayOdds } // Average/consensus
+      }
+      const awayResult = await smartSlipService.enrichLegWithEv(legAway)
+
+      const createPick = (res: typeof homeResult, side: "home" | "away") => {
+        return {
+          gameId: g.id,
+          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+          startTime: ctx.startTime,
+          betType: "moneyline",
+          line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ML`,
+          odds: res.offeredAmericanOdds,
+          emotionalAlignment: alignment,
+          confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
+          suggestedStakeFraction: res.ev.kellyFraction,
+          suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5), // Scale roughly
+          riskLevel,
+          shortExplanation: `SmartSlip (v2): EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%). TrueProb: ${(res.ev.trueWinProb * 100).toFixed(1)}%.`,
+          numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
+          kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
+        }
+      }
+      potentialPicks.push(createPick(homeResult, "home"))
+      potentialPicks.push(createPick(awayResult, "away"))
     }
 
-    // 2. SPREAD picks - analyze BOTH sides based on value
+
+    // 2. SPREADS
     const homeSpreadOdds = ctx.currentOdds?.spreadHomeOdds
     const homeSpreadLine = ctx.spreadLines?.home
     const awaySpreadOdds = ctx.currentOdds?.spreadAwayOdds
     const awaySpreadLine = ctx.spreadLines?.away
+    // Average spread odds for consensus
+    const homeSpreadOddsAvg = ctx.averageOdds?.spreadHomeOdds ?? homeSpreadOdds
+    const awaySpreadOddsAvg = ctx.averageOdds?.spreadAwayOdds ?? awaySpreadOdds
 
-    if (typeof homeSpreadOdds === "number" && typeof homeSpreadLine === "number" &&
-        typeof awaySpreadOdds === "number" && typeof awaySpreadLine === "number") {
-      const homeSpreadImplied = oddsToImpliedProb(homeSpreadOdds)
-      const awaySpreadImplied = oddsToImpliedProb(awaySpreadOdds)
-      const homeSpreadConfidence = Math.round(homeSpreadImplied * 100)
-      const awaySpreadConfidence = Math.round(awaySpreadImplied * 100)
+    if (typeof homeSpreadOdds === "number" && typeof awaySpreadOdds === "number" &&
+      typeof homeSpreadLine === "number" && typeof awaySpreadLine === "number") {
 
-      // Calculate EV for both sides with assumed bettor edge
-      const homeSpreadEV = calculateEVWithEdge(homeSpreadOdds, suggestedStakeAbsolute, homeSpreadImplied)
-      const awaySpreadEV = calculateEVWithEdge(awaySpreadOdds, suggestedStakeAbsolute, awaySpreadImplied)
-
-      // Pick the side with better value
-      if (homeSpreadEV > awaySpreadEV) {
-        const adjustedStake = calculateKellyStake(homeSpreadEV, homeSpreadConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(homeSpreadOdds, adjustedStake, homeSpreadImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "spread",
-          line: `${ctx.homeTeam} ${homeSpreadLine > 0 ? '+' : ''}${homeSpreadLine}`,
-          odds: homeSpreadOdds,
-          emotionalAlignment: alignment,
-          confidence: homeSpreadConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Spread pick with estimated ${Math.round(homeSpreadImplied * 100 + bettorEdge * 100)}% win probability covering ${homeSpreadLine > 0 ? '+' : ''}${homeSpreadLine}.`,
-          numericRisk: { ev, evPercentage }
-        })
-      } else {
-        const adjustedStake = calculateKellyStake(awaySpreadEV, awaySpreadConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(awaySpreadOdds, adjustedStake, awaySpreadImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "spread",
-          line: `${ctx.awayTeam} ${awaySpreadLine > 0 ? '+' : ''}${awaySpreadLine}`,
-          odds: awaySpreadOdds,
-          emotionalAlignment: alignment,
-          confidence: awaySpreadConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Spread pick with estimated ${Math.round(awaySpreadImplied * 100 + bettorEdge * 100)}% win probability covering ${awaySpreadLine > 0 ? '+' : ''}${awaySpreadLine}.`,
-          numericRisk: { ev, evPercentage }
-        })
+      const legHomeSpread: SmartSlipLegInput = {
+        gameContext: mapContext('spread', 'home'),
+        offeredAmericanOdds: homeSpreadOdds, // Best odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: homeSpreadOddsAvg ?? homeSpreadOdds, sideB: awaySpreadOddsAvg ?? awaySpreadOdds }
       }
+      const homeSpreadResult = await smartSlipService.enrichLegWithEv(legHomeSpread)
+
+      const legAwaySpread: SmartSlipLegInput = {
+        gameContext: mapContext('spread', 'away'),
+        offeredAmericanOdds: awaySpreadOdds, // Best odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: homeSpreadOddsAvg ?? homeSpreadOdds, sideB: awaySpreadOddsAvg ?? awaySpreadOdds }
+      }
+      const awaySpreadResult = await smartSlipService.enrichLegWithEv(legAwaySpread)
+
+      const createSpreadPick = (res: typeof homeSpreadResult, side: "home" | "away", line: number) => ({
+        gameId: g.id,
+        teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+        startTime: ctx.startTime,
+        betType: "spread",
+        line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ${line > 0 ? '+' : ''}${line}`,
+        odds: res.offeredAmericanOdds,
+        emotionalAlignment: alignment,
+        confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
+        suggestedStakeFraction: res.ev.kellyFraction,
+        suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5),
+        riskLevel,
+        shortExplanation: `SmartSlip (v2): Spread EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
+        numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
+        kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
+      })
+
+      potentialPicks.push(createSpreadPick(homeSpreadResult, "home", homeSpreadLine))
+      potentialPicks.push(createSpreadPick(awaySpreadResult, "away", awaySpreadLine))
     }
 
-    // 3. TOTALS picks - analyze BOTH over and under based on value
+    // 3. TOTALS
     const overOdds = ctx.currentOdds?.totalOverOdds
     const underOdds = ctx.currentOdds?.totalUnderOdds
     const totalLine = ctx.totalLine
+    // Average total odds for consensus
+    const overOddsAvg = ctx.averageOdds?.totalOverOdds ?? overOdds
+    const underOddsAvg = ctx.averageOdds?.totalUnderOdds ?? underOdds
 
     if (typeof overOdds === "number" && typeof underOdds === "number" && typeof totalLine === "number") {
-      const overImplied = oddsToImpliedProb(overOdds)
-      const underImplied = oddsToImpliedProb(underOdds)
-      const overConfidence = Math.round(overImplied * 100)
-      const underConfidence = Math.round(underImplied * 100)
 
-      // Calculate EV for both over and under with assumed bettor edge
-      const overEV = calculateEVWithEdge(overOdds, suggestedStakeAbsolute, overImplied)
-      const underEV = calculateEVWithEdge(underOdds, suggestedStakeAbsolute, underImplied)
-
-      // Pick the side with better value
-      if (overEV > underEV) {
-        const adjustedStake = calculateKellyStake(overEV, overConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(overOdds, adjustedStake, overImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "over",
-          line: `Over ${totalLine}`,
-          odds: overOdds,
-          emotionalAlignment: alignment,
-          confidence: overConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Over pick with estimated ${Math.round(overImplied * 100 + bettorEdge * 100)}% win probability based on game pace and scoring trends.`,
-          numericRisk: { ev, evPercentage }
-        })
-      } else {
-        const adjustedStake = calculateKellyStake(underEV, underConfidence, suggestedStakeAbsolute)
-        const ev = calculateEVWithEdge(underOdds, adjustedStake, underImplied)
-        const evPercentage = (ev / adjustedStake) * 100
-
-        allPicks.push({
-          gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-          startTime: ctx.startTime,
-          betType: "under",
-          line: `Under ${totalLine}`,
-          odds: underOdds,
-          emotionalAlignment: alignment,
-          confidence: underConfidence,
-          suggestedStakeFraction: adjustedStake / args.weeklyBudget,
-          suggestedStakeAbsolute: adjustedStake,
-          riskLevel,
-          shortExplanation: ev < 0
-            ? "DO NOT BET ON THIS GAME. OUR ANALYSIS HAS DETERMINED THIS WILL LEAD TO A LOSING BET. TAKE A BREAK FROM BETTING UNTIL ODDS IMPROVE."
-            : `Under pick with estimated ${Math.round(underImplied * 100 + bettorEdge * 100)}% win probability based on game pace and scoring trends.`,
-          numericRisk: { ev, evPercentage }
-        })
+      const legOver: SmartSlipLegInput = {
+        gameContext: mapContext('total', 'over'),
+        offeredAmericanOdds: overOdds, // Best odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: overOddsAvg ?? overOdds, sideB: underOddsAvg ?? underOdds }
       }
+      const overResult = await smartSlipService.enrichLegWithEv(legOver)
+
+      const legUnder: SmartSlipLegInput = {
+        gameContext: mapContext('total', 'under'),
+        offeredAmericanOdds: underOdds, // Best odds
+        stake: baseStake,
+        consensusAmericanOdds: { sideA: overOddsAvg ?? overOdds, sideB: underOddsAvg ?? underOdds }
+      }
+      const underResult = await smartSlipService.enrichLegWithEv(legUnder)
+
+      const createTotalPick = (res: typeof overResult, type: "over" | "under") => ({
+        gameId: g.id,
+        teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+        startTime: ctx.startTime,
+        betType: type,
+        line: `${type === "over" ? "Over" : "Under"} ${totalLine}`,
+        odds: res.offeredAmericanOdds,
+        emotionalAlignment: alignment,
+        confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
+        suggestedStakeFraction: res.ev.kellyFraction,
+        suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5),
+        riskLevel,
+        shortExplanation: `SmartSlip (v2): ${type === "over" ? "Over" : "Under"} EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
+        numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
+        kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
+      })
+
+      potentialPicks.push(createTotalPick(overResult, "over"))
+      potentialPicks.push(createTotalPick(underResult, "under"))
     }
   }
 
-  // Sort picks by EV (best value first) and return top 6
-  // This ensures we're recommending the BEST picks regardless of bet type
-  const sortedPicks = allPicks.sort((a, b) => {
-    const evA = a.numericRisk?.ev || 0
-    const evB = b.numericRisk?.ev || 0
-    return evB - evA  // Highest EV first
+  // For each game + market type, pick only the BETTER side (higher EV)
+  // This ensures we don't recommend both sides of the same bet
+  const bestPerGameMarket: Map<string, any> = new Map()
+
+  for (const pick of potentialPicks) {
+    const marketKey = `${pick.gameId}-${pick.betType === 'over' || pick.betType === 'under' ? 'total' : pick.betType}`
+    const existing = bestPerGameMarket.get(marketKey)
+    if (!existing || (pick.numericRisk?.evPercentage || 0) > (existing.numericRisk?.evPercentage || 0)) {
+      bestPerGameMarket.set(marketKey, pick)
+    }
+  }
+
+  // Sort the best picks by EV
+  const sortedByEV = Array.from(bestPerGameMarket.values()).sort(
+    (a: any, b: any) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0),
+  )
+
+  // Prioritize positive EV picks
+  const positiveEvPicks = sortedByEV.filter(p => (p.numericRisk?.evPercentage || 0) > 0)
+  const nearZeroPicks = sortedByEV.filter(p => {
+    const ev = p.numericRisk?.evPercentage || 0
+    return ev <= 0 && ev > -3 // Near market efficient
   })
 
-  // Log bet type breakdown
-  const betTypeBreakdown = sortedPicks.reduce((acc, pick) => {
-    const type = pick.betType || 'unknown'
-    acc[type] = (acc[type] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const finalPicks: any[] = []
 
-  console.log(`[Fallback] Generated ${sortedPicks.length} total picks for ${args.riskTolerance} risk tolerance`)
-  console.log(`[Fallback] Bet type breakdown:`, betTypeBreakdown)
-  console.log(`[Fallback] Returning top 6 picks by EV`)
+  // First, add all positive EV picks (up to 4)
+  finalPicks.push(...positiveEvPicks.slice(0, 4))
 
-  // Return 5-6 recommendations to ensure diversity of bet types
-  return { recommendations: sortedPicks.slice(0, 6) }
+  // If we don't have 4, fill with near-zero EV picks (labeled as informational)
+  if (finalPicks.length < 4) {
+    const needed = 4 - finalPicks.length
+    finalPicks.push(...nearZeroPicks.slice(0, needed))
+  }
+
+  // Mark picks with clear BET/PASS labels
+  const markedPicks = finalPicks.map(p => {
+    const evPct = p.numericRisk?.evPercentage || 0
+    if (evPct <= 0) {
+      return {
+        ...p,
+        informational: true,
+        informationalLabel: evPct > -2 ? "Near Market Efficient" : "Negative EV",
+        isRecommended: false,
+        recommendation: "PASS"
+      }
+    }
+    return {
+      ...p,
+      isRecommended: true,
+      recommendation: "BET",
+      informational: false
+    }
+  })
+
+  // Sort: Recommended (BET) first, then by EV
+  const sortedFinal = markedPicks.sort((a, b) => {
+    if (a.isRecommended && !b.isRecommended) return -1;
+    if (!a.isRecommended && b.isRecommended) return 1;
+    return (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0);
+  });
+
+  console.log(`[Fallback] SmartSlip v2 generated ${sortedFinal.length} picks. Positive EV (BET): ${sortedFinal.filter(p => p.isRecommended).length}.`)
+
+  return { recommendations: sortedFinal }
 }
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -352,12 +416,10 @@ export async function POST(request: NextRequest) {
       ? authHeader.slice("Bearer ".length)
       : undefined
 
-    // Authentication using JWT access token
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Authentication
     const {
       data: { user },
       error: authError,
@@ -367,53 +429,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check AI service usage limits (tier-based + purchased credits)
-    const usageCheck = await checkAIServiceUsage(supabase, user.id, 'ai_picker')
+    const usageCheck = await checkAIServiceUsage(
+      supabase,
+      user.id,
+      "ai_picker",
+    )
 
     if (!usageCheck.canUse) {
       return NextResponse.json(
         {
           error: usageCheck.reason || "AI Picker usage limit reached",
-          upgrade_required: usageCheck.limit === 0, // No tier access at all
-          usage_limit_reached: usageCheck.limit > 0, // Has tier access but limit reached
+          upgrade_required: usageCheck.limit === 0,
+          usage_limit_reached: usageCheck.limit > 0,
           current_usage: {
             used: usageCheck.usedThisWeek,
             limit: usageCheck.limit,
             remaining: usageCheck.remaining,
             purchased_credits: usageCheck.purchasedCredits,
-            total_available: usageCheck.totalAvailable
+            total_available: usageCheck.totalAvailable,
           },
-          marketplace_url: '/marketplace'
+          marketplace_url: "/marketplace",
         },
-        { status: 403 }
+        { status: 403 },
       )
     }
 
-    const body = (await request.json().catch(() => ({}))) as PickerRequestBody
+    const body = ((await request.json().catch(() => ({}))) ||
+      {}) as PickerRequestBody
 
     const sport = normalizeSportKey(body.sport)
-    
-    // Fetch user data to calculate emotional stability server-side
+
     const { data: userData, error: userError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
+      .from("user_profiles")
+      .select("*")
+      .eq("id", user.id)
       .single()
 
     if (userError || !userData) {
-      console.error('Error fetching user data:', userError)
-      return NextResponse.json({ error: "Failed to fetch user data" }, { status: 500 })
+      console.error("Error fetching user data:", userError)
+      return NextResponse.json(
+        { error: "Failed to fetch user data" },
+        { status: 500 },
+      )
     }
 
-    // Calculate emotional stability using centralized service
-    const emotionalStability = await emotionalStabilityService.getCurrentEmotionalStability(userData)
+    const emotionalStability =
+      await emotionalStabilityService.getCurrentEmotionalStability(userData)
     const emotionalScore = emotionalStability.score
     const riskTolerance = body.riskTolerance || "moderate"
-    const weeklyBudget = typeof body.weeklyBudget === "number" && body.weeklyBudget > 0
-      ? body.weeklyBudget
-      : 500
 
-    if (typeof emotionalScore !== "number" || emotionalScore < 0 || emotionalScore > 100) {
+    // weeklyBudget is metadata only; stakes are income-agnostic
+    const weeklyBudget =
+      typeof body.weeklyBudget === "number" && body.weeklyBudget > 0
+        ? body.weeklyBudget
+        : 500
+
+    if (
+      typeof emotionalScore !== "number" ||
+      emotionalScore < 0 ||
+      emotionalScore > 100
+    ) {
       return NextResponse.json(
         { error: "Invalid emotional score. Must be between 0-100." },
         { status: 400 },
@@ -430,10 +505,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // If enhanced AI stack (Gemini) is not available, return a safe
-    // neutral response instead of attempting to generate AI picks.
     if (!isEnhancedAIAvailable()) {
-      console.error("[SmartSlip] Enhanced AI not available. Env check:", {
+      console.error("[SmartSlip] Enhanced AI not available. Env:", {
         hasGeminiKey: Boolean(process.env.GOOGLE_GEMINI_API_KEY),
         hasEnhancedFlag: Boolean(process.env.ENABLE_ENHANCED_AI_ANALYSIS),
         enhancedFlagValue: process.env.ENABLE_ENHANCED_AI_ANALYSIS,
@@ -449,22 +522,29 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 1. Fetch live odds using the enhanced odds abstraction (RapidAPI + The Odds API)
-    console.log(`[SmartSlip] Fetching odds for sport: ${sport}, risk: ${riskTolerance}`)
+    console.log(
+      `[SmartSlip] Fetching odds for sport: ${sport}, risk: ${riskTolerance}`,
+    )
     const oddsResult = await fetchEnhancedLiveOdds(sport, "auto")
 
-    console.log(`[SmartSlip] Odds API result:`, {
+    console.log("[SmartSlip] Odds API result:", {
       success: oddsResult.success,
       source: oddsResult.source,
-      dataLength: Array.isArray(oddsResult.data) ? oddsResult.data.length : 0,
-      error: oddsResult.error
+      dataLength: Array.isArray(oddsResult.data)
+        ? oddsResult.data.length
+        : 0,
+      error: oddsResult.error,
     })
 
-    if (!oddsResult.success || !Array.isArray(oddsResult.data) || oddsResult.data.length === 0) {
+    if (
+      !oddsResult.success ||
+      !Array.isArray(oddsResult.data) ||
+      oddsResult.data.length === 0
+    ) {
       console.error(`[SmartSlip] No odds data available for ${sport}`, {
         success: oddsResult.success,
         source: oddsResult.source,
-        error: oddsResult.error
+        error: oddsResult.error,
       })
       return NextResponse.json({
         success: true,
@@ -477,7 +557,7 @@ export async function POST(request: NextRequest) {
         meta: {
           sport,
           source: oddsResult.source,
-          debugInfo: `Fetched from ${oddsResult.source}, no data available`
+          debugInfo: `Fetched from ${oddsResult.source}, no data available`,
         },
       })
     }
@@ -491,30 +571,30 @@ export async function POST(request: NextRequest) {
       return gKey === sport
     })
 
-    console.log(`[SmartSlip] Games after sport filter: ${games.length} (requested: ${sport})`)
+    console.log(
+      `[SmartSlip] Games after sport filter: ${games.length} (requested: ${sport})`,
+    )
 
     if (games.length === 0) {
-      console.warn(`[SmartSlip] No games found after filtering for ${sport}. Raw game sports:`,
-        rawGames.slice(0, 3).map(g => g.sportKey || g.sport_key || g.sport)
+      console.warn(
+        `[SmartSlip] No games found after filtering for ${sport}. Raw game sports:`,
+        rawGames.slice(0, 3).map((g) => g.sportKey || g.sport_key || g.sport),
       )
       return NextResponse.json({
         success: true,
         shouldBet: false,
-        message: "No live games are available for this sport right now. Please check back later.",
+        message:
+          "No live games are available for this sport right now. Please check back later.",
         recommendations: [],
         emotionalScore,
         meta: {
           sport,
           source: oddsResult.source,
-          debugInfo: `${rawGames.length} games fetched but none matched sport ${sport}`
+          debugInfo: `${rawGames.length} games fetched but none matched sport ${sport}`,
         },
       })
     }
 
-    // Limit research and SageMaker work to the top 4 games by interest for faster processing.
-    // Interest is defined deterministically using existing fields only:
-    // 1) Earlier commence_time first
-    // 2) Tie-breaker: larger absolute home moneyline odds (bigger mismatch)
     const sortedGames = [...games].sort((a, b) => {
       const getCommence = (g: any): number => {
         const t: unknown = g.commenceTime || g.commence_time
@@ -545,18 +625,24 @@ export async function POST(request: NextRequest) {
       return ob - oa
     })
 
-    const limitedGames = sortedGames.slice(0, 4) // Reduced from 6 to 4 for faster AI processing
+    const limitedGames = sortedGames.slice(0, 4)
+
+    const psychResult = await callPsychPicker(emotionalScore, riskTolerance)
+    const psychModel = (psychResult as any).model_id
+    console.log(
+      `[PsychPicker] Selected: ${psychModel} for emotionalScore ${emotionalScore}`,
+    )
 
     const serenityUsedFlags: boolean[] = []
 
     const enrichedGames = await Promise.all(
       limitedGames.map(async (game) => {
-        const homeTeam: string = game.homeTeam || game.home_team || 'Home Team'
-        const awayTeam: string = game.awayTeam || game.away_team || 'Away Team'
+        const homeTeam: string = game.homeTeam || game.home_team || "Home Team"
+        const awayTeam: string = game.awayTeam || game.away_team || "Away Team"
         const league: string = game.sportKey || game.sport_key || sport
         const gameId: string | undefined = game.id
 
-        console.log(`[SmartSlip] Game data extraction:`, {
+        console.log("[SmartSlip] Game data extraction:", {
           gameId,
           homeTeam,
           awayTeam,
@@ -567,61 +653,106 @@ export async function POST(request: NextRequest) {
             awayTeam: game.awayTeam,
             away_team: game.away_team,
             sportKey: game.sportKey,
-            sport_key: game.sport_key
-          }
+            sport_key: game.sport_key,
+          },
         })
 
         let context: CurrentGameContext | null = null
         let features: HistoricalFeatureVector | null = null
         let sportsResearch: SportsResearchOutput | null = null
 
-        // Conduct enhanced sports research for this game
         try {
-          console.log(`[SmartSlip] Conducting sports research for ${homeTeam} vs ${awayTeam}`);
+          console.log(
+            `[SmartSlip] Conducting sports research for ${homeTeam} vs ${awayTeam}`,
+          )
           const researchPromise = conductSportsResearch({
             homeTeam,
             awayTeam,
-            sport: sport,
-            league: league
-          });
-          
-          // Wait max 6 seconds for sports research to keep SmartSlip fast
+            sport,
+            league,
+          } as SportsResearchInput)
+
           sportsResearch = await Promise.race([
             researchPromise,
-            new Promise<SportsResearchOutput | null>((resolve) => setTimeout(() => resolve(null), 6000))
-          ]);
-          
+            new Promise<SportsResearchOutput | null>((resolve) =>
+              setTimeout(() => resolve(null), 6000),
+            ),
+          ])
+
           if (sportsResearch) {
-            console.log(`[SmartSlip] ✅ Sports research completed: ${sportsResearch.dataSource}`);
+            console.log(
+              `[SmartSlip] ✅ Sports research completed: ${sportsResearch.dataSource}`,
+            )
           } else {
-            console.log(`[SmartSlip] ⏱️ Sports research timeout, continuing without it`);
+            console.log(
+              "[SmartSlip] ⏱️ Sports research timeout, continuing without it",
+            )
           }
         } catch (error) {
-          console.warn('[SmartSlip] ⚠️ Sports research failed, continuing with analysis:', error);
+          console.warn(
+            "[SmartSlip] ⚠️ Sports research failed, continuing with analysis:",
+            error,
+          )
         }
 
-        // Context from live odds - extract ALL bet types (moneyline, spread, totals)
         if (!context) {
-          // Moneyline odds
+          // Best odds (highest available - what we'd bet at)
           const homeOdds =
-            game.homeOdds?.best?.odds ?? game.home_odds?.best?.odds ?? undefined
+            game.homeOdds?.best?.odds ??
+            game.home_odds?.best?.odds ??
+            0
           const awayOdds =
-            game.awayOdds?.best?.odds ?? game.away_odds?.best?.odds ?? undefined
+            game.awayOdds?.best?.odds ??
+            game.away_odds?.best?.odds ??
+            0
 
-          // Spread data
-          const homeSpreadLine = game.homeSpread?.best?.line ?? game.home_spread?.best?.line ?? undefined
-          const homeSpreadOdds = game.homeSpread?.best?.odds ?? game.home_spread?.best?.odds ?? undefined
-          const awaySpreadLine = game.awaySpread?.best?.line ?? game.away_spread?.best?.line ?? undefined
-          const awaySpreadOdds = game.awaySpread?.best?.odds ?? game.away_spread?.best?.odds ?? undefined
+          // Average odds (consensus across books - used for true probability)
+          const homeOddsAvg = game.homeOdds?.average ?? homeOdds
+          const awayOddsAvg = game.awayOdds?.average ?? awayOdds
 
-          // Totals data
-          const overLine = game.overLine?.best?.line ?? game.over_line?.best?.line ?? undefined
-          const overOdds = game.overLine?.best?.odds ?? game.over_line?.best?.odds ?? undefined
-          const underLine = game.underLine?.best?.line ?? game.under_line?.best?.line ?? undefined
-          const underOdds = game.underLine?.best?.odds ?? game.under_line?.best?.odds ?? undefined
+          const homeSpreadLine =
+            game.homeSpread?.best?.line ??
+            game.home_spread?.best?.line ??
+            undefined
+          const homeSpreadOdds =
+            game.homeSpread?.best?.odds ??
+            game.home_spread?.best?.odds ??
+            undefined
+          const homeSpreadOddsAvg = game.homeSpread?.average ?? homeSpreadOdds
+          const awaySpreadLine =
+            game.awaySpread?.best?.line ??
+            game.away_spread?.best?.line ??
+            undefined
+          const awaySpreadOdds =
+            game.awaySpread?.best?.odds ??
+            game.away_spread?.best?.odds ??
+            undefined
+          const awaySpreadOddsAvg = game.awaySpread?.average ?? awaySpreadOdds
 
-          const impliedFromOdds = (odds: number | undefined): number | undefined => {
-            if (typeof odds !== "number" || Number.isNaN(odds)) return undefined
+          const overLine =
+            game.overLine?.best?.line ??
+            game.over_line?.best?.line ??
+            undefined
+          const overOdds =
+            game.overLine?.best?.odds ??
+            game.over_line?.best?.odds ??
+            undefined
+          const overOddsAvg = game.overLine?.average ?? overOdds
+          const underLine =
+            game.underLine?.best?.line ??
+            game.under_line?.best?.line ??
+            undefined
+          const underOdds =
+            game.underLine?.best?.odds ??
+            game.under_line?.best?.odds ??
+            undefined
+          const underOddsAvg = game.underLine?.average ?? underOdds
+
+          const impliedFromOdds = (
+            odds: number | undefined,
+          ): number | undefined => {
+            if (typeof odds !== "number" || Number.isNaN(odds))
+              return undefined
             if (odds > 0) return 100 / (odds + 100)
             return Math.abs(odds) / (Math.abs(odds) + 100)
           }
@@ -633,7 +764,9 @@ export async function POST(request: NextRequest) {
             awayTeam,
             startTime:
               game.commenceTime?.toISOString?.() ||
-              (typeof game.commence_time === "string" ? game.commence_time : undefined),
+              (typeof game.commence_time === "string"
+                ? game.commence_time
+                : undefined),
             currentOdds: {
               moneylineHome: homeOdds,
               moneylineAway: awayOdds,
@@ -642,24 +775,47 @@ export async function POST(request: NextRequest) {
               totalOverOdds: overOdds,
               totalUnderOdds: underOdds,
             },
-            spreadLines: homeSpreadLine !== undefined && awaySpreadLine !== undefined ? {
-              home: homeSpreadLine,
-              away: awaySpreadLine,
-            } : undefined,
+            // Average/consensus odds across all bookmakers for true EV calculation
+            averageOdds: {
+              moneylineHome: homeOddsAvg,
+              moneylineAway: awayOddsAvg,
+              spreadHomeOdds: homeSpreadOddsAvg,
+              spreadAwayOdds: awaySpreadOddsAvg,
+              totalOverOdds: overOddsAvg,
+              totalUnderOdds: underOddsAvg,
+            },
+            spreadLines:
+              homeSpreadLine !== undefined &&
+                awaySpreadLine !== undefined
+                ? {
+                  home: homeSpreadLine,
+                  away: awaySpreadLine,
+                }
+                : undefined,
             totalLine: overLine ?? underLine,
             impliedProbabilities: {
               home: impliedFromOdds(homeOdds),
               away: impliedFromOdds(awayOdds),
             },
           }
+
+          // DEBUG: Log market availability for this game
+          const hasSpread = typeof homeSpreadOdds === 'number';
+          const hasTotal = typeof overOdds === 'number';
+          if (!hasSpread || !hasTotal) {
+            console.log(`[SmartSlip] Missing markets for ${homeTeam}: Spread=${hasSpread}, Total=${hasTotal}`);
+          }
         }
 
-        // Features derived from odds + league
         if (!features) {
           const homeOdds =
-            game.homeOdds?.best?.odds ?? game.home_odds?.best?.odds ?? 0
+            game.homeOdds?.best?.odds ??
+            game.home_odds?.best?.odds ??
+            0
           const awayOdds =
-            game.awayOdds?.best?.odds ?? game.away_odds?.best?.odds ?? 0
+            game.awayOdds?.best?.odds ??
+            game.away_odds?.best?.odds ??
+            0
 
           const impliedFromOdds = (odds: number): number => {
             if (!odds || Number.isNaN(odds)) return 0.5
@@ -682,7 +838,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Serenity heuristic probabilities for this game
         let serenityProbs: { pLoss: number; pPush: number; pWin: number } = {
           pLoss: 0.33,
           pPush: 0.34,
@@ -692,7 +847,13 @@ export async function POST(request: NextRequest) {
         let prediction: ModelPrediction
         try {
           const homeOdds =
-            game.homeOdds?.best?.odds ?? game.home_odds?.best?.odds ?? 0
+            game.homeOdds?.best?.odds ??
+            game.home_odds?.best?.odds ??
+            0
+          const awayOdds =
+            game.awayOdds?.best?.odds ??
+            game.away_odds?.best?.odds ??
+            0
 
           const impliedFromOdds = (odds: number): number => {
             if (!odds || Number.isNaN(odds)) return 0.5
@@ -701,9 +862,11 @@ export async function POST(request: NextRequest) {
           }
 
           const contextImpliedHome =
-            context.impliedProbabilities?.home ?? impliedFromOdds(homeOdds)
+            context.impliedProbabilities?.home ??
+            impliedFromOdds(homeOdds)
           const contextImpliedAway =
-            context.impliedProbabilities?.away ?? undefined
+            context.impliedProbabilities?.away ??
+            undefined
 
           const homeForm = context.teamForm?.homeRecent
           const awayForm = context.teamForm?.awayRecent
@@ -733,10 +896,12 @@ export async function POST(request: NextRequest) {
           const last5WinRate =
             homeWinPct ?? awayWinPct ?? undefined
 
-          const hasKeyInjuries = (context.keyInjuries?.length ?? 0) > 0
+          const hasKeyInjuries =
+            (context.keyInjuries?.length ?? 0) > 0
 
           const weatherText = context.weather?.toLowerCase() || ""
-          const badWeather = /rain|snow|wind|storm/.test(weatherText)
+          const badWeather =
+            /rain|snow|wind|storm/.test(weatherText)
 
           const derived = features?.derivedStats
 
@@ -752,7 +917,8 @@ export async function POST(request: NextRequest) {
             typeof contextImpliedAway === "number" &&
             derived
           ) {
-            const homeIsFavorite = contextImpliedHome >= contextImpliedAway
+            const homeIsFavorite =
+              contextImpliedHome >= contextImpliedAway
             if (homeIsFavorite) {
               favoritePpg = derived.homePpg
               underdogPpg = derived.awayPpg
@@ -793,12 +959,12 @@ export async function POST(request: NextRequest) {
               riskTolerance === "conservative"
                 ? "low"
                 : riskTolerance === "aggressive"
-                ? "high"
-                : "moderate",
+                  ? "high"
+                  : "moderate",
             emotionalState:
               body.currentEmotion === "positive" ||
-              body.currentEmotion === "negative" ||
-              body.currentEmotion === "dangerous"
+                body.currentEmotion === "negative" ||
+                body.currentEmotion === "dangerous"
                 ? (body.currentEmotion as any)
                 : "neutral",
 
@@ -832,33 +998,51 @@ export async function POST(request: NextRequest) {
             biasLossAversion: false,
             biasConfirmation: false,
 
-            last5WinRate: typeof last5WinRate === "number" ? last5WinRate : 0.5,
+            last5WinRate:
+              typeof last5WinRate === "number"
+                ? last5WinRate
+                : 0.5,
             userAgeBucket: "26_35",
           }
 
           const csvRow = buildFeaturesCsv(featureInput)
-          serenityProbs = await predictSerenityBet(csvRow)
+          void csvRow // currently unused but generated
 
-          console.log("[Picker] Serenity heuristic prediction computed for game", gameId, serenityProbs)
+          const homeImpliedProb = oddsToImpliedProb(homeOdds)
+          const awayImpliedProb = oddsToImpliedProb(awayOdds)
 
-          const pWin = serenityProbs.pWin
-          const pLoss = serenityProbs.pLoss
-          const pPush = serenityProbs.pPush
 
-          const norm = pWin + pLoss + pPush || 1
-          const nWin = pWin / norm
-          const nLoss = pLoss / norm
+          // Use the new Probability Engine for consistent "prediction" data passed to Gemini
+          // We treat the psychMultiplier as a contextual signal (e.g. user momentum/risk state)
+          const psychSignal = ((psychResult as any).params.max_stake_multiplier - 1) * 0.05
+
+          const engineResult = probabilityEngine.compute({
+            marketImpliedProb: homeImpliedProb,
+            modelWinProb: undefined, // No specific local ML model output here yet
+            contextualSignals: [psychSignal]
+          })
+
+          const pWin = engineResult.trueWinProb
+          const pLoss = 1 - pWin - 0.02
+          const pPush = 0.02
+
+          serenityProbs = { pWin, pLoss, pPush }
 
           prediction = {
-            winProbabilityHome: nWin,
-            winProbabilityAway: nLoss,
+            winProbabilityHome: pWin,
+            winProbabilityAway: pLoss,
             modelConfidence: 1 - pPush,
-            riskScore: nLoss,
+            riskScore: pLoss,
+            primaryMarket: "moneyline",
           }
 
-          serenityUsedFlags.push(true)
+          serenityUsedFlags.push(false)
         } catch (e) {
-          console.warn("[Picker] Serenity heuristic prediction failed for game", gameId, e)
+          console.warn(
+            "[Picker] Serenity heuristic prediction failed for game",
+            gameId,
+            e,
+          )
           prediction = {
             winProbabilityHome: 0.5,
             winProbabilityAway: 0.5,
@@ -868,36 +1052,52 @@ export async function POST(request: NextRequest) {
           serenityUsedFlags.push(false)
         }
 
+        if (sportsResearch && context) {
+          context.teamForm = {
+            homeRecent: sportsResearch.homeTeam.recentForm?.last5 || [],
+            awayRecent: sportsResearch.awayTeam.recentForm?.last5 || []
+          };
+          console.log(`[SmartSlip] Populated teamForm from research for ${homeTeam} vs ${awayTeam}:`, context.teamForm);
+        }
+
         return {
           id: gameId,
           context,
           features,
           prediction,
           probs: serenityProbs,
-          sportsResearch: sportsResearch ? {
-            dataSource: sportsResearch.dataSource,
-            researchTimestamp: sportsResearch.researchTimestamp,
-            homeTeam: {
-              name: sportsResearch.homeTeam.teamInfo?.strTeam,
-              currentForm: sportsResearch.homeTeam.currentForm,
-              strengths: sportsResearch.homeTeam.strengths.slice(0, 3),
-              recentForm: sportsResearch.homeTeam.recentForm?.last5 || []
-            },
-            awayTeam: {
-              name: sportsResearch.awayTeam.teamInfo?.strTeam,
-              currentForm: sportsResearch.awayTeam.currentForm,
-              strengths: sportsResearch.awayTeam.strengths.slice(0, 3),
-              recentForm: sportsResearch.awayTeam.recentForm?.last5 || []
-            },
-            headToHead: sportsResearch.headToHead ? {
-              totalMatches: sportsResearch.headToHead.totalMatches,
-              homeWins: sportsResearch.headToHead.homeTeamWins,
-              awayWins: sportsResearch.headToHead.awayTeamWins,
-              draws: sportsResearch.headToHead.draws
-            } : null,
-            keyFactors: sportsResearch.keyFactors.slice(0, 5),
-            expertPrediction: sportsResearch.prediction
-          } : null
+          sportsResearch: sportsResearch
+            ? {
+              dataSource: sportsResearch.dataSource,
+              researchTimestamp: sportsResearch.researchTimestamp,
+              homeTeam: {
+                name: sportsResearch.homeTeam.teamInfo?.strTeam,
+                currentForm: sportsResearch.homeTeam.currentForm,
+                strengths: sportsResearch.homeTeam.strengths.slice(0, 3),
+                recentForm:
+                  sportsResearch.homeTeam.recentForm?.last5 || [],
+              },
+              awayTeam: {
+                name: sportsResearch.awayTeam.teamInfo?.strTeam,
+                currentForm: sportsResearch.awayTeam.currentForm,
+                strengths: sportsResearch.awayTeam.strengths.slice(0, 3),
+                recentForm:
+                  sportsResearch.awayTeam.recentForm?.last5 || [],
+              },
+              headToHead: sportsResearch.headToHead
+                ? {
+                  totalMatches: sportsResearch.headToHead.totalMatches,
+                  homeWins:
+                    sportsResearch.headToHead.homeTeamWins,
+                  awayWins:
+                    sportsResearch.headToHead.awayTeamWins,
+                  draws: sportsResearch.headToHead.draws,
+                }
+                : null,
+              keyFactors: sportsResearch.keyFactors.slice(0, 5),
+              expertPrediction: sportsResearch.prediction,
+            }
+            : null,
         }
       }),
     )
@@ -910,7 +1110,7 @@ export async function POST(request: NextRequest) {
           : Math.round(emotionalScore / 10),
       riskTolerance,
       weeklyBudget,
-      recentHistorySummary: "", // Can be enriched later from logs
+      recentHistorySummary: "",
     }
 
     const reasoningInput: PickerReasoningInput = {
@@ -918,27 +1118,67 @@ export async function POST(request: NextRequest) {
       games: enrichedGames,
     }
 
-    console.log(`[SmartSlip] Calling AI reasoner with ${enrichedGames.length} enriched games`)
-    let reasoningOutput = await generatePickerRecommendations(reasoningInput)
+    console.log(
+      `[SmartSlip] Calling AI reasoner with ${enrichedGames.length} enriched games`,
+    )
+    let reasoningOutput =
+      await generatePickerRecommendations(reasoningInput)
 
-    console.log(`[SmartSlip] AI reasoner returned ${reasoningOutput.recommendations?.length || 0} recommendations`)
+    console.log(
+      `[SmartSlip] AI reasoner returned ${reasoningOutput.recommendations?.length || 0
+      } recommendations`,
+    )
 
-    if (!reasoningOutput.recommendations || reasoningOutput.recommendations.length === 0) {
-      console.log(`[SmartSlip] AI returned no recommendations, using fallback logic for ${riskTolerance} risk`)
-      reasoningOutput = buildFallbackRecommendations({
-        games: enrichedGames.map((g) => ({ id: g.id, context: g.context })),
+    // Process Gemini's picks - label based on EV
+    const filtered = (reasoningOutput.recommendations || []).map((r: any) => {
+      const evPct = r.numericRisk?.evPercentage ?? 0
+      if (evPct <= 0) {
+        return {
+          ...r,
+          informational: true,
+          informationalLabel: evPct > -2 ? "Near Market Efficient" : "Negative EV",
+          isRecommended: false,
+          recommendation: "PASS"
+        }
+      }
+      return {
+        ...r,
+        isRecommended: true,
+        recommendation: "BET",
+        informational: false
+      }
+    }).sort((a: any, b: any) => {
+      if (a.isRecommended && !b.isRecommended) return -1;
+      if (!a.isRecommended && b.isRecommended) return 1;
+      return (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0);
+    })
+
+    console.log(`[SmartSlip] Gemini returned ${filtered.length} picks, ${filtered.filter((r: any) => r.isRecommended).length} with positive EV`)
+
+    reasoningOutput = {
+      ...reasoningOutput,
+      recommendations: filtered,
+    }
+
+    console.log(`[SmartSlip] Final Response Summary: ${filtered.length} picks. EV Range: ${Math.min(...filtered.map(r => r.numericRisk?.evPercentage ?? 0)).toFixed(2)}% to ${Math.max(...filtered.map(r => r.numericRisk?.evPercentage ?? 0)).toFixed(2)}%`);
+
+    if (
+      !reasoningOutput.recommendations ||
+      reasoningOutput.recommendations.length === 0
+    ) {
+      // (This block remains for absolute fallback)
+      console.log(`[SmartSlip] AI returned no recommendations, using fallback logic`)
+      reasoningOutput = await buildFallbackRecommendations({
+        games: enrichedGames.map((g) => ({
+          id: g.id,
+          context: g.context,
+        })),
         riskTolerance,
         weeklyBudget,
         emotionalScore,
       })
-      console.log(`[SmartSlip] Fallback generated ${reasoningOutput.recommendations.length} recommendations`)
-    } else {
-      console.log(`[SmartSlip] Using AI recommendations:`,
-        reasoningOutput.recommendations.map(r => `${r.betType} - ${r.line}`)
-      )
     }
 
-    // Build a simple map of Serenity probabilities keyed by gameId for the frontend
     const probsByGameId: Record<
       string,
       { pLoss: number; pPush: number; pWin: number }
@@ -949,19 +1189,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Record AI service usage
-    await recordAIServiceUsage(supabase, user.id, 'ai_picker', {
+    await recordAIServiceUsage(supabase, user.id, "ai_picker", {
       sport,
       emotionalScore,
       riskTolerance,
       recommendations_count: reasoningOutput.recommendations.length,
-      used_sagemaker: serenityUsedFlags.some(Boolean)
+      used_sagemaker: false,
+      psych_model: (psychResult as any).model_id,
     })
 
-    const shouldBet = reasoningOutput.recommendations.length > 0
-    const shouldBetMessage = shouldBet
-      ? "Recommended bets are available based on your current emotional stability and risk tolerance."
-      : "No recommended bets found right now based on your emotional stability and risk tolerance."
+    // Emotional gate stays the real guardrail
+    const emotionallySafe = emotionalScore >= 70
+
+    // If we have any picks (even informational), we’ll say shouldBet = emotionallySafe
+    const hasAnyPicks = (reasoningOutput.recommendations?.length || 0) > 0
+
+    const shouldBet = emotionallySafe && hasAnyPicks
+
+    const shouldBetMessage = !emotionallySafe
+      ? `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`
+      : hasAnyPicks
+        ? "SmartSlip found some options for tonight. Focus on long‑term discipline and only wager what you can afford to lose."
+        : "No games available or odds data found for this sport right now."
+
+
+    // Final Summary Logging
+    console.log(`[SmartSlip Summary]`, {
+      sport,
+      riskTolerance,
+      gamesAnalyzed: enrichedGames.length,
+      picksGenerated: reasoningOutput.recommendations?.length || 0,
+      positiveEvPicks: (reasoningOutput.recommendations || []).filter((p: any) => p.isRecommended).length,
+      informationalPicks: (reasoningOutput.recommendations || []).filter((p: any) => p.informational).length,
+      betTypeDistribution: {
+        moneyline: (reasoningOutput.recommendations || []).filter((p: any) => p.betType === 'moneyline').length,
+        spread: (reasoningOutput.recommendations || []).filter((p: any) => p.betType === 'spread').length,
+        total: (reasoningOutput.recommendations || []).filter((p: any) => ['over', 'under'].includes(p.betType)).length
+      },
+      evRange: (reasoningOutput.recommendations || []).length > 0 ? {
+        min: Math.min(...(reasoningOutput.recommendations || []).map((p: any) => p.numericRisk?.evPercentage ?? 0)).toFixed(2) + '%',
+        max: Math.max(...(reasoningOutput.recommendations || []).map((p: any) => p.numericRisk?.evPercentage ?? 0)).toFixed(2) + '%'
+      } : null
+    })
 
     return NextResponse.json({
       success: true,
@@ -972,8 +1241,11 @@ export async function POST(request: NextRequest) {
       meta: {
         sport,
         oddsSource: oddsResult.source,
-        usedSageMaker: serenityUsedFlags.some(Boolean),
+        usedSageMaker: false,
+        psychModel: (psychResult as any).model_id,
         usedGemini: true,
+        // REMOVE: Market limitations message removed by user request (default to showing all available markets)
+        marketLimitations: null
       },
       probsByGameId,
     })

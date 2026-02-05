@@ -71,13 +71,13 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   const [phase, setPhase] = useState<"before" | "during" | "after">("before")
   const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | "">("")
   const [context, setContext] = useState("")
-  
+
   // Betting data fields for after-game check-ins
   const [betAmount, setBetAmount] = useState("")
   const [betOdds, setBetOdds] = useState("")
   const [gameDescription, setGameDescription] = useState("")
   const [actualReturn, setActualReturn] = useState("")
-  
+
   // New state for betting data selection
   const [betDataMode, setBetDataMode] = useState<"manual" | "select">("manual")
   const [savedBets, setSavedBets] = useState<ComprehensiveBet[]>([])
@@ -88,9 +88,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     if (!selectedEmotion) return
 
     // Check if this completes a pending emotion track
-    const isCompletingPendingTrack = 
-      phase === "after" && 
-      userData?.pendingEmotionTradeId && 
+    const isCompletingPendingTrack =
+      phase === "after" &&
+      userData?.pendingEmotionTradeId &&
       updateUserData
 
     await storage.addEmotionLog({
@@ -104,12 +104,11 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       tradeId: isCompletingPendingTrack ? userData.pendingEmotionTradeId : undefined
     })
 
-    // Create BetAnalysis record for after-game check-ins with betting data
-    if (phase === "after" && betAmount && betOdds && gameDescription && outcome) {
+    // Handle betting data (creation or update)
+    if ((betAmount && betOdds && gameDescription) || selectedBet) {
       const stake = parseFloat(betAmount)
-      const returnAmount = actualReturn ? parseFloat(actualReturn) : 0
-      
-      // Convert odds string to number (handle +110, -110, decimal formats)
+
+      // Convert odds string to number
       let oddsNumber = 0
       try {
         if (betOdds.startsWith('+')) {
@@ -122,54 +121,90 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       } catch (error) {
         oddsNumber = 100 // Default fallback
       }
-      
-      const betAnalysis = {
-        id: `bet_${Date.now()}`,
-        timestamp: new Date(),
-        betType: "straight" as const,
-        sport: selectedBet?.sport || "general", // Use sport from selected bet if available
-        description: gameDescription,
-        odds: oddsNumber,
-        stake: stake,
-        emotionalState: selectedEmotion,
-        emotionalIntensity: intensity[0],
-        biasWarnings: [],
-        aiRecommendation: "",
-        expectedValue: 0,
-        probabilityEstimate: 0.5,
-        outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
-        actualReturn: returnAmount
-      }
-      
-      await storage.addBetAnalysis(betAnalysis)
-      
-      // If a saved bet was selected, also update it with the outcome and emotional data
-      if (selectedBet) {
-        try {
-          // Import BetTrackingService to update the comprehensive bet
-          const { BetTrackingService } = await import("@/lib/bet-tracking-service")
-          
-          await BetTrackingService.updateBetOutcome(
-            selectedBet.id,
-            (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
-            selectedEmotion,
-            intensity[0],
-            `Emotional check-in: ${context || "No additional context"}`
-          )
-          
-          console.log('✅ Updated comprehensive bet with outcome and emotional data')
-        } catch (error) {
-          console.error('Error updating comprehensive bet:', error)
-          // Don't fail the whole process if updating the comprehensive bet fails
+
+      // IMPORTANCE: Import BetTrackingService dynamically
+      // We do this here to avoid circular dependencies and ensure it's available
+      try {
+        const { BetTrackingService } = await import("@/lib/bet-tracking-service")
+
+        // 1. MANUAL ENTRY: Create new bet
+        if (betDataMode === "manual" && betAmount && betOdds && gameDescription) {
+          // For 'after' phase with outcome
+          if (phase === "after" && outcome) {
+            const returnAmount = actualReturn ? parseFloat(actualReturn) : 0
+
+            const betAnalysis = {
+              id: `bet_${Date.now()}`,
+              timestamp: new Date(),
+              betType: "straight" as const,
+              sport: "general", // Could be parsed from description
+              description: gameDescription,
+              odds: oddsNumber,
+              stake: stake,
+              emotionalState: selectedEmotion,
+              emotionalIntensity: intensity[0],
+              biasWarnings: [],
+              aiRecommendation: "",
+              expectedValue: 0,
+              probabilityEstimate: 0.5,
+              outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+              actualReturn: returnAmount,
+              source: "manual" as const
+            }
+
+            await storage.addBetAnalysis(betAnalysis)
+          }
+          // For 'before' or 'during' phase (pending bet)
+          else if (phase !== "after") {
+            // Use BetTrackingService to create a properly formatted bet
+            // We use the current emotion as the 'before' emotion
+            await BetTrackingService.saveBetAnalyzerBet(
+              gameDescription,
+              oddsNumber,
+              stake,
+              {
+                recommendation: context || "Manual entry",
+                confidenceScore: 0.5,
+                biasWarnings: []
+              },
+              selectedEmotion,
+              intensity[0]
+            )
+          }
         }
-      }
-      
-      // Emit event to refresh analytics data across the app
-      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-      
-      // Trigger callback to refresh analytics data
-      if (onBettingDataSaved) {
-        onBettingDataSaved()
+
+        // 2. SAVED BET: Update existing bet
+        else if (selectedBet) {
+          if (phase === "after" && outcome) {
+            await BetTrackingService.updateBetOutcome(
+              selectedBet.id,
+              (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+              selectedEmotion,
+              intensity[0],
+              `Emotional check-in: ${context || "No additional context"}`
+            )
+          } else {
+            // Update emotion for the specific phase
+            await BetTrackingService.updateBetEmotion(
+              selectedBet.id,
+              phase,
+              selectedEmotion,
+              intensity[0],
+              context
+            )
+          }
+        }
+
+        console.log('✅ Betting data processed successfully')
+        // Emit event to refresh analytics data across the app
+        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+
+        // Trigger callback to refresh analytics data
+        if (onBettingDataSaved) {
+          onBettingDataSaved()
+        }
+      } catch (error) {
+        console.error('Error processing betting data:', error)
       }
     }
 
@@ -180,7 +215,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
         xp: (userData.xp || 0) + 35, // +10 base + 25 bonus for completing the track
         totalEmotionsLogged: (userData.totalEmotionsLogged || 0) + 1
       })
-      
+
       toast.success("Full emotion track completed! +35 XP earned", {
         description: "Great job completing your pre and post-bet emotions!"
       })
@@ -193,12 +228,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
         })
       }
 
-      const message = phase === "after" && betAmount 
+      const message = phase === "after" && betAmount
         ? "Emotion check-in and betting data recorded! +10 XP earned"
         : "Emotion check-in completed! +10 XP earned"
-        
+
       toast.success(message, {
-        description: phase === "after" && betAmount 
+        description: phase === "after" && betAmount
           ? "Your betting performance will appear in the analytics tab."
           : "Your emotional awareness is improving. Keep it up!"
       })
@@ -229,16 +264,16 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
 
   const loadSavedBets = async () => {
     if (savedBets.length > 0) return // Already loaded
-    
+
     setLoadingBets(true)
     try {
       const bets = await storage.getComprehensiveBets()
       // Filter for bets from bet analyzer or tiltlab that don't have outcomes yet
-      const relevantBets = bets.filter(bet => 
-        (bet.source === "bet-analyzer" || bet.source === "tiltlab") && 
+      const relevantBets = bets.filter(bet =>
+        (bet.source === "bet-analyzer" || bet.source === "tiltlab") &&
         bet.outcome === "pending"
       ).slice(0, 20) // Limit to 20 most recent
-      
+
       setSavedBets(relevantBets)
     } catch (error) {
       console.error("Error loading saved bets:", error)
@@ -343,14 +378,14 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               {/* Circular container that mimics the large circle size */}
               <div className="relative w-full max-w-xl aspect-square mx-auto flex items-center justify-center" style={{ padding: 0, margin: '0 auto', boxSizing: 'border-box' }}>
                 {/* Outer circle boundary using emotion color */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-full shadow-2xl"
-                  style={{ 
+                  style={{
                     backgroundColor: `${selectedCore.color}15`
                   }}
                 />
-                
-                
+
+
                 {/* 10 circles: 1 center + 9 in optimal packing ring */}
                 <div className="absolute inset-0" style={{ transformOrigin: 'center center' }}>
                   {selectedCore.subEmotions.map((subEmotion, index) => {
@@ -370,14 +405,14 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                     const parentRadius = 50
                     const angleStep = Math.PI / 9 // 20° in radians
                     const sinAngle = Math.sin(angleStep) // sin(20°) ≈ 0.342
-                    
+
                     // Calculate optimal circle radius
                     const circleRadiusPercent = parentRadius / (1 / sinAngle + 1) // ≈ 12.74%
                     const circleDiameter = circleRadiusPercent * 2
                     const circleSize = `${circleDiameter}%`
-                    
+
                     let x = 0, y = 0
-                    
+
                     if (index === 0) {
                       // Center circle at exact geometric center
                       x = 0
@@ -385,16 +420,16 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                     } else {
                       // Ring radius calculated for adjacent tangency
                       const ringRadius = circleRadiusPercent / sinAngle // ≈ 37.26%
-                      
+
                       const angleIndex = index - 1
                       const angleDegrees = (360 / 9) * angleIndex // 0°, 40°, 80°, ...
                       const angleRadians = (angleDegrees * Math.PI) / 180
-                      
+
                       // Position using polar coordinates, starting from top
                       x = ringRadius * Math.cos(angleRadians - Math.PI / 2)
                       y = ringRadius * Math.sin(angleRadians - Math.PI / 2)
                     }
-                    
+
                     return (
                       <button
                         key={subEmotion}
@@ -422,7 +457,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                   })}
                 </div>
               </div>
-              
+
               <p className="text-center text-sm text-muted-foreground mt-4">
                 Select a specific emotion
               </p>
@@ -449,12 +484,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                       {intensity[0]}
                     </span>
                   </div>
-                  <Slider 
-                    value={intensity} 
-                    onValueChange={setIntensity} 
-                    min={1} 
-                    max={5} 
-                    step={1} 
+                  <Slider
+                    value={intensity}
+                    onValueChange={setIntensity}
+                    min={1}
+                    max={5}
+                    step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -484,181 +519,177 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
 
                 {/* Outcome (only for after betting) */}
                 {phase === "after" && (
-                  <div className="space-y-4">
-                    <div className="space-y-3">
-                      <Label>What was the outcome?</Label>
-                      <RadioGroup value={outcome} onValueChange={(val) => setOutcome(val as any)}>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="profit" id="profit-dialog" />
-                          <Label htmlFor="profit-dialog" className="cursor-pointer">Won 💰</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="loss" id="loss-dialog" />
-                          <Label htmlFor="loss-dialog" className="cursor-pointer">Lost 📉</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="breakeven" id="breakeven-dialog" />
-                          <Label htmlFor="breakeven-dialog" className="cursor-pointer">Broke Even ⚖️</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
+                  <div className="space-y-3">
+                    <Label>What was the outcome?</Label>
+                    <RadioGroup value={outcome} onValueChange={(val) => setOutcome(val as any)}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="profit" id="profit-dialog" />
+                        <Label htmlFor="profit-dialog" className="cursor-pointer">Won 💰</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="loss" id="loss-dialog" />
+                        <Label htmlFor="loss-dialog" className="cursor-pointer">Lost 📉</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="breakeven" id="breakeven-dialog" />
+                        <Label htmlFor="breakeven-dialog" className="cursor-pointer">Broke Even ⚖️</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
 
-                    {/* Betting Data Fields */}
-                    <div className="space-y-3 border-t pt-4">
-                      <Label className="text-base font-medium">Betting Details</Label>
-                      
-                      {/* Mode Selection Toggle */}
-                      <div className="space-y-2">
-                        <Label className="text-sm text-muted-foreground">How would you like to enter betting data?</Label>
-                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-                          <button
-                            onClick={() => handleModeChange("manual")}
-                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                              betDataMode === "manual"
-                                ? "bg-white text-gray-900 shadow-sm"
-                                : "text-gray-600 hover:text-gray-900"
-                            }`}
-                          >
-                            Manual Entry
-                          </button>
-                          <button
-                            onClick={() => handleModeChange("select")}
-                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                              betDataMode === "select"
-                                ? "bg-white text-gray-900 shadow-sm"
-                                : "text-gray-600 hover:text-gray-900"
-                            }`}
-                          >
-                            Select Saved Bet
-                          </button>
+                {/* Betting Data Fields - For ALL phases */}
+                <div className="space-y-3 border-t pt-4">
+                  <Label className="text-base font-medium">Betting Details</Label>
+
+                  {/* Mode Selection Toggle */}
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">How would you like to enter betting data?</Label>
+                    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                      <button
+                        onClick={() => handleModeChange("manual")}
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "manual"
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-600 hover:text-gray-900"
+                          }`}
+                      >
+                        Manual Entry
+                      </button>
+                      <button
+                        onClick={() => handleModeChange("select")}
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "select"
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-600 hover:text-gray-900"
+                          }`}
+                      >
+                        Select Saved Bet
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Manual Entry Mode */}
+                  {betDataMode === "manual" && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="betAmount">Stake Amount ($)</Label>
+                          <input
+                            id="betAmount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="50.00"
+                            value={betAmount}
+                            onChange={(e) => setBetAmount(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="betOdds">Odds (e.g., +110, -110)</Label>
+                          <input
+                            id="betOdds"
+                            type="text"
+                            placeholder="+110"
+                            value={betOdds}
+                            onChange={(e) => setBetOdds(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
                         </div>
                       </div>
 
-                      {/* Manual Entry Mode */}
-                      {betDataMode === "manual" && (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="betAmount">Amount Bet ($)</Label>
-                              <input
-                                id="betAmount"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="50.00"
-                                value={betAmount}
-                                onChange={(e) => setBetAmount(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                              />
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <Label htmlFor="betOdds">Odds (e.g., +110, -110)</Label>
-                              <input
-                                id="betOdds"
-                                type="text"
-                                placeholder="+110"
-                                value={betOdds}
-                                onChange={(e) => setBetOdds(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="gameDescription">Game/Match Description</Label>
-                            <input
-                              id="gameDescription"
-                              type="text"
-                              placeholder="e.g., Lakers vs Warriors - NBA"
-                              value={gameDescription}
-                              onChange={(e) => setGameDescription(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                          </div>
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor="gameDescription">Game/Match Description</Label>
+                        <input
+                          id="gameDescription"
+                          type="text"
+                          placeholder="e.g., Lakers vs Warriors - NBA"
+                          value={gameDescription}
+                          onChange={(e) => setGameDescription(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-                      {/* Select Saved Bet Mode */}
-                      {betDataMode === "select" && (
-                        <div className="space-y-4">
-                          {loadingBets ? (
-                            <div className="text-center py-4">
-                              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                              <p className="text-sm text-muted-foreground mt-2">Loading saved bets...</p>
-                            </div>
-                          ) : savedBets.length === 0 ? (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-muted-foreground">No saved bets found from Bet Analyzer or TiltLab.</p>
-                              <p className="text-xs text-muted-foreground mt-1">Analyze some bets first, then come back to select them.</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <Label className="text-sm text-muted-foreground">Select a bet from your analysis history:</Label>
-                              <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-2">
-                                {savedBets.map((bet) => (
-                                  <button
-                                    key={bet.id}
-                                    onClick={() => handleBetSelect(bet)}
-                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                                      selectedBet?.id === bet.id
-                                        ? "border-primary bg-primary/10"
-                                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <div className="flex-1">
-                                        <p className="font-medium text-sm">
-                                          {bet.awayTeam} vs {bet.homeTeam}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {bet.betType} • {bet.sport} • ${bet.stake} @ {bet.odds}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Source: {bet.source === "bet-analyzer" ? "Bet Analyzer" : "TiltLab"}
-                                        </p>
-                                      </div>
-                                      {selectedBet?.id === bet.id && (
-                                        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                                          <span className="text-white text-xs">✓</span>
-                                        </div>
-                                      )}
+                  {/* Select Saved Bet Mode */}
+                  {betDataMode === "select" && (
+                    <div className="space-y-4">
+                      {loadingBets ? (
+                        <div className="text-center py-4">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          <p className="text-sm text-muted-foreground mt-2">Loading saved bets...</p>
+                        </div>
+                      ) : savedBets.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-muted-foreground">No saved bets found (pending outcome).</p>
+                          <p className="text-xs text-muted-foreground mt-1">Analyze some bets or create manual entries first.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label className="text-sm text-muted-foreground">Select a bet from your analysis history:</Label>
+                          <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-2">
+                            {savedBets.map((bet) => (
+                              <button
+                                key={bet.id}
+                                onClick={() => handleBetSelect(bet)}
+                                className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedBet?.id === bet.id
+                                    ? "border-primary bg-primary/10"
+                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                  }`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">
+                                      {bet.awayTeam} vs {bet.homeTeam}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {bet.betType} • {bet.sport} • ${bet.stake} @ {bet.odds}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Source: {bet.source === "bet-analyzer" ? "Bet Analyzer" : "TiltLab"}
+                                    </p>
+                                  </div>
+                                  {selectedBet?.id === bet.id && (
+                                    <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                      <span className="text-white text-xs">✓</span>
                                     </div>
-                                  </button>
-                                ))}
-                              </div>
-                              
-                              {selectedBet && (
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                  <p className="text-sm font-medium text-green-800">Selected bet details auto-filled above</p>
-                                  <p className="text-xs text-green-600 mt-1">
-                                    {selectedBet.awayTeam} vs {selectedBet.homeTeam} - {selectedBet.betType}
-                                  </p>
+                                  )}
                                 </div>
-                              )}
+                              </button>
+                            ))}
+                          </div>
+
+                          {selectedBet && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                              <p className="text-sm font-medium text-green-800">Selected bet details auto-filled above</p>
+                              <p className="text-xs text-green-600 mt-1">
+                                {selectedBet.awayTeam} vs {selectedBet.homeTeam} - {selectedBet.betType}
+                              </p>
                             </div>
                           )}
                         </div>
                       )}
-                      
-                      {outcome && (
-                        <div className="space-y-2">
-                          <Label htmlFor="actualReturn">Actual Return ($)</Label>
-                          <input
-                            id="actualReturn"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder={outcome === "profit" ? "105.00" : outcome === "loss" ? "0.00" : "50.00"}
-                            value={actualReturn}
-                            onChange={(e) => setActualReturn(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* Actual Return (only for 'after' phase with known outcome) */}
+                  {phase === "after" && outcome && (
+                    <div className="space-y-2">
+                      <Label htmlFor="actualReturn">Actual Return ($)</Label>
+                      <input
+                        id="actualReturn"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={outcome === "profit" ? "105.00" : outcome === "loss" ? "0.00" : "50.00"}
+                        value={actualReturn}
+                        onChange={(e) => setActualReturn(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Context */}
                 <div className="space-y-3">
@@ -676,8 +707,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                   <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleSubmit} 
+                  <Button
+                    onClick={handleSubmit}
                     className="flex-1"
                     style={{ backgroundColor: selectedCore?.color }}
                   >

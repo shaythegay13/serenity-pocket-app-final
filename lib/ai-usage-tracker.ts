@@ -97,8 +97,8 @@ export async function checkAIServiceUsage(
       }
     }
 
-    const tierLimit = serviceType === 'ai_picker' 
-      ? limits.ai_picker_weekly_limit 
+    const tierLimit = serviceType === 'ai_picker'
+      ? limits.ai_picker_weekly_limit
       : limits.ai_bet_analyzer_weekly_limit
 
     // 3. Count usage this week
@@ -117,8 +117,8 @@ export async function checkAIServiceUsage(
     const usedThisWeek = usedCount || 0
 
     // 4. Count purchased credits available (not expired)
-    const creditField = serviceType === 'ai_picker' 
-      ? 'ai_picker_credits' 
+    const creditField = serviceType === 'ai_picker'
+      ? 'ai_picker_credits'
       : 'ai_bet_analyzer_credits'
 
     const { data: purchases, error: purchasesError } = await supabase
@@ -270,8 +270,8 @@ export async function deductPurchasedCredit(
   serviceType: AIServiceType
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const creditField = serviceType === 'ai_picker' 
-      ? 'ai_picker_credits' 
+    const creditField = serviceType === 'ai_picker'
+      ? 'ai_picker_credits'
       : 'ai_bet_analyzer_credits'
 
     // Find the oldest purchase with available credits

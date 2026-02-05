@@ -107,15 +107,26 @@ export interface EmotionLog {
   tradeId?: string
 }
 
+/**
+ * Trade interface for tracking user trading behavior.
+ *
+ * NOTE: This interface uses two different outcome formats for historical compatibility:
+ * - `outcome`: Legacy format ("profit" | "loss" | "breakeven") - user-centric terminology
+ * - `result`: Standard sports betting format ("win" | "loss" | "push") - for dashboard compatibility
+ *
+ * Use `result` for new code when possible, as it aligns with BetAnalysis and ComprehensiveBet interfaces.
+ */
 export interface Trade {
   id: string
   timestamp: Date
   title?: string
+  sport?: string
   preTradeEmotion: string
   preTradeIntensity: number
   biasesIdentified: string[]
   confidenceLevel: number
   reasoning: string
+  /** @deprecated Use `result` instead for consistency with other bet interfaces */
   outcome?: "profit" | "loss" | "breakeven"
   postTradeEmotion?: string
   postTradeIntensity?: number
@@ -123,9 +134,25 @@ export interface Trade {
   emotionalImpact?: number
   stake?: number
   actualReturn?: number
-  // Add status and result for compatibility with dashboard
   status?: "pending" | "open" | "settled"
+  /** Preferred outcome field - aligns with BetAnalysis and ComprehensiveBet */
   result?: "win" | "loss" | "push"
+}
+
+export interface GameLineRecord {
+  id: string
+  sport: string
+  league?: string
+  homeTeam: string
+  awayTeam: string
+  commenceTime: string
+  sportsbook?: string
+  markets: any[]
+  homeScore?: number
+  awayScore?: number
+  finalStatus?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type AIServiceType = "ai_picker" | "ai_bet_analyzer"
@@ -184,14 +211,14 @@ export interface BetAnalysis {
   // Keep "straight" for backward compatibility but also support richer
   // bet categories so we can track separate behaviors and insights.
   betType:
-    | "straight"
-    | "moneyline"
-    | "spread"
-    | "total"
-    | "parlay"
-    | "prop"
-    | "future"
-    | "live"
+  | "straight"
+  | "moneyline"
+  | "spread"
+  | "total"
+  | "parlay"
+  | "prop"
+  | "future"
+  | "live"
   description: string
   stake: number
   odds?: number
@@ -216,4 +243,41 @@ export interface TiltAlert {
   triggers: string[]
   recommendation: string
   cooldownSuggested: boolean
+}
+
+// ============================================================================
+// Outcome Type Helpers
+// ============================================================================
+
+/** Standard bet outcome types used in BetAnalysis and ComprehensiveBet */
+export type BetOutcome = "win" | "loss" | "push" | "pending"
+
+/** Legacy trade outcome types (deprecated, use BetOutcome instead) */
+export type TradeOutcome = "profit" | "loss" | "breakeven"
+
+/**
+ * Convert legacy trade outcome to standard bet outcome
+ */
+export function tradeOutcomeToBetOutcome(outcome: TradeOutcome | undefined): BetOutcome | undefined {
+  if (!outcome) return undefined
+  switch (outcome) {
+    case "profit": return "win"
+    case "loss": return "loss"
+    case "breakeven": return "push"
+    default: return undefined
+  }
+}
+
+/**
+ * Convert standard bet outcome to legacy trade outcome
+ */
+export function betOutcomeToTradeOutcome(outcome: BetOutcome | undefined): TradeOutcome | undefined {
+  if (!outcome) return undefined
+  switch (outcome) {
+    case "win": return "profit"
+    case "loss": return "loss"
+    case "push":
+    case "pending": return "breakeven"
+    default: return undefined
+  }
 }

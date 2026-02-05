@@ -15,6 +15,11 @@ import type {
   UserPsychProfile,
 } from "@/lib/types/ai-models"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
+import { TILTLAB_SPORT_MAPPING } from "@/lib/sports-config"
+import { exec } from "child_process"
+import { promisify } from "util"
+
+const execAsync = promisify(exec)
 
 /**
  * AI Bet Analysis API Route
@@ -78,7 +83,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Run built-in AI analysis as a baseline
+    // --- Psychology Model Selection (Integrated from SlipAnalyzer Logic) ---
+    try {
+      const emotionalScore = payload.confidenceLevel || 75
+      const riskTolerance = inferRiskToleranceFromScenario(payload)
+
+      // Sanitize inputs to prevent command injection
+      const sanitizedScore = Number.isFinite(emotionalScore) ? Math.round(emotionalScore) : 75
+      const validTolerances = ['conservative', 'moderate', 'aggressive']
+      const sanitizedTolerance = validTolerances.includes(riskTolerance) ? riskTolerance : 'moderate'
+
+      const { stdout } = await execAsync(`python psych_model_picker.py ${sanitizedScore} ${sanitizedTolerance}`)
+
+      // Validate JSON parsing
+      let psychResult
+      try {
+        psychResult = JSON.parse(stdout.trim())
+      } catch (parseError) {
+        console.warn("⚠️ [TiltLab PsychPicker] Invalid JSON response, using defaults")
+        throw parseError
+      }
+
+      payload.psychModel = psychResult.model_id
+      payload.psychMultiplier = psychResult.params?.max_stake_multiplier || 1.0
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`🧠 [TiltLab PsychPicker] Selected: ${payload.psychModel} (Multiplier: ${payload.psychMultiplier})`)
+      }
+    } catch (e) {
+      console.warn("⚠️ [TiltLab PsychPicker] Script failed, falling back to defaults", e)
+      payload.psychModel = "growth_optimizer_v3"
+      payload.psychMultiplier = 1.0
+    }
+
+    // Run built-in AI analysis as a baseline (now with psych awareness)
     const analysis = analyzeScenario(payload)
 
     // --- New 2-layer engine: odds sourcing + heuristic + Gemini ---
@@ -87,6 +125,14 @@ export async function POST(request: NextRequest) {
 
     try {
       const { effectiveOdds, oddsSource } = await getEffectiveOdds(payload)
+
+      if (effectiveOdds === null || Number.isNaN(effectiveOdds)) {
+        return NextResponse.json({
+          success: false,
+          error: "Could not source real-time odds for this matchup. Please enter odds manually or try again later.",
+          usedEnhancedAI: false
+        }, { status: 400 })
+      }
 
       const sportKey = mapHumanSportToKey(payload.sport)
       const homeTeam = payload.favoriteTeam || payload.underdogTeam || "Home"
@@ -160,7 +206,7 @@ export async function POST(request: NextRequest) {
 
         betRiskAssessment = await scoreUserBet({
           features,
-          prediction: prediction!,
+          prediction,
           betType: payload.betType,
           stake: payload.betAmount,
           odds: effectiveOdds,
@@ -187,7 +233,7 @@ export async function POST(request: NextRequest) {
           id: undefined,
           context,
           features,
-          prediction: prediction!,
+          prediction,
         },
         bet: {
           type: payload.betType,
@@ -222,8 +268,9 @@ export async function POST(request: NextRequest) {
               explanation: "Base recommendation from rule-based advisor.",
             },
             psychologyFlags: [],
-            summary: analysis.recommendation.reason,
-            detailedExplanation: analysis.recommendation.reason,
+            emotionalAlignment: 50,
+            summary: (analysis as any).recommendation.reason,
+            detailedExplanation: (analysis as any).recommendation.reason,
             responsibleGamblingReminder: undefined,
           }
         }
@@ -239,8 +286,9 @@ export async function POST(request: NextRequest) {
             explanation: "Base recommendation from rule-based advisor.",
           },
           psychologyFlags: [],
-          summary: analysis.recommendation.reason,
-          detailedExplanation: analysis.recommendation.reason,
+          emotionalAlignment: 50,
+          summary: (analysis as any).recommendation.reason,
+          detailedExplanation: (analysis as any).recommendation.reason,
           responsibleGamblingReminder: undefined,
         }
       }
@@ -310,12 +358,23 @@ export async function POST(request: NextRequest) {
             | undefined
           try {
             if (payload.favoriteTeam || payload.underdogTeam) {
+              const { searchTeams, getTeamRecentForm } = await import("@/lib/thesportsdb")
+
+              const getForm = async (teamName: string) => {
+                const teams = await searchTeams(teamName)
+                if (teams.length > 0) {
+                  const form = await getTeamRecentForm(teams[0].idTeam)
+                  return form?.last5 || []
+                }
+                return []
+              }
+
               const [favForm, dogForm] = await Promise.all([
                 payload.favoriteTeam
-                  ? fetchTeamRecentResults(payload.favoriteTeam, 5)
+                  ? getForm(payload.favoriteTeam)
                   : Promise.resolve([]),
                 payload.underdogTeam
-                  ? fetchTeamRecentResults(payload.underdogTeam, 5)
+                  ? getForm(payload.underdogTeam)
                   : Promise.resolve([]),
               ])
               sportsDbContext = {
@@ -416,17 +475,30 @@ function parseAmericanOdds(odds?: string | number | null): number | null {
 }
 
 function mapHumanSportToKey(sport: string): string {
+  // Use centralized mapping if available
+  if (TILTLAB_SPORT_MAPPING[sport]) {
+    return TILTLAB_SPORT_MAPPING[sport]
+  }
+
   const key = sport.toLowerCase()
-  if (key.includes("nba")) return "basketball_nba"
-  if (key.includes("nfl")) return "americanfootball_nfl"
-  if (key.includes("mlb")) return "baseball_mlb"
-  if (key.includes("nhl")) return "icehockey_nhl"
+  if (key.includes("nba") || key.includes("basketball")) return "basketball_nba"
+  if (key.includes("nfl") || key.includes("football")) return "americanfootball_nfl"
+  if (key.includes("mlb") || key.includes("baseball")) return "baseball_mlb"
+  if (key.includes("nhl") || key.includes("hockey")) return "icehockey_nhl"
+
+  // Try to find by partial match in the mapping
+  const entry = Object.entries(TILTLAB_SPORT_MAPPING).find(([name]) =>
+    name.toLowerCase().includes(key) || key.includes(name.toLowerCase())
+  )
+
+  if (entry) return entry[1]
+
   return sport
 }
 
 async function getEffectiveOdds(payload: BetScenario): Promise<{
   effectiveOdds: number
-  oddsSource: "user" | "api" | "default"
+  oddsSource: "user" | "api"
 }> {
   // 1) User-input odds
   const userOdds = parseAmericanOdds(payload.odds)
@@ -475,9 +547,8 @@ async function getEffectiveOdds(payload: BetScenario): Promise<{
     console.warn("[TiltLab Analyze Bet] Failed to source odds from APIs:", e)
   }
 
-  // 4) Default fallback odds with explicit low-confidence marker
-  const fallback = -110
-  return { effectiveOdds: fallback, oddsSource: "default" }
+  // 4) No odds found - throw error to indicate failure
+  throw new Error("Could not source odds from user input or APIs")
 }
 
 function inferRiskToleranceFromScenario(payload: BetScenario):

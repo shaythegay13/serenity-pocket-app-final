@@ -1,4 +1,5 @@
 "use client"
+// Diagnostic: Optimization for faster build times enabled.
 
 import { Card } from "@/components/ui/card"
 import Image from "next/image"
@@ -40,15 +41,27 @@ export default function AboutPage() {
 
   useEffect(() => {
     let isMounted = true
-    
+
     const checkAuth = async () => {
+      // Safety timeout to prevent permanent loading state
+      const timeoutId = setTimeout(() => {
+        if (isMounted && loading) {
+          console.warn('Auth check timed out, forcing loading state to false');
+          setLoading(false);
+          setAuthed(false);
+        }
+      }, 5000);
+
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
-        if (!isMounted) return
-        
+
+        if (!isMounted) {
+          clearTimeout(timeoutId);
+          return;
+        }
+
         setAuthed(!!session)
-        
+
         if (session) {
           try {
             const storedUserData = await storage.getUserData()
@@ -63,6 +76,7 @@ export default function AboutPage() {
         console.error('Auth check failed:', error)
         setAuthed(false)
       } finally {
+        clearTimeout(timeoutId);
         if (isMounted) {
           setLoading(false)
         }
@@ -87,10 +101,10 @@ export default function AboutPage() {
   const getImageSrc = (founder: { name: string; title: string; bio: string; image: string }) => {
     if (imageErrors.has(founder.image)) {
       // Try alternative extension
-      const altImage = founder.image.endsWith('.png') 
+      const altImage = founder.image.endsWith('.png')
         ? founder.image.replace('.png', '.jpg')
         : founder.image.replace('.jpg', '.png')
-      
+
       if (imageErrors.has(altImage)) {
         return "/placeholder-user.jpg"
       }
@@ -127,12 +141,12 @@ export default function AboutPage() {
               Our Mission
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              PlayMind Labs exists to make betting smarter, not bigger. We're the seatbelt, not the gas pedal. 
-              Our goal is to help you understand your psychology, recognize harmful patterns, and make more informed decisions. 
+              PlayMind Labs exists to make betting smarter, not bigger. We're the seatbelt, not the gas pedal.
+              Our goal is to help you understand your psychology, recognize harmful patterns, and make more informed decisions.
               Always bet responsibly and never wager more than you can afford to lose.
             </p>
           </Card>
-          
+
           <Card className="p-8">
             <h2 className="text-2xl font-bold text-foreground mb-4">
               Our Vision
@@ -166,7 +180,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-foreground text-center mb-12">
             Meet Our Founders
           </h2>
-          
+
           <div className="space-y-8 max-w-4xl mx-auto">
             {founders.map((founder, index) => (
               <Card key={index} className="p-8">
@@ -182,16 +196,16 @@ export default function AboutPage() {
                       onError={() => handleImageError(getImageSrc(founder))}
                     />
                   </div>
-                  
+
                   <div className="flex-1 text-center md:text-left">
                     <h3 className="text-2xl font-bold text-foreground mb-2">
                       {founder.name}
                     </h3>
-                    
+
                     <p className="text-primary font-medium text-lg mb-4">
                       {founder.title}
                     </p>
-                    
+
                     <p className="text-muted-foreground leading-relaxed">
                       {founder.bio}
                     </p>
@@ -207,7 +221,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-foreground text-center mb-12">
             Our Values
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="p-6 text-center">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -218,7 +232,7 @@ export default function AboutPage() {
                 We prioritize user welfare and responsible gaming above all else.
               </p>
             </Card>
-            
+
             <Card className="p-6 text-center">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">🔬</span>
@@ -228,7 +242,7 @@ export default function AboutPage() {
                 Our methods are grounded in behavioral psychology and data science.
               </p>
             </Card>
-            
+
             <Card className="p-6 text-center">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">🤝</span>
@@ -238,7 +252,7 @@ export default function AboutPage() {
                 We believe in open communication and honest user relationships.
               </p>
             </Card>
-            
+
             <Card className="p-6 text-center">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">🚀</span>

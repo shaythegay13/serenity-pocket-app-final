@@ -20,7 +20,7 @@ import {
   Target,
   Clock
 } from "lucide-react"
-import type { ComprehensiveAnalysis, BetScenario } from "@/lib/ai-bet-advisor"
+import type { ComprehensiveAnalysis, BetScenario, OddsAnalysis } from "@/lib/ai-bet-advisor"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -35,6 +35,7 @@ interface BiasInfo {
 interface AIResultScreenProps {
   analysis: ComprehensiveAnalysis
   scenario: BetScenario
+  oddsAnalysis?: OddsAnalysis | null
   onPlaceBet: () => void
   onDiscard: () => void
 }
@@ -85,7 +86,7 @@ const BIAS_DEFINITIONS: Record<string, Omit<BiasInfo, "key">> = {
   },
 }
 
-export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AIResultScreenProps) {
+export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, onDiscard }: AIResultScreenProps) {
   const { recommendation } = analysis
 
   // Calculate psychological edge score (inverse of emotional risk + factors)
@@ -230,8 +231,8 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
               <div className="text-center">
                 <div className={cn(
                   "text-2xl font-bold",
-                  recommendation.budgetPercent > 20 ? "text-red-500" : 
-                  recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
+                  recommendation.budgetPercent > 20 ? "text-red-500" :
+                    recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
                 )}>
                   {recommendation.budgetPercent}%
                 </div>
@@ -240,8 +241,8 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
               <div className="text-center">
                 <div className={cn(
                   "text-2xl font-bold",
-                  analysis.safety.signals.length === 0 ? "text-green-500" : 
-                  analysis.safety.signals.length <= 2 ? "text-yellow-500" : "text-red-500"
+                  analysis.safety.signals.length === 0 ? "text-green-500" :
+                    analysis.safety.signals.length <= 2 ? "text-yellow-500" : "text-red-500"
                 )}>
                   {analysis.safety.signals.length}
                 </div>
@@ -250,8 +251,8 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
               <div className="text-center">
                 <div className={cn(
                   "text-2xl font-bold",
-                  psychEdge >= 70 ? "text-green-500" : 
-                  psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
+                  psychEdge >= 70 ? "text-green-500" :
+                    psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
                 )}>
                   {psychEdge}/100
                 </div>
@@ -259,11 +260,11 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
               </div>
             </div>
             <div className="text-xs text-muted-foreground mt-3">
-              {recommendation.recommendation === "PLACE BET" && psychEdge >= 70 && analysis.safety.signals.length === 0 && 
+              {recommendation.recommendation === "PLACE BET" && psychEdge >= 70 && analysis.safety.signals.length === 0 &&
                 "✅ All systems clear - this bet meets our safety criteria"}
-              {recommendation.recommendation === "PLACE BET" && (psychEdge < 70 || analysis.safety.signals.length > 0) && 
+              {recommendation.recommendation === "PLACE BET" && (psychEdge < 70 || analysis.safety.signals.length > 0) &&
                 "⚠️ Approved but monitor your emotional state and bankroll"}
-              {recommendation.recommendation === "DON'T PLACE BET" && 
+              {recommendation.recommendation === "DON'T PLACE BET" &&
                 "🚨 We recommend waiting - current conditions suggest elevated risk"}
             </div>
           </div>
@@ -334,14 +335,14 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
                 <div className="text-right">
                   <span className={cn(
                     "text-lg font-bold tabular-nums",
-                    recommendation.budgetPercent > 20 ? "text-red-500" : 
-                    recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
+                    recommendation.budgetPercent > 20 ? "text-red-500" :
+                      recommendation.budgetPercent > 10 ? "text-yellow-500" : "text-green-500"
                   )}>
                     {recommendation.budgetPercent}%
                   </span>
                   <div className="text-xs text-muted-foreground">
-                    {recommendation.budgetPercent > 20 ? "⚠️ High Risk" : 
-                     recommendation.budgetPercent > 10 ? "⚡ Moderate" : "✅ Safe"}
+                    {recommendation.budgetPercent > 20 ? "⚠️ High Risk" :
+                      recommendation.budgetPercent > 10 ? "⚡ Moderate" : "✅ Safe"}
                   </div>
                 </div>
               </div>
@@ -370,8 +371,8 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
                       {recommendation.gameFactors.favoriteWinPct}%
                     </span>
                     <div className="text-xs text-muted-foreground">
-                      {recommendation.gameFactors.favoriteWinPct >= 60 ? "Strong Favorite" : 
-                       recommendation.gameFactors.favoriteWinPct >= 55 ? "Moderate Favorite" : "Close Match"}
+                      {recommendation.gameFactors.favoriteWinPct >= 60 ? "Strong Favorite" :
+                        recommendation.gameFactors.favoriteWinPct >= 55 ? "Moderate Favorite" : "Close Match"}
                     </div>
                   </div>
                 </div>
@@ -389,8 +390,8 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
                     {analysis.safety.signals.length}
                   </span>
                   <div className="text-xs text-muted-foreground">
-                    {analysis.safety.signals.length === 0 ? "✅ All Clear" : 
-                     analysis.safety.signals.length <= 2 ? "⚠️ Minor Issues" : "🚨 Multiple Risks"}
+                    {analysis.safety.signals.length === 0 ? "✅ All Clear" :
+                      analysis.safety.signals.length <= 2 ? "⚠️ Minor Issues" : "🚨 Multiple Risks"}
                   </div>
                 </div>
               </div>
@@ -501,11 +502,11 @@ export function AIResultScreen({ analysis, scenario, onPlaceBet, onDiscard }: AI
                   <div className="text-right">
                     <div className={cn(
                       "text-xs font-medium",
-                      psychEdge >= 70 ? "text-green-500" : 
-                      psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
+                      psychEdge >= 70 ? "text-green-500" :
+                        psychEdge >= 40 ? "text-yellow-500" : "text-red-500"
                     )}>
-                      {psychEdge >= 70 ? "Strong Position" : 
-                       psychEdge >= 40 ? "Moderate" : "At Risk"}
+                      {psychEdge >= 70 ? "Strong Position" :
+                        psychEdge >= 40 ? "Moderate" : "At Risk"}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Mental readiness for this bet

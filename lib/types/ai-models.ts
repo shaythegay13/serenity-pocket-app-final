@@ -43,6 +43,15 @@ export interface CurrentGameContext {
     totalOverOdds?: number
     totalUnderOdds?: number
   }
+  // Average/consensus odds across all bookmakers for true EV calculation via line shopping
+  averageOdds?: {
+    moneylineHome?: number
+    moneylineAway?: number
+    spreadHomeOdds?: number
+    spreadAwayOdds?: number
+    totalOverOdds?: number
+    totalUnderOdds?: number
+  }
   spreadLines?: {
     home: number
     away: number
@@ -94,6 +103,7 @@ export interface ModelPrediction {
   expectedValueTotal?: number
   modelConfidence: number // 0-1
   riskScore: number // 0-1
+  primaryMarket?: string // "moneyline", "spread", or "total"
 }
 
 export interface UserPsychProfile {

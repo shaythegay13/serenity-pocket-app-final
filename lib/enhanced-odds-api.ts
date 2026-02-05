@@ -20,99 +20,13 @@ export type OddsStrategy = 'rapidapi' | 'theodds' | 'both' | 'auto';
 export interface EnhancedOddsResponse {
   success: boolean;
   data: any[];
-  source: 'rapidapi' | 'theodds' | 'combined' | 'sportsdb' | 'mock';
+  source: 'rapidapi' | 'theodds' | 'combined' | 'sportsdb';
   advantageOpportunities?: AdvantageOpportunity[];
   timestamp: Date;
   error?: string;
 }
 
-/**
- * Mock odds data for compatibility - Enhanced for multiple sports
- */
-function getMockOddsData(sport?: string): any[] {
-  const sportConfig = sport ? getSportById(sport) : null;
-  
-  if (!sportConfig) {
-    // Return sample data for all popular sports
-    return getSportsWithLiveOdds().slice(0, 4).map(sport => ({
-      id: `${sport.id}-mock-1`,
-      sport: sport.id,
-      sportName: sport.name,
-      league: sport.oddsApiLeague || sport.id,
-      homeTeam: getRealTeamName(sport.id, 'home'),
-      awayTeam: getRealTeamName(sport.id, 'away'),
-      odds: -110,
-      market: 'Moneyline',
-      startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
-      lastUpdate: new Date()
-    }));
-  }
-
-  // Return mock data for specific sport
-  return [
-    {
-      id: `${sportConfig.id}-mock-1`,
-      sport: sportConfig.id,
-      sportName: sportConfig.name,
-      league: sportConfig.oddsApiLeague || sportConfig.id,
-      homeTeam: getRealTeamName(sportConfig.id, 'home'),
-      awayTeam: getRealTeamName(sportConfig.id, 'away'),
-      odds: -110,
-      market: sportConfig.popularMarkets[0] || 'Moneyline',
-      startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
-      lastUpdate: new Date()
-    },
-    {
-      id: `${sportConfig.id}-mock-2`,
-      sport: sportConfig.id,
-      sportName: sportConfig.name,
-      league: sportConfig.oddsApiLeague || sportConfig.id,
-      homeTeam: getRealTeamName(sportConfig.id, 'favorite'),
-      awayTeam: getRealTeamName(sportConfig.id, 'underdog'),
-      odds: +150,
-      market: sportConfig.popularMarkets[0] || 'Moneyline',
-      startTime: new Date(Date.now() + 4 * 60 * 60 * 1000),
-      lastUpdate: new Date()
-    }
-  ];
-}
-
-/**
- * Get realistic team names for mock data
- */
-function getRealTeamName(sport: string, type: 'home' | 'away' | 'favorite' | 'underdog'): string {
-  const teamNames: Record<string, Record<string, string[]>> = {
-    'basketball_nba': {
-      home: ['Los Angeles Lakers', 'Boston Celtics', 'Golden State Warriors', 'Miami Heat'],
-      away: ['Denver Nuggets', 'Phoenix Suns', 'Milwaukee Bucks', 'Philadelphia 76ers'],
-      favorite: ['Los Angeles Lakers', 'Boston Celtics'],
-      underdog: ['Orlando Magic', 'Detroit Pistons']
-    },
-    'football_nfl': {
-      home: ['Kansas City Chiefs', 'Buffalo Bills', 'Dallas Cowboys', 'Philadelphia Eagles'],
-      away: ['New England Patriots', 'Green Bay Packers', 'San Francisco 49ers', 'Detroit Lions'],
-      favorite: ['Kansas City Chiefs', 'Buffalo Bills'],
-      underdog: ['Arizona Cardinals', 'Washington Commanders']
-    },
-    'baseball_mlb': {
-      home: ['New York Yankees', 'Boston Red Sox', 'Los Angeles Dodgers', 'Houston Astros'],
-      away: ['Chicago Cubs', 'San Francisco Giants', 'Atlanta Braves', 'St. Louis Cardinals'],
-      favorite: ['New York Yankees', 'Los Angeles Dodgers'],
-      underdog: ['Pittsburgh Pirates', 'Oakland Athletics']
-    },
-    'soccer_epl': {
-      home: ['Manchester United', 'Liverpool', 'Arsenal', 'Chelsea'],
-      away: ['Manchester City', 'Tottenham', 'Newcastle', 'Leicester City'],
-      favorite: ['Manchester City', 'Arsenal'],
-      underdog: ['Nottingham Forest', 'Bournemouth']
-    }
-  };
-
-  const sportTeams = teamNames[sport] || teamNames['basketball_nba'];
-  const typeTeams = sportTeams[type] || sportTeams.home;
-  
-  return typeTeams[Math.floor(Math.random() * typeTeams.length)];
-}
+// Mock data functions removed to ensure only real data is used
 
 /**
  * Fetch enhanced odds data with multiple sources
@@ -123,9 +37,9 @@ export async function fetchEnhancedLiveOdds(
 ): Promise<EnhancedOddsResponse> {
   const sportConfig = sport ? getSportById(sport) : null;
   const sportName = sportConfig?.displayName || sport || 'all sports';
-  
+
   console.log(`📊 Enhanced Odds API: Fetching odds for ${sportName}`);
-  
+
   // Try real APIs first, fall back to mock if needed
   try {
     // Try TheOddsAPI first (more reliable for live odds)
@@ -148,19 +62,20 @@ export async function fetchEnhancedLiveOdds(
       }
     }
 
-    console.log(`⚠️ No real API data available, using mock data for ${sportName}`);
+    console.log(`⚠️ No real API data available for ${sportName}`);
     return {
-      success: true,
-      data: getMockOddsData(sport),
-      source: 'mock',
+      success: false,
+      data: [],
+      source: 'combined',
       timestamp: new Date(),
+      error: 'No real-time odds available for this sport at the moment.'
     };
   } catch (error) {
     console.error(`❌ Error fetching odds:`, error);
     return {
-      success: true,
-      data: getMockOddsData(sport),
-      source: 'mock',
+      success: false,
+      data: [],
+      source: 'combined',
       timestamp: new Date(),
       error: error instanceof Error ? error.message : 'Unknown error'
     };
@@ -176,42 +91,144 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
     return { success: false, data: [], source: 'theodds', timestamp: new Date(), error: 'API key not configured' };
   }
 
-  const sportKey = sport === 'basketball_nba' ? 'basketball_nba' : 
-                   sport === 'football_nfl' ? 'american_football_nfl' :
-                   sport === 'baseball_mlb' ? 'baseball_mlb' :
-                   sport ? sport : 'basketball_nba';
+  const sportConfig = sport ? getSportById(sport) : null;
+
+  // Construct the correct key for TheOddsAPI
+  // Format: sportKey_leagueKey (e.g., americanfootball_nfl, basketball_nba)
+  let sportKey = 'basketball_nba'; // Default fallback
+
+  if (sportConfig) {
+    if (sportConfig.oddsApiSport && sportConfig.oddsApiLeague) {
+      // Fix: Prevent double prefixing (e.g. soccer_soccer_epl)
+      if (sportConfig.oddsApiLeague.startsWith(sportConfig.oddsApiSport)) {
+        sportKey = sportConfig.oddsApiLeague;
+      } else {
+        sportKey = `${sportConfig.oddsApiSport}_${sportConfig.oddsApiLeague}`;
+      }
+    } else {
+      sportKey = sportConfig.id;
+    }
+  } else if (sport) {
+    sportKey = sport;
+  }
 
   const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
-  
+
   try {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`TheOddsAPI error: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
+
+    if (Array.isArray(data) && data.length === 0) {
+      console.warn(`[TheOddsAPI] No games returned for key: ${sportKey}. Check if key format is correct or if season is active.`);
+    }
+
     return {
       success: true,
-      data: data.map((game: any) => ({
-        id: game.id,
-        sport: sportKey,
-        sportName: sport,
-        league: game.sport_title,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        homeOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price } },
-        awayOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price } },
-        commenceTime: game.commence_time,
-        lastUpdate: new Date()
-      })),
+      data: data.map((game: any) => {
+        const homeTeam = game.home_team;
+        const awayTeam = game.away_team;
+
+        let h2hMarket: any = null;
+        let spreadsMarket: any = null;
+        let totalsMarket: any = null;
+
+        if (Array.isArray(game.bookmakers)) {
+          const findMarket = (book: any, key: string) => book.markets?.find((m: any) => m.key === key);
+
+          // 1. Try to find one book that has everything (consistency)
+          const preferredBooks = ['draftkings', 'fanduel', 'betmgm', 'caesars', 'bovada'];
+          const perfectBook = game.bookmakers.find((b: any) =>
+            preferredBooks.includes(b.key) &&
+            findMarket(b, 'h2h') && findMarket(b, 'spreads') && findMarket(b, 'totals')
+          ) || game.bookmakers.find((b: any) =>
+            findMarket(b, 'h2h') && findMarket(b, 'spreads') && findMarket(b, 'totals')
+          );
+
+          if (perfectBook) {
+            h2hMarket = findMarket(perfectBook, 'h2h');
+            spreadsMarket = findMarket(perfectBook, 'spreads');
+            totalsMarket = findMarket(perfectBook, 'totals');
+          } else {
+            // 2. Mix and match best available if no single book has all
+            for (const book of game.bookmakers) {
+              if (!h2hMarket && findMarket(book, 'h2h')) h2hMarket = findMarket(book, 'h2h');
+              if (!spreadsMarket && findMarket(book, 'spreads')) spreadsMarket = findMarket(book, 'spreads');
+              if (!totalsMarket && findMarket(book, 'totals')) totalsMarket = findMarket(book, 'totals');
+            }
+          }
+        }
+
+        const homeOdds = h2hMarket?.outcomes?.find((o: any) => o.name === homeTeam)?.price;
+        const awayOdds = h2hMarket?.outcomes?.find((o: any) => o.name === awayTeam)?.price;
+
+        const homeSpreadOutcome = spreadsMarket?.outcomes?.find((o: any) => o.name === homeTeam);
+        const awaySpreadOutcome = spreadsMarket?.outcomes?.find((o: any) => o.name === awayTeam);
+
+        const overOutcome = totalsMarket?.outcomes?.find((o: any) => o.name === 'Over');
+        const underOutcome = totalsMarket?.outcomes?.find((o: any) => o.name === 'Under');
+
+        // Calculate best and average odds across all bookmakers for true EV via line shopping
+        const allHomeOdds: number[] = [];
+        const allAwayOdds: number[] = [];
+        const allHomeSpreadOdds: number[] = [];
+        const allAwaySpreadOdds: number[] = [];
+        const allOverOdds: number[] = [];
+        const allUnderOdds: number[] = [];
+
+        for (const book of game.bookmakers || []) {
+          const h2h = book.markets?.find((m: any) => m.key === 'h2h');
+          const spreads = book.markets?.find((m: any) => m.key === 'spreads');
+          const totals = book.markets?.find((m: any) => m.key === 'totals');
+
+          const ho = h2h?.outcomes?.find((o: any) => o.name === homeTeam)?.price;
+          const ao = h2h?.outcomes?.find((o: any) => o.name === awayTeam)?.price;
+          if (typeof ho === 'number') allHomeOdds.push(ho);
+          if (typeof ao === 'number') allAwayOdds.push(ao);
+
+          const hso = spreads?.outcomes?.find((o: any) => o.name === homeTeam)?.price;
+          const aso = spreads?.outcomes?.find((o: any) => o.name === awayTeam)?.price;
+          if (typeof hso === 'number') allHomeSpreadOdds.push(hso);
+          if (typeof aso === 'number') allAwaySpreadOdds.push(aso);
+
+          const oo = totals?.outcomes?.find((o: any) => o.name === 'Over')?.price;
+          const uo = totals?.outcomes?.find((o: any) => o.name === 'Under')?.price;
+          if (typeof oo === 'number') allOverOdds.push(oo);
+          if (typeof uo === 'number') allUnderOdds.push(uo);
+        }
+
+        const calcAvg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : undefined;
+        const calcBest = (arr: number[]) => arr.length > 0 ? Math.max(...arr) : undefined; // Best for bettor = highest odds
+
+        return {
+          id: game.id,
+          sport: sportKey,
+          sportName: sport,
+          league: game.sport_title,
+          homeTeam,
+          awayTeam,
+          homeOdds: { best: { odds: calcBest(allHomeOdds) || homeOdds }, average: calcAvg(allHomeOdds), allBooks: allHomeOdds },
+          awayOdds: { best: { odds: calcBest(allAwayOdds) || awayOdds }, average: calcAvg(allAwayOdds), allBooks: allAwayOdds },
+          homeSpread: homeSpreadOutcome ? { best: { line: homeSpreadOutcome.point, odds: calcBest(allHomeSpreadOdds) || homeSpreadOutcome.price }, average: calcAvg(allHomeSpreadOdds) } : undefined,
+          awaySpread: awaySpreadOutcome ? { best: { line: awaySpreadOutcome.point, odds: calcBest(allAwaySpreadOdds) || awaySpreadOutcome.price }, average: calcAvg(allAwaySpreadOdds) } : undefined,
+          overLine: overOutcome ? { best: { line: overOutcome.point, odds: calcBest(allOverOdds) || overOutcome.price }, average: calcAvg(allOverOdds) } : undefined,
+          underLine: underOutcome ? { best: { line: underOutcome.point, odds: calcBest(allUnderOdds) || underOutcome.price }, average: calcAvg(allUnderOdds) } : undefined,
+          commenceTime: game.commence_time,
+          lastUpdate: new Date(),
+          bookmakerCount: game.bookmakers?.length || 0
+        };
+      }),
       source: 'theodds',
       timestamp: new Date()
     };
   } catch (error) {
-    return { 
-      success: false, 
-      data: [], 
-      source: 'theodds', 
+    return {
+      success: false,
+      data: [],
+      source: 'theodds',
       timestamp: new Date(),
       error: error instanceof Error ? error.message : 'Unknown error'
     };
@@ -227,13 +244,19 @@ async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> 
     return { success: false, data: [], source: 'rapidapi', timestamp: new Date(), error: 'API key not configured' };
   }
 
-  const sportKey = sport === 'basketball_nba' ? 'NBA' : 
-                   sport === 'football_nfl' ? 'NFL' :
-                   sport === 'baseball_mlb' ? 'MLB' :
-                   sport ? sport.toUpperCase() : 'NBA';
+  const sportConfig = sport ? getSportById(sport) : null;
+
+  // Construct the correct key for RapidAPI
+  let sportKey = 'NBA'; // Default fallback
+
+  if (sportConfig) {
+    sportKey = sportConfig.name.toUpperCase();
+  } else if (sport) {
+    sportKey = sport.toUpperCase();
+  }
 
   const url = `https://odds.p.rapidapi.com/v4/sports/${sportKey}/odds`;
-  
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -241,34 +264,57 @@ async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> 
         'X-RapidAPI-Host': 'odds.p.rapidapi.com'
       }
     });
-    
+
     if (!response.ok) {
       throw new Error(`RapidAPI error: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     return {
       success: true,
-      data: data.map((game: any) => ({
-        id: game.id,
-        sport: sportKey,
-        sportName: sport,
-        league: game.sport_title,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        homeOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price } },
-        awayOdds: { best: { odds: game.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price } },
-        commenceTime: game.commence_time,
-        lastUpdate: new Date()
-      })),
+      data: data.map((game: any) => {
+        const homeTeam = game.home_team;
+        const awayTeam = game.away_team;
+        const bookmaker = game.bookmakers?.[0];
+
+        const h2hMarket = bookmaker?.markets?.find((m: any) => m.key === 'h2h');
+        const spreadsMarket = bookmaker?.markets?.find((m: any) => m.key === 'spreads');
+        const totalsMarket = bookmaker?.markets?.find((m: any) => m.key === 'totals');
+
+        const homeOdds = h2hMarket?.outcomes?.find((o: any) => o.name === homeTeam)?.price;
+        const awayOdds = h2hMarket?.outcomes?.find((o: any) => o.name === awayTeam)?.price;
+
+        const homeSpreadOutcome = spreadsMarket?.outcomes?.find((o: any) => o.name === homeTeam);
+        const awaySpreadOutcome = spreadsMarket?.outcomes?.find((o: any) => o.name === awayTeam);
+
+        const overOutcome = totalsMarket?.outcomes?.find((o: any) => o.name === 'Over');
+        const underOutcome = totalsMarket?.outcomes?.find((o: any) => o.name === 'Under');
+
+        return {
+          id: game.id,
+          sport: sportKey,
+          sportName: sport,
+          league: game.sport_title,
+          homeTeam,
+          awayTeam,
+          homeOdds: { best: { odds: homeOdds } },
+          awayOdds: { best: { odds: awayOdds } },
+          homeSpread: homeSpreadOutcome ? { best: { line: homeSpreadOutcome.point, odds: homeSpreadOutcome.price } } : undefined,
+          awaySpread: awaySpreadOutcome ? { best: { line: awaySpreadOutcome.point, odds: awaySpreadOutcome.price } } : undefined,
+          overLine: overOutcome ? { best: { line: overOutcome.point, odds: overOutcome.price } } : undefined,
+          underLine: underOutcome ? { best: { line: underOutcome.point, odds: underOutcome.price } } : undefined,
+          commenceTime: game.commence_time,
+          lastUpdate: new Date()
+        };
+      }),
       source: 'rapidapi',
       timestamp: new Date()
     };
   } catch (error) {
-    return { 
-      success: false, 
-      data: [], 
-      source: 'rapidapi', 
+    return {
+      success: false,
+      data: [],
+      source: 'rapidapi',
       timestamp: new Date(),
       error: error instanceof Error ? error.message : 'Unknown error'
     };
@@ -318,12 +364,12 @@ export function transformOddsForDisplay(data: any[]): any[] {
  */
 export async function fetchPlayerProps(sport?: string): Promise<any[]> {
   const sportConfig = sport ? getSportById(sport) : null;
-  
+
   if (!sportConfig || !sportConfig.hasPlayerProps) {
     console.log(`📊 Player props not available for ${sportConfig?.displayName || sport}`);
     return [];
   }
-  
+
   console.log(`📊 Fetching player props for ${sportConfig.displayName}`);
   return []; // Return empty for now, can be enhanced with real API
 }

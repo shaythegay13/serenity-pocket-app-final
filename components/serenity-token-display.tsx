@@ -1,6 +1,6 @@
 "use client"
 
-import { Flower2, Activity, TrendingDown, AlertCircle, CheckCircle } from "lucide-react"
+import { Brain, Activity, TrendingDown, AlertCircle, CheckCircle } from "lucide-react"
 import { useState, useEffect } from "react"
 
 interface SerenityTokenDisplayProps {
@@ -63,9 +63,9 @@ export function SerenityTokenDisplay({ tokens, recentGain, surveyScore, surveyLe
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-blue/10 rounded-full border border-primary/30 shadow-sm">
-        <Flower2 className="h-5 w-5 text-primary" />
+        <Brain className="h-5 w-5 text-primary" />
         <span className="font-semibold text-foreground">{tokens}</span>
-        <span className="text-sm text-muted-foreground">Tokens</span>
+        <span className="text-sm text-muted-foreground">PlayMind Tokens</span>
 
         {showGain && (
           <div className="absolute -top-8 left-1/2 -translate-x-1/2 animate-float-up">
@@ -90,11 +90,10 @@ export function SerenityTokenDisplay({ tokens, recentGain, surveyScore, surveyLe
                 {surveyScore}/50
               </span>
             </div>
-            <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-              surveyLevel?.toLowerCase() === 'low' ? 'bg-green-600/20 text-green-700' :
-              surveyLevel?.toLowerCase() === 'medium' ? 'bg-yellow-600/20 text-yellow-700' :
-              'bg-red-600/20 text-red-700'
-            }`}>
+            <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${surveyLevel?.toLowerCase() === 'low' ? 'bg-green-600/20 text-green-700' :
+                surveyLevel?.toLowerCase() === 'medium' ? 'bg-yellow-600/20 text-yellow-700' :
+                  'bg-red-600/20 text-red-700'
+              }`}>
               {surveyLevel}
             </div>
           </div>

@@ -86,9 +86,9 @@ export const TIER_PRICES = {
 
 // Tier display names
 export const TIER_NAMES = {
-  premium: 'Premium',
-  premium_plus: 'Premium Plus',
-  elite: 'Elite',
+  premium: 'Focus',
+  premium_plus: 'Mastery',
+  elite: 'Apex',
 } as const
 
 // Map tier IDs to Flowglad price IDs

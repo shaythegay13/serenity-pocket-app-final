@@ -84,6 +84,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   const [selectedBet, setSelectedBet] = useState<ComprehensiveBet | null>(null)
   const [loadingBets, setLoadingBets] = useState(false)
 
+  // Live betting tracking - important risk factor
+  const [isLiveBet, setIsLiveBet] = useState(false)
+
   const handleSubmit = async () => {
     if (!selectedEmotion) return
 
@@ -149,7 +152,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               probabilityEstimate: 0.5,
               outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
               actualReturn: returnAmount,
-              source: "manual" as const
+              source: "manual" as const,
+              isLiveBet: isLiveBet // Track if this was a live/in-play bet
             }
 
             await storage.addBetAnalysis(betAnalysis)
@@ -168,7 +172,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                 biasWarnings: []
               },
               selectedEmotion,
-              intensity[0]
+              intensity[0],
+              isLiveBet // Pass live bet flag for risk tracking
             )
           }
         }
@@ -260,6 +265,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     setSavedBets([])
     setSelectedBet(null)
     setLoadingBets(false)
+    // Reset live bet tracking
+    setIsLiveBet(false)
   }
 
   const loadSavedBets = async () => {
@@ -608,6 +615,34 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           onChange={(e) => setGameDescription(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                         />
+                      </div>
+
+                      {/* Live Bet Toggle - Important for risk assessment */}
+                      <div className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <div className="flex-1">
+                          <Label htmlFor="isLiveBet" className="text-sm font-medium cursor-pointer">
+                            Is this a live/in-play bet?
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Live betting can increase impulsivity risk
+                          </p>
+                        </div>
+                        <button
+                          id="isLiveBet"
+                          type="button"
+                          role="switch"
+                          aria-checked={isLiveBet}
+                          onClick={() => setIsLiveBet(!isLiveBet)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            isLiveBet ? "bg-orange-500" : "bg-gray-300"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              isLiveBet ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
                       </div>
                     </div>
                   )}

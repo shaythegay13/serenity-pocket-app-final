@@ -1,47 +1,46 @@
 "use client"
 
-import { Suspense, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { LandingPage } from "@/components/landing-page"
 
 function HomeContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // Stable login handler that prevents double-clicks and race conditions
+  const handleLogin = useCallback(() => {
+    if (isNavigating) return
+    setIsNavigating(true)
+    window.location.href = "/login"
+  }, [isNavigating])
 
   useEffect(() => {
+    // Prevent running auth check multiple times
+    if (authChecked) return
+
     const checkAuthAndFlow = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      // Check for signup flow parameters
-      const signup = searchParams.get("signup")
-      const flow = searchParams.get("flow")
-      
-      console.log('Main page auth check:', { session: !!session, signup, flow, currentUrl: window.location.href })
-      
-      if (signup === "true" && flow && (flow === "tiltlab" || flow === "smartslip")) {
-        console.log('🔧 Signup flow detected!')
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+
+        // Only redirect authenticated users to /home
+        // Unauthenticated users stay on landing page - they must go through login first
         if (session) {
-          // User is authenticated, go to home page for signup flow (not insights)
-          console.log('🔧 Authenticated user, redirecting to home for signup flow:', flow)
-          console.log('🔧 Redirecting to:', `/home?signup=true&flow=${flow}`)
-          window.location.href = `/home?signup=true&flow=${flow}`
-        } else {
-          // User is not authenticated, continue to landing page for signup
-          console.log('🔧 Unauthenticated user, showing landing page for signup')
+          window.location.href = "/home"
+          return
         }
-      } else if (session) {
-        console.log('🔧 Regular authenticated user, redirecting to home')
-        // Regular authenticated user without signup flow, redirect to home
-        router.push("/home")
-      } else {
-        console.log('🔧 No session, no signup flow - showing landing page')
+        // No session - show landing page, user must click login/signup
+      } catch (error) {
+        console.error('Auth check error:', error)
+      } finally {
+        setAuthChecked(true)
       }
     }
-    checkAuthAndFlow()
-  }, [router, searchParams])
 
-  return <LandingPage onLogin={() => window.location.href = "/login"} />
+    checkAuthAndFlow()
+  }, [authChecked])
+
+  return <LandingPage onLogin={handleLogin} />
 }
 
 export default function Home() {

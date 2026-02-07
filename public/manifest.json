@@ -1,7 +1,7 @@
 {
-  "name": "Serenity Pocket",
-  "short_name": "Serenity",
-  "description": "Mindful trading psychology app to manage cognitive and emotional biases",
+  "name": "PlayMind Labs",
+  "short_name": "PlayMind",
+  "description": "Professional behavioral sports betting analytics platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fcfffe",
@@ -15,21 +15,35 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["finance", "productivity", "health"],
+  "categories": [
+    "finance",
+    "productivity",
+    "health"
+  ],
   "shortcuts": [
     {
       "name": "Daily Check-In",
       "short_name": "Check-In",
       "description": "Log your daily emotion",
       "url": "/?tab=dashboard",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Journal Entry",
       "short_name": "Journal",
       "description": "Record a trade decision",
       "url": "/?tab=journal",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

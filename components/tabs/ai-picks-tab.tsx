@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check, ExternalLink, X } from "lucide-react"
+import { Sparkles, Lock, TrendingUp, Brain, Shield, RefreshCw, Target, AlertTriangle, CheckCircle2, HelpCircle, ShoppingCart, Check, ExternalLink, X, Activity } from "lucide-react"
 import type { UserData, EmotionLog } from "@/lib/types"
 import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
@@ -177,6 +177,28 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
   const [activeSection, setActiveSection] = useState<'picks' | 'advisor' | 'marketplace'>('picks')
+
+  // Anchored Risk state (research-backed risk assessment)
+  const [anchoredRisk, setAnchoredRisk] = useState<{
+    overallRisk: number
+    riskLevel: string
+    riskColor: string
+    riskDescription: string
+    confidence: number
+    clinicalContext: string
+    intervention: {
+      type: string
+      urgency: string
+      message: string
+      options: string[]
+    }
+    breakdown: {
+      emotional: number
+      behavioral: number
+      demographic: number
+    }
+    researchIntegration: string[]
+  } | null>(null)
 
   // Get available sports dynamically
   const availableSports = getPopularSports()
@@ -432,6 +454,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       const data = responseData as any
       console.log('AI Picks: Response data:', data)
+
+      // Extract anchored risk data from response
+      if (data.anchoredRisk) {
+        console.log('AI Picks: Anchored risk data:', data.anchoredRisk)
+        setAnchoredRisk(data.anchoredRisk)
+      }
 
       if (!data.shouldBet) {
         console.log('AI Picks: shouldBet is false, showing warning')
@@ -1041,6 +1069,133 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </div>
           )
           }
+
+          {/* Anchored Risk Assessment Card - shown after picks */}
+          {anchoredRisk && (
+            <Card className={`p-6 border-2 ${
+              anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
+              anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
+              anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
+              'border-red-500/30 bg-red-500/5'
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Activity className={`h-5 w-5 ${
+                    anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                    anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                    'text-red-500'
+                  }`} />
+                  Research-Anchored Risk Assessment
+                </h3>
+                <Badge variant="outline" className={`${
+                  anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
+                  anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
+                  anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
+                  'border-red-500 text-red-500'
+                }`}>
+                  {anchoredRisk.riskLevel} Risk
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">Overall Risk</p>
+                  <p className={`text-3xl font-bold ${
+                    anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                    anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                    'text-red-500'
+                  }`}>
+                    {(anchoredRisk.overallRisk * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">Confidence</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {(anchoredRisk.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-background/50">
+                  <p className="text-xs text-muted-foreground mb-1">Intervention</p>
+                  <p className={`text-lg font-bold capitalize ${
+                    anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
+                    anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
+                    anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
+                    'text-red-500'
+                  }`}>
+                    {anchoredRisk.intervention.urgency === 'none' ? 'None Needed' : anchoredRisk.intervention.urgency}
+                  </p>
+                </div>
+              </div>
+
+              {/* Risk Breakdown */}
+              <div className="p-4 rounded-lg bg-background/50 mb-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Risk Breakdown (Research-Weighted)</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Emotional Tilt (80%)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-purple-500 h-2 rounded-full"
+                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.emotional * 125)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.emotional * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Behavioral (10%)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full"
+                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.behavioral * 1000)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.behavioral * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Demographic (10%)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-amber-500 h-2 rounded-full"
+                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.demographic * 1000)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.demographic * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clinical Context */}
+              <div className="p-3 rounded-lg bg-muted mb-4">
+                <div className="flex items-start gap-2">
+                  <Shield className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-foreground font-medium">{anchoredRisk.clinicalContext}</p>
+                    {anchoredRisk.intervention.urgency !== 'none' && (
+                      <p className="text-xs text-muted-foreground mt-1">{anchoredRisk.intervention.message}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Research Citations */}
+              <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-muted-foreground">Backed by:</span>
+                {anchoredRisk.researchIntegration.map((study, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">
+                    {study}
+                  </Badge>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Disclaimer */}
           <Card className="p-4 bg-muted">

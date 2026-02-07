@@ -12,7 +12,7 @@ import { FlowProvider } from "@/contexts/FlowContext"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Serenity Pocket - Behavioral Sports Betting Analytics",
+  title: "PlayMind Labs - Behavioral Sports Betting Analytics",
   description: "Your behavioral betting companion for smarter, data-driven play. The seatbelt for responsible betting.",
   manifest: "/manifest.json",
   generator: 'v0.app',

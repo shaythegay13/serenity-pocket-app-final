@@ -154,26 +154,43 @@ export const storageHybrid: {
 
     if (userId) {
       try {
-        const payload = {
-          id: analysis.id,
+        // Helper to sanitize numeric values - NaN becomes null for nullable DECIMAL columns
+        const sanitizeNumber = (val: any): number | null => {
+          if (val === null || val === undefined) return null
+          const num = typeof val === 'number' ? val : parseFloat(val)
+          return isNaN(num) ? null : num
+        }
+
+        // Build payload with required fields, sanitizing all numeric values
+        // NOTE: Do NOT include 'id' - database column is UUID type with auto-generation
+        const payload: Record<string, any> = {
+          // id is omitted - let database generate UUID with uuid_generate_v4()
           user_id: userId,
-          bet_type: analysis.betType,
-          sport: analysis.sport,
-          description: analysis.description,
-          odds: analysis.odds,
-          stake: analysis.stake,
-          emotional_state: analysis.emotionalState,
-          emotional_intensity: analysis.emotionalIntensity,
-          bias_warnings: analysis.biasWarnings,
-          ai_recommendation: analysis.aiRecommendation,
-          expected_value: analysis.expectedValue,
-          probability_estimate: analysis.probabilityEstimate,
-          outcome: analysis.outcome,
-          actual_return: analysis.actualReturn,
+          bet_type: analysis.betType || 'straight',
+          sport: analysis.sport || 'general',
+          description: analysis.description || '',
+          odds: sanitizeNumber(analysis.odds),
+          stake: sanitizeNumber(analysis.stake),
+          emotional_state: analysis.emotionalState || 'neutral',
+          emotional_intensity: Math.round(analysis.emotionalIntensity ?? 5), // Must be INTEGER
+          bias_warnings: analysis.biasWarnings || [], // PostgreSQL text[] array
+          ai_recommendation: analysis.aiRecommendation || '',
+          expected_value: sanitizeNumber(analysis.expectedValue),
+          probability_estimate: sanitizeNumber(analysis.probabilityEstimate),
+          outcome: analysis.outcome || 'pending',
+          actual_return: sanitizeNumber(analysis.actualReturn),
           timestamp: analysis.timestamp.toISOString(),
         }
 
+        // Include is_live_bet - column exists in schema
+        if (typeof (analysis as any).isLiveBet === 'boolean') {
+          payload.is_live_bet = (analysis as any).isLiveBet
+        }
+
         console.log('addBetAnalysis: Attempting insert with payload:', JSON.stringify(payload, null, 2))
+        console.log('addBetAnalysis: Full analysis object:', JSON.stringify(analysis, (key, value) =>
+          value instanceof Date ? value.toISOString() : value
+        , 2))
 
         const { data, error, status, statusText } = await supabase
           .from("bet_analyses")
@@ -181,24 +198,34 @@ export const storageHybrid: {
           .select()
 
         if (error) {
-          // Supabase error objects may have non-enumerable properties; serialize them properly
-          const rawError = (() => {
-            try {
-              return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)))
-            } catch {
-              return error
-            }
-          })()
-
+          // Log detailed error info - Supabase errors can have non-enumerable properties
           console.error("Error saving bet analysis to Supabase:", {
             status,
             statusText,
-            error: rawError,
-            code: (error as any)?.code,
-            message: (error as any)?.message,
-            details: (error as any)?.details,
-            hint: (error as any)?.hint,
+            errorString: String(error),
+            errorJSON: JSON.stringify(error),
+            code: error?.code,
+            message: error?.message,
+            details: error?.details,
+            hint: error?.hint,
+            // Try to get all properties including non-enumerable ones
+            allProps: Object.getOwnPropertyNames(error).reduce((acc, key) => {
+              acc[key] = (error as any)[key]
+              return acc
+            }, {} as Record<string, any>)
           })
+
+          // Status 403 = RLS policy violation, 404 = table not found, 400 = bad request
+          if (status === 403) {
+            console.error("⚠️ RLS Policy Error: Check that bet_analyses table has INSERT policy for authenticated users")
+          } else if (status === 404) {
+            console.error("⚠️ Table not found: bet_analyses table may not exist in Supabase")
+          } else if (status === 400) {
+            console.error("⚠️ Bad Request: Schema mismatch or invalid data")
+          }
+
+          // Continue without throwing - data saved to localStorage as backup
+          console.log("📦 Bet analysis saved to localStorage as backup")
         } else {
           console.log('✅ Successfully saved bet analysis to Supabase:', data)
         }

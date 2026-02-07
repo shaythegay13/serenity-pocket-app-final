@@ -11,16 +11,18 @@ export function Footer() {
           {/* Logo and Description - Full width on all screens */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <Image
-                src="/logo.png"
-                alt="Serenity Pocket Logo"
-                width={40}
-                height={40}
-                className="rounded-lg"
-              />
+              <div className="bg-white p-1.5 rounded-lg shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt="PlayMind Labs Logo"
+                  width={32}
+                  height={32}
+                  className="rounded-none"
+                />
+              </div>
               <div>
-                <h3 className="text-lg font-bold text-foreground">Serenity Pocket</h3>
-                <p className="text-sm text-muted-foreground">by PlayMind Labs</p>
+                <h3 className="text-lg font-bold text-foreground">PlayMind Labs</h3>
+                <p className="text-sm text-muted-foreground">The science of smarter betting</p>
               </div>
             </Link>
             <p className="text-sm text-muted-foreground max-w-sm">
@@ -35,32 +37,32 @@ export function Footer() {
               <h4 className="text-lg font-semibold text-foreground mb-4">Resources</h4>
               <ul className="space-y-2">
                 <li>
-                  <Link 
-                    href="/faq" 
+                  <Link
+                    href="/faq"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     FAQs
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/demo" 
+                  <Link
+                    href="/demo"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Demo
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/features" 
+                  <Link
+                    href="/features"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Features
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/pricing" 
+                  <Link
+                    href="/pricing"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Pricing
@@ -74,32 +76,32 @@ export function Footer() {
               <h4 className="text-lg font-semibold text-foreground mb-4">Company</h4>
               <ul className="space-y-2">
                 <li>
-                  <Link 
-                    href="/about" 
+                  <Link
+                    href="/about"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     About
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/privacy" 
+                  <Link
+                    href="/privacy"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Privacy
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/terms" 
+                  <Link
+                    href="/terms"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Terms
                   </Link>
                 </li>
                 <li>
-                  <Link 
-                    href="/contact" 
+                  <Link
+                    href="/contact"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Contact

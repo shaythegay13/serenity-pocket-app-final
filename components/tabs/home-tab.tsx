@@ -9,6 +9,8 @@ import {
   ShoppingBag,
   BarChart3,
 } from "lucide-react"
+import { PgsiSurveyPrompt } from "@/components/pgsi-survey-prompt"
+import { RiskPatternWarning } from "@/components/risk-pattern-warning"
 
 interface HomeTabProps {
   userData: UserData
@@ -32,6 +34,16 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         <p className="text-lg sm:text-xl text-muted-foreground">
           Your emotional awareness companion for smarter, safer betting
         </p>
+      </div>
+
+      {/* PGSI Survey Prompt - disappears after completion */}
+      <div className="max-w-4xl mx-auto">
+        <PgsiSurveyPrompt />
+      </div>
+
+      {/* Risk Pattern Warning - shows if escalation patterns detected */}
+      <div className="max-w-4xl mx-auto">
+        <RiskPatternWarning compact />
       </div>
 
       {/* 4 Large Action Buttons */}

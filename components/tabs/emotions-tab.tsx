@@ -185,6 +185,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [gameDescription, setGameDescription] = useState<string>("")
   const [actualReturn, setActualReturn] = useState<string>("")
 
+  // Live betting tracking - important risk factor
+  const [isLiveBet, setIsLiveBet] = useState(false)
+
   // Track last refresh to prevent unnecessary reloads
   const lastRefreshRef = useRef<number>(refreshKey)
 
@@ -280,6 +283,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setLoadingBets(false)
     setGameDescription("")
     setActualReturn("")
+    // Reset live bet tracking
+    setIsLiveBet(false)
   }
 
   // Load saved bets from storage for "Select Saved Bet" mode
@@ -401,6 +406,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
 
       // V2 Betting Data Logic (New)
+      let createdComprehensiveBet = false
       if ((betDataMode === "manual" && stake && odds && gameDescription) || selectedBet) {
         try {
           const { BetTrackingService } = await import("@/lib/bet-tracking-service")
@@ -428,8 +434,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 biasWarnings: []
               },
               selectedEmotion,
-              intensity[0]
+              intensity[0],
+              isLiveBet // Pass live bet flag for risk tracking
             )
+            createdComprehensiveBet = true
           } else if (selectedBet) {
             await BetTrackingService.updateBetEmotion(
               selectedBet.id,
@@ -438,6 +446,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               intensity[0],
               context
             )
+            createdComprehensiveBet = true
           }
           analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
         } catch (e) {
@@ -446,29 +455,32 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       }
 
       // Create new trade entry (Legacy - Keep for backward compatibility)
-      const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` — ${sport}` : ''}`
-      const newTrade: Trade = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        title: defaultTitle,
-        preTradeEmotion: selectedEmotion,
-        preTradeIntensity: intensity[0],
-        biasesIdentified: selectedBiases,
-        confidenceLevel: 5,
-        reasoning: context || "No context provided",
-        stake: stake ? parseFloat(stake) : undefined,
-      }
-      await storage.addTrade(newTrade)
-      const updatedTrades = await storage.getTrades()
-      setTrades(updatedTrades ?? [])
+      // Skip if we already created a comprehensive bet to avoid duplicates
+      if (!createdComprehensiveBet) {
+        const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` — ${sport}` : ''}`
+        const newTrade: Trade = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          title: defaultTitle,
+          preTradeEmotion: selectedEmotion,
+          preTradeIntensity: intensity[0],
+          biasesIdentified: selectedBiases,
+          confidenceLevel: 5,
+          reasoning: context || "No context provided",
+          stake: stake ? parseFloat(stake) : undefined,
+        }
+        await storage.addTrade(newTrade)
+        const updatedTrades = await storage.getTrades()
+        setTrades(updatedTrades ?? [])
 
-      // Emit event to update analytics
-      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED, newTrade)
+        // Emit event to update analytics
+        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED, newTrade)
+      }
 
       updates = {
         ...updates,
         xp: userData.xp + xpEarned,
-        totalTrades: userData.totalTrades + 1,
+        totalTrades: createdComprehensiveBet ? userData.totalTrades : userData.totalTrades + 1,
         totalBiasesIdentified: userData.totalBiasesIdentified + biasCount,
         dailyRings: {
           ...userData.dailyRings,
@@ -487,18 +499,22 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
         // Manual Entry Logic
         if (betDataMode === "manual" && stake && odds && gameDescription && outcome) {
-          const stakeAmount = parseFloat(stake)
-          const returnAmount = actualReturn ? parseFloat(actualReturn) : 0
-          let oddsNumber = 0
-          try {
-            if (odds.startsWith('+')) {
-              oddsNumber = parseFloat(odds.substring(1))
-            } else if (odds.startsWith('-')) {
-              oddsNumber = parseFloat(odds.substring(1))
-            } else {
-              oddsNumber = parseFloat(odds)
-            }
-          } catch (error) { oddsNumber = 100 }
+          let stakeAmount = parseFloat(stake)
+          if (isNaN(stakeAmount)) stakeAmount = 0
+
+          let returnAmount = actualReturn ? parseFloat(actualReturn) : 0
+          if (isNaN(returnAmount)) returnAmount = 0
+
+          // Parse odds - handle American odds format (+150, -110, etc.)
+          let oddsNumber = parseFloat(odds)
+          if (isNaN(oddsNumber)) {
+            // Try parsing as integer (common for American odds input)
+            oddsNumber = parseInt(odds, 10)
+            if (isNaN(oddsNumber)) oddsNumber = -110 // Default American odds
+          }
+
+          // Ensure emotional intensity is an integer (database expects INTEGER)
+          const emotionalInt = Math.round(intensity[0])
 
           const betAnalysis = {
             id: `bet_${Date.now()}`,
@@ -509,13 +525,14 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
             odds: oddsNumber,
             stake: stakeAmount,
             emotionalState: selectedEmotion,
-            emotionalIntensity: intensity[0],
+            emotionalIntensity: emotionalInt,
             biasWarnings: [],
             aiRecommendation: "",
             expectedValue: 0,
             probabilityEstimate: 0.5,
             outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
-            actualReturn: returnAmount
+            actualReturn: returnAmount,
+            isLiveBet: isLiveBet // Track if this was a live/in-play bet
           }
           await storage.addBetAnalysis(betAnalysis)
         }
@@ -598,7 +615,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 biasWarnings: []
               },
               selectedEmotion,
-              intensity[0]
+              intensity[0],
+              isLiveBet // Pass live bet flag for risk tracking
             )
           } else if (selectedBet) {
             await BetTrackingService.updateBetEmotion(
@@ -1068,6 +1086,34 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           value={gameDescription}
                           onChange={(e: ChangeEvent<HTMLInputElement>) => setGameDescription(e.target.value)}
                         />
+                      </div>
+
+                      {/* Live Bet Toggle - Important for risk assessment */}
+                      <div className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                        <div className="flex-1">
+                          <Label htmlFor="isLiveBet" className="text-sm font-medium cursor-pointer">
+                            Is this a live/in-play bet?
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Live betting can increase impulsivity risk
+                          </p>
+                        </div>
+                        <button
+                          id="isLiveBet"
+                          type="button"
+                          role="switch"
+                          aria-checked={isLiveBet}
+                          onClick={() => setIsLiveBet(!isLiveBet)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            isLiveBet ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              isLiveBet ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
                       </div>
                     </div>
                   )}

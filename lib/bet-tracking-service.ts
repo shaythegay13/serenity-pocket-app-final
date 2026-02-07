@@ -106,7 +106,8 @@ export class BetTrackingService {
     stake: number,
     analysis: any,
     emotionalState?: string,
-    emotionalIntensity?: number
+    emotionalIntensity?: number,
+    isLiveBet?: boolean
   ): Promise<ComprehensiveBet> {
     const betId = typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -153,7 +154,7 @@ export class BetTrackingService {
       biasesIdentified: analysis.biasWarnings || [],
       confidenceLevel: Math.round((analysis.confidenceScore || 0) * 10), // Convert 0-1 to 1-10
       reasoning: analysis.recommendation,
-      isLiveBet: false,
+      isLiveBet: isLiveBet || false,
       isChasingLoss: false,
       isFavoriteTeam: false,
 

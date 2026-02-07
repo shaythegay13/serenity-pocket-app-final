@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
 interface LandingPageProps {
@@ -23,23 +22,6 @@ export function LandingPage({ onLogin }: LandingPageProps) {
     winRateImprovement: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
-  const searchParams = useSearchParams()
-
-  // Check for signup flow parameters
-  useEffect(() => {
-    const signup = searchParams.get("signup")
-    const flow = searchParams.get("flow")
-
-    console.log('Landing page signup check:', { signup, flow })
-
-    if (signup === "true" && flow && (flow === "tiltlab" || flow === "smartslip")) {
-      // Store the flow for after signup completion
-      localStorage.setItem("entry_flow", flow)
-      // Trigger signup flow by redirecting to home page
-      console.log('Triggering signup flow from landing page')
-      window.location.href = `/home?signup=true&flow=${flow}`
-    }
-  }, [searchParams])
 
   useEffect(() => {
     const fetchUserStats = async () => {
@@ -142,18 +124,18 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center space-x-4">
-              <div className="relative">
+              <div className="relative bg-white p-1.5 rounded-lg">
                 <Image
                   src="/logo.png"
-                  alt="Serenity Pocket Logo"
+                  alt="PlayMind Labs Logo"
                   width={40}
                   height={40}
-                  className="rounded-lg"
+                  className="rounded-md"
                 />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">
-                  Serenity Pocket
+                  PlayMind Labs
                 </h1>
                 <p className="text-xs text-gray-400">
                   Your behavioral betting companion
@@ -224,8 +206,10 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               <Button
                 size="lg"
                 onClick={() => {
-                  // User lost a bet recently - go to TiltLab for emotion analysis
-                  window.location.href = "/?signup=true&flow=tiltlab"
+                  // User lost a bet recently - store flow and go to login to create account
+                  // After signup -> survey -> archetype -> /home
+                  localStorage.setItem("entry_flow", "tiltlab")
+                  window.location.href = "/login?flow=tiltlab"
                 }}
                 className="bg-linear-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-10 py-4 text-lg rounded-xl min-w-[160px] shadow-lg shadow-red-500/25"
               >
@@ -236,8 +220,10 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                 size="lg"
                 variant="outline"
                 onClick={() => {
-                  // User didn't lose a bet recently - go to SmartSlip for AI picks
-                  window.location.href = "/?signup=true&flow=smartslip"
+                  // User didn't lose a bet recently - store flow and go to login to create account
+                  // After signup -> survey -> archetype -> /home
+                  localStorage.setItem("entry_flow", "smartslip")
+                  window.location.href = "/login?flow=smartslip"
                 }}
                 className="border-2 border-gray-600 text-white bg-gray-800/50 hover:bg-gray-800 hover:border-gray-500 px-10 py-4 text-lg rounded-xl min-w-[160px] shadow-lg"
               >

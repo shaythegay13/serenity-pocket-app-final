@@ -5,14 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, ChevronDown } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { SegmentedControl, YesNoControl } from "@/components/ui/segmented-control"
-import { Loader2, AlertTriangle, CheckCircle, AlertCircle, Sparkles, ClipboardPaste, FileText } from "lucide-react"
+import { Loader2, AlertTriangle, Sparkles, ClipboardPaste, FileText } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis, SupportedSportKey, OddsAnalysis } from "@/lib/ai-bet-advisor"
 import { AIResultScreen } from "@/components/ai-result-screen"
 import { supabase } from "@/lib/supabase"
@@ -99,7 +98,7 @@ export default function AIBetAdvisor() {
   const [emotionCategory, setEmotionCategory] = useState<string>("")
   const [emotionMenuOpen, setEmotionMenuOpen] = useState(false)
   const [hoveredEmotionCategory, setHoveredEmotionCategory] = useState<string | null>(null)
-  const [step, setStep] = useState<"details" | "context" | "mindset">("details")
+  const [step, setStep] = useState<"details" | "mindset">("details")
   const [currentOddsAnalysis, setCurrentOddsAnalysis] = useState<OddsAnalysis | null>(null)
   const [homeOdds, setHomeOdds] = useState<number>(NaN)
   const [awayOdds, setAwayOdds] = useState<number>(NaN)
@@ -816,7 +815,7 @@ export default function AIBetAdvisor() {
   }
 
   const ProgressIndicator = () => {
-    const stepValue = step === "details" ? 33 : step === "context" ? 67 : 100
+    const stepValue = step === "details" ? 50 : 100
 
     return (
       <div className="mb-6 space-y-3">
@@ -824,10 +823,6 @@ export default function AIBetAdvisor() {
           <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "details" ? "text-primary" : "text-muted-foreground"
             }`}>
             Bet Details
-          </div>
-          <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "context" ? "text-primary" : "text-muted-foreground"
-            }`}>
-            Logic & Context
           </div>
           <div className={`flex-1 text-center text-sm font-medium transition-colors ${step === "mindset" ? "text-primary" : "text-muted-foreground"
             }`}>
@@ -1149,7 +1144,7 @@ We'll automatically extract the details and populate the form.`}
                         </div>
                       </div>
 
-                      <Button type="button" onClick={() => setStep("context")} className="w-full">
+                      <Button type="button" onClick={() => setStep("mindset")} className="w-full">
                         Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                       </Button>
                     </TabsContent>
@@ -1158,71 +1153,7 @@ We'll automatically extract the details and populate the form.`}
               </Card>
             )}
 
-            {/* STEP 2: LOGIC & CONTEXT */}
-            {step === "context" && (
-              <Card className="fade-in">
-                <CardHeader>
-                  <CardTitle>Logic & Context</CardTitle>
-                  <CardDescription>Add analytical factors and your reasoning</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Are there key player injuries?</Label>
-                    <YesNoControl
-                      value={formData.hasKeyInjuries}
-                      onChange={(value) => {
-                        updateFormData("hasKeyInjuries", value)
-                        updateFormData("injuries", value ? "Key injuries present" : "No major injuries")
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Is there adverse weather (Rain/Snow/Wind)?</Label>
-                    <YesNoControl
-                      value={formData.hasAdverseWeather}
-                      onChange={(value) => {
-                        updateFormData("hasAdverseWeather", value)
-                        updateFormData("weather", value ? "Adverse weather conditions" : "Clear conditions")
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="bettingSlip">Betting Slip (optional)</Label>
-                    <Textarea
-                      id="bettingSlip"
-                      value={formData.bettingSlip}
-                      onChange={(e) => updateFormData("bettingSlip", e.target.value)}
-                      placeholder="Paste your betting slip details or describe your bets..."
-                      rows={3}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="notes">User Notes/Reasoning</Label>
-                    <Textarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(e) => updateFormData("notes", e.target.value)}
-                      placeholder="e.g., Team has strong defense, great home record"
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button type="button" variant="outline" onClick={() => setStep("details")} className="flex-1">
-                      Back
-                    </Button>
-                    <Button type="button" onClick={() => setStep("mindset")} className="flex-1">
-                      Find My Edge <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* STEP 3: MINDSET */}
+            {/* STEP 2: MINDSET */}
             {step === "mindset" && (
               <Card className="fade-in">
                 <CardHeader>
@@ -1379,7 +1310,7 @@ We'll automatically extract the details and populate the form.`}
                   </div>
 
                   <div className="flex gap-3">
-                    <Button type="button" variant="outline" onClick={() => setStep("context")} className="flex-1">
+                    <Button type="button" variant="outline" onClick={() => setStep("details")} className="flex-1">
                       Back
                     </Button>
                     <Button type="submit" disabled={loading} className="flex-1">
@@ -1462,54 +1393,6 @@ We'll automatically extract the details and populate the form.`}
             </Card>
           )}
 
-          {/* Free Week Upsell Section */}
-          <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30">
-            <CardContent className="pt-6 pb-6">
-              <div className="text-center space-y-4">
-                <div className="flex justify-center">
-                  <div className="p-3 rounded-full bg-green-100 dark:bg-green-950/50">
-                    <CheckCircle className="h-8 w-8 text-green-600" />
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Want to prevent more tilt-driven losses like this?
-                  </h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Free week Premium: 1 TiltLab + 1 SmartSlip use/week + marketplace
-                  </p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      // Navigate to SmartSlip
-                      if (typeof window !== 'undefined') {
-                        window.location.href = '/?tab=ai-picks'
-                      }
-                    }}
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Start Free Week
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      // Navigate to SmartSlip directly
-                      if (typeof window !== 'undefined') {
-                        window.location.href = '/?tab=ai-picks'
-                      }
-                    }}
-                  >
-                    Not Now
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  No credit card required • Cancel anytime
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </>
       )}
     </div>

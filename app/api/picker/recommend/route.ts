@@ -30,6 +30,20 @@ import {
 } from "@/lib/risk-index"
 import { getSportById } from "@/lib/sports-config"
 
+// -- ANCHORED RISK IMPORTS --
+import {
+  computeAnchoredRisk,
+  getRiskLevelLabel,
+  shouldBlockBetting,
+  type UserRiskProfile,
+  type BettingSession,
+} from "@/lib/risk-models"
+import {
+  RESEARCH_CITATIONS,
+  type DemographicProfile,
+  type GamblingBehaviorProfile,
+  type PgsiSbResponse,
+} from "@/lib/research-anchors"
 
 // -- NEW EV STACK IMPORTS --
 import { computeEv, EvDiagnostics, EvInputs, impliedProbFromAmerican } from "@/lib/ev-calculator"
@@ -495,13 +509,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (emotionalScore < 70) {
+    // ============================================================================
+    // ANCHORED RISK COMPUTATION
+    // Formula: overallRisk = 0.80 * emotionalTilt + 0.10 * pgsiSb + 0.05 * demoBase + 0.05 * crimeMultiplier
+    // ============================================================================
+    const emotionalTilt = 1 - (emotionalScore / 100) // Convert to risk (higher score = lower tilt)
+
+    // Build demographic profile from user data
+    const demographics = buildDemographicProfile(userData)
+    const gamblingBehavior = buildGamblingBehavior(userData)
+
+    // Fetch recent betting session data for expenditure risk
+    const bettingSession = await fetchRecentBettingSession(supabase, user.id)
+
+    // Fetch PGSI-SB survey responses if user has completed it
+    const pgsiSbResponses = await fetchPgsiSbResponses(supabase, user.id)
+
+    const riskProfile: UserRiskProfile = {
+      userId: user.id,
+      demographics,
+      gamblingBehavior,
+      pgsiSbResponses,
+    }
+
+    const anchoredRisk = computeAnchoredRisk(emotionalTilt, riskProfile, bettingSession)
+    const riskLevel = getRiskLevelLabel(anchoredRisk.overallRisk)
+
+    console.log("[SmartSlip] Anchored Risk Assessment:", {
+      emotionalScore,
+      emotionalTilt: emotionalTilt.toFixed(3),
+      overallRisk: anchoredRisk.overallRisk.toFixed(3),
+      riskLevel: riskLevel.label,
+      confidence: anchoredRisk.confidence.toFixed(2),
+      breakdown: anchoredRisk.breakdown,
+      shouldBlock: shouldBlockBetting(anchoredRisk.overallRisk),
+    })
+
+    // Gate based on anchored risk (combines emotional + research factors)
+    // Primary gate: emotional score < 70 OR critical anchored risk
+    if (emotionalScore < 70 || shouldBlockBetting(anchoredRisk.overallRisk)) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
-        message: `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`,
+        message: shouldBlockBetting(anchoredRisk.overallRisk)
+          ? `${anchoredRisk.suggestedIntervention.message} (Risk level: ${riskLevel.label})`
+          : `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`,
         recommendations: [],
         emotionalScore,
+        anchoredRisk: {
+          overallRisk: anchoredRisk.overallRisk,
+          riskLevel: riskLevel.label,
+          riskColor: riskLevel.color,
+          confidence: anchoredRisk.confidence,
+          clinicalContext: anchoredRisk.clinicalContext,
+          intervention: anchoredRisk.suggestedIntervention,
+          researchIntegration: RESEARCH_CITATIONS.map(c => c.shortName),
+        },
       })
     }
 
@@ -1238,6 +1301,22 @@ export async function POST(request: NextRequest) {
       message: shouldBetMessage,
       recommendations: reasoningOutput.recommendations,
       emotionalScore,
+      // Anchored Risk Assessment (research-backed)
+      anchoredRisk: {
+        overallRisk: anchoredRisk.overallRisk,
+        riskLevel: riskLevel.label,
+        riskColor: riskLevel.color,
+        riskDescription: riskLevel.description,
+        confidence: anchoredRisk.confidence,
+        clinicalContext: anchoredRisk.clinicalContext,
+        intervention: anchoredRisk.suggestedIntervention,
+        breakdown: {
+          emotional: anchoredRisk.breakdown.emotionalContribution,
+          behavioral: anchoredRisk.breakdown.behavioralContribution,
+          demographic: anchoredRisk.breakdown.demographicBase,
+        },
+        researchIntegration: RESEARCH_CITATIONS.map(c => c.shortName),
+      },
       meta: {
         sport,
         oddsSource: oddsResult.source,
@@ -1259,5 +1338,205 @@ export async function POST(request: NextRequest) {
       error: "Failed to generate picker recommendations",
       recommendations: [],
     })
+  }
+}
+
+// ============================================================================
+// Anchored Risk Helper Functions
+// ============================================================================
+
+/**
+ * Build demographic profile from user data for risk calculation
+ */
+function buildDemographicProfile(userData: any): DemographicProfile | undefined {
+  if (!userData) return undefined
+
+  const surveyData = userData.survey_data || {}
+
+  // Map gender
+  const genderMap: Record<string, DemographicProfile['gender']> = {
+    'male': 'male',
+    'female': 'female',
+    'other': 'other',
+  }
+  const gender = genderMap[userData.gender?.toLowerCase()] || 'other'
+
+  // Map age to age group
+  const ageRange = surveyData.ageRange || userData.age_range
+  const ageGroup = mapAgeRangeToGroup(ageRange, userData.age)
+
+  // Map education level
+  const educationMap: Record<string, DemographicProfile['education']> = {
+    'high school': 'upper_secondary',
+    'some college': 'short_cycle_tertiary',
+    'bachelors': 'bachelors',
+    'masters': 'masters_doctoral',
+    'doctorate': 'masters_doctoral',
+  }
+  const education = educationMap[surveyData.educationLevel?.toLowerCase()] ||
+                   educationMap[userData.education_level?.toLowerCase()]
+
+  // Map employment status
+  const employmentMap: Record<string, DemographicProfile['employmentStatus']> = {
+    'employed': 'employed',
+    'full-time': 'employed',
+    'part-time': 'employed',
+    'unemployed': 'unemployed',
+    'retired': 'retired',
+    'student': 'outside_labor_force',
+  }
+  const employmentStatus = employmentMap[surveyData.employmentStatus?.toLowerCase()] ||
+                          employmentMap[userData.employment_status?.toLowerCase()]
+
+  // Map income level
+  const incomeRange = surveyData.incomeRange || userData.income_range
+  const incomeLevel = mapIncomeRangeToLevel(incomeRange)
+
+  return { gender, ageGroup, education, employmentStatus, incomeLevel }
+}
+
+function mapAgeRangeToGroup(ageRange?: string, age?: number): DemographicProfile['ageGroup'] {
+  if (ageRange) {
+    const lower = ageRange.toLowerCase()
+    if (lower.includes('18-24') || lower.includes('18') && lower.includes('24')) return '18-24'
+    if (lower.includes('25-34') || lower.includes('25') && lower.includes('34')) return '25-34'
+    if (lower.includes('35-44') || lower.includes('35') && lower.includes('44')) return '35-44'
+    if (lower.includes('45-54') || lower.includes('45') && lower.includes('54')) return '45-54'
+    if (lower.includes('55-64') || lower.includes('55') && lower.includes('64')) return '55-64'
+    if (lower.includes('65+') || lower.includes('65')) return '65+'
+  }
+  if (typeof age === 'number') {
+    if (age < 25) return '18-24'
+    if (age < 35) return '25-34'
+    if (age < 45) return '35-44'
+    if (age < 55) return '45-54'
+    if (age < 65) return '55-64'
+    return '65+'
+  }
+  return '25-34' // Default
+}
+
+function mapIncomeRangeToLevel(incomeRange?: string): DemographicProfile['incomeLevel'] {
+  if (!incomeRange) return 'medium'
+  const lower = incomeRange.toLowerCase()
+  if (lower.includes('under') || lower.includes('less than') || lower.includes('<25') || lower.includes('<30')) {
+    return 'low'
+  }
+  if (lower.includes('100') || lower.includes('150') || lower.includes('200') || lower.includes('+')) {
+    return 'high'
+  }
+  return 'medium'
+}
+
+/**
+ * Build gambling behavior profile from user data
+ */
+function buildGamblingBehavior(userData: any): GamblingBehaviorProfile | undefined {
+  if (!userData) return undefined
+
+  const surveyData = userData.survey_data || {}
+  const bettingFrequency = surveyData.bettingFrequency || userData.betting_frequency
+
+  const frequencyMap: Record<string, GamblingBehaviorProfile['frequency']> = {
+    'daily': 'daily',
+    'several times a week': 'several_times_week',
+    'weekly': 'once_week',
+    'monthly': 'less_than_monthly',
+    'rarely': 'less_than_monthly',
+  }
+  const frequency = frequencyMap[bettingFrequency?.toLowerCase()] || 'once_week'
+
+  return { frequency, gamblingMode: 'online_only' }
+}
+
+/**
+ * Fetch recent betting session data for expenditure risk calculation
+ */
+async function fetchRecentBettingSession(
+  supabase: any,
+  userId: string
+): Promise<BettingSession | undefined> {
+  try {
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    const { data: recentBets, error } = await supabase
+      .from('bets')
+      .select('stake, created_at, is_chasing_loss')
+      .eq('user_id', userId)
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (error || !recentBets || recentBets.length === 0) {
+      return undefined
+    }
+
+    const today = new Date().toDateString()
+    const todayBets = recentBets.filter((b: any) =>
+      new Date(b.created_at).toDateString() === today
+    )
+
+    return {
+      amount: todayBets[0]?.stake || 0,
+      frequency: recentBets.length,
+      sessionSpend: todayBets.reduce((sum: number, b: any) => sum + (b.stake || 0), 0),
+      weeklySpend: recentBets.reduce((sum: number, b: any) => sum + (b.stake || 0), 0),
+      lossChaseCount: recentBets.filter((b: any) => b.is_chasing_loss).length,
+    }
+  } catch (error) {
+    console.error("[SmartSlip] Error fetching betting session:", error)
+    return undefined
+  }
+}
+
+/**
+ * Fetch PGSI-SB survey responses for behavioral risk calculation
+ */
+async function fetchPgsiSbResponses(
+  supabase: any,
+  userId: string
+): Promise<PgsiSbResponse[] | undefined> {
+  try {
+    // Fetch recent surveys and find PGSI-SB by checking responses._surveyType
+    const { data: surveys, error } = await supabase
+      .from('survey_responses')
+      .select('responses, score')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error || !surveys || surveys.length === 0) {
+      return undefined
+    }
+
+    // Find the most recent PGSI-SB survey
+    const pgsiSurvey = surveys.find((s: any) => {
+      const responses = s.responses as any
+      return responses?._surveyType === 'pgsi_sb'
+    })
+
+    if (!pgsiSurvey) {
+      return undefined
+    }
+
+    // Extract questions from the stored format
+    const surveyResponses = pgsiSurvey.responses as any
+    const questions = surveyResponses?.questions as Array<{
+      questionId: string
+      response: number
+    }>
+
+    if (!questions || !Array.isArray(questions)) {
+      return undefined
+    }
+
+    // Map survey responses to PgsiSbResponse format
+    return questions.map(r => ({
+      questionId: r.questionId as PgsiSbResponse['questionId'],
+      score: r.response as 0 | 1 | 2 | 3
+    }))
+  } catch (error) {
+    console.error("[SmartSlip] Error fetching PGSI-SB responses:", error)
+    return undefined
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { flowglad, getTierPriceId, TIER_PRICES } from '@/lib/flowglad'
+import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers'
 
 export async function POST(req: Request) {
   try {
@@ -52,8 +53,8 @@ export async function POST(req: Request) {
     }
 
     // Check if Flowglad is configured
-    const hasFlowgladConfig = process.env.FLOWGLAD_SECRET_KEY && 
-                              process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
+    const hasFlowgladConfig = process.env.FLOWGLAD_SECRET_KEY &&
+      process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
 
     // If no Flowglad credentials, use test mode (development only)
     if (!hasFlowgladConfig) {
@@ -80,8 +81,14 @@ export async function POST(req: Request) {
 
       // Update user subscription directly in database
       const now = new Date()
-      const oneMonthFromNow = new Date()
-      oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1)
+      const tierConfig = SUBSCRIPTION_TIERS.find(t => t.id === tier)
+      const trialDays = tierConfig?.trialDays || 0
+
+      const subscriptionEndsAt = new Date()
+      subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + 1)
+      if (trialDays > 0) {
+        subscriptionEndsAt.setDate(subscriptionEndsAt.getDate() + trialDays)
+      }
 
       const { error: updateError } = await supabaseAdmin
         .from('user_profiles')
@@ -89,7 +96,8 @@ export async function POST(req: Request) {
           subscription_tier: tier,
           subscription_status: 'active',
           subscription_started_at: now.toISOString(),
-          subscription_ends_at: oneMonthFromNow.toISOString(),
+          subscription_ends_at: subscriptionEndsAt.toISOString(),
+          // In real Flowglad, there might be a trial_ends_at or similar
         })
         .eq('id', user.id)
 
@@ -116,10 +124,14 @@ export async function POST(req: Request) {
     // Ensure the customer exists before creating a checkout session.
     await flowgladServer.findOrCreateCustomer()
 
+    const tierConfig = SUBSCRIPTION_TIERS.find(t => t.id === tier)
+    const trialPeriodDays = tierConfig?.trialDays
+
     const checkoutSession = await flowgladServer.createCheckoutSession({
       priceId,
       successUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}?tab=account&success=true`,
       cancelUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}?tab=account&canceled=true`,
+      ...(trialPeriodDays ? { trialPeriodDays } : {}),
     })
 
     console.log('✅ Flowglad checkout session created')

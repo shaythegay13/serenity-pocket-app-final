@@ -468,23 +468,22 @@ export function HomeContent() {
     )
   }
 
-  // Show landing page for unauthenticated users
-  // SECURITY: This must catch ALL unauthenticated states, not just when showLanding is true
+  // Redirect unauthenticated users to landing page at root URL
+  // SECURITY: This must catch ALL unauthenticated states
   if (!authed) {
-    const LandingComponent = lazy(() =>
-      import("@/components/landing-page").then((m) => ({ default: m.LandingPage }))
-    )
-    return (
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>}>
-        <LandingComponent
-          onLogin={() => {
-            window.location.href = "/login"
-          }}
-        />
-      </Suspense>
-    )
+    // Check if we're in a signup flow - if so, continue showing terms/signup flow
+    const signup = searchParams.get("signup")
+    if (signup !== "true" && !showTerms && !showSignup) {
+      // Not in signup flow, redirect to landing page
+      if (typeof window !== 'undefined') {
+        window.location.href = "/"
+      }
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground">Redirecting...</div>
+        </div>
+      )
+    }
   }
 
   // SECURITY: Explicit authentication check before rendering dashboard

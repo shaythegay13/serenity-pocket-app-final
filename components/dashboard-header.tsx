@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Moon, Sun, User } from "lucide-react"
+import { Moon, Sun, User, ClipboardList } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import type { UserData } from "@/lib/types"
@@ -75,12 +75,12 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
         console.error('🔧 Failed to import or use auth utils:', importError)
         // Continue with logout anyway
       }
-      
+
       // Force sign out with global scope to ensure complete logout
       console.log('🔧 Signing out from Supabase...')
       await supabase.auth.signOut({ scope: 'global' })
       console.log('🔧 Supabase sign out completed')
-      
+
       if (typeof window !== "undefined") {
         console.log('🔧 Clearing storage...')
         // Clear emotion check-in flag specifically
@@ -91,14 +91,14 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
         localStorage.clear()
         console.log('🔧 All storage cleared')
       }
-      
+
       // Use setTimeout to break out of any potential render cycles
       console.log('🔧 Preparing redirect to /')
       setTimeout(() => {
         console.log('🔧 Redirecting to / now')
         window.location.href = "/"
       }, 100)
-      
+
     } catch (error) {
       console.error("🔧 Error logging out:", error)
       // Fallback: force redirect even if logout fails
@@ -119,16 +119,18 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image
-              src="/logo.png"
-              alt="Serenity Pocket"
-              width={162}
-              height={162}
-              className="h-[108px] w-[108px] sm:h-[126px] sm:w-[126px]"
-              priority
-            />
+            <div className="bg-white p-2 rounded-lg shadow-sm">
+              <Image
+                src="/logo.png"
+                alt="PlayMind Labs"
+                width={162}
+                height={162}
+                className="h-[80px] w-auto sm:h-[100px]"
+                priority
+              />
+            </div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-              Serenity Pocket
+              PlayMind Labs
             </h1>
           </div>
 
@@ -224,7 +226,21 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                     router.push("/gambling-survey")
                   }}
                 >
-                  <span>Retake Test</span>
+                  <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                  <span>Retake Serenity Survey</span>
+                </button>
+
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    router.push("/pgsi-survey")
+                  }}
+                >
+                  <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                  <span>Sports Betting Survey</span>
                 </button>
 
                 <button
@@ -250,10 +266,10 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-red-600 hover:bg-accent"
                   role="menuitem"
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
                     console.log('🔧 Logout button clicked in UI')
-                    setMenuOpen(false)
-                    console.log('🔧 Menu closed, calling handleLogout')
                     void handleLogout()
                   }}
                 >

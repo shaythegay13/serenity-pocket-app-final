@@ -15,10 +15,10 @@ interface AccountTabProps {
 
 export const AccountTab = memo(function AccountTab({ userData, updateUserData }: AccountTabProps) {
   console.log('👤 AccountTab rendering with userData:', userData?.name, 'Tier:', userData?.subscriptionTier)
-  
+
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  
+
   // Memoize local state to prevent unnecessary re-renders
   const localState = useMemo(() => ({
     name: userData.name,
@@ -35,7 +35,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
   const [localLocation, setLocalLocation] = useState(localState.location)
   const [localDailyLimit, setLocalDailyLimit] = useState(localState.dailyLimit)
   const [localMaxStake, setLocalMaxStake] = useState(localState.maxStake)
-  
+
   // Memoize current tier
   const currentTier = useMemo(() => userData.subscriptionTier || "free", [userData.subscriptionTier])
 
@@ -71,11 +71,11 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
   const handleSyncSubscription = async () => {
     try {
       setSyncing(true)
-      
+
       // Get auth session
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         toast.error('Not authenticated')
         return
@@ -117,7 +117,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           started: profile.subscription_started_at,
           ends: profile.subscription_ends_at,
         })
-        
+
         // Update local state with fresh data from database
         await updateUserData({
           subscriptionTier: profile.subscription_tier || 'free',
@@ -195,21 +195,21 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
   const handleUpgrade = async (tierId: string) => {
     try {
       setUpgrading(true)
-      
+
       // Get auth token
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         toast.error('Please sign in to upgrade')
         setUpgrading(false)
         return
       }
-      
+
       // Create Flowglad checkout session
       const response = await fetch('/api/flowglad/checkout', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
@@ -222,11 +222,11 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       }
 
       const { url, error } = await response.json()
-      
+
       if (error) {
         throw new Error(error)
       }
-      
+
       // Redirect to Stripe checkout
       if (url) {
         window.location.href = url
@@ -255,8 +255,8 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-foreground mb-1">Current Plan</h3>
             <p className="text-sm text-muted-foreground">
-              {userData.subscriptionStatus === 'active' 
-                ? 'Your subscription is active' 
+              {userData.subscriptionStatus === 'active'
+                ? 'Your subscription is active'
                 : 'Upgrade to unlock premium features'}
             </p>
           </div>
@@ -266,8 +266,8 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
                 {userData.subscriptionStatus || 'inactive'}
               </Badge>
             )}
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={handleSyncSubscription}
               disabled={syncing}
@@ -295,10 +295,12 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
             )}
             <div>
               <p className="font-semibold text-lg text-foreground">
-                {currentTier === 'free' ? 'Free Plan' : 'Premium Plan'}
+                {(currentTier as string) === 'free' ? 'Foundation' :
+                  currentTier === 'premium' ? 'Focus' :
+                    currentTier === 'premium_plus' ? 'Mastery' : 'Apex'}
               </p>
               <p className="text-sm text-muted-foreground">
-                {currentTier === 'free' ? 'Basic features' : 'Premium features'}
+                {currentTier === 'free' ? 'Basic behavioral tools' : 'Advanced analytical & psychological tools'}
               </p>
             </div>
           </div>
@@ -306,9 +308,11 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           {currentTier !== 'free' && (
             <div className="pt-3 border-t border-border space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Price:</span>
+                <span className="text-muted-foreground">Plan Level:</span>
                 <span className="font-medium text-foreground">
-                  Premium
+                  {currentTier === 'free' ? 'Foundation' :
+                    currentTier === 'premium' ? 'Focus' :
+                      currentTier === 'premium_plus' ? 'Mastery' : 'Apex'}
                 </span>
               </div>
               {userData.subscriptionStartedAt && (
@@ -398,7 +402,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
 
           <div className="pt-4 border-t border-border flex justify-between items-center">
             <div className="text-xs text-muted-foreground">
-              If you no longer wish to use Serenity Pocket, you can permanently delete your account.
+              If you no longer wish to use PlayMind Labs, you can permanently delete your account.
             </div>
             <Button
               type="button"
@@ -700,6 +704,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         </div>
       </Card>
 
-      </div>
+    </div>
   )
 })

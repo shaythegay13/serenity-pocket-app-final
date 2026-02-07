@@ -46,6 +46,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         "Unlimited active positions",
         "Priority support",
       ],
+      trialPeriod: "1 Week Free Trial",
       comingSoon: true,
     },
     {
@@ -110,9 +111,8 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
           return (
             <Card
               key={tier.id}
-              className={`p-6 relative ${
-                isCurrentTier ? "border-primary border-2 shadow-lg" : ""
-              } ${tier.badge === "Best Value" ? "border-purple-500/50" : ""}`}
+              className={`p-6 relative ${isCurrentTier ? "border-primary border-2 shadow-lg" : ""
+                } ${tier.badge === "Best Value" ? "border-purple-500/50" : ""}`}
             >
               {/* Badge */}
               {tier.badge && (
@@ -148,6 +148,11 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
                   <p className="text-sm text-muted-foreground min-h-[40px]">
                     {tier.description}
                   </p>
+                  {tier.trialPeriod && (
+                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                      {tier.trialPeriod}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Features */}
@@ -192,8 +197,8 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         <div className="text-center space-y-2">
           <h3 className="font-semibold">Premium Tiers Coming Q2 2025</h3>
           <p className="text-sm text-muted-foreground">
-            We're currently perfecting our advanced features and AI coaching capabilities. 
-            Join our free tier today and get early access when we launch! 
+            We're currently perfecting our advanced features and AI coaching capabilities.
+            Join our free tier today and get early access when we launch!
             <span className="font-semibold text-primary"> Early adopters will receive special founding member pricing.</span>
           </p>
         </div>
@@ -202,11 +207,11 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       {/* FAQ Section */}
       <div className="max-w-3xl mx-auto space-y-4 pt-8">
         <h3 className="text-xl font-bold text-center mb-6">Frequently Asked Questions</h3>
-        
+
         <Card className="p-4">
           <h4 className="font-semibold mb-2">Can I change plans anytime?</h4>
           <p className="text-sm text-muted-foreground">
-            Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately, 
+            Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately,
             and we'll prorate any billing differences.
           </p>
         </Card>
@@ -214,7 +219,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         <Card className="p-4">
           <h4 className="font-semibold mb-2">What payment methods do you accept?</h4>
           <p className="text-sm text-muted-foreground">
-            We accept all major credit cards, debit cards, and PayPal. All payments are processed 
+            We accept all major credit cards, debit cards, and PayPal. All payments are processed
             securely through Flowglad.
           </p>
         </Card>
@@ -222,15 +227,15 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         <Card className="p-4">
           <h4 className="font-semibold mb-2">Is there a free trial for paid plans?</h4>
           <p className="text-sm text-muted-foreground">
-            When paid tiers launch, we'll offer a 14-day free trial for all premium plans. 
-            No credit card required to start.
+            Yes! Our "Focus" tier comes with a 1-week free trial so you can experience the advanced
+            features before committing. Other premium plans do not currently offer a trial.
           </p>
         </Card>
 
         <Card className="p-4">
           <h4 className="font-semibold mb-2">What's the refund policy?</h4>
           <p className="text-sm text-muted-foreground">
-            We offer a 30-day money-back guarantee on all paid plans. If you're not satisfied, 
+            We offer a 30-day money-back guarantee on all paid plans. If you're not satisfied,
             contact us for a full refund.
           </p>
         </Card>

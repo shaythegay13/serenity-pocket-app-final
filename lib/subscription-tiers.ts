@@ -4,7 +4,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "free",
     name: "Foundation",
-    displayName: "Free",
+    displayName: "Foundation",
     price: 0,
     interval: "month",
     description: "Build self-awareness and track your betting behavior to make safer, smarter decisions.",
@@ -18,10 +18,11 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "premium",
     name: "Focus",
-    displayName: "Premium",
+    displayName: "Focus",
     price: 19.99,
     interval: "month",
     description: "Real-time sports data, odds comparison, and analytical tools to bet smarter.",
+    trialDays: 7,
     features: [
       "Everything in the Previous Tier and:",
       "Basic Analytics Dashboard",
@@ -32,7 +33,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "premium_plus",
     name: "Mastery",
-    displayName: "Premium Plus",
+    displayName: "Mastery",
     price: 39.99,
     interval: "month",
     description: "Combine psychology insights with data analytics to reduce risk and improve outcomes.",
@@ -47,15 +48,15 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
   {
     id: "elite",
     name: "Apex",
-    displayName: "Elite",
+    displayName: "Apex",
     price: 79.99,
     interval: "month",
     description: "AI-powered picks and analysis tailored to your psychological profile and betting style.",
     features: [
       "Everything in the Previous Tier and:",
       "Priority Support & Early Feature Access",
-      "TiltLab Emotional Analysis (7x/week)",
-      "SmartSlip AI Picks (7x/week)",
+      "TiltLab Emotional Analysis (25x/week)",
+      "SmartSlip AI Picks (25x/week)",
     ],
   },
 ]
@@ -87,9 +88,9 @@ export function getUpgradeMessage(
   featureName: string
 ): string {
   const messages: Record<string, string> = {
-    free: `Upgrade to Premium to unlock ${featureName} and real-time sports data tools.`,
-    premium: `Upgrade to Premium Plus to unlock ${featureName} and behavioral psychology insights.`,
-    premium_plus: `Upgrade to Elite to unlock ${featureName} and AI-powered bet suggestions.`,
+    free: `Upgrade to Focus to unlock ${featureName} and real-time sports data tools.`,
+    premium: `Upgrade to Mastery to unlock ${featureName} and behavioral psychology insights.`,
+    premium_plus: `Upgrade to Apex to unlock ${featureName} and AI-powered bet suggestions.`,
     elite: "You have access to all features!",
   }
   return messages[currentTier] || messages.free

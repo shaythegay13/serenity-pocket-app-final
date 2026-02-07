@@ -22,10 +22,10 @@ const tierIcons = {
 }
 
 const tierHighlights = {
-  free: "Best value for comprehensive analytics",
-  premium: "Great for casual bettors",
-  premium_plus: "Best value for comprehensive analytics",
-  elite: "Maximum power for professional bettors"
+  free: "Build your foundation with core behavioral tools",
+  premium: "Sharpen your focus with real-time analytics",
+  premium_plus: "Master the psychology of betting",
+  elite: "The apex of AI-powered analysis"
 }
 
 // Flowglad subscription codes
@@ -57,7 +57,7 @@ const handleSubscribe = async (tierId: string) => {
     })
 
     const session = await response.json()
-    
+
     if (session.url) {
       window.location.href = session.url
     } else {
@@ -75,15 +75,15 @@ export default function PricingPage() {
 
   useEffect(() => {
     let isMounted = true
-    
+
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
+
         if (!isMounted) return
-        
+
         setAuthed(!!session)
-        
+
         if (session) {
           try {
             const storedUserData = await storage.getUserData()
@@ -123,6 +123,24 @@ export default function PricingPage() {
     )
   }
 
+  const showGuarantee = (() => {
+    if (!userData) return true
+    const tierOrder = ["free", "premium", "premium_plus", "elite"]
+    const userTierIndex = tierOrder.indexOf(userData.subscriptionTier || 'free')
+
+    // Hide if beyond Focus plan
+    if (userTierIndex > 1) return false
+
+    // Hide if on Focus plan and past 7-day trial
+    if (userData.subscriptionTier === 'premium' && userData.subscriptionStartedAt) {
+      const trialDuration = 7 * 24 * 60 * 60 * 1000 // 7 days in ms
+      const startTime = new Date(userData.subscriptionStartedAt).getTime()
+      if (Date.now() - startTime > trialDuration) return false
+    }
+
+    return true
+  })()
+
   const pricingContent = (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto">
@@ -141,9 +159,11 @@ export default function PricingPage() {
             <Badge variant="secondary" className="text-sm">
               Cancel anytime
             </Badge>
-            <Badge variant="secondary" className="text-sm">
-              7-day money-back guarantee
-            </Badge>
+            {showGuarantee && (
+              <Badge variant="secondary" className="text-sm">
+                7-day money-back guarantee
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -153,11 +173,13 @@ export default function PricingPage() {
             const Icon = tierIcons[tier.id as keyof typeof tierIcons]
             const isPopular = tier.id === 'premium_plus'
             const isElite = tier.id === 'elite'
-            
+            const isCurrentTier = (userData?.subscriptionTier || 'free') === tier.id
+
             return (
-              <Card 
-                key={tier.id} 
-                className={`relative p-6 ${isPopular ? 'border-primary shadow-lg scale-105' : ''} ${isElite ? 'bg-linear-to-b from-primary/5 to-background' : ''}`}
+              <Card
+                key={tier.id}
+                className={`relative p-6 transition-all duration-300 ${isCurrentTier ? 'ring-2 ring-primary border-primary shadow-xl scale-105 z-10' : ''
+                  } ${isPopular && !isCurrentTier ? 'border-primary/50 shadow-md scale-102' : ''} ${isElite ? 'bg-linear-to-b from-primary/5 to-background' : ''}`}
               >
                 {isPopular && (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
@@ -166,8 +188,16 @@ export default function PricingPage() {
                     </Badge>
                   </div>
                 )}
-                
-                {isElite && (
+
+                {isCurrentTier && (
+                  <div className="absolute top-4 right-4 animate-in fade-in zoom-in duration-500">
+                    <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                      Active
+                    </Badge>
+                  </div>
+                )}
+
+                {!isCurrentTier && isElite && (
                   <div className="absolute top-4 right-4">
                     <Sparkles className="h-5 w-5 text-primary" />
                   </div>
@@ -175,30 +205,38 @@ export default function PricingPage() {
 
                 <div className="text-center mb-6">
                   <div className="flex justify-center mb-4">
-                    <div className={`p-3 rounded-lg ${isElite ? 'bg-primary/20' : 'bg-muted'}`}>
-                      <Icon className={`h-6 w-6 ${isElite ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div className={`p-3 rounded-lg ${isElite || isCurrentTier ? 'bg-primary/20' : 'bg-muted'}`}>
+                      <Icon className={`h-6 w-6 ${isElite || isCurrentTier ? 'text-primary' : 'text-muted-foreground'}`} />
                     </div>
                   </div>
-                  
+
                   <h3 className="text-xl font-bold text-foreground mb-2">
                     {tier.displayName}
                   </h3>
-                  
+
                   <div className="mb-2">
                     <span className="text-3xl font-bold text-foreground">
                       ${tier.price}
                     </span>
                     <span className="text-muted-foreground">/month</span>
                   </div>
-                  
+
                   <p className="text-sm text-muted-foreground mb-4">
                     {tier.name}
                   </p>
-                  
-                  <p className="text-xs text-muted-foreground italic mb-4">
+
+                  <p className="text-xs text-muted-foreground italic mb-2">
                     {tierHighlights[tier.id as keyof typeof tierHighlights]}
                   </p>
-                  
+
+                  {tier.id === 'premium' && (
+                    <div className="mb-4">
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        7-Day Free Trial
+                      </Badge>
+                    </div>
+                  )}
+
                   <p className="text-sm text-muted-foreground">
                     {tier.description}
                   </p>
@@ -213,12 +251,22 @@ export default function PricingPage() {
                   ))}
                 </div>
 
-                <Button 
-                  className="w-full" 
-                  variant={tier.id === 'free' ? 'outline' : isElite ? 'default' : isPopular ? 'default' : 'secondary'}
-                  onClick={() => handleSubscribe(tier.id)}
+                <Button
+                  className="w-full"
+                  variant={isCurrentTier ? 'outline' : (tier.id === 'free' ? 'outline' : isElite ? 'default' : isPopular ? 'default' : 'secondary')}
+                  onClick={() => !isCurrentTier && handleSubscribe(tier.id)}
+                  disabled={isCurrentTier}
                 >
-                  {tier.id === 'free' ? 'Get Started' : 'Upgrade Now'}
+                  {isCurrentTier ? 'Current Plan' : (() => {
+                    const tierOrder = ["free", "premium", "premium_plus", "elite"];
+                    const userTierIndex = tierOrder.indexOf(userData?.subscriptionTier || 'free');
+                    const currentTierIndex = tierOrder.indexOf(tier.id);
+
+                    if (currentTierIndex < userTierIndex) {
+                      return "Downgrade Now";
+                    }
+                    return tier.id === 'free' ? 'Get Started' : 'Upgrade Now';
+                  })()}
                 </Button>
               </Card>
             )
@@ -226,25 +274,27 @@ export default function PricingPage() {
         </div>
 
         {/* Money Back Guarantee */}
-        <div className="text-center">
-          <Card className="p-8 bg-muted/50">
-            <div className="flex items-center justify-center mb-4">
-              <Badge className="bg-green-100 text-green-800 border-green-200">
-                7-Day Money-Back Guarantee
-              </Badge>
-            </div>
-            <h2 className="text-2xl font-semibold text-foreground mb-4">
-              Try Serenity Pocket Risk-Free
-            </h2>
-            <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              We're confident you'll love Serenity Pocket. If you're not completely satisfied within the first 7 days, 
-              we'll give you a full refund—no questions asked.
-            </p>
-            <Button size="lg" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              Get Started Today
-            </Button>
-          </Card>
-        </div>
+        {showGuarantee && (
+          <div className="text-center">
+            <Card className="p-8 bg-muted/50">
+              <div className="flex items-center justify-center mb-4">
+                <Badge className="bg-green-100 text-green-800 border-green-200">
+                  7-Day Money-Back Guarantee
+                </Badge>
+              </div>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">
+                Try Serenity Pocket Risk-Free
+              </h2>
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                We're confident you'll love Serenity Pocket. If you're not completely satisfied within the first 7 days,
+                we'll give you a full refund—no questions asked.
+              </p>
+              <Button size="lg" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                Get Started Today
+              </Button>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

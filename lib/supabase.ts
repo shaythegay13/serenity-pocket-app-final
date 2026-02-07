@@ -3,22 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// Check for missing environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  const errorMsg = '❌ CRITICAL: Supabase environment variables are missing! Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
-
-  if (typeof window !== 'undefined') {
-    console.error(errorMsg)
-    console.error('Current values:', {
-      url: supabaseUrl ? 'present' : 'MISSING',
-      key: supabaseAnonKey ? 'present' : 'MISSING'
-    })
-  }
-
-  // Throw error in development to catch this early
-  if (process.env.NODE_ENV === 'development') {
-    throw new Error(errorMsg)
-  }
+// Check for missing environment variables (only warn in browser, not during build)
+if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
+  console.error('❌ CRITICAL: Supabase environment variables are missing! Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  console.error('Current values:', {
+    url: supabaseUrl ? 'present' : 'MISSING',
+    key: supabaseAnonKey ? 'present' : 'MISSING'
+  })
 }
 
 // Validate URL format
@@ -27,7 +18,11 @@ if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
 }
 
 // Browser Supabase client (persist session in localStorage)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Use placeholder values during build to prevent createClient from throwing
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key',
+  {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

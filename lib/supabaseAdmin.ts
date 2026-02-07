@@ -9,4 +9,8 @@ if (!supabaseUrl || !serviceRoleKey) {
   }
 }
 
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
+// Use placeholder values during build to prevent createClient from throwing
+export const supabaseAdmin = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  serviceRoleKey || 'placeholder-key'
+)

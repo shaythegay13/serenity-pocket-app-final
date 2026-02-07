@@ -295,7 +295,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
             )}
             <div>
               <p className="font-semibold text-lg text-foreground">
-                {(currentTier as string) === 'free' ? 'Foundation' :
+                {currentTier === 'free' ? 'Foundation' :
                   currentTier === 'premium' ? 'Focus' :
                     currentTier === 'premium_plus' ? 'Mastery' : 'Apex'}
               </p>
@@ -310,9 +310,8 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Plan Level:</span>
                 <span className="font-medium text-foreground">
-                  {currentTier === 'free' ? 'Foundation' :
-                    currentTier === 'premium' ? 'Focus' :
-                      currentTier === 'premium_plus' ? 'Mastery' : 'Apex'}
+                  {currentTier === 'premium' ? 'Focus' :
+                    currentTier === 'premium_plus' ? 'Mastery' : 'Apex'}
                 </span>
               </div>
               {userData.subscriptionStartedAt && (

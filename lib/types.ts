@@ -426,3 +426,31 @@ export function betOutcomeToTradeOutcome(outcome: BetOutcome | undefined): Trade
     default: return undefined
   }
 }
+/**
+ * Supported sport keys used across the application.
+ * Values should match the keys in SUPPORTED_SPORTS in lib/sports-config.ts.
+ */
+export type SupportedSportKey =
+  | "basketball_nba"
+  | "americanfootball_nfl"
+  | "baseball_mlb"
+  | "icehockey_nhl"
+  | "basketball_ncaab"
+  | "americanfootball_ncaaf"
+  | "soccer_epl"
+  | "soccer_mls"
+  | "soccer_champions_league"
+  | "mma_ufc"
+  | "boxing"
+  | "tennis_atp"
+  | "tennis_wta"
+  | "golf_pga"
+  | "motorsports_f1"
+  | "motorsports_nascar"
+  | "esports_lol"
+  | "esports_csgo"
+
+/**
+ * Standardized bet market types.
+ */
+export type GameBetMarketType = "moneyline" | "spread" | "total" | "parlay" | "prop" | "future" | "live"

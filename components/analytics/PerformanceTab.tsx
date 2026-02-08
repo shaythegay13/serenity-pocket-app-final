@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -80,17 +80,29 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
   const [loadingPending, setLoadingPending] = useState(false)
 
   // Load pending bets on mount
-  useMemo(async () => {
-    setLoadingPending(true)
-    try {
-      const analyses = await storage.getBetAnalyses()
-      const pending = analyses.filter(bet => bet.outcome === 'pending')
-      setPendingBets(pending) // Show all pending bets
-    } catch (error) {
-      console.error('Error loading pending bets:', error)
-    } finally {
-      setLoadingPending(false)
+  useEffect(() => {
+    let isMounted = true
+
+    const loadPendingBets = async () => {
+      setLoadingPending(true)
+      try {
+        const analyses = await storage.getBetAnalyses()
+        const pending = analyses.filter(bet => bet.outcome === 'pending')
+        if (isMounted) {
+          setPendingBets(pending) // Show all pending bets
+        }
+      } catch (error) {
+        console.error('Error loading pending bets:', error)
+      } finally {
+        if (isMounted) {
+          setLoadingPending(false)
+        }
+      }
     }
+
+    loadPendingBets()
+
+    return () => { isMounted = false }
   }, [])
 
   // Handle bet outcome update

@@ -258,7 +258,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
   // Sport performance
   const sportPerformance = useMemo(() => {
-    const sportMap = new Map<string, { wins: number; losses: number; profit: number }>()
+    const sportMap = new Map<string, { wins: number; losses: number; pushes: number; pending: number; profit: number }>()
     const processedIds = new Set<string>()
 
     // Process trades
@@ -266,11 +266,14 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const sportKey = trade.sport || 'Unknown'
       const sport = formatSportName(sportKey)
       if (!sportMap.has(sport)) {
-        sportMap.set(sport, { wins: 0, losses: 0, profit: 0 })
+        sportMap.set(sport, { wins: 0, losses: 0, pushes: 0, pending: 0, profit: 0 })
       }
       const stats = sportMap.get(sport)!
+
       if (trade.outcome === 'profit') stats.wins++
-      if (trade.outcome === 'loss') stats.losses++
+      else if (trade.outcome === 'loss') stats.losses++
+      else if (trade.outcome === 'breakeven') stats.pushes++
+      else stats.pending++ // No outcome means pending
 
       // Only include profit for settled bets with actualReturn
       if (trade.actualReturn != null) {
@@ -288,11 +291,14 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
       const sport = formatSportName(bet.sport)
       if (!sportMap.has(sport)) {
-        sportMap.set(sport, { wins: 0, losses: 0, profit: 0 })
+        sportMap.set(sport, { wins: 0, losses: 0, pushes: 0, pending: 0, profit: 0 })
       }
       const stats = sportMap.get(sport)!
+
       if (bet.outcome === 'win') stats.wins++
-      if (bet.outcome === 'loss') stats.losses++
+      else if (bet.outcome === 'loss') stats.losses++
+      else if (bet.outcome === 'push') stats.pushes++
+      else stats.pending++ // pending or undefined
 
       if (bet.actualReturn != null) {
         stats.profit += (bet.actualReturn || 0) - (bet.stake || 0)
@@ -303,11 +309,14 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       sport,
       wins: stats.wins,
       losses: stats.losses,
+      pushes: stats.pushes,
+      pending: stats.pending,
+      totalBets: stats.wins + stats.losses + stats.pushes + stats.pending,
       profit: stats.profit,
       winRate: stats.wins + stats.losses > 0
         ? (stats.wins / (stats.wins + stats.losses)) * 100
         : 0
-    })).sort((a, b) => b.profit - a.profit)
+    })).sort((a, b) => b.totalBets - a.totalBets) // Sort by total bets instead of profit
   }, [trades, propComprehensiveBets])
 
   // Team betting statistics - count bets on each team
@@ -315,7 +324,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     const teamMap = new Map<string, { bets: number; wins: number; losses: number; profit: number }>()
     const processedIds = new Set<string>()
 
-    // Helper function to process a bet's teams
+    // Helper function to process a bet - only attribute to the team that was actually bet on
     const processBetTeams = (bet: ComprehensiveBet) => {
       if (processedIds.has(bet.id)) return
       processedIds.add(bet.id)
@@ -324,24 +333,36 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
 
-      // Process home team
-      if (bet.homeTeam && bet.homeTeam !== "Unknown") {
-        if (!teamMap.has(bet.homeTeam)) {
-          teamMap.set(bet.homeTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
-        }
-        const stats = teamMap.get(bet.homeTeam)!
-        stats.bets++
-        if (isWin) stats.wins++
-        if (isLoss) stats.losses++
-        stats.profit += betProfit
+      // Determine which team was actually bet on based on selection
+      let selectedTeam: string | null = null
+
+      if (bet.selection === 'home' && bet.homeTeam && bet.homeTeam !== "Unknown") {
+        selectedTeam = bet.homeTeam
+      } else if (bet.selection === 'away' && bet.awayTeam && bet.awayTeam !== "Unknown") {
+        selectedTeam = bet.awayTeam
+      } else if (bet.selection === 'over' || bet.selection === 'under') {
+        // For totals, attribute to both teams as it's a matchup bet
+        // But only count as 0.5 bets each to avoid inflating numbers
+        const teams = [bet.homeTeam, bet.awayTeam].filter(t => t && t !== "Unknown")
+        teams.forEach(team => {
+          if (!teamMap.has(team)) {
+            teamMap.set(team, { bets: 0, wins: 0, losses: 0, profit: 0 })
+          }
+          const stats = teamMap.get(team)!
+          stats.bets += 0.5
+          if (isWin) stats.wins += 0.5
+          if (isLoss) stats.losses += 0.5
+          stats.profit += betProfit / 2
+        })
+        return // Already processed
       }
 
-      // Process away team
-      if (bet.awayTeam && bet.awayTeam !== "Unknown") {
-        if (!teamMap.has(bet.awayTeam)) {
-          teamMap.set(bet.awayTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+      // For moneyline/spread bets on a specific team
+      if (selectedTeam) {
+        if (!teamMap.has(selectedTeam)) {
+          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
         }
-        const stats = teamMap.get(bet.awayTeam)!
+        const stats = teamMap.get(selectedTeam)!
         stats.bets++
         if (isWin) stats.wins++
         if (isLoss) stats.losses++
@@ -360,45 +381,46 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       if (processedIds.has(bet.id)) return
       processedIds.add(bet.id)
 
+      const selection = (bet as any).selection
       const homeTeam = (bet as any).homeTeam
       const awayTeam = (bet as any).awayTeam
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
+      const isWin = bet.outcome === 'win'
+      const isLoss = bet.outcome === 'loss'
 
-      if (homeTeam && homeTeam !== "Unknown") {
-        if (!teamMap.has(homeTeam)) {
-          teamMap.set(homeTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
-        }
-        const stats = teamMap.get(homeTeam)!
-        stats.bets++
-        if (bet.outcome === 'win') stats.wins++
-        if (bet.outcome === 'loss') stats.losses++
-        if (betProfit) stats.profit += betProfit
+      let selectedTeam: string | null = null
+      if (selection === 'home' && homeTeam && homeTeam !== "Unknown") {
+        selectedTeam = homeTeam
+      } else if (selection === 'away' && awayTeam && awayTeam !== "Unknown") {
+        selectedTeam = awayTeam
       }
 
-      if (awayTeam && awayTeam !== "Unknown") {
-        if (!teamMap.has(awayTeam)) {
-          teamMap.set(awayTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+      if (selectedTeam) {
+        if (!teamMap.has(selectedTeam)) {
+          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
         }
-        const stats = teamMap.get(awayTeam)!
+        const stats = teamMap.get(selectedTeam)!
         stats.bets++
-        if (bet.outcome === 'win') stats.wins++
-        if (bet.outcome === 'loss') stats.losses++
-        if (betProfit) stats.profit += betProfit
+        if (isWin) stats.wins++
+        if (isLoss) stats.losses++
+        stats.profit += betProfit
       }
     })
 
     // Sort by number of bets and return top 10
+    // Round fractional values from totals bets (over/under split between teams)
     return Array.from(teamMap.entries())
       .map(([team, stats]) => ({
         team,
-        bets: stats.bets,
-        wins: stats.wins,
-        losses: stats.losses,
-        profit: stats.profit,
+        bets: Math.round(stats.bets),
+        wins: Math.round(stats.wins),
+        losses: Math.round(stats.losses),
+        profit: Math.round(stats.profit * 100) / 100,
         winRate: stats.wins + stats.losses > 0
           ? (stats.wins / (stats.wins + stats.losses)) * 100
           : 0
       }))
+      .filter(t => t.bets > 0) // Only show teams with at least 1 bet
       .sort((a, b) => b.bets - a.bets)
       .slice(0, 10)
   }, [propComprehensiveBets, pendingComprehensiveBets, unifiedBets])
@@ -689,7 +711,10 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
               {sportPerformance.map(sport => (
                 <Card key={sport.sport} className="p-4">
                   <div className="space-y-2">
-                    <h5 className="font-semibold text-foreground">{sport.sport}</h5>
+                    <div className="flex justify-between items-center">
+                      <h5 className="font-semibold text-foreground">{sport.sport}</h5>
+                      <Badge variant="outline">{sport.totalBets} bets</Badge>
+                    </div>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Win Rate:</span>
@@ -699,8 +724,17 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Record:</span>
-                        <span className="text-foreground">{sport.wins}-{sport.losses}</span>
+                        <span className="text-foreground">
+                          {sport.wins}-{sport.losses}
+                          {sport.pushes > 0 && `-${sport.pushes}P`}
+                        </span>
                       </div>
+                      {sport.pending > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Pending:</span>
+                          <span className="text-orange-500">{sport.pending}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Profit:</span>
                         <span className={sport.profit >= 0 ? "text-success" : "text-destructive"}>

@@ -1,14 +1,14 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Home, Activity, Sparkles, BarChart3 } from "lucide-react"
+import { Home, Brain, Sparkles, BarChart3 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 const navItems = [
   { tab: "home", label: "Home", icon: Home, href: "/home" },
-  { tab: "behavior", label: "Behavior", icon: Activity, href: "/behavior" },
+  { tab: "behavior", label: "My Mind", icon: Brain, href: "/behavior" },
   { tab: "ai-picks", label: "BetLab", icon: Sparkles, href: "/betlab" },
   { tab: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
 ]
@@ -49,7 +49,7 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
   }
 
   return (
-    <nav className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
+    <nav className="hidden md:block border-b border-border/50 bg-card/50 backdrop-blur-sm">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-center py-4">
           <div className="flex items-center gap-1">

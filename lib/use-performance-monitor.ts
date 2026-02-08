@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 interface PerformanceMetrics {
   componentName: string
@@ -38,7 +38,7 @@ export function usePerformanceMonitor(componentName: string) {
     }
   }, [componentName])
 
-  const markDataLoaded = (dataPoints?: number) => {
+  const markDataLoaded = useCallback((dataPoints?: number) => {
     metricsRef.current.endTime = performance.now()
     metricsRef.current.duration = metricsRef.current.endTime - metricsRef.current.startTime
     metricsRef.current.dataPoints = dataPoints
@@ -48,9 +48,9 @@ export function usePerformanceMonitor(componentName: string) {
       dataPoints,
       timestamp: new Date().toISOString()
     })
-  }
+  }, [componentName])
 
-  const markError = (error: string) => {
+  const markError = useCallback((error: string) => {
     metricsRef.current.error = error
     metricsRef.current.endTime = performance.now()
     metricsRef.current.duration = metricsRef.current.endTime - metricsRef.current.startTime
@@ -60,11 +60,13 @@ export function usePerformanceMonitor(componentName: string) {
       error,
       timestamp: new Date().toISOString()
     })
-  }
+  }, [componentName])
+
+  const getMetrics = useCallback(() => metricsRef.current, [])
 
   return {
     markDataLoaded,
     markError,
-    getMetrics: () => metricsRef.current
+    getMetrics
   }
 }

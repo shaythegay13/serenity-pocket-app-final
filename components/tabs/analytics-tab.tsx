@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
@@ -23,8 +23,16 @@ interface AnalyticsTabProps {
 type SubTab = "correlation" | "performance" | "mental-health"
 
 export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
-  const hasAccess = canAccessFeature(userData.subscriptionTier || "free", "premium")
+  // Memoize hasAccess to prevent unnecessary re-renders
+  const hasAccess = useMemo(
+    () => canAccessFeature(userData.subscriptionTier || "free", "premium"),
+    [userData.subscriptionTier]
+  )
   const { markDataLoaded, markError } = usePerformanceMonitor('AnalyticsTab')
+
+  // Refs to prevent effects from running multiple times
+  const hasReadUrl = useRef(false)
+  const hasLoadedData = useRef(false)
 
   // State declarations (Must be at top level)
   const [loading, setLoading] = useState(true)
@@ -116,9 +124,11 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
   }, [hasAccess, logs.length, markDataLoaded])
 
-  // Read subtab from URL query parameter
+  // Read subtab from URL query parameter (only once)
   useEffect(() => {
-    if (!hasAccess) return
+    if (!hasAccess || hasReadUrl.current) return
+    hasReadUrl.current = true
+
     const params = new URLSearchParams(window.location.search)
     const tab = params.get('tab') as SubTab | null
     if (tab && ["correlation", "performance", "mental-health"].includes(tab)) {
@@ -126,12 +136,16 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
   }, [hasAccess])
 
-  // Load data on mount
+  // Load data on mount (only once)
   useEffect(() => {
     if (!hasAccess) {
       setLoading(false)
       return
     }
+
+    // Prevent loading data multiple times
+    if (hasLoadedData.current) return
+    hasLoadedData.current = true
 
     let cancelled = false
 

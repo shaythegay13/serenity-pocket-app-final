@@ -275,52 +275,184 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     fill: d.profitLoss >= 0 ? '#22c55e' : '#ef4444'
   }))
 
-  // Calculate AI insights
+  // Calculate detailed AI insights based on specific sub-emotions
   const aiInsights = useMemo(() => {
-    const insights: Array<{type: string, message: string}> = []
-    
-    if (emotionMatrixData.length === 0) return insights
+    const insights: Array<{type: string, title: string, message: string, advice: string}> = []
 
-    // Loss chasing analysis
-    const negativeEmotions = emotionMatrixData.filter(d => ['greed', 'frustration'].includes(d.emotion))
-    const positiveEmotions = emotionMatrixData.filter(d => ['joy', 'calm'].includes(d.emotion))
-    
-    if (negativeEmotions.length > 0 && positiveEmotions.length > 0) {
-      const negAvgStake = negativeEmotions.reduce((sum, d) => sum + d.avgStake, 0) / negativeEmotions.length
-      const posAvgStake = positiveEmotions.reduce((sum, d) => sum + d.avgStake, 0) / positiveEmotions.length
-      
-      if (negAvgStake > posAvgStake * 1.4) {
+    // Analyze trades by their specific pre-trade emotion (sub-emotions)
+    const emotionStats = new Map<string, {
+      wins: number
+      losses: number
+      totalBets: number
+      totalStake: number
+      totalProfitLoss: number
+    }>()
+
+    trades.forEach(trade => {
+      if (trade.preTradeEmotion && trade.outcome) {
+        const emotion = trade.preTradeEmotion.toLowerCase()
+        const stats = emotionStats.get(emotion) || {
+          wins: 0,
+          losses: 0,
+          totalBets: 0,
+          totalStake: 0,
+          totalProfitLoss: 0
+        }
+
+        stats.totalBets++
+        stats.totalStake += trade.stake || 0
+        const profitLoss = (trade.actualReturn || 0) - (trade.stake || 0)
+        stats.totalProfitLoss += profitLoss
+
+        if (trade.outcome === 'profit') {
+          stats.wins++
+        } else if (trade.outcome === 'loss') {
+          stats.losses++
+        }
+
+        emotionStats.set(emotion, stats)
+      }
+    })
+
+    if (emotionStats.size === 0) return insights
+
+    // Convert to array and calculate metrics
+    const emotionData = Array.from(emotionStats.entries()).map(([emotion, stats]) => ({
+      emotion,
+      ...stats,
+      winRate: stats.totalBets > 0 ? (stats.wins / stats.totalBets) * 100 : 0,
+      avgStake: stats.totalBets > 0 ? stats.totalStake / stats.totalBets : 0,
+      roi: stats.totalStake > 0 ? (stats.totalProfitLoss / stats.totalStake) * 100 : 0
+    })).filter(d => d.totalBets >= 2) // Only consider emotions with at least 2 bets
+
+    if (emotionData.length === 0) return insights
+
+    // Find best and worst performing specific emotions
+    const sortedByWinRate = [...emotionData].sort((a, b) => b.winRate - a.winRate)
+    const bestEmotion = sortedByWinRate[0]
+    const worstEmotion = sortedByWinRate[sortedByWinRate.length - 1]
+
+    if (bestEmotion && bestEmotion.winRate >= 50) {
+      insights.push({
+        type: 'strength',
+        title: `Your "${bestEmotion.emotion}" state is a strength`,
+        message: `When feeling ${bestEmotion.emotion}, you have a ${bestEmotion.winRate.toFixed(0)}% win rate across ${bestEmotion.totalBets} bets with ${bestEmotion.roi >= 0 ? '+' : ''}${bestEmotion.roi.toFixed(1)}% ROI.`,
+        advice: `Try to recognize when you're in this state and consider it a green light for betting decisions.`
+      })
+    }
+
+    if (worstEmotion && worstEmotion.winRate < 50 && worstEmotion.emotion !== bestEmotion?.emotion) {
+      insights.push({
+        type: 'warning',
+        title: `Avoid betting when "${worstEmotion.emotion}"`,
+        message: `Your win rate drops to ${worstEmotion.winRate.toFixed(0)}% when feeling ${worstEmotion.emotion}, resulting in ${worstEmotion.roi >= 0 ? '+' : ''}${worstEmotion.roi.toFixed(1)}% ROI across ${worstEmotion.totalBets} bets.`,
+        advice: `When you notice this feeling, take a 15-minute break before placing any bets.`
+      })
+    }
+
+    // Find emotions with highest stakes (potential loss chasing)
+    const sortedByStake = [...emotionData].sort((a, b) => b.avgStake - a.avgStake)
+    const highStakeEmotion = sortedByStake[0]
+    const lowStakeEmotion = sortedByStake[sortedByStake.length - 1]
+
+    if (highStakeEmotion && lowStakeEmotion &&
+        highStakeEmotion.avgStake > lowStakeEmotion.avgStake * 1.5 &&
+        highStakeEmotion.emotion !== lowStakeEmotion.emotion) {
+      const stakeIncrease = ((highStakeEmotion.avgStake / lowStakeEmotion.avgStake) - 1) * 100
+      const isNegativeEmotion = ['anxious', 'frustrated', 'angry', 'fomo', 'impulsive', 'desperate', 'stressed', 'panicked', 'resentful', 'bitter'].includes(highStakeEmotion.emotion)
+
+      if (isNegativeEmotion) {
         insights.push({
           type: 'loss-chasing',
-          message: `You increase bet size by ${Math.round((negAvgStake / posAvgStake - 1) * 100)}% after losses when experiencing greed or frustration.`
+          title: `Stake escalation when "${highStakeEmotion.emotion}"`,
+          message: `You bet ${stakeIncrease.toFixed(0)}% more ($${highStakeEmotion.avgStake.toFixed(0)} avg) when feeling ${highStakeEmotion.emotion} compared to ${lowStakeEmotion.emotion} ($${lowStakeEmotion.avgStake.toFixed(0)} avg).`,
+          advice: `Set a hard stake limit before betting when in this emotional state. Consider using a fixed unit size regardless of emotions.`
         })
       }
     }
 
-    // Emotional discipline gap
-    const negativeLosses = negativeEmotions.reduce((sum, d) => sum + d.totalBets, 0)
-    const totalBets = emotionMatrixData.reduce((sum, d) => sum + d.totalBets, 0)
-    
-    if (totalBets > 0 && (negativeLosses / totalBets) > 0.7) {
+    // Find FOMO-specific patterns
+    const fomoEmotions = emotionData.filter(d => ['fomo', 'impulsive', 'eager', 'restless', 'craving'].includes(d.emotion))
+    if (fomoEmotions.length > 0) {
+      const fomoTotalBets = fomoEmotions.reduce((sum, d) => sum + d.totalBets, 0)
+      const fomoWins = fomoEmotions.reduce((sum, d) => sum + d.wins, 0)
+      const fomoWinRate = fomoTotalBets > 0 ? (fomoWins / fomoTotalBets) * 100 : 0
+      const fomoTotalPL = fomoEmotions.reduce((sum, d) => sum + d.totalProfitLoss, 0)
+
+      if (fomoTotalBets >= 3) {
+        insights.push({
+          type: 'fomo-pattern',
+          title: 'FOMO betting pattern detected',
+          message: `Across ${fomoTotalBets} bets made when feeling impulsive/FOMO, your win rate is ${fomoWinRate.toFixed(0)}% with a total ${fomoTotalPL >= 0 ? 'profit' : 'loss'} of $${Math.abs(fomoTotalPL).toFixed(0)}.`,
+          advice: fomoWinRate < 45
+            ? `FOMO is costing you money. When you feel the urge to chase a bet, write down why you want it and wait 10 minutes.`
+            : `You handle FOMO reasonably well, but stay vigilant. Impulsive decisions rarely improve over time.`
+        })
+      }
+    }
+
+    // Find confident/overconfident patterns
+    const confidentEmotions = emotionData.filter(d => ['confident', 'overconfident', 'optimistic', 'euphoric'].includes(d.emotion))
+    if (confidentEmotions.length > 0) {
+      const confidentData = confidentEmotions.reduce((acc, d) => ({
+        totalBets: acc.totalBets + d.totalBets,
+        wins: acc.wins + d.wins,
+        totalStake: acc.totalStake + d.totalStake,
+        totalProfitLoss: acc.totalProfitLoss + d.totalProfitLoss
+      }), { totalBets: 0, wins: 0, totalStake: 0, totalProfitLoss: 0 })
+
+      if (confidentData.totalBets >= 3) {
+        const winRate = (confidentData.wins / confidentData.totalBets) * 100
+        const overconfidentOnly = emotionData.find(d => d.emotion === 'overconfident')
+
+        if (overconfidentOnly && overconfidentOnly.winRate < 40) {
+          insights.push({
+            type: 'overconfidence',
+            title: 'Overconfidence is hurting your results',
+            message: `When you feel "overconfident," your win rate is only ${overconfidentOnly.winRate.toFixed(0)}% across ${overconfidentOnly.totalBets} bets.`,
+            advice: `True confidence comes from process, not feelings. When feeling invincible, reduce your stake size by 50%.`
+          })
+        } else if (winRate >= 55) {
+          insights.push({
+            type: 'confidence-strength',
+            title: 'Your confidence is well-calibrated',
+            message: `When betting confidently, you achieve a ${winRate.toFixed(0)}% win rate. Your self-assessment appears accurate.`,
+            advice: `Keep trusting your analysis when you feel genuine confidence backed by research.`
+          })
+        }
+      }
+    }
+
+    // Calculate potential savings
+    const allTotalBets = emotionData.reduce((sum, d) => sum + d.totalBets, 0)
+    const allTotalPL = emotionData.reduce((sum, d) => sum + d.totalProfitLoss, 0)
+    const negativeEmotionData = emotionData.filter(d =>
+      ['anxious', 'frustrated', 'angry', 'fomo', 'impulsive', 'desperate', 'stressed', 'panicked', 'bitter', 'resentful', 'overwhelmed', 'tense'].includes(d.emotion)
+    )
+    const negativePL = negativeEmotionData.reduce((sum, d) => sum + d.totalProfitLoss, 0)
+
+    if (negativePL < -50 && negativeEmotionData.length > 0) {
       insights.push({
-        type: 'discipline-gap',
-        message: `${Math.round((negativeLosses / totalBets) * 100)}% of your losses occur when betting in negative emotional states, but you continue betting in these states.`
+        type: 'opportunity',
+        title: 'Opportunity: Emotional betting costs',
+        message: `You've lost $${Math.abs(negativePL).toFixed(0)} betting while in negative emotional states (${negativeEmotionData.map(d => d.emotion).join(', ')}).`,
+        advice: `If you had skipped these bets entirely, your bankroll would be $${Math.abs(negativePL).toFixed(0)} higher. Consider implementing a pre-bet emotional check-in.`
       })
     }
 
-    // Opportunity calculation
-    const posROI = positiveEmotions.reduce((sum, d) => sum + d.roi, 0) / positiveEmotions.length || 0
-    const totalROI = emotionMatrixData.reduce((sum, d) => sum + d.roi * d.totalBets, 0) / totalBets || 0
-    
-    if (posROI > totalROI * 1.5) {
+    // Add a general insight if we have enough data but no other insights
+    if (insights.length === 0 && emotionData.length >= 2) {
+      const avgWinRate = emotionData.reduce((sum, d) => sum + d.winRate * d.totalBets, 0) / allTotalBets
       insights.push({
-        type: 'opportunity',
-        message: `If you only bet when calm or joyful, your projected ROI would increase from ${totalROI.toFixed(1)}% to ${posROI.toFixed(1)}%.`
+        type: 'summary',
+        title: 'Your emotional betting profile',
+        message: `Across ${allTotalBets} tracked bets with emotional data, your average win rate is ${avgWinRate.toFixed(0)}% with a net ${allTotalPL >= 0 ? 'profit' : 'loss'} of $${Math.abs(allTotalPL).toFixed(0)}.`,
+        advice: `Keep logging emotions to unlock more personalized insights. The more data you track, the clearer your patterns become.`
       })
     }
 
     return insights
-  }, [emotionMatrixData])
+  }, [trades])
 
   const getRiskPatternColor = (pattern: string) => {
     switch (pattern) {
@@ -544,23 +676,58 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
             <h4 className="text-lg font-semibold text-foreground mb-4">AI Pattern Analysis</h4>
             <div className="space-y-4">
               {aiInsights.length > 0 ? (
-                aiInsights.map((insight, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      {insight.type === 'loss-chasing' && <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />}
-                      {insight.type === 'discipline-gap' && <Brain className="h-5 w-5 text-yellow-500 mt-0.5" />}
-                      {insight.type === 'opportunity' && <TrendingUp className="h-5 w-5 text-green-500 mt-0.5" />}
-                      <div className="flex-1">
-                        <h5 className="font-medium mb-1">
-                          {insight.type === 'loss-chasing' && 'Loss Chasing Detected'}
-                          {insight.type === 'discipline-gap' && 'Emotional Discipline Gap'}
-                          {insight.type === 'opportunity' && 'Opportunity'}
-                        </h5>
-                        <p className="text-sm text-muted-foreground">{insight.message}</p>
+                aiInsights.map((insight, index) => {
+                  const getInsightIcon = () => {
+                    switch (insight.type) {
+                      case 'strength':
+                      case 'confidence-strength':
+                        return <TrendingUp className="h-5 w-5 text-green-500 mt-0.5" />
+                      case 'warning':
+                      case 'loss-chasing':
+                      case 'overconfidence':
+                        return <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />
+                      case 'fomo-pattern':
+                        return <TrendingDown className="h-5 w-5 text-orange-500 mt-0.5" />
+                      case 'opportunity':
+                        return <Activity className="h-5 w-5 text-blue-500 mt-0.5" />
+                      default:
+                        return <Brain className="h-5 w-5 text-purple-500 mt-0.5" />
+                    }
+                  }
+
+                  const getBgColor = () => {
+                    switch (insight.type) {
+                      case 'strength':
+                      case 'confidence-strength':
+                        return 'bg-green-50 border-l-4 border-green-400'
+                      case 'warning':
+                      case 'loss-chasing':
+                      case 'overconfidence':
+                        return 'bg-red-50 border-l-4 border-red-400'
+                      case 'fomo-pattern':
+                        return 'bg-orange-50 border-l-4 border-orange-400'
+                      case 'opportunity':
+                        return 'bg-blue-50 border-l-4 border-blue-400'
+                      default:
+                        return 'bg-gray-50 border-l-4 border-gray-400'
+                    }
+                  }
+
+                  return (
+                    <div key={index} className={`p-4 rounded-lg ${getBgColor()}`}>
+                      <div className="flex items-start gap-3">
+                        {getInsightIcon()}
+                        <div className="flex-1">
+                          <h5 className="font-semibold mb-1">{insight.title}</h5>
+                          <p className="text-sm text-muted-foreground mb-2">{insight.message}</p>
+                          <div className="text-sm font-medium text-foreground bg-white/60 rounded p-2">
+                            💡 {insight.advice}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               ) : (
                 <div className="text-center text-muted-foreground py-8">
                   <Brain className="h-12 w-12 mx-auto opacity-50 mb-2" />

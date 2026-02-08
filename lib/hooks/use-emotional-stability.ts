@@ -6,7 +6,12 @@
 import { useState, useEffect } from "react"
 import { emotionalStabilityService } from "@/lib/services/emotional-stability-service"
 import type { UserData } from "@/lib/types"
-import type { EmotionalStabilityResult } from "@/lib/emotional-scoring"
+import {
+  type EmotionalStabilityResult,
+  shouldReceiveAIPicks as checkShouldReceiveAIPicks,
+  getScoreColor,
+  getScoreBadgeVariant
+} from "@/lib/emotional-scoring"
 
 export interface UseEmotionalStabilityReturn {
   score: number | null
@@ -76,23 +81,9 @@ export function useEmotionalStability(userData: UserData | null): UseEmotionalSt
     calculateStability()
   }, [userData])
 
-  // Calculate derived values
-  const shouldReceiveAIPicks = score !== null && score >= 50
-  
-  const getScoreColor = (score: number): string => {
-    if (score >= 85) return 'text-green-500'
-    if (score >= 70) return 'text-blue-500'
-    if (score >= 50) return 'text-yellow-500'
-    if (score >= 30) return 'text-orange-500'
-    return 'text-red-500'
-  }
-
-  const getScoreBadgeVariant = (score: number): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (score >= 50) return 'default'
-    if (score >= 30) return 'secondary'
-    return 'destructive'
-  }
-
+  // Calculate derived values using centralized utility functions from emotional-scoring.ts
+  // This ensures consistency across the entire app
+  const shouldReceiveAIPicks = score !== null && checkShouldReceiveAIPicks(score)
   const color = score !== null ? getScoreColor(score) : 'text-muted-foreground'
   const badgeVariant = score !== null ? getScoreBadgeVariant(score) : 'secondary'
 

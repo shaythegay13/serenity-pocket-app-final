@@ -3,9 +3,16 @@
  * Provides consistent emotional stability scoring across the entire application
  */
 
-import { calculateEmotionalStability, type EmotionalStabilityResult } from "@/lib/emotional-scoring"
+import {
+  calculateEmotionalStability,
+  type EmotionalStabilityResult,
+  shouldReceiveAIPicks,
+  getScoreColor,
+  getScoreBadgeVariant
+} from "@/lib/emotional-scoring"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { UserData, EmotionLog, Trade } from "@/lib/types"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 
 export interface EmotionalStabilityCache {
   score: number
@@ -19,6 +26,23 @@ export interface EmotionalStabilityCache {
 class EmotionalStabilityService {
   private cache = new Map<string, EmotionalStabilityCache>()
   private readonly CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+  constructor() {
+    // Listen for emotion logs and invalidate cache to ensure fresh scores
+    // This ensures the score updates immediately when users log new emotions
+    if (typeof window !== 'undefined') {
+      analyticsEvents.on(ANALYTICS_EVENTS.EMOTION_LOGGED, () => {
+        this.clearCache()
+        console.log('[EmotionalStability] Cache cleared due to new emotion log')
+      })
+
+      // Also clear cache when betting data changes
+      analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, () => {
+        this.clearCache()
+        console.log('[EmotionalStability] Cache cleared due to betting data update')
+      })
+    }
+  }
 
   /**
    * Get the current user's emotional stability score
@@ -79,10 +103,11 @@ class EmotionalStabilityService {
 
   /**
    * Check if user should receive AI picks based on emotional stability
+   * Uses the centralized threshold from emotional-scoring.ts (70+)
    */
-  async shouldReceiveAIPicks(userData: UserData): Promise<boolean> {
+  async checkShouldReceiveAIPicks(userData: UserData): Promise<boolean> {
     const score = await this.getScore(userData)
-    return score >= 70
+    return shouldReceiveAIPicks(score)
   }
 
   /**
@@ -131,22 +156,24 @@ class EmotionalStabilityService {
 
   /**
    * Get emotional stability data formatted for API requests
+   * Uses the centralized threshold from emotional-scoring.ts
    */
   async getForAPI(userData: UserData): Promise<{ emotionalScore: number; shouldBet: boolean; message?: string }> {
     const stability = await this.getCurrentEmotionalStability(userData)
-    const shouldBet = stability.score >= 70
+    const shouldBet = shouldReceiveAIPicks(stability.score)
 
     return {
       emotionalScore: stability.score,
       shouldBet,
-      message: shouldBet 
-        ? undefined 
+      message: shouldBet
+        ? undefined
         : `Your emotional stability score is ${stability.score}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`
     }
   }
 
   /**
    * Get emotional stability data formatted for UI display
+   * Uses centralized color and badge functions from emotional-scoring.ts
    */
   async getForUIDisplay(userData: UserData): Promise<{
     score: number
@@ -156,21 +183,6 @@ class EmotionalStabilityService {
     badgeVariant: 'default' | 'secondary' | 'destructive' | 'outline'
   }> {
     const stability = await this.getCurrentEmotionalStability(userData)
-    
-    // Import color functions to avoid circular dependencies
-    const getScoreColor = (score: number): string => {
-      if (score >= 85) return 'text-green-500'
-      if (score >= 70) return 'text-blue-500'
-      if (score >= 50) return 'text-yellow-500'
-      if (score >= 30) return 'text-orange-500'
-      return 'text-red-500'
-    }
-
-    const getScoreBadgeVariant = (score: number): 'default' | 'secondary' | 'destructive' | 'outline' => {
-      if (score >= 70) return 'default'
-      if (score >= 50) return 'secondary'
-      return 'destructive'
-    }
 
     return {
       score: stability.score,

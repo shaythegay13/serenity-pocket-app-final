@@ -166,7 +166,10 @@ export class BetTrackingService {
 
       // Metadata
       source: "bet-analyzer",
-      outcome: "pending"
+      outcome: "pending",
+
+      // Store original description as fallback for display
+      description
     }
 
     await this.saveComprehensiveBet(comprehensiveBet)
@@ -345,6 +348,7 @@ export class BetTrackingService {
 
   /**
    * Parse bet description to extract structured data
+   * Supports formats: "Team A vs Team B", "Team A v Team B", "Team A @ Team B", "Team A - Team B"
    */
   private static parseBetDescription(description: string): {
     sport?: SupportedSportKey
@@ -353,17 +357,40 @@ export class BetTrackingService {
     betType: GameBetMarketType
     selection?: "home" | "away" | "over" | "under"
     line?: number
+    rawDescription?: string
   } {
     // Default values
     const result: any = {
-      betType: "moneyline" as GameBetMarketType
+      betType: "moneyline" as GameBetMarketType,
+      rawDescription: description // Store original description as fallback
     }
 
-    // Try to extract teams from "Team A @ Team B" format
-    const teamMatch = description.match(/([A-Za-z\s]+)\s*@\s*([A-Za-z\s]+)/)
+    // Try multiple team name formats in order of specificity
+    // Format: "Team A @ Team B" (away @ home)
+    let teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s*@\s*([A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
     if (teamMatch) {
       result.awayTeam = teamMatch[1].trim()
       result.homeTeam = teamMatch[2].trim()
+    }
+
+    // Format: "Team A vs Team B" or "Team A v Team B"
+    if (!result.homeTeam) {
+      teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s+(?:vs\.?|v\.?)\s+([A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
+      if (teamMatch) {
+        // In "vs" format, first team is typically away, second is home
+        result.awayTeam = teamMatch[1].trim()
+        result.homeTeam = teamMatch[2].trim()
+      }
+    }
+
+    // Format: "Team A - Team B" (with dash separator, not to be confused with spread)
+    if (!result.homeTeam) {
+      // Only match if the dash is followed by another word (not a number for spread)
+      teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s*[-–—]\s*([A-Za-z][A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
+      if (teamMatch) {
+        result.awayTeam = teamMatch[1].trim()
+        result.homeTeam = teamMatch[2].trim()
+      }
     }
 
     // Try to extract over/under
@@ -374,28 +401,36 @@ export class BetTrackingService {
       result.line = parseFloat(ouMatch[2])
     }
 
-    // Try to extract spread
-    const spreadMatch = description.match(/([A-Za-z\s]+)\s*([+-]\d+(?:\.\d+)?)/)
-    if (spreadMatch && result.betType === "moneyline") {
-      result.betType = "spread"
-      result.line = parseFloat(spreadMatch[2])
+    // Try to extract spread (only if we have teams identified)
+    if (result.homeTeam || result.awayTeam) {
+      const spreadMatch = description.match(/([A-Za-z0-9\s]+?)\s*([+-]\d+(?:\.\d+)?)\s*(?:$|,|\()/i)
+      if (spreadMatch && result.betType === "moneyline") {
+        result.betType = "spread"
+        result.line = parseFloat(spreadMatch[2])
 
-      // Determine selection based on which team is mentioned
-      if (result.awayTeam && spreadMatch[1].trim().toLowerCase().includes(result.awayTeam.toLowerCase())) {
-        result.selection = "away"
-      } else if (result.homeTeam && spreadMatch[1].trim().toLowerCase().includes(result.homeTeam.toLowerCase())) {
-        result.selection = "home"
+        // Determine selection based on which team is mentioned
+        const teamInSpread = spreadMatch[1].trim().toLowerCase()
+        if (result.awayTeam && teamInSpread.includes(result.awayTeam.toLowerCase())) {
+          result.selection = "away"
+        } else if (result.homeTeam && teamInSpread.includes(result.homeTeam.toLowerCase())) {
+          result.selection = "home"
+        }
       }
     }
 
     // Try to detect sport from common keywords
-    if (description.toLowerCase().includes("nba") || description.toLowerCase().includes("basketball")) {
+    const lowerDesc = description.toLowerCase()
+    if (lowerDesc.includes("nba") || lowerDesc.includes("basketball") || lowerDesc.includes("lakers") ||
+        lowerDesc.includes("celtics") || lowerDesc.includes("warriors") || lowerDesc.includes("bulls")) {
       result.sport = "basketball_nba"
-    } else if (description.toLowerCase().includes("nfl") || description.toLowerCase().includes("football")) {
+    } else if (lowerDesc.includes("nfl") || lowerDesc.includes("football") || lowerDesc.includes("chiefs") ||
+               lowerDesc.includes("eagles") || lowerDesc.includes("cowboys") || lowerDesc.includes("patriots")) {
       result.sport = "americanfootball_nfl"
-    } else if (description.toLowerCase().includes("mlb") || description.toLowerCase().includes("baseball")) {
+    } else if (lowerDesc.includes("mlb") || lowerDesc.includes("baseball") || lowerDesc.includes("yankees") ||
+               lowerDesc.includes("dodgers") || lowerDesc.includes("red sox") || lowerDesc.includes("cubs")) {
       result.sport = "baseball_mlb"
-    } else if (description.toLowerCase().includes("nhl") || description.toLowerCase().includes("hockey")) {
+    } else if (lowerDesc.includes("nhl") || lowerDesc.includes("hockey") || lowerDesc.includes("bruins") ||
+               lowerDesc.includes("rangers") || lowerDesc.includes("penguins") || lowerDesc.includes("maple leafs")) {
       result.sport = "icehockey_nhl"
     }
 

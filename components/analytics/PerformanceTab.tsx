@@ -19,7 +19,7 @@ import {
   LineChart,
   Line
 } from "recharts"
-import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react"
+import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw, Users } from "lucide-react"
 import type { Trade, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
@@ -256,6 +256,73 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
     })).sort((a, b) => b.profit - a.profit)
   }, [trades])
 
+  // Team betting statistics - count bets on each team
+  const teamStats = useMemo(() => {
+    const teamMap = new Map<string, { bets: number; wins: number; losses: number; profit: number }>()
+
+    // Process comprehensive bets
+    pendingComprehensiveBets.forEach(bet => {
+      // Skip unknown teams
+      if (bet.homeTeam && bet.homeTeam !== "Unknown") {
+        if (!teamMap.has(bet.homeTeam)) {
+          teamMap.set(bet.homeTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+        }
+        teamMap.get(bet.homeTeam)!.bets++
+      }
+      if (bet.awayTeam && bet.awayTeam !== "Unknown") {
+        if (!teamMap.has(bet.awayTeam)) {
+          teamMap.set(bet.awayTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+        }
+        teamMap.get(bet.awayTeam)!.bets++
+      }
+    })
+
+    // Also process from unified bets if available
+    unifiedBets.forEach(bet => {
+      const homeTeam = (bet as any).homeTeam
+      const awayTeam = (bet as any).awayTeam
+      // Calculate profit from actualReturn - stake
+      const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
+
+      if (homeTeam && homeTeam !== "Unknown") {
+        if (!teamMap.has(homeTeam)) {
+          teamMap.set(homeTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+        }
+        const stats = teamMap.get(homeTeam)!
+        stats.bets++
+        if (bet.outcome === 'win') stats.wins++
+        if (bet.outcome === 'loss') stats.losses++
+        if (betProfit) stats.profit += betProfit
+      }
+
+      if (awayTeam && awayTeam !== "Unknown") {
+        if (!teamMap.has(awayTeam)) {
+          teamMap.set(awayTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+        }
+        const stats = teamMap.get(awayTeam)!
+        stats.bets++
+        if (bet.outcome === 'win') stats.wins++
+        if (bet.outcome === 'loss') stats.losses++
+        if (betProfit) stats.profit += betProfit
+      }
+    })
+
+    // Sort by number of bets and return top 10
+    return Array.from(teamMap.entries())
+      .map(([team, stats]) => ({
+        team,
+        bets: stats.bets,
+        wins: stats.wins,
+        losses: stats.losses,
+        profit: stats.profit,
+        winRate: stats.wins + stats.losses > 0
+          ? (stats.wins / (stats.wins + stats.losses)) * 100
+          : 0
+      }))
+      .sort((a, b) => b.bets - a.bets)
+      .slice(0, 10)
+  }, [pendingComprehensiveBets, unifiedBets])
+
   // Cumulative profit over time
   const cumulativeProfit = useMemo(() => {
     const sorted = [...trades]
@@ -310,7 +377,9 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="font-medium text-foreground">
-                      {bet.awayTeam} vs {bet.homeTeam} - {bet.betType}
+                      {bet.homeTeam === "Unknown" && bet.awayTeam === "Unknown" && bet.description
+                        ? bet.description
+                        : `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {bet.sport} • ${bet.stake.toFixed(2)} • {bet.odds > 0 ? '+' : ''}{bet.odds}
@@ -567,6 +636,93 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
         ) : (
           <div className="h-[200px] flex items-center justify-center text-muted-foreground">
             No sport data available yet
+          </div>
+        )}
+      </Card>
+
+      {/* Most Bet Teams */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h4 className="font-semibold text-foreground">Most Bet Teams</h4>
+        </div>
+        {teamStats.length > 0 ? (
+          <div className="space-y-4">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={teamStats} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.2 0.01 250)" />
+                <XAxis
+                  type="number"
+                  stroke="oklch(0.55 0.01 250)"
+                  tick={{ fill: 'oklch(0.55 0.01 250)' }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="team"
+                  stroke="oklch(0.55 0.01 250)"
+                  tick={{ fill: 'oklch(0.55 0.01 250)', fontSize: 12 }}
+                  width={100}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'oklch(0.16 0.01 250)',
+                    border: '1px solid oklch(0.18 0.01 250)',
+                    borderRadius: '0.5rem',
+                    color: 'oklch(0.98 0 0)'
+                  }}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'bets') return [value, 'Total Bets']
+                    if (name === 'wins') return [value, 'Wins']
+                    if (name === 'losses') return [value, 'Losses']
+                    return [value, name]
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="bets" fill="oklch(0.65 0.25 260)" name="Total Bets" />
+              </BarChart>
+            </ResponsiveContainer>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamStats.slice(0, 6).map(team => (
+                <Card key={team.team} className="p-4">
+                  <div className="space-y-2">
+                    <h5 className="font-semibold text-foreground truncate" title={team.team}>
+                      {team.team}
+                    </h5>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Bets:</span>
+                        <Badge variant="outline">{team.bets}</Badge>
+                      </div>
+                      {(team.wins > 0 || team.losses > 0) && (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Win Rate:</span>
+                            <Badge variant={team.winRate >= 55 ? "default" : "secondary"}>
+                              {team.winRate.toFixed(1)}%
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Record:</span>
+                            <span className="text-foreground">{team.wins}-{team.losses}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Profit:</span>
+                            <span className={team.profit >= 0 ? "text-success" : "text-destructive"}>
+                              ${team.profit.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+            No team data available yet. Log bets with team names to see statistics.
           </div>
         )}
       </Card>

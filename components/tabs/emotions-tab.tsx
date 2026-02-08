@@ -763,7 +763,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 <div key={bet.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-card border border-border">
                   <div className="flex-1 pointer-events-none">
                     <p className="text-sm font-medium text-foreground">
-                      {bet.awayTeam} vs {bet.homeTeam}
+                      {bet.homeTeam === "Unknown" && bet.awayTeam === "Unknown" && bet.description
+                        ? bet.description
+                        : `${bet.awayTeam} vs ${bet.homeTeam}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
@@ -783,7 +785,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       setBetDataMode("select")
                       setStake(bet.stake.toString())
                       setOdds(bet.odds.toString())
-                      setGameDescription(`${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+                      setGameDescription(bet.description || `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
                       setTimeout(() => {
                         setPhase("after")
                         emotionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })

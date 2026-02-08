@@ -62,6 +62,9 @@ export interface ComprehensiveBet {
   source: "tiltlab" | "bet-analyzer" | "manual"
   sportsbook?: string
   completedAt?: Date
+
+  // Original description (fallback when team parsing fails)
+  description?: string
 }
 
 export interface BetPerformanceMetrics {

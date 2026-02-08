@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { Home, Activity, Sparkles, BarChart3 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 const navItems = [
   { tab: "home", label: "Home", icon: Home, href: "/home" },
@@ -20,7 +20,8 @@ interface NavigationProps {
 
 export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationProps) {
   const pathname = usePathname()
-  
+  const router = useRouter()
+
   // Determine active tab based on current pathname
   const getActiveTab = () => {
     if (pathname === "/home") return "home"
@@ -37,13 +38,13 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
     if (isHomePage && onNavigateToTab) {
       // Use direct navigation for betlab, internal navigation for other tabs
       if (tab === 'ai-picks') {
-        window.location.href = '/betlab'
+        router.push('/betlab')
       } else {
         onNavigateToTab(tab)
       }
     } else {
       // Use regular navigation for other pages
-      window.location.href = href
+      router.push(href)
     }
   }
 

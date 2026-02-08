@@ -97,7 +97,6 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       updateUserData
 
     await storage.addEmotionLog({
-      // eslint-disable-next-line react-hooks/purity
       id: Date.now().toString(),
       timestamp: new Date(),
       emotion: selectedEmotion,
@@ -556,8 +555,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                       <button
                         onClick={() => handleModeChange("manual")}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "manual"
-                            ? "bg-white text-gray-900 shadow-sm"
-                            : "text-gray-600 hover:text-gray-900"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-600 hover:text-gray-900"
                           }`}
                       >
                         Manual Entry
@@ -565,8 +564,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                       <button
                         onClick={() => handleModeChange("select")}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "select"
-                            ? "bg-white text-gray-900 shadow-sm"
-                            : "text-gray-600 hover:text-gray-900"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-600 hover:text-gray-900"
                           }`}
                       >
                         Select Saved Bet
@@ -633,14 +632,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           role="switch"
                           aria-checked={isLiveBet}
                           onClick={() => setIsLiveBet(!isLiveBet)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            isLiveBet ? "bg-orange-500" : "bg-gray-300"
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isLiveBet ? "bg-orange-500" : "bg-gray-300"
+                            }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              isLiveBet ? "translate-x-6" : "translate-x-1"
-                            }`}
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isLiveBet ? "translate-x-6" : "translate-x-1"
+                              }`}
                           />
                         </button>
                       </div>
@@ -669,8 +666,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                                 key={bet.id}
                                 onClick={() => handleBetSelect(bet)}
                                 className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedBet?.id === bet.id
-                                    ? "border-primary bg-primary/10"
-                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                  ? "border-primary bg-primary/10"
+                                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                                   }`}
                               >
                                 <div className="flex justify-between items-start">

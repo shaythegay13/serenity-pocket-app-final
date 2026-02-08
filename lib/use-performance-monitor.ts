@@ -12,14 +12,20 @@ interface PerformanceMetrics {
 export function usePerformanceMonitor(componentName: string) {
   const metricsRef = useRef<PerformanceMetrics>({
     componentName,
-    startTime: performance.now()
+    startTime: 0
   })
+
+  useEffect(() => {
+    if (metricsRef.current.startTime === 0) {
+      metricsRef.current.startTime = performance.now()
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
       const endTime = performance.now()
       const duration = endTime - metricsRef.current.startTime
-      
+
       console.log(`⏱️ ${componentName} performance:`, {
         duration: `${duration.toFixed(2)}ms`,
         timestamp: new Date().toISOString()

@@ -15,8 +15,9 @@ function SurveyLinkContent() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setIsAuthenticated(!!user);
+      // Use getSession() for faster initial load (reads from localStorage first)
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session?.user);
       setIsLoading(false);
     };
 

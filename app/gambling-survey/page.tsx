@@ -11,9 +11,11 @@ export default function GamblingSurveyPage() {
   
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
+      // Use getSession() instead of getUser() for faster initial load
+      // getSession() reads from localStorage first, while getUser() always makes a network request
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
         // User is authenticated, show the retake survey
         setIsAuthenticated(true);
       } else {
@@ -21,7 +23,7 @@ export default function GamblingSurveyPage() {
         router.push('/');
       }
     };
-    
+
     checkAuth();
   }, [router]);
 

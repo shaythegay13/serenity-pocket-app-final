@@ -11,9 +11,10 @@ export default function CompleteSurveyPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use getSession() for faster initial load (reads from localStorage first)
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (user) {
+      if (session?.user) {
         // User is authenticated, show the remaining questions
         setIsAuthenticated(true);
       } else {

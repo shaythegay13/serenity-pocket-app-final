@@ -11,14 +11,16 @@ export default function DashboardPage() {
   useEffect(() => {
     const checkAndLinkPendingSurvey = async () => {
       try {
-        // Check if user is authenticated
-        const { data: { user } } = await supabase.auth.getUser();
+        // Use getSession() for faster initial load (reads from localStorage first)
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (!user) {
+        if (!session?.user) {
           // Not authenticated, redirect to home
           router.push('/');
           return;
         }
+
+        const user = session.user;
 
         // Check for pending survey link in localStorage
         const pendingSurveyData = localStorage.getItem('pending_survey_link');

@@ -74,9 +74,11 @@ export default function PGSISurveyPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use getSession() instead of getUser() for faster initial load
+      // getSession() reads from localStorage first, while getUser() always makes a network request
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (user) {
+      if (session?.user) {
         setIsAuthenticated(true);
       } else {
         // Redirect to home if not authenticated

@@ -40,7 +40,7 @@ const sizeClasses = {
 // SVG caricature for The Analyst - glasses, analytical expression
 function AnalystAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#1E3A5F"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#2563EB"/>
@@ -65,7 +65,7 @@ function AnalystAvatar() {
 // SVG caricature for The Emotional Bettor - expressive, heart-driven
 function EmotionalBettorAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#7C3AED"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#A855F7"/>
@@ -91,7 +91,7 @@ function EmotionalBettorAvatar() {
 // SVG caricature for The Thrill Seeker - excited, lightning energy
 function ThrillSeekerAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#DC2626"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#F59E0B"/>
@@ -118,7 +118,7 @@ function ThrillSeekerAvatar() {
 // SVG caricature for The Social Bettor - friendly, multiple people vibe
 function SocialBettorAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#0EA5E9"/>
       {/* Main person */}
       <circle cx="32" cy="26" r="14" fill="#FFD7BA"/>
@@ -145,7 +145,7 @@ function SocialBettorAvatar() {
 // SVG caricature for The Escape Artist - dreamy, floating away
 function EscapeArtistAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#6366F1"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#818CF8"/>
@@ -172,7 +172,7 @@ function EscapeArtistAvatar() {
 // SVG caricature for The Risk Controller - protective, shield-like
 function RiskControllerAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#059669"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#10B981"/>
@@ -200,7 +200,7 @@ function RiskControllerAvatar() {
 // SVG caricature for The Big Spender - confident, flashy
 function BigSpenderAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#B45309"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       <ellipse cx="32" cy="42" rx="14" ry="10" fill="#D97706"/>
@@ -231,7 +231,7 @@ function BigSpenderAvatar() {
 // SVG caricature for The Superfan - jersey, team spirit
 function SuperfanAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#7C2D12"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       {/* Jersey */}
@@ -259,7 +259,7 @@ function SuperfanAvatar() {
 // SVG caricature for The Aspiring Pro - professional, suit
 function AspiringProAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#1F2937"/>
       <circle cx="32" cy="26" r="14" fill="#FFD7BA"/>
       {/* Professional suit */}
@@ -287,7 +287,7 @@ function AspiringProAvatar() {
 // SVG caricature for The Casual Dabbler - relaxed, casual
 function CasualDabblerAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#64748B"/>
       <circle cx="32" cy="28" r="16" fill="#FFD7BA"/>
       {/* Casual t-shirt */}
@@ -313,7 +313,7 @@ function CasualDabblerAvatar() {
 // Default avatar when no archetype is set
 function DefaultAvatar() {
   return (
-    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <circle cx="32" cy="32" r="30" fill="#6B7280"/>
       <circle cx="32" cy="26" r="14" fill="#FFD7BA"/>
       <ellipse cx="32" cy="44" rx="14" ry="12" fill="#9CA3AF"/>
@@ -347,13 +347,15 @@ export function ArchetypeAvatar({ archetype, size = "md", className }: Archetype
   return (
     <div
       className={cn(
-        "rounded-full overflow-hidden flex items-center justify-center",
+        "rounded-full overflow-hidden flex items-center justify-center archetype-avatar",
         sizeClasses[size],
         className
       )}
       title={archetype || "Take the survey to discover your archetype"}
     >
-      <AvatarComponent />
+      <div className="archetype-icon w-full h-full">
+        <AvatarComponent />
+      </div>
     </div>
   )
 }

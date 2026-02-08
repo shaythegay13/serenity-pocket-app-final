@@ -99,6 +99,15 @@ export class BetTrackingService {
 
   /**
    * Save a comprehensive bet from Bet Analyzer
+   * @param description Game description
+   * @param odds Bet odds
+   * @param stake Bet stake amount
+   * @param analysis AI analysis object
+   * @param emotionalState User's emotional state
+   * @param emotionalIntensity Emotional intensity (1-10)
+   * @param isLiveBet Whether this is a live bet
+   * @param overrideTeams Optional pre-parsed and normalized team names
+   * @param overrideSelection Optional user-selected team side (home/away)
    */
   static async saveBetAnalyzerBet(
     description: string,
@@ -107,27 +116,34 @@ export class BetTrackingService {
     analysis: any,
     emotionalState?: string,
     emotionalIntensity?: number,
-    isLiveBet?: boolean
+    isLiveBet?: boolean,
+    overrideTeams?: { awayTeam: string; homeTeam: string },
+    overrideSelection?: "home" | "away"
   ): Promise<ComprehensiveBet> {
     const betId = typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
     // Extract sport and teams from description
-    const { sport, homeTeam, awayTeam, betType, selection, line } = this.parseBetDescription(description)
+    const parsed = this.parseBetDescription(description)
+
+    // Use override values if provided, otherwise use parsed values
+    const finalHomeTeam = overrideTeams?.homeTeam || parsed.homeTeam || "Unknown"
+    const finalAwayTeam = overrideTeams?.awayTeam || parsed.awayTeam || "Unknown"
+    const finalSelection = overrideSelection || parsed.selection || "away"
 
     const comprehensiveBet: ComprehensiveBet = {
       id: betId,
       timestamp: new Date(),
 
       // Core bet details
-      sport: sport || "americanfootball_nfl",
-      homeTeam: homeTeam || "Unknown",
-      awayTeam: awayTeam || "Unknown",
+      sport: parsed.sport || "americanfootball_nfl",
+      homeTeam: finalHomeTeam,
+      awayTeam: finalAwayTeam,
       gameDate: new Date(), // For bet analyzer, we don't have game date info
-      betType,
-      selection: selection || "away",
-      line,
+      betType: parsed.betType,
+      selection: finalSelection,
+      line: parsed.line,
       odds,
       stake,
 

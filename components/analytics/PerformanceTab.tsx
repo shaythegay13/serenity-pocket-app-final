@@ -29,6 +29,7 @@ import type { UnifiedBet } from "./types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
+import { normalizeTeamName } from "@/lib/team-normalization"
 
 interface PerformanceTabProps {
   trades: Trade[]
@@ -316,6 +317,22 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     const teamMap = new Map<string, { bets: number; wins: number; losses: number; pushes: number; profit: number }>()
     const processedIds = new Set<string>()
 
+    // Helper to add stats to normalized team name
+    const addTeamStats = (teamName: string, sport: string | undefined, betsToAdd: number, wins: number, losses: number, pushes: number, profit: number) => {
+      // Normalize team name to canonical form
+      const normalizedTeam = normalizeTeamName(teamName, sport)
+
+      if (!teamMap.has(normalizedTeam)) {
+        teamMap.set(normalizedTeam, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
+      }
+      const stats = teamMap.get(normalizedTeam)!
+      stats.bets += betsToAdd
+      stats.wins += wins
+      stats.losses += losses
+      stats.pushes += pushes
+      stats.profit += profit
+    }
+
     // Helper function to process a bet - only attribute to the team that was actually bet on
     const processBetTeams = (bet: ComprehensiveBet) => {
       if (processedIds.has(bet.id)) return
@@ -338,30 +355,30 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         // But only count as 0.5 bets each to avoid inflating numbers
         const teams = [bet.homeTeam, bet.awayTeam].filter(t => t && t !== "Unknown")
         teams.forEach(team => {
-          if (!teamMap.has(team)) {
-            teamMap.set(team, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
-          }
-          const stats = teamMap.get(team)!
-          stats.bets += 0.5
-          if (isWin) stats.wins += 0.5
-          if (isLoss) stats.losses += 0.5
-          if (isPush) stats.pushes += 0.5
-          stats.profit += betProfit / 2
+          addTeamStats(
+            team,
+            bet.sport,
+            0.5,
+            isWin ? 0.5 : 0,
+            isLoss ? 0.5 : 0,
+            isPush ? 0.5 : 0,
+            betProfit / 2
+          )
         })
         return // Already processed
       }
 
       // For moneyline/spread bets on a specific team
       if (selectedTeam) {
-        if (!teamMap.has(selectedTeam)) {
-          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
-        }
-        const stats = teamMap.get(selectedTeam)!
-        stats.bets++
-        if (isWin) stats.wins++
-        if (isLoss) stats.losses++
-        if (isPush) stats.pushes++
-        stats.profit += betProfit
+        addTeamStats(
+          selectedTeam,
+          bet.sport,
+          1,
+          isWin ? 1 : 0,
+          isLoss ? 1 : 0,
+          isPush ? 1 : 0,
+          betProfit
+        )
       }
     }
 
@@ -379,6 +396,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const selection = (bet as any).selection
       const homeTeam = (bet as any).homeTeam
       const awayTeam = (bet as any).awayTeam
+      const sport = (bet as any).sport
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
@@ -392,15 +410,15 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       }
 
       if (selectedTeam) {
-        if (!teamMap.has(selectedTeam)) {
-          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
-        }
-        const stats = teamMap.get(selectedTeam)!
-        stats.bets++
-        if (isWin) stats.wins++
-        if (isLoss) stats.losses++
-        if (isPush) stats.pushes++
-        stats.profit += betProfit
+        addTeamStats(
+          selectedTeam,
+          sport,
+          1,
+          isWin ? 1 : 0,
+          isLoss ? 1 : 0,
+          isPush ? 1 : 0,
+          betProfit
+        )
       }
     })
 

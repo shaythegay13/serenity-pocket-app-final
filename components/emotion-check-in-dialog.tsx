@@ -9,6 +9,7 @@ import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
+import { extractAndNormalizeTeams, normalizeTeamName } from "@/lib/team-normalization"
 import { ArrowLeft, ChevronDown } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
@@ -91,6 +92,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   // Live betting tracking - important risk factor
   const [isLiveBet, setIsLiveBet] = useState(false)
 
+  // Team selection state - which team is the user betting on
+  const [parsedTeams, setParsedTeams] = useState<{ awayTeam: string; homeTeam: string }>({ awayTeam: "", homeTeam: "" })
+  const [selectedTeamSide, setSelectedTeamSide] = useState<"home" | "away" | "">("")
+
   // Handle pre-selected bet when dialog opens (for settling bets from analytics)
   useEffect(() => {
     if (open && preSelectedBet) {
@@ -111,8 +116,30 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       if (preSelectedOutcome) {
         setOutcome(preSelectedOutcome)
       }
+
+      // Pre-set teams if available
+      if (preSelectedBet.awayTeam && preSelectedBet.homeTeam) {
+        setParsedTeams({
+          awayTeam: normalizeTeamName(preSelectedBet.awayTeam),
+          homeTeam: normalizeTeamName(preSelectedBet.homeTeam)
+        })
+        // Pre-select the team side if available
+        if (preSelectedBet.selection === "home" || preSelectedBet.selection === "away") {
+          setSelectedTeamSide(preSelectedBet.selection)
+        }
+      }
     }
   }, [open, preSelectedBet, preSelectedOutcome])
+
+  // Parse game description to extract teams
+  useEffect(() => {
+    if (gameDescription && gameDescription.length > 3) {
+      const { awayTeam, homeTeam } = extractAndNormalizeTeams(gameDescription)
+      if (awayTeam !== "Unknown" || homeTeam !== "Unknown") {
+        setParsedTeams({ awayTeam, homeTeam })
+      }
+    }
+  }, [gameDescription])
 
   const handleSubmit = async () => {
     if (!selectedEmotion) return
@@ -192,6 +219,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
           else if (phase !== "after") {
             // Use BetTrackingService to create a properly formatted bet
             // We use the current emotion as the 'before' emotion
+            // Pass parsed teams and selection if available
+            const teamsOverride = (parsedTeams.awayTeam && parsedTeams.homeTeam &&
+              parsedTeams.awayTeam !== "Unknown" && parsedTeams.homeTeam !== "Unknown")
+              ? { awayTeam: parsedTeams.awayTeam, homeTeam: parsedTeams.homeTeam }
+              : undefined
+
             await BetTrackingService.saveBetAnalyzerBet(
               gameDescription,
               oddsNumber,
@@ -203,7 +236,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               },
               selectedEmotion,
               intensity[0],
-              isLiveBet // Pass live bet flag for risk tracking
+              isLiveBet, // Pass live bet flag for risk tracking
+              teamsOverride,
+              selectedTeamSide || undefined
             )
           }
         }
@@ -297,6 +332,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     setLoadingBets(false)
     // Reset live bet tracking
     setIsLiveBet(false)
+    // Reset team selection
+    setParsedTeams({ awayTeam: "", homeTeam: "" })
+    setSelectedTeamSide("")
   }
 
   const loadSavedBets = async () => {
@@ -646,6 +684,45 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
+
+                      {/* Team Selection - Which team are you betting on? */}
+                      {(parsedTeams.awayTeam !== "" && parsedTeams.awayTeam !== "Unknown") ||
+                       (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
+                        <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <Label className="text-sm font-medium">Which team are you betting on?</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {parsedTeams.awayTeam && parsedTeams.awayTeam !== "Unknown" && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTeamSide("away")}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                  selectedTeamSide === "away"
+                                    ? "border-blue-500 bg-blue-100 text-blue-700"
+                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                {parsedTeams.awayTeam}
+                              </button>
+                            )}
+                            {parsedTeams.homeTeam && parsedTeams.homeTeam !== "Unknown" && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTeamSide("home")}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                  selectedTeamSide === "home"
+                                    ? "border-blue-500 bg-blue-100 text-blue-700"
+                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                {parsedTeams.homeTeam}
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Select the team you're placing your bet on
+                          </p>
+                        </div>
+                      ) : null}
 
                       {/* Live Bet Toggle - Important for risk assessment */}
                       <div className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">

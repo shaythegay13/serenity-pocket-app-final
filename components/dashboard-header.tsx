@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Moon, Sun, User, ClipboardList } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
 import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
+import { ArchetypeAvatar } from "@/components/archetype-avatar"
 
 interface DashboardHeaderProps {
   userData?: UserData
@@ -27,15 +28,6 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  const initials = useMemo(() => {
-    const name = (userData?.name || "").trim()
-    if (!name) return "U"
-    const parts = name.split(/\s+/).filter(Boolean)
-    const a = parts[0]?.[0] || "U"
-    const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : ""
-    return (a + b).toUpperCase()
-  }, [userData?.name])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -129,32 +121,24 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 priority
               />
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-              PlayMind Labs
-            </h1>
           </div>
 
           <div className="relative" ref={menuRef}>
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="rounded-full p-0 h-10 w-10"
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               type="button"
             >
-              <span
-                className={cn(
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
-                  "bg-muted text-foreground",
-                )}
-              >
-                <span className="text-xs font-semibold" aria-hidden="true">
-                  {initials}
-                </span>
-                <span className="sr-only">Open user menu</span>
-              </span>
+              <ArchetypeAvatar
+                archetype={userData?.surveyData?.userType}
+                size="md"
+                className="ring-2 ring-border hover:ring-primary transition-all"
+              />
+              <span className="sr-only">Open user menu</span>
             </Button>
 
             {menuOpen && (

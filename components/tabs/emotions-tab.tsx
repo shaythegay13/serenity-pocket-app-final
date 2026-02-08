@@ -251,6 +251,26 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     }
   }, [refreshKey])
 
+  // Listen for betting data updates from TiltLab/SmartSlip to refresh pending bets in real-time
+  useEffect(() => {
+    const refreshPendingBets = async () => {
+      try {
+        const comprehensiveBetsData = await storage.getComprehensiveBets().catch(() => [])
+        const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
+        const pendingBets = safeComprehensiveBets.filter(bet => bet.outcome === "pending")
+        setPendingComprehensiveBets(pendingBets)
+      } catch (error) {
+        console.error("Error refreshing pending bets:", error)
+      }
+    }
+
+    analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, refreshPendingBets)
+
+    return () => {
+      analyticsEvents.off(ANALYTICS_EVENTS.BETTING_DATA_SAVED, refreshPendingBets)
+    }
+  }, [])
+
   const handleCoreSelect = (emotion: typeof coreEmotions[0]) => {
     setSelectedCore(emotion)
     setStep("sub")

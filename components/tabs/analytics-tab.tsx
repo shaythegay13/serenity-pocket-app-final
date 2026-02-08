@@ -43,15 +43,19 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>("performance")
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Simple refresh function for PerformanceTab
+  // Comprehensive refresh function for all analytics data
   const refreshData = useCallback(async () => {
     if (!hasAccess) return
 
     try {
       setIsRefreshing(true)
-      console.log('🔄 Refreshing analytics data...')
+      console.log('🔄 Refreshing all analytics data...')
 
-      const [betAnalysesResult, comprehensiveBetsResult] = await Promise.allSettled([
+      const [emotionLogsResult, betAnalysesResult, comprehensiveBetsResult] = await Promise.allSettled([
+        storage.getEmotionLogs().catch(err => {
+          console.error('Error loading emotion logs:', err)
+          return [] as EmotionLog[]
+        }),
         storage.getBetAnalyses().catch(err => {
           console.error('Error loading bet analyses:', err)
           return [] as BetAnalysis[]
@@ -62,6 +66,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         })
       ])
 
+      const emotionLogs = emotionLogsResult.status === 'fulfilled' ? emotionLogsResult.value : []
       const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value.slice(0, 50) : []
       const comprehensiveBets = comprehensiveBetsResult.status === 'fulfilled' ? comprehensiveBetsResult.value.slice(0, 50) : []
 
@@ -113,16 +118,17 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 100)
 
+      setLogs(emotionLogs)
       setTrades(performanceTrades)
       setComprehensiveBets(comprehensiveBets)
-      markDataLoaded(logs.length + performanceTrades.length)
+      markDataLoaded(emotionLogs.length + performanceTrades.length)
 
     } catch (error) {
       console.error('Error refreshing data:', error)
     } finally {
       setIsRefreshing(false)
     }
-  }, [hasAccess, logs.length, markDataLoaded])
+  }, [hasAccess, markDataLoaded])
 
   // Read subtab from URL query parameter (only once)
   useEffect(() => {
@@ -240,13 +246,15 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     return () => { cancelled = true }
   }, [hasAccess, markDataLoaded, markError])
 
-  // Listen for betting data updates
+  // Listen for betting data and emotion logging updates
   useEffect(() => {
     if (!hasAccess) return
-    const handleBettingDataSaved = () => refreshData()
-    analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleBettingDataSaved)
+    const handleDataUpdate = () => refreshData()
+    analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleDataUpdate)
+    analyticsEvents.on(ANALYTICS_EVENTS.EMOTION_LOGGED, handleDataUpdate)
     return () => {
-      analyticsEvents.off(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleBettingDataSaved)
+      analyticsEvents.off(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleDataUpdate)
+      analyticsEvents.off(ANALYTICS_EVENTS.EMOTION_LOGGED, handleDataUpdate)
     }
   }, [hasAccess, refreshData])
 

@@ -22,6 +22,7 @@ import {
 import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react"
 import type { Trade, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import { KPICardsGrid } from "./KPICards"
 import { calculateBettingMetrics } from "./utils/calculations"
 import type { UnifiedBet } from "./types"
@@ -144,8 +145,13 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
 
       toast.success(`Bet marked as ${outcome}!`)
 
-      // Don't refresh immediately - let the user settle multiple bets if they want
-      // The data will be refreshed when they navigate away and back, or they can manually refresh
+      // Emit event to refresh analytics data
+      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+
+      // Also trigger parent refresh if available
+      if (onRefreshData) {
+        onRefreshData()
+      }
     } catch (error) {
       console.error('Error updating bet outcome:', error)
       toast.error('Failed to update bet outcome')
@@ -184,6 +190,14 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
       setPendingComprehensiveBets(prev => prev.filter(b => b.id !== betId))
 
       toast.success(`Bet marked as ${outcome}!`)
+
+      // Emit event to refresh analytics data
+      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+
+      // Also trigger parent refresh if available
+      if (onRefreshData) {
+        onRefreshData()
+      }
     } catch (error) {
       console.error('Error updating comprehensive bet outcome:', error)
       toast.error('Failed to update bet outcome')

@@ -96,7 +96,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       userData?.pendingEmotionTradeId &&
       updateUserData
 
-    await storage.addEmotionLog({
+    const newLog = {
       id: Date.now().toString(),
       timestamp: new Date(),
       emotion: selectedEmotion,
@@ -104,7 +104,11 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       context,
       phase: phase,
       tradeId: isCompletingPendingTrack ? userData.pendingEmotionTradeId : undefined
-    })
+    }
+    await storage.addEmotionLog(newLog)
+
+    // Emit event to update analytics
+    analyticsEvents.emit(ANALYTICS_EVENTS.EMOTION_LOGGED, newLog)
 
     // Handle betting data (creation or update)
     if ((betAmount && betOdds && gameDescription) || selectedBet) {

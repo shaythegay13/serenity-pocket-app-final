@@ -127,7 +127,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full p-0 h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16"
+              className="rounded-full p-0 h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 lg:h-24 lg:w-24"
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}

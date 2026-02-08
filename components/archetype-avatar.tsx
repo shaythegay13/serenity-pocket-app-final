@@ -33,8 +33,8 @@ const sizeClasses = {
   md: "h-10 w-10",
   lg: "h-16 w-16",
   xl: "h-20 w-20",
-  // Responsive: scales from mobile (40px) -> tablet (48px) -> desktop (56px) -> large desktop (64px)
-  responsive: "h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16"
+  // Responsive: scales from mobile (48px) -> tablet (64px) -> desktop (80px) -> large desktop (96px)
+  responsive: "h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 lg:h-24 lg:w-24"
 }
 
 // SVG caricature for The Analyst - glasses, analytical expression

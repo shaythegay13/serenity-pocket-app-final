@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Star, Users, Zap, Crown, Sparkles } from "lucide-react"
+import { Check, Star, Users, Zap, Crown, Sparkles, ArrowLeft } from "lucide-react"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -283,10 +283,10 @@ export default function PricingPage() {
                 </Badge>
               </div>
               <h2 className="text-2xl font-semibold text-foreground mb-4">
-                Try Serenity Pocket Risk-Free
+                Try PlayMind Labs Risk-Free
               </h2>
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                We're confident you'll love Serenity Pocket. If you're not completely satisfied within the first 7 days,
+                We're confident you'll love PlayMind Labs. If you're not completely satisfied within the first 7 days,
                 we'll give you a full refund—no questions asked.
               </p>
               <Button size="lg" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
@@ -318,6 +318,17 @@ export default function PricingPage() {
   // Show basic layout for non-authenticated users
   return (
     <div className="min-h-screen bg-background">
+      {/* Back to Main Page header */}
+      <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-3">
+          <Link href="/">
+            <Button variant="ghost" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Main Page
+            </Button>
+          </Link>
+        </div>
+      </div>
       {pricingContent}
     </div>
   )

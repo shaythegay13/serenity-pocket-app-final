@@ -699,17 +699,17 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                     switch (insight.type) {
                       case 'strength':
                       case 'confidence-strength':
-                        return 'bg-green-50 border-l-4 border-green-400'
+                        return 'bg-green-50 dark:bg-green-950/50 border-l-4 border-green-400 dark:border-green-600'
                       case 'warning':
                       case 'loss-chasing':
                       case 'overconfidence':
-                        return 'bg-red-50 border-l-4 border-red-400'
+                        return 'bg-red-50 dark:bg-red-950/50 border-l-4 border-red-400 dark:border-red-600'
                       case 'fomo-pattern':
-                        return 'bg-orange-50 border-l-4 border-orange-400'
+                        return 'bg-orange-50 dark:bg-orange-950/50 border-l-4 border-orange-400 dark:border-orange-600'
                       case 'opportunity':
-                        return 'bg-blue-50 border-l-4 border-blue-400'
+                        return 'bg-blue-50 dark:bg-blue-950/50 border-l-4 border-blue-400 dark:border-blue-600'
                       default:
-                        return 'bg-gray-50 border-l-4 border-gray-400'
+                        return 'bg-gray-50 dark:bg-gray-800/50 border-l-4 border-gray-400 dark:border-gray-600'
                     }
                   }
 
@@ -720,7 +720,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                         <div className="flex-1">
                           <h5 className="font-semibold mb-1">{insight.title}</h5>
                           <p className="text-sm text-muted-foreground mb-2">{insight.message}</p>
-                          <div className="text-sm font-medium text-foreground bg-white/60 rounded p-2">
+                          <div className="text-sm font-medium text-foreground bg-white/60 dark:bg-white/10 rounded p-2">
                             💡 {insight.advice}
                           </div>
                         </div>

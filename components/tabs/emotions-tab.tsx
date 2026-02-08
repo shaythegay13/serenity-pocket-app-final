@@ -185,6 +185,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   const [gameDescription, setGameDescription] = useState<string>("")
   const [actualReturn, setActualReturn] = useState<string>("")
 
+  // Pending comprehensive bets for the pending alert section
+  const [pendingComprehensiveBets, setPendingComprehensiveBets] = useState<ComprehensiveBet[]>([])
+
   // Live betting tracking - important risk factor
   const [isLiveBet, setIsLiveBet] = useState(false)
 
@@ -202,13 +205,17 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       lastRefreshRef.current = refreshKey
 
       try {
-        const [emotionLogsData, tradesData] = await Promise.all([
+        const [emotionLogsData, tradesData, comprehensiveBetsData] = await Promise.all([
           storage.getEmotionLogs().catch(error => {
             console.error("Error loading emotion logs:", error)
             return []
           }),
           storage.getTrades().catch(error => {
             console.error("Error loading trades:", error)
+            return []
+          }),
+          storage.getComprehensiveBets().catch(error => {
+            console.error("Error loading comprehensive bets:", error)
             return []
           })
         ])
@@ -217,15 +224,21 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
         const safeLogs = Array.isArray(emotionLogsData) ? emotionLogsData : []
         const safeTrades = Array.isArray(tradesData) ? tradesData : []
+        const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
+
+        // Filter for pending comprehensive bets (outcome === "pending")
+        const pendingBets = safeComprehensiveBets.filter(bet => bet.outcome === "pending")
 
         setLogs(safeLogs)
         setTrades(safeTrades)
+        setPendingComprehensiveBets(pendingBets)
         setBehaviorStats(computeBehaviorStats(safeLogs, safeTrades))
       } catch (error) {
         console.error("Error loading behavior tab data:", error)
         if (!cancelled) {
           setLogs([])
           setTrades([])
+          setPendingComprehensiveBets([])
           setBehaviorStats(null)
         }
       }
@@ -706,7 +719,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         </Card>
 
         {/* Pending Trades Alert */}
-        {trades.filter(t => !t.outcome).length > 0 && (
+        {(trades.filter(t => !t.outcome).length > 0 || pendingComprehensiveBets.length > 0) && (
           <Card className="p-6 bg-linear-to-br from-amber/10 to-orange/10 border-amber/30">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -721,11 +734,48 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                 </div>
               </div>
               <Badge variant="outline" className="bg-amber/10">
-                {trades.filter(t => !t.outcome).length} pending
+                {trades.filter(t => !t.outcome).length + pendingComprehensiveBets.length} pending
               </Badge>
             </div>
             <div className="space-y-2">
-              {trades.filter(t => !t.outcome).slice(0, 3).map((trade) => (
+              {/* Show pending comprehensive bets first */}
+              {pendingComprehensiveBets.slice(0, 3).map((bet) => (
+                <div key={bet.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-card border border-border">
+                  <div className="flex-1 pointer-events-none">
+                    <p className="text-sm font-medium text-foreground">
+                      {bet.awayTeam} vs {bet.homeTeam}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(bet.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation()
+                      handleReset()
+                      // Pre-select this bet for the after check-in
+                      setSelectedBet(bet)
+                      setBetDataMode("select")
+                      setStake(bet.stake.toString())
+                      setOdds(bet.odds.toString())
+                      setGameDescription(`${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+                      setTimeout(() => {
+                        setPhase("after")
+                        emotionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }, 100)
+                    }}
+                  >
+                    Complete (+20 XP)
+                  </Button>
+                </div>
+              ))}
+              {/* Show legacy pending trades if any */}
+              {trades.filter(t => !t.outcome).slice(0, Math.max(0, 3 - pendingComprehensiveBets.length)).map((trade) => (
                 <div key={trade.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-card border border-border">
                   <div className="flex-1 pointer-events-none">
                     <p className="text-sm font-medium text-foreground">{trade.preTradeEmotion}</p>

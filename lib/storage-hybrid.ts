@@ -42,6 +42,7 @@ export const storageHybrid: {
   getComprehensiveBets(): Promise<ComprehensiveBet[]>
   addComprehensiveBet(bet: ComprehensiveBet): Promise<void>
   updateComprehensiveBet(updated: ComprehensiveBet): Promise<void>
+  saveComprehensiveBets(bets: ComprehensiveBet[]): Promise<void>
 
   // Trade Operations
   getTrades(): Promise<Trade[]>
@@ -1730,6 +1731,63 @@ export const storageHybrid: {
       } catch (e) {
         console.error("Error updating local comprehensive bet", e)
       }
+    }
+  },
+
+  async saveComprehensiveBets(bets: ComprehensiveBet[]): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        // For each bet, upsert to database
+        for (const bet of bets) {
+          const { error } = await supabase
+            .from("comprehensive_bets")
+            .upsert({
+              id: bet.id,
+              user_id: userId,
+              timestamp: bet.timestamp.toISOString(),
+              sport: bet.sport,
+              league: bet.league,
+              home_team: bet.homeTeam,
+              away_team: bet.awayTeam,
+              game_date: bet.gameDate.toISOString(),
+              bet_type: bet.betType,
+              selection: bet.selection,
+              line: bet.line,
+              odds: bet.odds,
+              stake: bet.stake,
+              emotions: bet.emotions,
+              biases_identified: bet.biasesIdentified,
+              confidence_level: bet.confidenceLevel,
+              reasoning: bet.reasoning,
+              is_live_bet: bet.isLiveBet,
+              is_chasing_loss: bet.isChasingLoss,
+              is_favorite_team: bet.isFavoriteTeam,
+              outcome: bet.outcome,
+              actual_return: bet.actualReturn,
+              profit_loss: bet.profitLoss,
+              ai_recommendation: bet.aiRecommendation,
+              expected_value: bet.expectedValue,
+              probability_estimate: bet.probabilityEstimate,
+              risk_level: bet.riskLevel,
+              source: bet.source,
+              sportsbook: bet.sportsbook,
+              completed_at: bet.completedAt?.toISOString(),
+            }, { onConflict: 'id' })
+
+          if (error) {
+            console.error("Error saving comprehensive bet:", error)
+          }
+        }
+      } catch (error) {
+        console.error("Exception saving comprehensive bets:", error)
+      }
+    }
+
+    // Also save to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.COMPREHENSIVE_BETS, JSON.stringify(bets))
     }
   },
 

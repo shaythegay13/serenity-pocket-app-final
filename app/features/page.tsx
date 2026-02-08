@@ -1,21 +1,11 @@
-import { Metadata } from "next"
+"use client"
+
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Star, TrendingUp, Brain, Shield, Target } from "lucide-react"
+import { Check, TrendingUp, Brain, Shield, Target } from "lucide-react"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
-import Link from "next/link"
-
-export const metadata: Metadata = {
-  title: "Features | PlayMind Labs - Behavioral Sports Betting Tools",
-  description: "Explore PlayMind Labs's powerful features: AI-powered bet analysis, emotion tracking, cognitive bias detection, and personalized SmartSlip picks for responsible betting.",
-  keywords: ["sports betting features", "AI betting analysis", "emotion tracking", "bias detection", "responsible gambling tools"],
-  openGraph: {
-    title: "PlayMind Labs Features - AI-Powered Betting Analytics",
-    description: "Discover powerful behavioral tools for smarter, more disciplined betting decisions.",
-    type: "website",
-  },
-}
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 const featuredFeatures = [
   {
@@ -46,7 +36,7 @@ const featuredFeatures = [
 
 export default function FeaturesPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Hero Section */}
@@ -221,6 +211,6 @@ export default function FeaturesPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

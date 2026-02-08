@@ -2,10 +2,11 @@
 
 import { Card } from "@/components/ui/card"
 import { AlertTriangle, Shield, Eye } from "lucide-react"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 export default function ResponsibleUsePage() {
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-10 max-w-4xl">
       <div className="text-center space-y-2 mb-8">
         <h1 className="text-4xl font-bold text-foreground">Responsible Use</h1>
@@ -44,6 +45,6 @@ export default function ResponsibleUsePage() {
         </Card>
       </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

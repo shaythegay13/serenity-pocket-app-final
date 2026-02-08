@@ -1,11 +1,7 @@
-import { Metadata } from "next"
-import { Card } from "@/components/ui/card"
+"use client"
 
-export const metadata: Metadata = {
-  title: "FAQ | PlayMind Labs - Frequently Asked Questions",
-  description: "Find answers to common questions about PlayMind Labs' AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
-  keywords: ["betting FAQ", "sports betting questions", "responsible gambling FAQ", "AI betting analysis help"],
-}
+import { Card } from "@/components/ui/card"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 const faqs = [
   {
@@ -22,7 +18,7 @@ const faqs = [
   },
   {
     question: "What sports do you cover?",
-    answer: "We currently cover NFL, NBA, NHL, and MLB. Our odds comparison includes data from all major sportsbooks for these leagues. We plan to expand to more sports in the future."
+    answer: "We cover a wide range of sports including NFL, NBA, NHL, MLB, NCAAB (College Basketball), NCAAF (College Football), English Premier League, MLS, UEFA Champions League, UFC/MMA, Boxing, and ATP/WTA Tennis. Our odds comparison includes data from all major sportsbooks for these leagues and events."
   },
   {
     question: "How does the emotion tracking work?",
@@ -56,7 +52,7 @@ const faqs = [
 
 export default function FAQPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -99,6 +95,6 @@ export default function FAQPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

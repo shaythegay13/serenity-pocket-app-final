@@ -2,8 +2,11 @@
 // Diagnostic: Optimization for faster build times enabled.
 
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import Image from "next/image"
+import Link from "next/link"
 import { useState, useEffect } from "react"
+import { ArrowLeft } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -313,6 +316,17 @@ export default function AboutPage() {
   // Show basic layout for non-authenticated users
   return (
     <div className="min-h-screen bg-background">
+      {/* Back to Main Page header */}
+      <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-3">
+          <Link href="/">
+            <Button variant="ghost" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Main Page
+            </Button>
+          </Link>
+        </div>
+      </div>
       {aboutContent}
     </div>
   )

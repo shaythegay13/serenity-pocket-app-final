@@ -1,8 +1,11 @@
+"use client"
+
 import { Card } from "@/components/ui/card"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 export default function DemoPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -31,11 +34,11 @@ export default function DemoPage() {
                   />
                 </svg>
               </div>
-              
+
               <h2 className="text-2xl font-semibold text-foreground">
                 This content is still being developed
               </h2>
-              
+
               <p className="text-muted-foreground max-w-md mx-auto">
                 We're working on creating comprehensive video tutorials and interactive demos to help you get the most out of PlayMind Labs. Check back soon!
               </p>
@@ -71,7 +74,7 @@ export default function DemoPage() {
                 Track your betting performance and identify patterns in your behavior.
               </p>
             </Card>
-            
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-2">
                 🤖 AI-Powered Insights
@@ -80,7 +83,7 @@ export default function DemoPage() {
                 Get personalized recommendations based on your unique betting profile.
               </p>
             </Card>
-            
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-2">
                 🎯 Responsible Gaming Tools
@@ -92,6 +95,6 @@ export default function DemoPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

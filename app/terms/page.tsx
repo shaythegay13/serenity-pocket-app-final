@@ -1,8 +1,11 @@
+"use client"
+
 import { Card } from "@/components/ui/card"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -299,6 +302,6 @@ export default function TermsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

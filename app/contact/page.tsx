@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 // Dynamically import Select component to avoid hydration issues
 const Select = dynamic(() => import("@/components/ui/select").then(mod => ({ default: mod.Select })), {
@@ -80,7 +81,7 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -304,6 +305,6 @@ export default function ContactPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FooterPageWrapper>
   )
 }

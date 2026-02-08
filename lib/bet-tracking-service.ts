@@ -348,7 +348,11 @@ export class BetTrackingService {
 
   /**
    * Parse bet description to extract structured data
-   * Supports formats: "Team A vs Team B", "Team A v Team B", "Team A @ Team B", "Team A - Team B"
+   * Supports formats:
+   * - "Team A vs Team B", "Team A v Team B", "Team A @ Team B"
+   * - "Football, Seahawks v Patriots, Superbowl"
+   * - "NBA: Lakers vs Warriors"
+   * - "Chiefs -3.5 vs Eagles"
    */
   private static parseBetDescription(description: string): {
     sport?: SupportedSportKey
@@ -365,31 +369,80 @@ export class BetTrackingService {
       rawDescription: description // Store original description as fallback
     }
 
-    // Try multiple team name formats in order of specificity
-    // Format: "Team A @ Team B" (away @ home)
-    let teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s*@\s*([A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
-    if (teamMatch) {
-      result.awayTeam = teamMatch[1].trim()
-      result.homeTeam = teamMatch[2].trim()
-    }
+    // First, detect sport from the description (do this first so we can use it for team lookup)
+    const lowerDesc = description.toLowerCase()
 
-    // Format: "Team A vs Team B" or "Team A v Team B"
-    if (!result.homeTeam) {
-      teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s+(?:vs\.?|v\.?)\s+([A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
-      if (teamMatch) {
-        // In "vs" format, first team is typically away, second is home
-        result.awayTeam = teamMatch[1].trim()
-        result.homeTeam = teamMatch[2].trim()
+    // Extended sport detection with more team names
+    const sportPatterns: { pattern: RegExp; sport: SupportedSportKey }[] = [
+      // NBA
+      { pattern: /\b(nba|basketball|lakers|celtics|warriors|bulls|heat|knicks|nets|76ers|sixers|bucks|suns|mavericks|mavs|clippers|rockets|spurs|nuggets|timberwolves|wolves|grizzlies|pelicans|thunder|blazers|trail blazers|jazz|kings|magic|hawks|hornets|pistons|pacers|cavaliers|cavs|raptors|wizards)\b/i, sport: "basketball_nba" },
+      // NFL
+      { pattern: /\b(nfl|football|superbowl|super bowl|chiefs|eagles|cowboys|patriots|pats|49ers|niners|bills|bengals|ravens|dolphins|jets|browns|steelers|titans|colts|jaguars|jags|texans|broncos|raiders|chargers|seahawks|hawks|cardinals|cards|rams|saints|buccaneers|bucs|falcons|panthers|bears|lions|packers|vikings|commanders|giants)\b/i, sport: "americanfootball_nfl" },
+      // MLB
+      { pattern: /\b(mlb|baseball|yankees|dodgers|red sox|redsox|cubs|mets|braves|astros|phillies|padres|guardians|mariners|twins|rays|orioles|blue jays|angels|rangers|white sox|whitesox|brewers|diamondbacks|d-backs|rockies|giants|athletics|a's|royals|tigers|reds|pirates|nationals|marlins)\b/i, sport: "baseball_mlb" },
+      // NHL
+      { pattern: /\b(nhl|hockey|bruins|rangers|penguins|maple leafs|leafs|canadiens|habs|blackhawks|red wings|flyers|capitals|caps|lightning|avalanche|avs|oilers|flames|canucks|kraken|golden knights|knights|blues|predators|preds|wild|jets|hurricanes|canes|stars|ducks|sharks|coyotes|devils|islanders|senators|sens|sabres|panthers|blue jackets)\b/i, sport: "icehockey_nhl" },
+      // NCAA Basketball
+      { pattern: /\b(ncaab|ncaa basketball|college basketball|march madness|duke|kentucky|kansas|unc|north carolina|gonzaga|villanova|michigan state|ucla)\b/i, sport: "basketball_ncaab" as SupportedSportKey },
+      // NCAA Football
+      { pattern: /\b(ncaaf|ncaa football|college football|cfb|alabama|ohio state|georgia|clemson|michigan|lsu|oklahoma|texas|usc|oregon|notre dame)\b/i, sport: "americanfootball_ncaaf" as SupportedSportKey },
+      // UFC/MMA
+      { pattern: /\b(ufc|mma|mixed martial arts|bellator|pfl)\b/i, sport: "mma_ufc" as SupportedSportKey },
+      // Soccer
+      { pattern: /\b(soccer|premier league|epl|la liga|bundesliga|serie a|ligue 1|mls|champions league|ucl|manchester|liverpool|chelsea|arsenal|tottenham|barcelona|real madrid|bayern|psg|inter|juventus|milan)\b/i, sport: "soccer_epl" as SupportedSportKey },
+    ]
+
+    for (const { pattern, sport } of sportPatterns) {
+      if (pattern.test(lowerDesc)) {
+        result.sport = sport
+        break
       }
     }
 
-    // Format: "Team A - Team B" (with dash separator, not to be confused with spread)
+    // Clean the description by removing sport prefixes and event suffixes
+    // This helps with team extraction
+    let cleanedDesc = description
+      // Remove sport prefixes like "Football, ", "NBA: ", "NFL - "
+      .replace(/^(football|basketball|baseball|hockey|soccer|nba|nfl|mlb|nhl|ncaab|ncaaf|mma|ufc)[,:\-–—\s]+/i, '')
+      // Remove event suffixes like ", Superbowl", " - NBA Finals"
+      .replace(/[,\-–—]\s*(superbowl|super bowl|world series|stanley cup|nba finals|playoffs|championship|week \d+|round \d+|game \d+).*$/i, '')
+      .trim()
+
+    // Team extraction patterns (applied to cleaned description)
+    // Order matters: try most specific patterns first
+
+    // Pattern 1: "Team A @ Team B" (away @ home)
+    let teamMatch = cleanedDesc.match(/([A-Za-z0-9\s']+?)\s*@\s*([A-Za-z0-9\s']+?)(?:\s*[,\-–—]|$)/i)
+    if (teamMatch) {
+      result.awayTeam = this.cleanTeamName(teamMatch[1])
+      result.homeTeam = this.cleanTeamName(teamMatch[2])
+    }
+
+    // Pattern 2: "Team A vs Team B" or "Team A v Team B" or "Team A versus Team B"
     if (!result.homeTeam) {
-      // Only match if the dash is followed by another word (not a number for spread)
-      teamMatch = description.match(/^([A-Za-z0-9\s]+?)\s*[-–—]\s*([A-Za-z][A-Za-z0-9\s]+?)(?:\s*[-–—]|$)/i)
+      teamMatch = cleanedDesc.match(/([A-Za-z0-9\s']+?)\s+(?:vs\.?|v\.?|versus)\s+([A-Za-z0-9\s']+?)(?:\s*[,\-–—]|$)/i)
       if (teamMatch) {
-        result.awayTeam = teamMatch[1].trim()
-        result.homeTeam = teamMatch[2].trim()
+        result.awayTeam = this.cleanTeamName(teamMatch[1])
+        result.homeTeam = this.cleanTeamName(teamMatch[2])
+      }
+    }
+
+    // Pattern 3: Look for team separator anywhere in the string (more lenient)
+    if (!result.homeTeam) {
+      // Try to find "vs" or "v" surrounded by word boundaries
+      teamMatch = cleanedDesc.match(/\b([A-Za-z][A-Za-z0-9\s']*?)\s+(?:vs\.?|v\.?)\s+([A-Za-z][A-Za-z0-9\s']*?)\b/i)
+      if (teamMatch) {
+        result.awayTeam = this.cleanTeamName(teamMatch[1])
+        result.homeTeam = this.cleanTeamName(teamMatch[2])
+      }
+    }
+
+    // Pattern 4: "Team A - Team B" format (make sure it's not a spread like "Team -3.5")
+    if (!result.homeTeam) {
+      teamMatch = cleanedDesc.match(/([A-Za-z][A-Za-z0-9\s']+?)\s*[-–—]\s*([A-Za-z][A-Za-z0-9\s']+?)(?:\s*[,]|$)/i)
+      if (teamMatch && !teamMatch[2].match(/^\d/)) {
+        result.awayTeam = this.cleanTeamName(teamMatch[1])
+        result.homeTeam = this.cleanTeamName(teamMatch[2])
       }
     }
 
@@ -401,40 +454,37 @@ export class BetTrackingService {
       result.line = parseFloat(ouMatch[2])
     }
 
-    // Try to extract spread (only if we have teams identified)
-    if (result.homeTeam || result.awayTeam) {
-      const spreadMatch = description.match(/([A-Za-z0-9\s]+?)\s*([+-]\d+(?:\.\d+)?)\s*(?:$|,|\()/i)
-      if (spreadMatch && result.betType === "moneyline") {
-        result.betType = "spread"
-        result.line = parseFloat(spreadMatch[2])
+    // Try to extract spread (e.g., "Chiefs -3.5" or "Eagles +7")
+    const spreadMatch = description.match(/\b([A-Za-z][A-Za-z0-9\s']*?)\s*([+-]\d+(?:\.\d+)?)\b/i)
+    if (spreadMatch && result.betType === "moneyline") {
+      result.betType = "spread"
+      result.line = parseFloat(spreadMatch[2])
 
-        // Determine selection based on which team is mentioned
-        const teamInSpread = spreadMatch[1].trim().toLowerCase()
-        if (result.awayTeam && teamInSpread.includes(result.awayTeam.toLowerCase())) {
-          result.selection = "away"
-        } else if (result.homeTeam && teamInSpread.includes(result.homeTeam.toLowerCase())) {
-          result.selection = "home"
-        }
+      // Determine selection based on which team has the spread
+      const teamWithSpread = this.cleanTeamName(spreadMatch[1]).toLowerCase()
+      if (result.awayTeam && teamWithSpread.includes(result.awayTeam.toLowerCase().split(' ').pop() || '')) {
+        result.selection = "away"
+      } else if (result.homeTeam && teamWithSpread.includes(result.homeTeam.toLowerCase().split(' ').pop() || '')) {
+        result.selection = "home"
       }
     }
 
-    // Try to detect sport from common keywords
-    const lowerDesc = description.toLowerCase()
-    if (lowerDesc.includes("nba") || lowerDesc.includes("basketball") || lowerDesc.includes("lakers") ||
-        lowerDesc.includes("celtics") || lowerDesc.includes("warriors") || lowerDesc.includes("bulls")) {
-      result.sport = "basketball_nba"
-    } else if (lowerDesc.includes("nfl") || lowerDesc.includes("football") || lowerDesc.includes("chiefs") ||
-               lowerDesc.includes("eagles") || lowerDesc.includes("cowboys") || lowerDesc.includes("patriots")) {
-      result.sport = "americanfootball_nfl"
-    } else if (lowerDesc.includes("mlb") || lowerDesc.includes("baseball") || lowerDesc.includes("yankees") ||
-               lowerDesc.includes("dodgers") || lowerDesc.includes("red sox") || lowerDesc.includes("cubs")) {
-      result.sport = "baseball_mlb"
-    } else if (lowerDesc.includes("nhl") || lowerDesc.includes("hockey") || lowerDesc.includes("bruins") ||
-               lowerDesc.includes("rangers") || lowerDesc.includes("penguins") || lowerDesc.includes("maple leafs")) {
-      result.sport = "icehockey_nhl"
-    }
-
     return result
+  }
+
+  /**
+   * Clean team name by removing extra whitespace and common prefixes
+   */
+  private static cleanTeamName(name: string): string {
+    return name
+      .trim()
+      // Remove leading "the"
+      .replace(/^the\s+/i, '')
+      // Remove trailing bet type indicators
+      .replace(/\s*(moneyline|ml|spread|total|over|under)$/i, '')
+      // Collapse multiple spaces
+      .replace(/\s+/g, ' ')
+      .trim()
   }
 
   /**

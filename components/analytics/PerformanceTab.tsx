@@ -28,6 +28,7 @@ import { calculateBettingMetrics } from "./utils/calculations"
 import type { UnifiedBet } from "./types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
+import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 
 interface PerformanceTabProps {
   trades: Trade[]
@@ -83,6 +84,11 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
   const [pendingComprehensiveBets, setPendingComprehensiveBets] = useState<ComprehensiveBet[]>([])
   const [loadingPending, setLoadingPending] = useState(false)
 
+  // State for emotion check-in dialog when settling bets
+  const [emotionCheckInOpen, setEmotionCheckInOpen] = useState(false)
+  const [betBeingSettled, setBetBeingSettled] = useState<ComprehensiveBet | null>(null)
+  const [preSelectedOutcome, setPreSelectedOutcome] = useState<"profit" | "loss" | "breakeven" | undefined>(undefined)
+
   // Load pending bets on mount
   useEffect(() => {
     let isMounted = true
@@ -117,91 +123,77 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     return () => { isMounted = false }
   }, [])
 
-  // Handle bet outcome update (for BetAnalysis)
-  const handleBetOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
-    try {
-      const bet = pendingBets.find(b => b.id === betId)
-      if (!bet) return
+  // Handle bet outcome - opens emotion check-in dialog for legacy BetAnalysis bets
+  // Convert to ComprehensiveBet format for the dialog
+  const handleBetOutcome = (betId: string, outcome: 'win' | 'loss' | 'push') => {
+    const bet = pendingBets.find(b => b.id === betId)
+    if (!bet) return
 
-      // Calculate actual return based on outcome
-      let actualReturn: number
-      const odds = bet.odds ?? -110 // Default to -110 if undefined
-      if (outcome === 'win') {
-        actualReturn = bet.stake * (1 + (odds > 0 ? odds / 100 : 100 / Math.abs(odds)))
-      } else if (outcome === 'push') {
-        actualReturn = bet.stake
-      } else {
-        actualReturn = 0
-      }
-
-      // Update the bet
-      await storage.updateBetAnalysis({
-        ...bet,
-        outcome,
-        actualReturn
-      })
-
-      // Remove from pending bets
-      setPendingBets(prev => prev.filter(b => b.id !== betId))
-
-      toast.success(`Bet marked as ${outcome}!`)
-
-      // Emit event to refresh analytics data
-      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-
-      // Also trigger parent refresh if available
-      if (onRefreshData) {
-        onRefreshData()
-      }
-    } catch (error) {
-      console.error('Error updating bet outcome:', error)
-      toast.error('Failed to update bet outcome')
+    // Convert BetAnalysis to ComprehensiveBet format for the dialog
+    const comprehensiveBet: ComprehensiveBet = {
+      id: bet.id,
+      timestamp: new Date(bet.timestamp),
+      sport: (bet.sport || "americanfootball_nfl") as ComprehensiveBet["sport"],
+      homeTeam: "Unknown",
+      awayTeam: "Unknown",
+      gameDate: new Date(bet.timestamp),
+      betType: bet.betType === "straight" ? "moneyline" : bet.betType as any,
+      selection: "away",
+      odds: bet.odds ?? -110,
+      stake: bet.stake,
+      emotions: {
+        before: {
+          emotion: bet.emotionalState || "neutral",
+          intensity: bet.emotionalIntensity || 5,
+          timestamp: new Date(bet.timestamp)
+        },
+        during: { emotion: "", intensity: 5, timestamp: new Date() },
+        after: { emotion: "", intensity: 5, timestamp: new Date() }
+      },
+      biasesIdentified: bet.biasWarnings || [],
+      confidenceLevel: Math.round((bet.probabilityEstimate || 0.5) * 10),
+      reasoning: bet.aiRecommendation || "",
+      isLiveBet: false,
+      isChasingLoss: false,
+      isFavoriteTeam: false,
+      outcome: "pending",
+      source: "bet-analyzer",
+      description: bet.description
     }
+
+    // Open emotion check-in dialog with this bet
+    setBetBeingSettled(comprehensiveBet)
+    setPreSelectedOutcome(outcome === 'win' ? 'profit' : outcome === 'loss' ? 'loss' : 'breakeven')
+    setEmotionCheckInOpen(true)
   }
 
-  // Handle comprehensive bet outcome update
-  const handleComprehensiveBetOutcome = async (betId: string, outcome: 'win' | 'loss' | 'push') => {
-    try {
-      const bet = pendingComprehensiveBets.find(b => b.id === betId)
-      if (!bet) return
+  // Handle comprehensive bet outcome - opens emotion check-in dialog
+  const handleComprehensiveBetOutcome = (betId: string, outcome: 'win' | 'loss' | 'push') => {
+    const bet = pendingComprehensiveBets.find(b => b.id === betId)
+    if (!bet) return
 
-      // Calculate actual return based on outcome
-      let actualReturn: number
-      const odds = bet.odds
-      if (outcome === 'win') {
-        actualReturn = bet.stake * (1 + (odds > 0 ? odds / 100 : 100 / Math.abs(odds)))
-      } else if (outcome === 'push') {
-        actualReturn = bet.stake
-      } else {
-        actualReturn = 0
-      }
+    // Open emotion check-in dialog with this bet pre-selected
+    setBetBeingSettled(bet)
+    setPreSelectedOutcome(outcome === 'win' ? 'profit' : outcome === 'loss' ? 'loss' : 'breakeven')
+    setEmotionCheckInOpen(true)
+  }
 
-      const profitLoss = actualReturn - bet.stake
+  // Handle emotion check-in complete
+  const handleEmotionCheckInComplete = () => {
+    setEmotionCheckInOpen(false)
 
-      // Update the bet
-      await storage.updateComprehensiveBet({
-        ...bet,
-        outcome,
-        actualReturn,
-        profitLoss,
-        completedAt: new Date()
-      })
+    // Remove the settled bet from local state
+    if (betBeingSettled) {
+      setPendingBets(prev => prev.filter(b => b.id !== betBeingSettled.id))
+      setPendingComprehensiveBets(prev => prev.filter(b => b.id !== betBeingSettled.id))
+    }
 
-      // Remove from pending bets
-      setPendingComprehensiveBets(prev => prev.filter(b => b.id !== betId))
+    setBetBeingSettled(null)
+    setPreSelectedOutcome(undefined)
 
-      toast.success(`Bet marked as ${outcome}!`)
-
-      // Emit event to refresh analytics data
-      analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-
-      // Also trigger parent refresh if available
-      if (onRefreshData) {
-        onRefreshData()
-      }
-    } catch (error) {
-      console.error('Error updating comprehensive bet outcome:', error)
-      toast.error('Failed to update bet outcome')
+    // Refresh data
+    if (onRefreshData) {
+      onRefreshData()
     }
   }
 
@@ -849,6 +841,28 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
           </div>
         )}
       </Card>
+
+      {/* Emotion Check-In Dialog for settling bets */}
+      <EmotionCheckInDialog
+        open={emotionCheckInOpen}
+        onOpenChange={(open) => {
+          setEmotionCheckInOpen(open)
+          if (!open) {
+            setBetBeingSettled(null)
+            setPreSelectedOutcome(undefined)
+          }
+        }}
+        onComplete={handleEmotionCheckInComplete}
+        onBettingDataSaved={() => {
+          // Refresh analytics after betting data is saved
+          analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+          if (onRefreshData) {
+            onRefreshData()
+          }
+        }}
+        preSelectedBet={betBeingSettled || undefined}
+        preSelectedOutcome={preSelectedOutcome}
+      />
     </div>
   )
 }

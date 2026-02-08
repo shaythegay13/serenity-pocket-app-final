@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,6 +21,10 @@ interface EmotionCheckInDialogProps {
   userData?: UserData
   updateUserData?: (updates: Partial<UserData>) => Promise<void>
   onBettingDataSaved?: () => void
+  /** Pre-select a bet for settling - automatically sets phase to "after" and selects the bet */
+  preSelectedBet?: ComprehensiveBet
+  /** Pre-set the outcome when settling a bet */
+  preSelectedOutcome?: "profit" | "loss" | "breakeven"
 }
 
 // Core emotions with 10 sub-emotions each
@@ -63,7 +67,7 @@ const coreEmotions = [
   }
 ]
 
-export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData, updateUserData, onBettingDataSaved }: EmotionCheckInDialogProps) {
+export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData, updateUserData, onBettingDataSaved, preSelectedBet, preSelectedOutcome }: EmotionCheckInDialogProps) {
   const [step, setStep] = useState<"core" | "sub" | "details">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState("")
@@ -86,6 +90,29 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
 
   // Live betting tracking - important risk factor
   const [isLiveBet, setIsLiveBet] = useState(false)
+
+  // Handle pre-selected bet when dialog opens (for settling bets from analytics)
+  useEffect(() => {
+    if (open && preSelectedBet) {
+      // Set up the dialog for settling this specific bet
+      setPhase("after")
+      setBetDataMode("select")
+      setSelectedBet(preSelectedBet)
+      // Auto-fill form with selected bet data
+      setBetAmount(preSelectedBet.stake.toString())
+      setBetOdds(preSelectedBet.odds.toString())
+      // Use description if available, otherwise construct from teams
+      const desc = preSelectedBet.description ||
+        `${preSelectedBet.awayTeam} vs ${preSelectedBet.homeTeam} - ${preSelectedBet.betType}`
+      setGameDescription(desc)
+      setIsLiveBet(preSelectedBet.isLiveBet || false)
+
+      // Pre-set outcome if provided
+      if (preSelectedOutcome) {
+        setOutcome(preSelectedOutcome)
+      }
+    }
+  }, [open, preSelectedBet, preSelectedOutcome])
 
   const handleSubmit = async () => {
     if (!selectedEmotion) return

@@ -897,9 +897,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                 {coreEmotions.map((emotion) => (
                   <button
+                    type="button"
                     key={emotion.id}
                     onClick={() => handleCoreSelect(emotion)}
-                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg"
+                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg touch-manipulation active:scale-95 min-h-[60px]"
                     style={{ backgroundColor: emotion.color }}
                   >
                     {/* Inner white circle border */}
@@ -973,23 +974,17 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
                     return (
                       <button
+                        type="button"
                         key={subEmotion}
                         onClick={() => handleSubSelect(subEmotion)}
-                        className="absolute rounded-full flex items-center justify-center font-bold text-white transition-all hover:scale-105 hover:shadow-2xl hover:z-10 active:scale-95"
+                        className="absolute rounded-full flex items-center justify-center font-bold text-white transition-all hover:scale-105 hover:shadow-2xl hover:z-10 active:scale-95 touch-manipulation"
                         style={{
                           width: circleSize,
                           aspectRatio: '1',
                           backgroundColor: selectedCore.color,
-                          // --- START OF EDITS ---
-                          // Reverted to your original, correct positioning logic
                           left: `calc(50% + ${x}%)`,
                           top: `calc(50% + ${y}%)`,
                           transform: 'translate(-50%, -50%)',
-                          // Removed animation styles that were causing invisibility
-                          // animation: `stagger-zoom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`,
-                          // animationDelay: `${index * 50}ms`,
-                          // opacity: 0
-                          // --- END OF EDITS ---
                         }}
                       >
                         <span className="text-sm text-center px-1 leading-tight font-bold">{subEmotion}</span>
@@ -1134,7 +1129,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       <button
                         type="button"
                         onClick={() => handleModeChange("manual")}
-                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "manual"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${betDataMode === "manual"
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
@@ -1144,7 +1139,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       <button
                         type="button"
                         onClick={() => handleModeChange("select")}
-                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "select"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${betDataMode === "select"
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
@@ -1204,7 +1199,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("away")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
                                   selectedTeamSide === "away"
                                     ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
                                     : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
@@ -1217,7 +1212,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("home")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
                                   selectedTeamSide === "home"
                                     ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
                                     : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
@@ -1249,13 +1244,13 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           role="switch"
                           aria-checked={isLiveBet}
                           onClick={() => setIsLiveBet(!isLiveBet)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${
                             isLiveBet ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
                           }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              isLiveBet ? "translate-x-6" : "translate-x-1"
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${
+                              isLiveBet ? "translate-x-7" : "translate-x-1"
                             }`}
                           />
                         </button>
@@ -1285,7 +1280,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                 key={bet.id}
                                 type="button"
                                 onClick={() => handleBetSelect(bet)}
-                                className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedBet?.id === bet.id
+                                className={`w-full text-left p-3 rounded-lg border transition-colors touch-manipulation min-h-[44px] active:scale-[0.98] ${selectedBet?.id === bet.id
                                   ? "border-primary bg-primary/10"
                                   : "border-border hover:border-primary/50 hover:bg-accent"
                                   }`}
@@ -1356,9 +1351,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               </div>
 
               <Button
+                type="button"
                 onClick={handleLogEmotion}
                 disabled={!selectedEmotion || isLogging}
-                className="w-full"
+                className="w-full min-h-[44px] touch-manipulation"
               >
                 Log Emotion (+10 XP)
               </Button>

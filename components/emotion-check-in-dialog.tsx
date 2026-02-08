@@ -428,9 +428,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-4">
                 {coreEmotions.map((emotion) => (
                   <button
+                    type="button"
                     key={emotion.id}
                     onClick={() => handleCoreSelect(emotion)}
-                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-xl min-h-[100px] min-w-[100px] md:min-h-[110px] md:min-w-[110px]"
+                    className="group relative aspect-square flex flex-col items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-xl min-h-[100px] min-w-[100px] md:min-h-[110px] md:min-w-[110px] touch-manipulation active:scale-95"
                     style={{ backgroundColor: emotion.color }}
                   >
                     {/* Inner white circle border */}
@@ -507,23 +508,17 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
 
                     return (
                       <button
+                        type="button"
                         key={subEmotion}
                         onClick={() => handleSubSelect(subEmotion)}
-                        className="absolute rounded-full flex items-center justify-center font-bold text-white transition-all hover:scale-105 hover:shadow-2xl hover:z-10 active:scale-95"
+                        className="absolute rounded-full flex items-center justify-center font-bold text-white transition-all hover:scale-105 hover:shadow-2xl hover:z-10 active:scale-95 touch-manipulation"
                         style={{
                           width: circleSize,
                           aspectRatio: '1',
                           backgroundColor: selectedCore.color,
-                          // --- START OF EDITS ---
-                          // Reverted to your original, correct positioning logic
                           left: `calc(50% + ${x}%)`,
                           top: `calc(50% + ${y}%)`,
                           transform: 'translate(-50%, -50%)',
-                          // Removed animation styles that were causing invisibility
-                          // animation: `stagger-zoom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`,
-                          // animationDelay: `${index * 50}ms`,
-                          // opacity: 0
-                          // --- END OF EDITS ---
                         }}
                       >
                         <span className="text-base text-center px-1 leading-tight font-bold">{subEmotion}</span>
@@ -622,8 +617,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                     <Label className="text-sm text-muted-foreground">How would you like to enter betting data?</Label>
                     <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                       <button
+                        type="button"
                         onClick={() => handleModeChange("manual")}
-                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "manual"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${betDataMode === "manual"
                           ? "bg-white text-gray-900 shadow-sm"
                           : "text-gray-600 hover:text-gray-900"
                           }`}
@@ -631,8 +627,9 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                         Manual Entry
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleModeChange("select")}
-                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${betDataMode === "select"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${betDataMode === "select"
                           ? "bg-white text-gray-900 shadow-sm"
                           : "text-gray-600 hover:text-gray-900"
                           }`}
@@ -695,7 +692,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("away")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
                                   selectedTeamSide === "away"
                                     ? "border-blue-500 bg-blue-100 text-blue-700"
                                     : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
@@ -708,7 +705,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("home")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
                                   selectedTeamSide === "home"
                                     ? "border-blue-500 bg-blue-100 text-blue-700"
                                     : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
@@ -740,11 +737,11 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           role="switch"
                           aria-checked={isLiveBet}
                           onClick={() => setIsLiveBet(!isLiveBet)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isLiveBet ? "bg-orange-500" : "bg-gray-300"
+                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${isLiveBet ? "bg-orange-500" : "bg-gray-300"
                             }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isLiveBet ? "translate-x-6" : "translate-x-1"
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${isLiveBet ? "translate-x-7" : "translate-x-1"
                               }`}
                           />
                         </button>
@@ -771,9 +768,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-2">
                             {savedBets.map((bet) => (
                               <button
+                                type="button"
                                 key={bet.id}
                                 onClick={() => handleBetSelect(bet)}
-                                className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedBet?.id === bet.id
+                                className={`w-full text-left p-3 rounded-lg border transition-colors touch-manipulation min-h-[44px] active:scale-[0.98] ${selectedBet?.id === bet.id
                                   ? "border-primary bg-primary/10"
                                   : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                                   }`}
@@ -844,12 +842,18 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                 </div>
 
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    className="flex-1 min-h-[44px] touch-manipulation"
+                  >
                     Cancel
                   </Button>
                   <Button
+                    type="button"
                     onClick={handleSubmit}
-                    className="flex-1"
+                    className="flex-1 min-h-[44px] touch-manipulation"
                     style={{ backgroundColor: selectedCore?.color }}
                   >
                     Submit

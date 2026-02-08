@@ -222,7 +222,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     return [
       { name: 'Wins', value: wins, color: 'oklch(0.65 0.18 150)' },
       { name: 'Losses', value: losses, color: 'oklch(0.55 0.24 25)' },
-      { name: 'Breakeven', value: breakeven, color: 'oklch(0.7 0.18 70)' },
+      { name: 'Push', value: breakeven, color: 'oklch(0.7 0.18 70)' },
       { name: 'Pending', value: pending, color: 'oklch(0.55 0.01 250)' }
     ].filter(item => item.value > 0)
   }, [trades])
@@ -321,7 +321,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
   // Team betting statistics - count bets on each team
   const teamStats = useMemo(() => {
-    const teamMap = new Map<string, { bets: number; wins: number; losses: number; profit: number }>()
+    const teamMap = new Map<string, { bets: number; wins: number; losses: number; pushes: number; profit: number }>()
     const processedIds = new Set<string>()
 
     // Helper function to process a bet - only attribute to the team that was actually bet on
@@ -332,6 +332,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
+      const isPush = bet.outcome === 'push'
 
       // Determine which team was actually bet on based on selection
       let selectedTeam: string | null = null
@@ -346,12 +347,13 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         const teams = [bet.homeTeam, bet.awayTeam].filter(t => t && t !== "Unknown")
         teams.forEach(team => {
           if (!teamMap.has(team)) {
-            teamMap.set(team, { bets: 0, wins: 0, losses: 0, profit: 0 })
+            teamMap.set(team, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
           }
           const stats = teamMap.get(team)!
           stats.bets += 0.5
           if (isWin) stats.wins += 0.5
           if (isLoss) stats.losses += 0.5
+          if (isPush) stats.pushes += 0.5
           stats.profit += betProfit / 2
         })
         return // Already processed
@@ -360,12 +362,13 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       // For moneyline/spread bets on a specific team
       if (selectedTeam) {
         if (!teamMap.has(selectedTeam)) {
-          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
         }
         const stats = teamMap.get(selectedTeam)!
         stats.bets++
         if (isWin) stats.wins++
         if (isLoss) stats.losses++
+        if (isPush) stats.pushes++
         stats.profit += betProfit
       }
     }
@@ -387,6 +390,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
+      const isPush = bet.outcome === 'push'
 
       let selectedTeam: string | null = null
       if (selection === 'home' && homeTeam && homeTeam !== "Unknown") {
@@ -397,12 +401,13 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
       if (selectedTeam) {
         if (!teamMap.has(selectedTeam)) {
-          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
+          teamMap.set(selectedTeam, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
         }
         const stats = teamMap.get(selectedTeam)!
         stats.bets++
         if (isWin) stats.wins++
         if (isLoss) stats.losses++
+        if (isPush) stats.pushes++
         stats.profit += betProfit
       }
     })
@@ -415,6 +420,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         bets: Math.round(stats.bets),
         wins: Math.round(stats.wins),
         losses: Math.round(stats.losses),
+        pushes: Math.round(stats.pushes),
         profit: Math.round(stats.profit * 100) / 100,
         winRate: stats.wins + stats.losses > 0
           ? (stats.wins / (stats.wins + stats.losses)) * 100
@@ -808,7 +814,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
                         <span className="text-muted-foreground">Total Bets:</span>
                         <Badge variant="outline">{team.bets}</Badge>
                       </div>
-                      {(team.wins > 0 || team.losses > 0) && (
+                      {(team.wins > 0 || team.losses > 0 || team.pushes > 0) && (
                         <>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Win Rate:</span>
@@ -818,7 +824,10 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Record:</span>
-                            <span className="text-foreground">{team.wins}-{team.losses}</span>
+                            <span className="text-foreground">
+                              {team.wins}-{team.losses}
+                              {team.pushes > 0 && `-${team.pushes}P`}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Profit:</span>

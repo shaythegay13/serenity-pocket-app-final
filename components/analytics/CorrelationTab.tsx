@@ -107,7 +107,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     const emotionMap = new Map<string, {
       wins: number
       losses: number
-      breakevens: number
+      pushes: number
       totalStake: number
       totalProfitLoss: number
       count: number
@@ -119,7 +119,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
       emotionMap.set(emotion, {
         wins: 0,
         losses: 0,
-        breakevens: 0,
+        pushes: 0,
         totalStake: 0,
         totalProfitLoss: 0,
         count: 0
@@ -144,7 +144,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
           } else if (trade.outcome === 'loss') {
             data.losses++
           } else {
-            data.breakevens++
+            data.pushes++
           }
         }
       }
@@ -156,7 +156,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     allEmotions.forEach(emotion => {
       const data = emotionMap.get(emotion)
       if (data && data.count > 0) {
-        const winRate = ((data.wins + data.breakevens * 0.5) / data.count) * 100
+        const winRate = ((data.wins + data.pushes * 0.5) / data.count) * 100
         const avgStake = data.totalStake / data.count
         const roi = data.totalStake > 0 ? (data.totalProfitLoss / data.totalStake) * 100 : 0
         

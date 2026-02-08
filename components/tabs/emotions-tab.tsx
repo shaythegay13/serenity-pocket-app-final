@@ -17,6 +17,7 @@ import { Lightbulb, ArrowLeft, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
+import { extractAndNormalizeTeams, normalizeTeamName } from "@/lib/team-normalization"
 
 interface EmotionsTabProps {
   userData: UserData
@@ -191,6 +192,20 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   // Live betting tracking - important risk factor
   const [isLiveBet, setIsLiveBet] = useState(false)
 
+  // Team selection state - which team is the user betting on
+  const [parsedTeams, setParsedTeams] = useState<{ awayTeam: string; homeTeam: string }>({ awayTeam: "", homeTeam: "" })
+  const [selectedTeamSide, setSelectedTeamSide] = useState<"home" | "away" | "">("")
+
+  // Parse game description to extract teams
+  useEffect(() => {
+    if (gameDescription && gameDescription.length > 3) {
+      const { awayTeam, homeTeam } = extractAndNormalizeTeams(gameDescription)
+      if (awayTeam !== "Unknown" || homeTeam !== "Unknown") {
+        setParsedTeams({ awayTeam, homeTeam })
+      }
+    }
+  }, [gameDescription])
+
   // Track last refresh to prevent unnecessary reloads
   const lastRefreshRef = useRef<number>(refreshKey)
 
@@ -318,6 +333,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     setActualReturn("")
     // Reset live bet tracking
     setIsLiveBet(false)
+    // Reset team selection
+    setParsedTeams({ awayTeam: "", homeTeam: "" })
+    setSelectedTeamSide("")
   }
 
   // Load saved bets from storage for "Select Saved Bet" mode
@@ -457,6 +475,12 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               }
             } catch (error) { oddsNumber = 100 }
 
+            // Build team override if teams were parsed
+            const teamsOverride = (parsedTeams.awayTeam && parsedTeams.homeTeam &&
+              parsedTeams.awayTeam !== "Unknown" && parsedTeams.homeTeam !== "Unknown")
+              ? { awayTeam: parsedTeams.awayTeam, homeTeam: parsedTeams.homeTeam }
+              : undefined
+
             await BetTrackingService.saveBetAnalyzerBet(
               gameDescription,
               oddsNumber,
@@ -468,7 +492,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               },
               selectedEmotion,
               intensity[0],
-              isLiveBet // Pass live bet flag for risk tracking
+              isLiveBet, // Pass live bet flag for risk tracking
+              teamsOverride,
+              selectedTeamSide || undefined
             )
             createdComprehensiveBet = true
           } else if (selectedBet) {
@@ -638,6 +664,12 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               }
             } catch (error) { oddsNumber = 100 }
 
+            // Build team override if teams were parsed
+            const teamsOverrideDuring = (parsedTeams.awayTeam && parsedTeams.homeTeam &&
+              parsedTeams.awayTeam !== "Unknown" && parsedTeams.homeTeam !== "Unknown")
+              ? { awayTeam: parsedTeams.awayTeam, homeTeam: parsedTeams.homeTeam }
+              : undefined
+
             await BetTrackingService.saveBetAnalyzerBet(
               gameDescription,
               oddsNumber,
@@ -649,7 +681,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               },
               selectedEmotion,
               intensity[0],
-              isLiveBet // Pass live bet flag for risk tracking
+              isLiveBet, // Pass live bet flag for risk tracking
+              teamsOverrideDuring,
+              selectedTeamSide || undefined
             )
           } else if (selectedBet) {
             await BetTrackingService.updateBetEmotion(
@@ -1083,7 +1117,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       </div>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="breakeven" id="breakeven" />
-                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Broke Even ⚖️</Label>
+                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Pushed ⚖️</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -1159,6 +1193,45 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           onChange={(e: ChangeEvent<HTMLInputElement>) => setGameDescription(e.target.value)}
                         />
                       </div>
+
+                      {/* Team Selection - Which team are you betting on? */}
+                      {(parsedTeams.awayTeam !== "" && parsedTeams.awayTeam !== "Unknown") ||
+                       (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
+                        <div className="space-y-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                          <Label className="text-sm font-medium">Which team are you betting on?</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {parsedTeams.awayTeam && parsedTeams.awayTeam !== "Unknown" && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTeamSide("away")}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                  selectedTeamSide === "away"
+                                    ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
+                                }`}
+                              >
+                                {parsedTeams.awayTeam}
+                              </button>
+                            )}
+                            {parsedTeams.homeTeam && parsedTeams.homeTeam !== "Unknown" && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTeamSide("home")}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                  selectedTeamSide === "home"
+                                    ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
+                                }`}
+                              >
+                                {parsedTeams.homeTeam}
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Select the team you're placing your bet on
+                          </p>
+                        </div>
+                      ) : null}
 
                       {/* Live Bet Toggle - Important for risk assessment */}
                       <div className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">

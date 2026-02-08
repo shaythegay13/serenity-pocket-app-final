@@ -607,7 +607,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="breakeven" id="breakeven-dialog" />
-                        <Label htmlFor="breakeven-dialog" className="cursor-pointer">Broke Even ⚖️</Label>
+                        <Label htmlFor="breakeven-dialog" className="cursor-pointer">Pushed ⚖️</Label>
                       </div>
                     </RadioGroup>
                   </div>

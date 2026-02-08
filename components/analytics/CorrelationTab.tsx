@@ -216,13 +216,35 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
       }
     }
 
-    const bestPerformingState = emotionMatrixData.reduce((best, current) => 
+    // Only consider emotions with actual betting data
+    const emotionsWithData = emotionMatrixData.filter(d => d.totalBets > 0)
+
+    if (emotionsWithData.length === 0) {
+      return {
+        bestPerformingState: null,
+        highestRiskState: null,
+        emotionalImpactScore: 0
+      }
+    }
+
+    const bestPerformingState = emotionsWithData.reduce((best, current) =>
       current.winRate > best.winRate ? current : best
     )
 
-    const highestRiskState = emotionMatrixData.reduce((riskiest, current) => 
-      current.avgStake > riskiest.avgStake ? current : riskiest
-    )
+    // Highest risk = lowest win rate (worst performance)
+    // Ensure it's different from bestPerformingState when possible
+    const otherEmotions = emotionsWithData.filter(d => d.emotion !== bestPerformingState.emotion)
+
+    let highestRiskState
+    if (otherEmotions.length > 0) {
+      // Find the emotion with the lowest win rate among other emotions
+      highestRiskState = otherEmotions.reduce((riskiest, current) =>
+        current.winRate < riskiest.winRate ? current : riskiest
+      )
+    } else {
+      // Only one emotion has data - this is an edge case
+      highestRiskState = bestPerformingState
+    }
 
     // Calculate emotional impact score based on performance variance
     const positiveEmotions = emotionMatrixData.filter(d => ['joy', 'calm'].includes(d.emotion))
@@ -368,9 +390,10 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                 <div className="text-sm text-muted-foreground">
                   ${summaryMetrics.highestRiskState?.avgStake || 0} average stake
                 </div>
-                {summaryMetrics.highestRiskState && summaryMetrics.bestPerformingState && (
+                {summaryMetrics.highestRiskState && summaryMetrics.bestPerformingState &&
+                  summaryMetrics.highestRiskState.emotion !== summaryMetrics.bestPerformingState.emotion && (
                   <div className="text-xs text-red-600">
-                    {Math.round(summaryMetrics.highestRiskState.avgStake / summaryMetrics.bestPerformingState.avgStake)}x higher stakes when {summaryMetrics.highestRiskState.emotion}
+                    {Math.round(summaryMetrics.bestPerformingState.winRate - summaryMetrics.highestRiskState.winRate)}% lower win rate than {summaryMetrics.bestPerformingState.emotion}
                   </div>
                 )}
               </div>

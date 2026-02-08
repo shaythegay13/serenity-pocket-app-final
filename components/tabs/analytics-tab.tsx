@@ -14,6 +14,7 @@ import { CorrelationTab } from "@/components/analytics/CorrelationTab"
 import { PerformanceTab } from "@/components/analytics/PerformanceTab"
 import { MentalHealthTab } from "@/components/analytics/MentalHealthTab"
 import { usePerformanceMonitor } from "@/lib/use-performance-monitor"
+import { reconcileAllData } from "@/lib/services/data-reconciliation-service"
 
 interface AnalyticsTabProps {
   userData: UserData
@@ -261,6 +262,32 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       analyticsEvents.off(ANALYTICS_EVENTS.EMOTION_LOGGED, handleDataUpdate)
     }
   }, [hasAccess, refreshData])
+
+  // Automatically reconcile any missing data on analytics page load
+  // This catches any data that may have been saved to localStorage but not synced
+  useEffect(() => {
+    if (!hasAccess || loading) return
+
+    // Run reconciliation in background after initial data load
+    const runReconciliation = async () => {
+      try {
+        const result = await reconcileAllData()
+        const total = result.emotionLogsReconciled + result.betAnalysesReconciled +
+                     result.comprehensiveBetsReconciled + result.tradesReconciled
+
+        if (total > 0) {
+          console.log(`[Analytics] Auto-reconciled ${total} missing records`)
+        }
+      } catch (error) {
+        console.warn('[Analytics] Reconciliation error:', error)
+      }
+    }
+
+    // Small delay to ensure initial load completes first
+    const timeoutId = setTimeout(runReconciliation, 2000)
+
+    return () => clearTimeout(timeoutId)
+  }, [hasAccess, loading])
 
   // Helper function to update subtab and URL
   const handleSubTabChange = (subtab: SubTab) => {

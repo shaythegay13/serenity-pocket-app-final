@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase"
 import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { reconcileAllData } from "@/lib/services/data-reconciliation-service"
 // Auth rate limit debug utilities (loads global debug functions)
 import "@/lib/auth-rate-limit-utils"
 
@@ -230,6 +231,30 @@ export function HomeContent() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Automatically reconcile any missing data when user is authenticated
+  // This runs in the background and catches any localStorage data that wasn't synced
+  useEffect(() => {
+    if (!authed || loading) return
+
+    // Run reconciliation in background after a short delay
+    const timeoutId = setTimeout(async () => {
+      try {
+        const result = await reconcileAllData()
+        const total = result.emotionLogsReconciled + result.betAnalysesReconciled +
+                     result.comprehensiveBetsReconciled + result.tradesReconciled
+
+        if (total > 0) {
+          console.log(`[Home] Auto-reconciled ${total} missing records`)
+        }
+      } catch (error) {
+        // Silently fail - this is a background optimization
+        console.warn('[Home] Background reconciliation error:', error)
+      }
+    }, 3000) // 3 second delay to not interfere with initial load
+
+    return () => clearTimeout(timeoutId)
+  }, [authed, loading])
 
   const handleNavigateToTab = (tab: string, subtab?: string) => {
     // Update the active tab state immediately

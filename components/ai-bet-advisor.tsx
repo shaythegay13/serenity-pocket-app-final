@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
 import { BetTrackingService } from "@/lib/bet-tracking-service"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import {
   Dialog,
   DialogContent,
@@ -664,6 +665,9 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
 
         // @ts-ignore - Method added dynamically to storageHybrid
         await storage.addBetAnalysis(betAnalysis)
+
+        // Emit event to refresh analytics data across the app
+        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
       } catch (e) {
         console.warn("AI Bet Advisor: legacy bet analysis save failed", e)
       }

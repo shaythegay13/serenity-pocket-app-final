@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { EmotionWheel } from "@/components/emotion-wheel"
 import type { Trade } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 
 interface PostTradeFormProps {
   trade: Trade
@@ -39,16 +40,23 @@ export function PostTradeForm({ trade, onComplete }: PostTradeFormProps) {
 
     // Log the post-bet emotion so it shows in the "After Bet" chart
     if (emotion) {
-      await storage.addEmotionLog({
+      const emotionLog = {
         id: Date.now().toString(),
         timestamp: new Date(),
         emotion: emotion,
         intensity: intensity,
         context: `Post-trade: ${outcome} - ${reflection.substring(0, 100)}`,
-        phase: "after",
+        phase: "after" as const,
         tradeId: trade.id,
-      })
+      }
+      await storage.addEmotionLog(emotionLog)
+
+      // Emit event to refresh emotion-based analytics
+      analyticsEvents.emit(ANALYTICS_EVENTS.EMOTION_LOGGED, emotionLog)
     }
+
+    // Emit event to refresh betting analytics
+    analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
 
     onComplete()
   }

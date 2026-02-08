@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { EmotionWheel } from "@/components/emotion-wheel"
 import type { Trade } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 
 interface PreTradeFormProps {
   onComplete: (trade: Trade) => void
@@ -60,16 +61,24 @@ export function PreTradeForm({ onComplete }: PreTradeFormProps) {
 
     // Also log the pre-bet emotion so it impacts emotional stability and charts
     if (emotion) {
-      await storage.addEmotionLog({
+      const emotionLog = {
         id: Date.now().toString(),
         timestamp: new Date(),
         emotion,
         intensity,
         context: `Pre-trade: ${reasoning.substring(0, 200)}`,
-        phase: "before",
+        phase: "before" as const,
         tradeId: trade.id,
-      })
+      }
+      await storage.addEmotionLog(emotionLog)
+
+      // Emit event to refresh emotion-based analytics
+      analyticsEvents.emit(ANALYTICS_EVENTS.EMOTION_LOGGED, emotionLog)
     }
+
+    // Emit event to refresh betting analytics
+    analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+
     onComplete(trade)
   }
 

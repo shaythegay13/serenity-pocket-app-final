@@ -77,6 +77,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           id: analysis.id,
           timestamp: analysis.timestamp,
           title: analysis.description || 'Unknown Bet',
+          sport: analysis.sport,
           stake: analysis.stake,
           actualReturn: analysis.actualReturn,
           outcome: analysis.outcome === 'push' ? 'breakeven' :
@@ -98,6 +99,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             id: bet.id,
             timestamp: bet.timestamp,
             title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+            sport: bet.sport,
             stake: bet.stake,
             actualReturn: bet.actualReturn || 0,
             outcome: bet.outcome === 'push' ? 'breakeven' :
@@ -187,6 +189,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             id: analysis.id,
             timestamp: analysis.timestamp,
             title: analysis.description || 'Unknown Bet',
+            sport: analysis.sport,
             stake: analysis.stake,
             actualReturn: analysis.actualReturn,
             outcome: analysis.outcome === 'push' ? 'breakeven' :
@@ -208,6 +211,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               id: bet.id,
               timestamp: bet.timestamp,
               title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+              sport: bet.sport,
               stake: bet.stake,
               actualReturn: bet.actualReturn || 0,
               outcome: bet.outcome === 'push' ? 'breakeven' :
@@ -343,7 +347,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         </Button>
       </div>
 
-      {activeSubTab === "performance" && <PerformanceTab trades={trades} onRefreshData={refreshData} isRefreshing={isRefreshing} />}
+      {activeSubTab === "performance" && <PerformanceTab trades={trades} comprehensiveBets={comprehensiveBets} onRefreshData={refreshData} isRefreshing={isRefreshing} />}
       {activeSubTab === "mental-health" && <MentalHealthTab emotionLogs={logs} />}
       {activeSubTab === "correlation" && <CorrelationTab emotionLogs={logs} trades={trades} />}
     </div>

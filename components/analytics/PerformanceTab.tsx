@@ -32,11 +32,12 @@ import { toast } from "sonner"
 interface PerformanceTabProps {
   trades: Trade[]
   unifiedBets?: UnifiedBet[]
+  comprehensiveBets?: ComprehensiveBet[]
   onRefreshData?: () => void
   isRefreshing?: boolean
 }
 
-export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefreshing }: PerformanceTabProps) {
+export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: propComprehensiveBets = [], onRefreshData, isRefreshing }: PerformanceTabProps) {
   // Calculate metrics
   const metrics = useMemo(() => {
     if (unifiedBets.length > 0) {
@@ -226,22 +227,75 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
     ].filter(item => item.value > 0)
   }, [trades])
 
+  // Format sport key to display name (e.g., "basketball_nba" -> "NBA")
+  const formatSportName = (sportKey: string): string => {
+    if (!sportKey || sportKey === 'Unknown') return 'Unknown'
+
+    // Common sport key mappings
+    const sportNames: Record<string, string> = {
+      'basketball_nba': 'NBA',
+      'americanfootball_nfl': 'NFL',
+      'baseball_mlb': 'MLB',
+      'icehockey_nhl': 'NHL',
+      'basketball_ncaab': 'NCAAB',
+      'americanfootball_ncaaf': 'NCAAF',
+      'soccer_epl': 'EPL',
+      'soccer_mls': 'MLS',
+      'soccer_champions_league': 'Champions League',
+      'mma_ufc': 'UFC',
+      'boxing': 'Boxing',
+      'tennis_atp': 'ATP Tennis',
+      'tennis_wta': 'WTA Tennis',
+      'golf_pga': 'PGA Golf',
+      'motorsports_f1': 'F1',
+      'motorsports_nascar': 'NASCAR',
+      'esports_lol': 'LoL',
+      'esports_csgo': 'CS:GO',
+    }
+
+    return sportNames[sportKey] || sportKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }
+
   // Sport performance
   const sportPerformance = useMemo(() => {
     const sportMap = new Map<string, { wins: number; losses: number; profit: number }>()
+    const processedIds = new Set<string>()
 
+    // Process trades
     trades.forEach(trade => {
-      const sport = trade.sport || 'Unknown'
+      const sportKey = trade.sport || 'Unknown'
+      const sport = formatSportName(sportKey)
       if (!sportMap.has(sport)) {
         sportMap.set(sport, { wins: 0, losses: 0, profit: 0 })
       }
       const stats = sportMap.get(sport)!
       if (trade.outcome === 'profit') stats.wins++
       if (trade.outcome === 'loss') stats.losses++
-      
+
       // Only include profit for settled bets with actualReturn
       if (trade.actualReturn != null) {
         stats.profit += (trade.actualReturn || 0) - (trade.stake || 0)
+      }
+
+      // Track processed IDs to avoid double counting
+      processedIds.add(trade.id)
+    })
+
+    // Also process comprehensive bets that might not be in trades
+    propComprehensiveBets.forEach(bet => {
+      if (processedIds.has(bet.id)) return
+      processedIds.add(bet.id)
+
+      const sport = formatSportName(bet.sport)
+      if (!sportMap.has(sport)) {
+        sportMap.set(sport, { wins: 0, losses: 0, profit: 0 })
+      }
+      const stats = sportMap.get(sport)!
+      if (bet.outcome === 'win') stats.wins++
+      if (bet.outcome === 'loss') stats.losses++
+
+      if (bet.actualReturn != null) {
+        stats.profit += (bet.actualReturn || 0) - (bet.stake || 0)
       }
     })
 
@@ -254,34 +308,60 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
         ? (stats.wins / (stats.wins + stats.losses)) * 100
         : 0
     })).sort((a, b) => b.profit - a.profit)
-  }, [trades])
+  }, [trades, propComprehensiveBets])
 
   // Team betting statistics - count bets on each team
   const teamStats = useMemo(() => {
     const teamMap = new Map<string, { bets: number; wins: number; losses: number; profit: number }>()
+    const processedIds = new Set<string>()
 
-    // Process comprehensive bets
-    pendingComprehensiveBets.forEach(bet => {
-      // Skip unknown teams
+    // Helper function to process a bet's teams
+    const processBetTeams = (bet: ComprehensiveBet) => {
+      if (processedIds.has(bet.id)) return
+      processedIds.add(bet.id)
+
+      const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
+      const isWin = bet.outcome === 'win'
+      const isLoss = bet.outcome === 'loss'
+
+      // Process home team
       if (bet.homeTeam && bet.homeTeam !== "Unknown") {
         if (!teamMap.has(bet.homeTeam)) {
           teamMap.set(bet.homeTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
         }
-        teamMap.get(bet.homeTeam)!.bets++
+        const stats = teamMap.get(bet.homeTeam)!
+        stats.bets++
+        if (isWin) stats.wins++
+        if (isLoss) stats.losses++
+        stats.profit += betProfit
       }
+
+      // Process away team
       if (bet.awayTeam && bet.awayTeam !== "Unknown") {
         if (!teamMap.has(bet.awayTeam)) {
           teamMap.set(bet.awayTeam, { bets: 0, wins: 0, losses: 0, profit: 0 })
         }
-        teamMap.get(bet.awayTeam)!.bets++
+        const stats = teamMap.get(bet.awayTeam)!
+        stats.bets++
+        if (isWin) stats.wins++
+        if (isLoss) stats.losses++
+        stats.profit += betProfit
       }
-    })
+    }
+
+    // Process comprehensive bets passed as props (all bets - settled and pending)
+    propComprehensiveBets.forEach(processBetTeams)
+
+    // Also process locally loaded pending bets
+    pendingComprehensiveBets.forEach(processBetTeams)
 
     // Also process from unified bets if available
     unifiedBets.forEach(bet => {
+      if (processedIds.has(bet.id)) return
+      processedIds.add(bet.id)
+
       const homeTeam = (bet as any).homeTeam
       const awayTeam = (bet as any).awayTeam
-      // Calculate profit from actualReturn - stake
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
 
       if (homeTeam && homeTeam !== "Unknown") {
@@ -321,7 +401,7 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
       }))
       .sort((a, b) => b.bets - a.bets)
       .slice(0, 10)
-  }, [pendingComprehensiveBets, unifiedBets])
+  }, [propComprehensiveBets, pendingComprehensiveBets, unifiedBets])
 
   // Cumulative profit over time
   const cumulativeProfit = useMemo(() => {

@@ -7,11 +7,11 @@ import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Features | Serenity Pocket - Behavioral Sports Betting Tools",
-  description: "Explore Serenity Pocket's powerful features: AI-powered bet analysis, emotion tracking, cognitive bias detection, and personalized SmartSlip picks for responsible betting.",
+  title: "Features | PlayMind Labs - Behavioral Sports Betting Tools",
+  description: "Explore PlayMind Labs's powerful features: AI-powered bet analysis, emotion tracking, cognitive bias detection, and personalized SmartSlip picks for responsible betting.",
   keywords: ["sports betting features", "AI betting analysis", "emotion tracking", "bias detection", "responsible gambling tools"],
   openGraph: {
-    title: "Serenity Pocket Features - AI-Powered Betting Analytics",
+    title: "PlayMind Labs Features - AI-Powered Betting Analytics",
     description: "Discover powerful behavioral tools for smarter, more disciplined betting decisions.",
     type: "website",
   },
@@ -55,7 +55,7 @@ export default function FeaturesPage() {
               Platform Features
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Discover the powerful behavioral and AI tools that make Serenity Pocket the most comprehensive 
+              Discover the powerful behavioral and AI tools that make PlayMind Labs the most comprehensive 
               responsible betting platform available.
             </p>
           </div>
@@ -207,7 +207,7 @@ export default function FeaturesPage() {
                 Ready to get started?
               </h2>
               <p className="text-muted-foreground mb-6">
-                Join thousands of users making smarter betting decisions with Serenity Pocket.
+                Join thousands of users making smarter betting decisions with PlayMind Labs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild>

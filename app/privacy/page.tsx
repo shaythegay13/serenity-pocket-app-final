@@ -225,7 +225,6 @@ export default function PrivacyPage() {
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <p><strong>Email:</strong> info@playmindlabs.com</p>
                   <p><strong>Company:</strong> PlayMind Labs</p>
-                  <p><strong>Platform:</strong> Serenity Pocket</p>
                 </div>
               </div>
             </Card>

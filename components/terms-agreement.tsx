@@ -24,7 +24,7 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
         {/* Header */}
         <div className="text-center space-y-3">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="Serenity Pocket" width={60} height={60} />
+            <Image src="/logo.png" alt="PlayMind Labs" width={60} height={60} />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Terms & Agreements</h1>
           <p className="text-muted-foreground">
@@ -37,23 +37,23 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
           <h2 className="text-lg font-semibold">Terms of Service</h2>
           <ScrollArea className="h-48 rounded-md border border-border p-4">
             <div className="space-y-3 text-sm text-muted-foreground">
-              <p className="font-semibold text-foreground">Welcome to Serenity Pocket</p>
+              <p className="font-semibold text-foreground">Welcome to PlayMind Labs</p>
               
               <p>
-                By accessing and using Serenity Pocket, you agree to be bound by these Terms of Service. 
+                By accessing and using PlayMind Labs, you agree to be bound by these Terms of Service. 
                 Please read them carefully.
               </p>
 
               <p className="font-semibold text-foreground">1. Service Description</p>
               <p>
-                Serenity Pocket is a psychological support and decision-making tool designed to help sports 
+                PlayMind Labs is a psychological support and decision-making tool designed to help sports 
                 bettors and day traders manage emotions, identify cognitive biases, and develop disciplined 
                 trading and betting habits.
               </p>
 
               <p className="font-semibold text-foreground">2. Not Financial Advice</p>
               <p>
-                Serenity Pocket does NOT provide financial, investment, or betting advice. All insights and 
+                PlayMind Labs does NOT provide financial, investment, or betting advice. All insights and 
                 tools are for educational and self-awareness purposes only. You are solely responsible for 
                 your financial decisions. Past performance does not guarantee future results.
               </p>
@@ -73,20 +73,20 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
 
               <p className="font-semibold text-foreground">5. Subscription and Billing</p>
               <p>
-                Serenity Pocket offers a free tier and paid subscription tiers. Paid subscriptions will be 
+                PlayMind Labs offers a free tier and paid subscription tiers. Paid subscriptions will be 
                 billed on a recurring basis until cancelled. All fees are non-refundable except as required 
                 by law.
               </p>
 
               <p className="font-semibold text-foreground">6. Intellectual Property</p>
               <p>
-                All content, features, and functionality of Serenity Pocket are owned by us and protected 
+                All content, features, and functionality of PlayMind Labs are owned by us and protected 
                 by copyright, trademark, and other intellectual property laws.
               </p>
 
               <p className="font-semibold text-foreground">7. Limitation of Liability</p>
               <p>
-                To the maximum extent permitted by law, Serenity Pocket and its operators shall not be 
+                To the maximum extent permitted by law, PlayMind Labs and its operators shall not be 
                 liable for any financial losses, trading losses, betting losses, or any indirect, 
                 incidental, or consequential damages arising from your use of the service.
               </p>
@@ -173,7 +173,7 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
 
               <p className="font-semibold text-foreground">8. Children's Privacy</p>
               <p>
-                Serenity Pocket is not intended for users under 18. We do not knowingly collect information 
+                PlayMind Labs is not intended for users under 18. We do not knowingly collect information 
                 from children.
               </p>
 
@@ -185,7 +185,7 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
 
               <p className="font-semibold text-foreground">10. Contact Us</p>
               <p>
-                For privacy concerns or data requests, contact us at privacy@serenitypocket.com
+                For privacy concerns or data requests, contact us at info@playmindlabs.com
               </p>
             </div>
           </ScrollArea>

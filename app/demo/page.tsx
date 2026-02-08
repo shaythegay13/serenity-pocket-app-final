@@ -10,7 +10,7 @@ export default function DemoPage() {
               Platform Demo
             </h1>
             <p className="text-lg text-muted-foreground">
-              Learn how to use Serenity Pocket to make smarter betting decisions
+              Learn how to use PlayMind Labs to make smarter betting decisions
             </p>
           </div>
 
@@ -37,7 +37,7 @@ export default function DemoPage() {
               </h2>
               
               <p className="text-muted-foreground max-w-md mx-auto">
-                We're working on creating comprehensive video tutorials and interactive demos to help you get the most out of Serenity Pocket. Check back soon!
+                We're working on creating comprehensive video tutorials and interactive demos to help you get the most out of PlayMind Labs. Check back soon!
               </p>
 
               <div className="pt-6">

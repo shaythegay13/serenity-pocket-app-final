@@ -459,7 +459,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           <div className="pt-4 border-t border-border">
             <h4 className="text-sm font-semibold text-foreground mb-3">Demographic Information (Optional)</h4>
             <p className="text-xs text-muted-foreground mb-4">
-              Help us improve Serenity Pocket by sharing some information about yourself.
+              Help us improve PlayMind Labs by sharing some information about yourself.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

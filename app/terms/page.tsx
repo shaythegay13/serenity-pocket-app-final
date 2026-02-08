@@ -10,7 +10,7 @@ export default function TermsPage() {
               Terms of Service
             </h1>
             <p className="text-lg text-muted-foreground">
-              Please read these terms carefully before using Serenity Pocket.
+              Please read these terms carefully before using PlayMind Labs.
             </p>
             <p className="text-sm text-muted-foreground mt-2">
               Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -24,7 +24,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  By accessing and using Serenity Pocket ("the Service"), you agree to be bound by these Terms of Service ("Terms"). 
+                  By accessing and using PlayMind Labs ("the Service"), you agree to be bound by these Terms of Service ("Terms").
                   If you do not agree to these Terms, you may not access or use the Service.
                 </p>
                 <p>
@@ -40,7 +40,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  Serenity Pocket is an AI-powered sports betting analytics platform that provides:
+                  PlayMind Labs is an AI-powered sports betting analytics platform that provides:
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>Behavioral analysis and emotional tracking</li>
@@ -97,7 +97,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  Serenity Pocket offers both free and paid subscription plans. Paid subscriptions are subject to the following terms:
+                  PlayMind Labs offers both free and paid subscription plans. Paid subscriptions are subject to the following terms:
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>Subscriptions are billed on a monthly basis</li>
@@ -119,7 +119,7 @@ export default function TermsPage() {
               </h2>
               <div className="space-y-3 text-muted-foreground">
                 <p>
-                  <strong>IMPORTANT DISCLAIMER:</strong> Serenity Pocket is an analytical and educational tool only. 
+                  <strong>IMPORTANT DISCLAIMER:</strong> PlayMind Labs is an analytical and educational tool only.
                   We do not facilitate betting, accept wagers, or guarantee betting outcomes.
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
@@ -293,7 +293,6 @@ export default function TermsPage() {
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <p><strong>Email:</strong> info@playmindlabs.com</p>
                   <p><strong>Company:</strong> PlayMind Labs</p>
-                  <p><strong>Service:</strong> Serenity Pocket</p>
                 </div>
               </div>
             </Card>

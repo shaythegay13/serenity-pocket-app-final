@@ -2,23 +2,23 @@ import { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 
 export const metadata: Metadata = {
-  title: "FAQ | Serenity Pocket - Frequently Asked Questions",
-  description: "Find answers to common questions about Serenity Pocket's AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
+  title: "FAQ | PlayMind Labs - Frequently Asked Questions",
+  description: "Find answers to common questions about PlayMind Labs' AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
   keywords: ["betting FAQ", "sports betting questions", "responsible gambling FAQ", "AI betting analysis help"],
 }
 
 const faqs = [
   {
-    question: "What is Serenity Pocket?",
-    answer: "Serenity Pocket is an AI-powered sports betting analytics platform designed to help you make smarter, more informed betting decisions. We combine behavioral psychology insights with real-time sports data to provide comprehensive analysis and responsible gaming tools."
+    question: "What is PlayMind Labs?",
+    answer: "PlayMind Labs is an AI-powered sports betting analytics platform designed to help you make smarter, more informed betting decisions. We combine behavioral psychology insights with real-time sports data to provide comprehensive analysis and responsible gaming tools."
   },
   {
     question: "How does the AI analysis work?",
     answer: "Our AI analyzes your betting patterns, emotional state, and historical performance alongside real-time sports data. This helps identify potential biases, emotional triggers, and provides personalized recommendations to improve your betting strategy."
   },
   {
-    question: "Is Serenity Pocket legal to use?",
-    answer: "Yes, Serenity Pocket is completely legal. We provide analytics and insights to help inform your betting decisions, but we do not place bets on your behalf. We operate as an educational and analytical tool."
+    question: "Is PlayMind Labs legal to use?",
+    answer: "Yes, PlayMind Labs is completely legal. We provide analytics and insights to help inform your betting decisions, but we do not place bets on your behalf. We operate as an educational and analytical tool."
   },
   {
     question: "What sports do you cover?",
@@ -45,8 +45,8 @@ const faqs = [
     answer: "We use industry-standard encryption and security measures to protect your personal and betting data. Your information is never shared with third parties without your explicit consent, and we comply with all relevant privacy regulations."
   },
   {
-    question: "Can I use Serenity Pocket on mobile?",
-    answer: "Yes! Serenity Pocket is fully responsive and works great on mobile devices."
+    question: "Can I use PlayMind Labs on mobile?",
+    answer: "Yes! PlayMind Labs is fully responsive and works great on mobile devices."
   },
   {
     question: "What payment methods do you accept?",
@@ -64,7 +64,7 @@ export default function FAQPage() {
               Frequently Asked Questions
             </h1>
             <p className="text-lg text-muted-foreground">
-              Find answers to common questions about Serenity Pocket
+              Find answers to common questions about PlayMind Labs
             </p>
           </div>
 

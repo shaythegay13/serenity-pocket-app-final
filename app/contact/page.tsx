@@ -115,7 +115,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-medium text-foreground mb-1">Platform</h3>
                     <p className="text-muted-foreground">
-                      Serenity Pocket
+                      PlayMind Labs
                     </p>
                   </div>
                 </div>

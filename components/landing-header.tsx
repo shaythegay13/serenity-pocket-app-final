@@ -18,7 +18,7 @@ export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
               <Brain className="h-6 w-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">Serenity Pocket</span>
+            <span className="text-xl font-bold text-white">PlayMind Labs</span>
           </Link>
 
           {/* Navigation */}

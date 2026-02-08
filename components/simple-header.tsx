@@ -27,14 +27,14 @@ export function SimpleHeader() {
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logo.png"
-              alt="Serenity Pocket"
+              alt="PlayMind Labs"
               width={162}
               height={162}
               className="h-[108px] w-[108px] sm:h-[126px] sm:w-[126px]"
               priority
             />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-              Serenity Pocket
+              PlayMind Labs
             </h1>
           </Link>
 

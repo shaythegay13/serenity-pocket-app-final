@@ -1,8 +1,8 @@
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Terms of Service | Serenity Pocket",
-  description: "Serenity Pocket terms of service. Read our terms and conditions for using our AI-powered betting analytics platform.",
+  title: "Terms of Service | PlayMind Labs",
+  description: "PlayMind Labs terms of service. Read our terms and conditions for using our AI-powered betting analytics platform.",
   keywords: ["terms of service", "betting platform terms", "user agreement"],
 }
 

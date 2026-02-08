@@ -23,31 +23,21 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
     let timeoutId: NodeJS.Timeout
     
     const checkAuth = async () => {
-      console.log('🔐 AuthenticatedLayout: Starting auth check...')
-      
       // Add timeout to prevent infinite loading
       timeoutId = setTimeout(() => {
         if (mounted && loading) {
-          console.log('🔐 Auth check timeout - forcing loading to false')
           setLoading(false)
           setAuthed(false)
         }
       }, 10000) // 10 second timeout
-      
+
       try {
         // Get session and user data in parallel
-        console.log('🔐 Getting session and user data...')
         const [{ data: { session } }, userData] = await Promise.all([
           supabase.auth.getSession(),
-          storage.getUserData().catch((error) => {
-            console.log('🔐 getUserData failed:', error)
-            return null
-          })
+          storage.getUserData().catch(() => null)
         ])
-        
-        console.log('🔐 Session:', session ? 'found' : 'not found')
-        console.log('🔐 UserData:', userData ? 'found' : 'not found')
-        
+
         if (!mounted) return
         
         if (!session) {
@@ -69,7 +59,6 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         }
       } finally {
         if (mounted) {
-          console.log('🔐 Auth check complete, setting loading to false')
           clearTimeout(timeoutId)
           setLoading(false)
         }

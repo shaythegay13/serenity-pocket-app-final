@@ -65,7 +65,10 @@ export default function OnboardingIntroPage() {
         const parsed = JSON.parse(raw) as SnapshotResult;
         if (parsed && parsed.tag) setSnapshot(parsed);
       }
-    } catch {}
+    } catch (error) {
+      // Non-critical: snapshot data couldn't be loaded from session storage
+      console.warn('[Onboarding] Failed to load snapshot from session storage:', error)
+    }
   }, []);
 
   const exp = getFullExplanation(snapshot?.tag || "Momentum Player");

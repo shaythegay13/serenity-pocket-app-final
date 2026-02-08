@@ -275,6 +275,21 @@ export interface Trade {
   isLiveBet?: boolean
   /** Time in seconds between this bet and the previous bet (for sequence analysis) */
   timeSincePreviousBet?: number
+  /** Bet type (moneyline, spread, total, etc.) */
+  betType?: string
+  /** Odds for the bet (American format) */
+  odds?: number
+}
+
+export interface GameMarketSnapshot {
+  marketType: "moneyline" | "spread" | "total" | "prop"
+  line?: number
+  homeOdds?: number
+  awayOdds?: number
+  overOdds?: number
+  underOdds?: number
+  sportsbook?: string
+  timestamp?: string
 }
 
 export interface GameLineRecord {
@@ -285,7 +300,7 @@ export interface GameLineRecord {
   awayTeam: string
   commenceTime: string
   sportsbook?: string
-  markets: any[]
+  markets: GameMarketSnapshot[]
   homeScore?: number
   awayScore?: number
   finalStatus?: string

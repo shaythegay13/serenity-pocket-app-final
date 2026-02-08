@@ -1,8 +1,11 @@
+import bundleAnalyzer from '@next/bundle-analyzer'
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
   },
@@ -26,4 +29,4 @@ const nextConfig = {
   allowedDevOrigins: ['127.0.0.1:3000', 'localhost:3000'],
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

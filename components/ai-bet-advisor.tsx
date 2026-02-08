@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { Slider } from "@/components/ui/slider"
 import { SegmentedControl, YesNoControl } from "@/components/ui/segmented-control"
 import { Loader2, AlertTriangle, Sparkles, ClipboardPaste, FileText } from "lucide-react"
 import type { BetScenario, ComprehensiveAnalysis, SupportedSportKey, OddsAnalysis } from "@/lib/ai-bet-advisor"
@@ -18,6 +19,15 @@ import { supabase } from "@/lib/supabase"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { BetAnalysis } from "@/lib/types"
 import { BetTrackingService } from "@/lib/bet-tracking-service"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Home as HomeIcon, RefreshCcw, CheckCircle2 } from "lucide-react"
 
 
 
@@ -89,7 +99,11 @@ const coreEmotions = [
   }
 ]
 
-export default function AIBetAdvisor() {
+interface AIBetAdvisorProps {
+  onNavigateToTab?: (tab: string) => void
+}
+
+function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState<ComprehensiveAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +118,8 @@ export default function AIBetAdvisor() {
   const [awayOdds, setAwayOdds] = useState<number>(NaN)
   const [betSlipText, setBetSlipText] = useState<string>("")
   const [betInputTab, setBetInputTab] = useState<"manual" | "paste">("manual")
+  const [showPlaceBetPopup, setShowPlaceBetPopup] = useState(false)
+  const [showNoBetPopup, setShowNoBetPopup] = useState(false)
 
   const [formData, setFormData] = useState<BetScenario>({
     // Core bet details
@@ -143,7 +159,7 @@ export default function AIBetAdvisor() {
 
     // Psychological factors
     biasesIdentified: [],
-    confidenceLevel: 5,
+    confidenceLevel: 50,
     reasoning: "",
 
     // Metadata
@@ -728,15 +744,19 @@ export default function AIBetAdvisor() {
   }
 
   const handlePlaceBet = () => {
-    // TODO: Implement bet tracking functionality
-    // This would save the bet to the database and track it
+    // Legacy tracking (optional, but keeping it simple)
     console.log("Place bet tracked:", formData)
-    // Reset form after placing bet
-    setAnalysis(null)
-    setStep("details")
+    setShowPlaceBetPopup(true)
   }
 
-  const handleDiscard = () => {
+  const handleDiscard = (forceReset = false) => {
+    // If we're discarding and the recommendation was NOT PLACE BET (includes DON'T PLACE BET and PROCEED WITH CAUTION),
+    // show the "Good Choice" popup unless we're forcing a reset.
+    if (!forceReset && analysis?.recommendation.recommendation !== "PLACE BET") {
+      setShowNoBetPopup(true)
+      return
+    }
+
     // Clear the analysis and reset to form
     setAnalysis(null)
     setError(null)
@@ -1142,6 +1162,32 @@ We'll automatically extract the details and populate the form.`}
                             placeholder="e.g., 5-5"
                           />
                         </div>
+
+                        <div className="md:col-span-2 pt-2 border-t space-y-4">
+                          <h4 className="text-sm font-semibold text-foreground">Game Context (Optional)</h4>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="injuries">Key Injuries</Label>
+                              <Input
+                                id="injuries"
+                                value={formData.injuries}
+                                onChange={(e) => updateFormData("injuries", e.target.value)}
+                                placeholder="e.g., Star player out, backup QB starting"
+                              />
+                            </div>
+
+                            <div>
+                              <Label htmlFor="weather">Weather Conditions</Label>
+                              <Input
+                                id="weather"
+                                value={formData.weather}
+                                onChange={(e) => updateFormData("weather", e.target.value)}
+                                placeholder="e.g., Rain expected, dome game, windy"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <Button type="button" onClick={() => setStep("mindset")} className="w-full">
@@ -1245,6 +1291,44 @@ We'll automatically extract the details and populate the form.`}
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>How intense is this feeling? (1-10)</Label>
+                      <span className="text-sm font-medium text-primary">{formData.currentEmotionIntensity || 5}</span>
+                    </div>
+                    <Slider
+                      value={[formData.currentEmotionIntensity || 5]}
+                      onValueChange={(value) => updateFormData("currentEmotionIntensity", value[0])}
+                      min={1}
+                      max={10}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Mild</span>
+                      <span>Intense</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Your confidence in this bet (0-100)</Label>
+                      <span className="text-sm font-medium text-primary">{formData.confidenceLevel || 50}%</span>
+                    </div>
+                    <Slider
+                      value={[formData.confidenceLevel || 50]}
+                      onValueChange={(value) => updateFormData("confidenceLevel", value[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Uncertain</span>
+                      <span>Very Confident</span>
+                    </div>
+                  </div>
+
                   <div>
                     <Label>Last bet outcome</Label>
                     <SegmentedControl
@@ -1307,6 +1391,20 @@ We'll automatically extract the details and populate the form.`}
                         onChange={(value) => updateFormData("isChasingLoss", value)}
                       />
                     </div>
+
+                    <div>
+                      <Label htmlFor="notes">Your reasoning / notes (optional)</Label>
+                      <Textarea
+                        id="notes"
+                        value={formData.notes}
+                        onChange={(e) => updateFormData("notes", e.target.value)}
+                        placeholder="Why do you want to make this bet? Any specific insights or hunches?"
+                        rows={2}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        AI will analyze this for potential biases or overconfidence
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex gap-3">
@@ -1365,7 +1463,7 @@ We'll automatically extract the details and populate the form.`}
             scenario={formData}
             oddsAnalysis={currentOddsAnalysis}
             onPlaceBet={handlePlaceBet}
-            onDiscard={handleDiscard}
+            onDiscard={() => handleDiscard()}
           />
 
           {/* Enhanced Insights from Gemini - shown below result screen */}
@@ -1395,6 +1493,79 @@ We'll automatically extract the details and populate the form.`}
 
         </>
       )}
+
+      {/* Popups for Decisions */}
+      <Dialog open={showPlaceBetPopup} onOpenChange={setShowPlaceBetPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <DialogTitle className="text-center text-xl">Great! Now come back...</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Your bet has been tracked. Mental discipline is key—come back to TiltLab when you're ready to analyze your next play.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center mt-4">
+            <Button
+              type="button"
+              className="w-full sm:w-auto px-8"
+              onClick={() => {
+                setShowPlaceBetPopup(false)
+                onNavigateToTab?.("home")
+              }}
+            >
+              <HomeIcon className="h-4 w-4 mr-2" />
+              Home
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showNoBetPopup} onOpenChange={setShowNoBetPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+              <Sparkles className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <DialogTitle className="text-center text-xl">Good choice! You can now try again...</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Good choice! You can now try again with different game data and hopefully get better results! Avoiding high-risk bets is a win for your bankroll and your mindset.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center flex-col sm:flex-row gap-3 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setShowNoBetPopup(false)
+                onNavigateToTab?.("home")
+              }}
+            >
+              <HomeIcon className="h-4 w-4 mr-2" />
+              Home
+            </Button>
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setShowNoBetPopup(false)
+                handleDiscard(true) // This will reset the form
+              }}
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Analyze New Game
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+// Named export for dynamic imports
+export const AIBetAdvisor = AIBetAdvisorComponent
+
+// Default export for regular imports
+export default AIBetAdvisorComponent

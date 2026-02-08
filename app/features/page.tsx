@@ -1,9 +1,21 @@
+import { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Check, Star, TrendingUp, Brain, Shield, Target } from "lucide-react"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import Link from "next/link"
+
+export const metadata: Metadata = {
+  title: "Features | Serenity Pocket - Behavioral Sports Betting Tools",
+  description: "Explore Serenity Pocket's powerful features: AI-powered bet analysis, emotion tracking, cognitive bias detection, and personalized SmartSlip picks for responsible betting.",
+  keywords: ["sports betting features", "AI betting analysis", "emotion tracking", "bias detection", "responsible gambling tools"],
+  openGraph: {
+    title: "Serenity Pocket Features - AI-Powered Betting Analytics",
+    description: "Discover powerful behavioral tools for smarter, more disciplined betting decisions.",
+    type: "website",
+  },
+}
 
 const featuredFeatures = [
   {

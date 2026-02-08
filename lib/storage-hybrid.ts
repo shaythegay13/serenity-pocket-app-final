@@ -65,6 +65,7 @@ export const storageHybrid: {
   // Challenge Operations
   getChallenges(): Promise<Challenge[]>
   updateChallenges(challenges: Challenge[]): Promise<void>
+  setChallenges(challenges: Challenge[]): Promise<void>
 
   // Emotion Log Operations
   getEmotionLogs(): Promise<EmotionLog[]>
@@ -1437,6 +1438,11 @@ export const storageHybrid: {
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.CHALLENGES, JSON.stringify(challenges))
     }
+  },
+
+  // Alias for updateChallenges for backward compatibility
+  async setChallenges(challenges: Challenge[]): Promise<void> {
+    return this.updateChallenges(challenges)
   },
 
   // Last Check-in Operations

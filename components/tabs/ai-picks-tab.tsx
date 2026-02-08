@@ -329,7 +329,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate()
         }).length
         setDailyBetCount(todayCount)
-      } catch { }
+      } catch (error) {
+        console.warn('[AI Picks] Failed to load daily bet count:', error)
+      }
     })()
   }, [])
 
@@ -603,7 +605,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
-      } catch { }
+      } catch (error) {
+        console.warn('[AI Picks] Failed to save pending bet to localStorage:', error)
+      }
 
       setActiveSection('advisor')
       toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
@@ -652,7 +656,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
-      } catch { }
+      } catch (error) {
+        console.warn('[AI Picks] Failed to save pending bet to localStorage:', error)
+      }
 
       setActiveSection('advisor')
       toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
@@ -1072,28 +1078,25 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
           {/* Anchored Risk Assessment Card - shown after picks */}
           {anchoredRisk && (
-            <Card className={`p-6 border-2 ${
-              anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
-              anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
-              anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
-              'border-red-500/30 bg-red-500/5'
-            }`}>
+            <Card className={`p-6 border-2 ${anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
+                anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                  anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
+                    'border-red-500/30 bg-red-500/5'
+              }`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                  <Activity className={`h-5 w-5 ${
-                    anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                    anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                    'text-red-500'
-                  }`} />
+                  <Activity className={`h-5 w-5 ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                          'text-red-500'
+                    }`} />
                   Research-Anchored Risk Assessment
                 </h3>
-                <Badge variant="outline" className={`${
-                  anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
-                  anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
-                  anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
-                  'border-red-500 text-red-500'
-                }`}>
+                <Badge variant="outline" className={`${anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
+                    anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
+                      anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
+                        'border-red-500 text-red-500'
+                  }`}>
                   {anchoredRisk.riskLevel} Risk
                 </Badge>
               </div>
@@ -1101,12 +1104,11 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="text-center p-4 rounded-lg bg-background/50">
                   <p className="text-xs text-muted-foreground mb-1">Overall Risk</p>
-                  <p className={`text-3xl font-bold ${
-                    anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                    anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                    'text-red-500'
-                  }`}>
+                  <p className={`text-3xl font-bold ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                          'text-red-500'
+                    }`}>
                     {(anchoredRisk.overallRisk * 100).toFixed(0)}%
                   </p>
                 </div>
@@ -1118,12 +1120,11 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 </div>
                 <div className="text-center p-4 rounded-lg bg-background/50">
                   <p className="text-xs text-muted-foreground mb-1">Intervention</p>
-                  <p className={`text-lg font-bold capitalize ${
-                    anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
-                    anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
-                    anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
-                    'text-red-500'
-                  }`}>
+                  <p className={`text-lg font-bold capitalize ${anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
+                      anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
+                        anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
+                          'text-red-500'
+                    }`}>
                     {anchoredRisk.intervention.urgency === 'none' ? 'None Needed' : anchoredRisk.intervention.urgency}
                   </p>
                 </div>
@@ -1207,7 +1208,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         </TabsContent >
 
         <TabsContent value="advisor" className="space-y-6 mt-6">
-          <AIBetAdvisor />
+          <AIBetAdvisor onNavigateToTab={onNavigateToTab} />
         </TabsContent>
 
         <TabsContent value="marketplace" className="space-y-6 mt-6">

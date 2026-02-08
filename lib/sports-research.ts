@@ -15,7 +15,8 @@ import {
   getEventResults,
   type TeamInfo,
   type PlayerInfo,
-  type RecentForm
+  type RecentForm,
+  type LeagueInfo
 } from './thesportsdb';
 
 export interface SportsResearchInput {
@@ -120,7 +121,7 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
     const awayKeyPlayers: PlayerInfo[] = [];
 
     // Skip league info call - just metadata
-    const leagueInfo = null;
+    const leagueInfo: LeagueInfo | null = null;
 
     // Step 4: Use Gemini AI for deep analysis (with timeout)
     let aiAnalysis;
@@ -182,8 +183,8 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
         keyInsights: aiAnalysis.headToHead.insights
       } : null,
       matchContext: {
-        league: leagueInfo?.strLeague || input.league || 'Unknown',
-        season: leagueInfo?.strCurrentSeason || '2024-2025',
+        league: input.league || 'Unknown',
+        season: '2024-2025',
         importance: aiAnalysis.matchContext.importance,
         venue: homeTeamInfo?.strStadium || 'Unknown',
         weather: aiAnalysis.matchContext.weather,

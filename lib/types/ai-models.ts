@@ -18,6 +18,12 @@ export interface UserPsychologySnapshot {
   weeklyBudget: number
   favoriteTeam?: string
   underdogBiasTeam?: string
+  // Additional psychology flags for TiltLab analysis
+  isChasingLoss?: boolean
+  isFavoriteTeam?: boolean
+  isLiveBet?: boolean
+  confidenceLevel?: number // 0-100
+  notes?: string
 }
 
 export interface GameIdentifier {
@@ -217,6 +223,8 @@ export interface BetAnalyzerReasoningInput {
     stake: number
     odds: number
     slipText?: string
+    selection?: string // "home", "away", "over", "under"
+    line?: number // Spread or total line
   }
 }
 

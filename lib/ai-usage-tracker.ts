@@ -139,21 +139,7 @@ export async function checkAIServiceUsage(
       }, 0)
     }
 
-    // 5. Calculate availability
-    // TEMPORARY LOCAL OVERRIDE: Allow unlimited usage for Elite tier
-    if (tier === 'elite') {
-      return {
-        canUse: true,
-        remaining: 999,
-        limit: 999,
-        usedThisWeek,
-        purchasedCredits,
-        totalAvailable: 999,
-        tier,
-        reason: undefined
-      }
-    }
-
+    // 5. Calculate availability (using database-defined tier limits)
     const totalAvailable = tierLimit + purchasedCredits
     const remaining = Math.max(0, totalAvailable - usedThisWeek)
     const canUse = remaining > 0

@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // --- Psychology Model Selection (Integrated from SlipAnalyzer Logic) ---
     try {
-      const emotionalScore = payload.confidenceLevel || 75
+      const emotionalScore = payload.confidenceLevel ?? 50
       const riskTolerance = inferRiskToleranceFromScenario(payload)
 
       // Sanitize inputs to prevent command injection
@@ -163,6 +163,14 @@ export async function POST(request: NextRequest) {
         impliedProbabilities: {
           home: impliedFromOdds(effectiveOdds),
         },
+        // Include user-provided context for better analysis
+        keyInjuries: payload.injuries ? [payload.injuries] : undefined,
+        weather: payload.weather || undefined,
+        teamForm: {
+          homeRecent: payload.favoriteRecord ? [payload.favoriteRecord] : undefined,
+          awayRecent: payload.underdogRecord ? [payload.underdogRecord] : undefined,
+        },
+        narrativeContext: `Favorite: ${payload.favoriteTeam || 'Unknown'} (${payload.favoriteRecord || 'N/A'}), Underdog: ${payload.underdogTeam || 'Unknown'} (${payload.underdogRecord || 'N/A'}). Bet type: ${payload.betType}. Selection: ${payload.selection}.`,
       }
 
       features = {
@@ -219,12 +227,18 @@ export async function POST(request: NextRequest) {
       // 3) Gemini reasoning layer
       const userSnapshot: UserPsychologySnapshot = {
         currentEmotion: payload.currentEmotion || "neutral",
-        currentEmotionIntensity: undefined,
+        currentEmotionIntensity: payload.currentEmotionIntensity ?? 5,
         riskTolerance: inferRiskToleranceFromScenario(payload),
         weeklyBudget: payload.budget,
         lastOutcome: payload.lastOutcome,
         emotionalTriggers: payload.emotionalTriggers,
         recentHistorySummary: payload.history,
+        // Include additional psychology flags
+        isChasingLoss: payload.isChasingLoss,
+        isFavoriteTeam: payload.isFavoriteTeam,
+        isLiveBet: payload.isLiveBet,
+        confidenceLevel: payload.confidenceLevel,
+        notes: payload.notes,
       }
 
       const baseInput: BetAnalyzerReasoningInput = {
@@ -240,6 +254,8 @@ export async function POST(request: NextRequest) {
           stake: payload.betAmount,
           odds: effectiveOdds,
           slipText: payload.bettingSlip,
+          selection: payload.selection,
+          line: payload.line,
         },
       }
 

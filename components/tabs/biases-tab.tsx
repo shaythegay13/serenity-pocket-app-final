@@ -31,7 +31,9 @@ export function BiasesTab({ userData, updateUserData }: BiasesTabProps) {
   useEffect(() => {
     const loadBiasProfile = async () => {
       const profile = await storage.getBiasProfile()
-      setBiasProfile(profile)
+      if (profile) {
+        setBiasProfile(profile)
+      }
     }
     loadBiasProfile()
   }, [])

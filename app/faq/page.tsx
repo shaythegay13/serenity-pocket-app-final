@@ -1,4 +1,11 @@
+import { Metadata } from "next"
 import { Card } from "@/components/ui/card"
+
+export const metadata: Metadata = {
+  title: "FAQ | Serenity Pocket - Frequently Asked Questions",
+  description: "Find answers to common questions about Serenity Pocket's AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
+  keywords: ["betting FAQ", "sports betting questions", "responsible gambling FAQ", "AI betting analysis help"],
+}
 
 const faqs = [
   {

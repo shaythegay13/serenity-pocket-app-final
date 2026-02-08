@@ -170,9 +170,9 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
       })
     }
 
-    if (checkPerfectDay(userData)) {
+    if (checkPerfectDay(userData.dailyRings)) {
       setShowPerfectDay(true)
-      if (userData.perfectDays === 0 || !checkPerfectDay(userData)) {
+      if (userData.perfectDays === 0 || !checkPerfectDay(userData.dailyRings)) {
         updateUserData({
           perfectDays: userData.perfectDays + 1,
         })
@@ -438,7 +438,7 @@ export function DashboardTab({ userData, updateUserData, onNavigateToEmotions }:
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-foreground">Daily Activity Rings</h3>
-          {checkPerfectDay(userData) && (
+          {checkPerfectDay(userData.dailyRings) && (
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <Sparkles className="h-4 w-4" />
               Perfect Day! 2x XP Tomorrow

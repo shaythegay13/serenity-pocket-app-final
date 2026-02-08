@@ -192,13 +192,15 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   if (highBudget) signals.push({ type: 'budget', label: `${percent}% of weekly budget at risk` })
   else if (moderateBudget) signals.push({ type: 'budget', label: `${percent}% of budget (moderately high)` })
 
-  // Chasing losses
-  const chasing = /lost|loss|losing|down|behind|recover|win back/i.test(historyText) || payload.isChasingLoss
+  // Chasing losses - only detect actual chasing language, not formatted history results like "❌ LOST"
+  // Look for phrases that indicate intent to chase, not just historical outcomes
+  const chasingPhrases = /win back|recover|make back|get even|chase|need to win|must win|recoup/i.test(historyText)
+  const chasing = chasingPhrases || payload.isChasingLoss
   if (chasing) signals.push({ type: 'chasing', label: 'Potential chasing behavior detected' })
 
-  // High frequency
-  const frequency = /multiple|several|many|few bets|series/i.test(historyText)
-  if (frequency) signals.push({ type: 'frequency', label: 'High betting frequency noted' })
+  // High frequency - only detect explicit frequency mentions, not just any plural words
+  const frequencyPhrases = /betting too much|too many bets|can't stop|every game|all day/i.test(historyText)
+  if (frequencyPhrases) signals.push({ type: 'frequency', label: 'High betting frequency noted' })
 
   // Emotional state
   const emotional = /frustrated|angry|desperate|greedy|need to|anxious|upset/i.test(emotionText)
@@ -226,7 +228,7 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   if (highBudget || parlayAfterLoss || (emotional && chasing) || psychMultiplier < 0.6) {
     risk = 'HIGH'
     color = 'risk-high'
-  } else if (moderateBudget || chasing || emotional || frequency || confidence < 40) {
+  } else if (moderateBudget || chasing || emotional || frequencyPhrases || confidence < 40) {
     risk = 'MODERATE'
     color = 'risk-moderate'
   }
@@ -235,7 +237,7 @@ export function detectSignals(payload: BetScenario): SafetyAnalysis {
   if (percent >= 25) recommendations.push('Reduce bet size below 25% of weekly budget immediately')
   else if (percent >= 10) recommendations.push('Consider lowering bet size to under 10% of budget')
   if (chasing) recommendations.push('Avoid chasing losses; consider a cooling-off period')
-  if (frequency) recommendations.push('Set limits to reduce short-term betting frequency')
+  if (frequencyPhrases) recommendations.push('Set limits to reduce short-term betting frequency')
   if (emotional) recommendations.push('Reflect on reasoning; avoid emotion-driven decisions')
   if (parlayAfterLoss) recommendations.push('Skip parlays after losses; choose a single event')
   if (recommendations.length === 0) recommendations.push('Stay within budget and track outcomes objectively')

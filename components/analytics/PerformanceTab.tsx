@@ -101,8 +101,9 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
 
       // Calculate actual return based on outcome
       let actualReturn: number
+      const odds = bet.odds ?? -110 // Default to -110 if undefined
       if (outcome === 'win') {
-        actualReturn = bet.stake * (1 + (bet.odds > 0 ? bet.odds / 100 : 100 / Math.abs(bet.odds)))
+        actualReturn = bet.stake * (1 + (odds > 0 ? odds / 100 : 100 / Math.abs(odds)))
       } else if (outcome === 'push') {
         actualReturn = bet.stake
       } else {
@@ -235,7 +236,7 @@ export function PerformanceTab({ trades, unifiedBets = [], onRefreshData, isRefr
                   <div className="flex-1">
                     <div className="font-medium text-foreground">{bet.description || 'Unknown Bet'}</div>
                     <div className="text-sm text-muted-foreground">
-                      {bet.sport} • ${bet.stake.toFixed(2)} • {bet.odds > 0 ? '+' : ''}{bet.odds}
+                      {bet.sport} • ${bet.stake.toFixed(2)} • {(bet.odds ?? 0) > 0 ? '+' : ''}{bet.odds ?? 'N/A'}
                     </div>
                   </div>
                   

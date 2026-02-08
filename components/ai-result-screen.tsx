@@ -93,31 +93,43 @@ export function AIResultScreen({ analysis, scenario, oddsAnalysis, onPlaceBet, o
   const calculatePsychologicalEdge = () => {
     let score = 100
 
-    // Deduct based on emotional risk
-    if (recommendation.emotionalAnalysis.emotionalRisk === "HIGH") score -= 40
-    else if (recommendation.emotionalAnalysis.emotionalRisk === "MODERATE") score -= 20
+    // Defensive: ensure we have valid data
+    const emotionalRisk = recommendation?.emotionalAnalysis?.emotionalRisk
+    const signals = analysis?.safety?.signals || []
+    const budgetPercent = recommendation?.budgetPercent || 0
+    const riskLevel = recommendation?.riskLevel
 
-    // Deduct based on safety signals
-    score -= analysis.safety.signals.length * 10
+    // Deduct based on emotional risk
+    if (emotionalRisk === "HIGH") score -= 30
+    else if (emotionalRisk === "MODERATE") score -= 15
+
+    // Deduct based on safety signals (cap at 3 signals worth of deductions)
+    score -= Math.min(signals.length, 3) * 8
 
     // Deduct based on scenario self-reported risk factors
-    if (scenario.isChasingLoss) score -= 25
-    if (scenario.isLiveBet) score -= 15
-    if (scenario.isFavoriteTeam) score -= 10
+    if (scenario.isChasingLoss) score -= 20
+    if (scenario.isLiveBet) score -= 10
+    if (scenario.isFavoriteTeam) score -= 8
 
     // Deduct based on bankroll concentration
-    if (recommendation.budgetPercent > 10) {
-      score -= Math.min(30, Math.round((recommendation.budgetPercent - 10) / 5) * 5)
+    if (budgetPercent > 15) {
+      score -= Math.min(20, Math.round((budgetPercent - 15) / 5) * 5)
     }
 
     // Deduct based on risk level
-    if (recommendation.riskLevel === "HIGH") score -= 20
-    else if (recommendation.riskLevel === "MODERATE") score -= 10
+    if (riskLevel === "HIGH") score -= 15
+    else if (riskLevel === "MODERATE") score -= 8
 
     // If we're explicitly advising against betting, the "edge" should reflect that.
-    if (recommendation.recommendation === "DON'T PLACE BET") score -= 10
+    if (recommendation?.recommendation === "DON'T PLACE BET") score -= 10
 
-    // Add back based on confidence
+    // Bonus for positive emotional states
+    const emotion = scenario.currentEmotion?.toLowerCase() || ''
+    if (/calm|centered|confident|focused|peaceful|relaxed/i.test(emotion)) {
+      score += 10
+    }
+
+    // Clamp to valid range
     score = Math.max(0, Math.min(100, score))
 
     return score

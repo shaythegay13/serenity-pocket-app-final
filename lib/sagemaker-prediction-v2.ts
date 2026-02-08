@@ -278,8 +278,9 @@ export function betScenarioToSageMakerInput(
     last5WinRate?: number
   }
 ): SageMakerPredictionInput {
-  // Parse odds from scenario
-  const oddsMatch = scenario.odds?.match(/-?\d+/)
+  // Parse odds from scenario (handle both string and number formats)
+  const oddsStr = typeof scenario.odds === 'number' ? String(scenario.odds) : scenario.odds
+  const oddsMatch = oddsStr?.match(/-?\d+/)
   const oddsAmerican = oddsMatch ? parseInt(oddsMatch[0]) : -110
 
   // Determine recent outcomes

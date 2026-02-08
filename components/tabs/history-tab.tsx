@@ -89,8 +89,8 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       if (betIndex === -1) return
 
       const bet = analyses[betIndex]
-      const actualReturn = 
-        outcome === 'win' ? calculateWinReturn(bet.stake, bet.odds) :
+      const actualReturn =
+        outcome === 'win' ? calculateWinReturn(bet.stake, bet.odds ?? -110) :
         outcome === 'push' ? bet.stake :
         outcome === 'pending' ? undefined :
         0
@@ -124,9 +124,9 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(bet => 
+      filtered = filtered.filter(bet =>
         bet.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bet.sport.toLowerCase().includes(searchTerm.toLowerCase())
+        (bet.sport?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
       )
     }
 
@@ -481,7 +481,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                     ${bet.stake.toFixed(2)}
                   </div>
                   <div className="text-xs text-muted-foreground mb-1">
-                    Odds: {bet.odds > 0 ? '+' : ''}{bet.odds}
+                    Odds: {(bet.odds ?? 0) > 0 ? '+' : ''}{bet.odds ?? 'N/A'}
                   </div>
                   {bet.expectedValue !== undefined && bet.expectedValue !== null && (
                     <div className={`text-xs font-medium ${bet.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -569,7 +569,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                   <div>
                     <p className="text-sm text-muted-foreground">Odds</p>
                     <p className="text-lg font-semibold">
-                      {selectedBet.odds > 0 ? '+' : ''}{selectedBet.odds}
+                      {(selectedBet.odds ?? 0) > 0 ? '+' : ''}{selectedBet.odds ?? 'N/A'}
                     </p>
                   </div>
                   {selectedBet.expectedValue !== undefined && (

@@ -116,17 +116,13 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
   }, [hasAccess, logs.length, markDataLoaded])
 
-  // Read subtab from URL path
+  // Read subtab from URL query parameter
   useEffect(() => {
     if (!hasAccess) return
-    const path = window.location.pathname
-    const pathSegments = path.split('/').filter(Boolean)
-
-    if (pathSegments.length >= 2) {
-      const potentialSubtab = pathSegments[1] as SubTab
-      if (["correlation", "performance", "mental-health"].includes(potentialSubtab)) {
-        setActiveSubTab(potentialSubtab)
-      }
+    const params = new URLSearchParams(window.location.search)
+    const tab = params.get('tab') as SubTab | null
+    if (tab && ["correlation", "performance", "mental-health"].includes(tab)) {
+      setActiveSubTab(tab)
     }
   }, [hasAccess])
 
@@ -243,7 +239,10 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   // Helper function to update subtab and URL
   const handleSubTabChange = (subtab: SubTab) => {
     setActiveSubTab(subtab)
-    window.history.replaceState(null, '', `/analytics/${subtab}`)
+    // Use query params to avoid conflict with actual /analytics/[subtab] page routes
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', subtab)
+    window.history.replaceState(null, '', url.toString())
   }
 
   // Render paywall if no access

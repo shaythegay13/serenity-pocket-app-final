@@ -207,4 +207,19 @@
   .gradient-primary {
     @apply bg-linear-to-r from-[#3b82f6] to-[#a855f7];
   }
+
+  /* Hide scrollbar utility for mobile-friendly horizontal scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+
+  /* Touch-friendly tap targets - ensure minimum 44px for accessibility */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }

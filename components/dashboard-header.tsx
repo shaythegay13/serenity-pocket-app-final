@@ -127,7 +127,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full p-0 h-10 w-10"
+              className="rounded-full p-0 h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16"
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
@@ -135,7 +135,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             >
               <ArchetypeAvatar
                 archetype={userData?.surveyData?.userType}
-                size="md"
+                size="responsive"
                 className="ring-2 ring-border hover:ring-primary transition-all"
               />
               <span className="sr-only">Open user menu</span>

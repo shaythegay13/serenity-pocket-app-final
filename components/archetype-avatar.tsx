@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 
 interface ArchetypeAvatarProps {
   archetype?: string
-  size?: "sm" | "md" | "lg"
+  size?: "sm" | "md" | "lg" | "xl" | "responsive"
   className?: string
 }
 
@@ -31,7 +31,10 @@ function getArchetypeId(archetype?: string): string {
 const sizeClasses = {
   sm: "h-8 w-8",
   md: "h-10 w-10",
-  lg: "h-16 w-16"
+  lg: "h-16 w-16",
+  xl: "h-20 w-20",
+  // Responsive: scales from mobile (40px) -> tablet (48px) -> desktop (56px) -> large desktop (64px)
+  responsive: "h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16"
 }
 
 // SVG caricature for The Analyst - glasses, analytical expression

@@ -1,12 +1,14 @@
 "use client"
 
 import { Suspense, useEffect, useState, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { LandingPage } from "@/components/landing-page"
 
 function HomeContent() {
   const [isNavigating, setIsNavigating] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const searchParams = useSearchParams()
 
   // Stable login handler that prevents double-clicks and race conditions
   const handleLogin = useCallback(() => {
@@ -29,6 +31,16 @@ function HomeContent() {
           window.location.href = "/home"
           return
         }
+
+        // If signup=true is in the URL, forward to /home so the signup flow can start
+        const signup = searchParams.get("signup")
+        if (signup === "true") {
+          const flow = searchParams.get("flow")
+          const signupUrl = flow ? `/home?signup=true&flow=${flow}` : "/home?signup=true"
+          window.location.href = signupUrl
+          return
+        }
+
         // No session - show landing page, user must click login/signup
       } catch (error) {
         console.error('Auth check error:', error)
@@ -38,7 +50,7 @@ function HomeContent() {
     }
 
     checkAuthAndFlow()
-  }, [authChecked])
+  }, [authChecked, searchParams])
 
   return <LandingPage onLogin={handleLogin} />
 }

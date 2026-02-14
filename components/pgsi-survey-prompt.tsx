@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { X, ClipboardCheck, Shield, ArrowRight } from "lucide-react"
@@ -14,6 +15,7 @@ interface PgsiSurveyPromptProps {
 }
 
 export function PgsiSurveyPrompt({ onComplete, className = "" }: PgsiSurveyPromptProps) {
+  const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(true)
   const [hasSurvey, setHasSurvey] = useState(false)
@@ -62,7 +64,7 @@ export function PgsiSurveyPrompt({ onComplete, className = "" }: PgsiSurveyPromp
   }
 
   const handleTakeSurvey = () => {
-    window.location.href = "/pgsi-survey"
+    router.push("/pgsi-survey")
   }
 
   // Don't render while loading or if not visible

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -25,6 +26,7 @@ const AIPicksTab = dynamic(() => import("@/components/tabs/ai-picks-tab").then(m
 })
 
 export function BetLabContent() {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,18 +35,26 @@ export function BetLabContent() {
     let isMounted = true
 
     const checkAuth = async () => {
-      // Safety timeout to prevent permanent loading state
+      // Safety timeout to prevent permanent loading state (reduced from 5s to 3s)
       const timeoutId = setTimeout(() => {
         if (isMounted && loading) {
           console.warn('BetLab auth check timed out, forcing loading state to false');
           setLoading(false);
           setAuthed(false);
         }
-      }, 5000);
+      }, 3000);
 
       try {
-        // Simple auth check first
-        const { data: { session } } = await supabase.auth.getSession()
+        // Add timeout to auth check
+        const authTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 2500)
+        );
+        
+        // Simple auth check with timeout
+        const { data: { session } } = await Promise.race([
+          supabase.auth.getSession(),
+          authTimeoutPromise
+        ]) as any;
 
         if (!isMounted) {
           clearTimeout(timeoutId);
@@ -54,14 +64,23 @@ export function BetLabContent() {
         setAuthed(!!session)
 
         if (session) {
-          // Fetch user data in background
+          // Fetch user data in background with timeout
           try {
-            const storedUserData = await storage.getUserData()
-            if (isMounted) {
+            const userTimeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('User data timeout')), 2000)
+            );
+            
+            const storedUserData = await Promise.race([
+              storage.getUserData(),
+              userTimeoutPromise
+            ]) as any;
+            
+            if (isMounted && storedUserData) {
               setUserData(storedUserData)
             }
           } catch (error) {
-            console.error('Failed to fetch user data:', error)
+            console.error('Failed to fetch user data:', error);
+            // Continue without user data
           }
         }
       } catch (error) {
@@ -85,9 +104,9 @@ export function BetLabContent() {
   const handleNavigateToTab = (tab: string) => {
     // Handle navigation to other tabs if needed
     if (tab === 'account' || tab === 'pricing') {
-      window.location.href = "/pricing"
+      router.push("/pricing")
     } else {
-      window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
+      router.push(`/${tab === 'odds' ? 'sports-dashboard' : tab}`)
     }
   }
 

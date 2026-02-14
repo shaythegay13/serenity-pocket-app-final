@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -102,6 +103,7 @@ export function RiskPatternWarning({
   compact = false,
   className = ""
 }: RiskPatternWarningProps) {
+  const router = useRouter()
   const [analysis, setAnalysis] = useState<SequenceAnalysis | null>(providedAnalysis || null)
   const [loading, setLoading] = useState(!providedAnalysis)
   const [expanded, setExpanded] = useState(!compact)
@@ -301,7 +303,7 @@ export function RiskPatternWarning({
             className="flex-1 min-w-[120px]"
             onClick={() => {
               // Could navigate to breathing exercises or cooldown
-              window.location.href = "/?tab=behavior"
+              router.push("/behavior")
             }}
           >
             <Coffee className="h-4 w-4 mr-2" />
@@ -312,7 +314,7 @@ export function RiskPatternWarning({
             size="sm"
             className="flex-1 min-w-[120px]"
             onClick={() => {
-              window.location.href = "/?tab=account"
+              router.push("/account")
             }}
           >
             <Shield className="h-4 w-4 mr-2" />

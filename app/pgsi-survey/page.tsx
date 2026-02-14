@@ -81,8 +81,8 @@ export default function PGSISurveyPage() {
       if (session?.user) {
         setIsAuthenticated(true);
       } else {
-        // Redirect to home if not authenticated
-        router.push('/');
+        // Redirect to public PGSI page if not authenticated
+        router.push('/pgsi');
       }
     };
 
@@ -166,7 +166,7 @@ export default function PGSISurveyPage() {
   };
 
   const handleReturnHome = () => {
-    window.location.href = '/';
+    router.push('/home');
   };
 
   if (isAuthenticated === null) {

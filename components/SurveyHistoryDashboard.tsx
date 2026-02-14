@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   LineChart,
   Line,
@@ -30,6 +31,7 @@ interface SurveyHistoryDashboardProps {
 }
 
 export default function SurveyHistoryDashboard({ userId }: SurveyHistoryDashboardProps) {
+  const router = useRouter();
   const [surveyHistory, setSurveyHistory] = useState<any>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRangeFilter>('all-time');
   const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function SurveyHistoryDashboard({ userId }: SurveyHistoryDashboar
   };
 
   const handleRetakeSurvey = () => {
-    window.location.href = '/gambling-survey';
+    router.push('/gambling-survey');
   };
 
   if (isLoading) {

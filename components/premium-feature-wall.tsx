@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Lock, Sparkles, Brain, Shield } from "lucide-react"
@@ -15,8 +16,10 @@ export function PremiumFeatureWall({
   title, 
   description, 
   featureName,
-  onUpgrade = () => window.location.href = "/pricing"
+  onUpgrade
 }: PremiumFeatureWallProps) {
+  const router = useRouter()
+  const handleUpgrade = onUpgrade || (() => router.push("/pricing"))
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -61,7 +64,7 @@ export function PremiumFeatureWall({
             </div>
           </div>
         </div>
-        <Button size="lg" onClick={onUpgrade} className="bg-amber-500 hover:bg-amber-600 text-white">
+        <Button size="lg" onClick={handleUpgrade} className="bg-amber-500 hover:bg-amber-600 text-white">
           View Subscription Plans
         </Button>
       </Card>

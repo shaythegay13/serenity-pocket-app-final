@@ -1,15 +1,16 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import type { EmotionLog, Trade, UserData, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
+import type { Parlay } from "@/lib/types/ai-models"
 import { Lock, Crown, Activity, TrendingUp, Brain, CheckCircle2 } from "lucide-react"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import { canAccessFeature } from "@/lib/subscription-tiers"
-import { supabase } from "@/lib/supabase"
 import { CorrelationTab } from "@/components/analytics/CorrelationTab"
 import { PerformanceTab } from "@/components/analytics/PerformanceTab"
 import { MentalHealthTab } from "@/components/analytics/MentalHealthTab"
@@ -31,9 +32,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   )
   const { markDataLoaded, markError } = usePerformanceMonitor('AnalyticsTab')
 
-  // Refs to prevent effects from running multiple times
   const hasReadUrl = useRef(false)
-  const hasLoadedData = useRef(false)
 
   // State declarations (Must be at top level)
   const [loading, setLoading] = useState(true)
@@ -41,7 +40,36 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
   const [comprehensiveBets, setComprehensiveBets] = useState<ComprehensiveBet[]>([])
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>("performance")
+  const [parlays, setParlays] = useState<Parlay[]>([])
+  const router = useRouter()
+  const pathname = usePathname()
+  
+  // Get active subtab from URL pathname
+  const subTabFromPathname = (): SubTab => {
+    if (pathname === '/analytics/performance') return 'performance'
+    if (pathname === '/analytics/mentalhealth') return 'mental-health'
+    if (pathname === '/analytics/correlation') return 'correlation'
+    return 'performance' // default
+  }
+
+  // Local state for instant UI response; synced with pathname once route change lands
+  const [localSubTab, setLocalSubTab] = useState<SubTab>(subTabFromPathname())
+
+  useEffect(() => {
+    setLocalSubTab(subTabFromPathname())
+  }, [pathname])
+
+  const activeSubTab = localSubTab
+
+  const setActiveSubTab = useCallback((tab: SubTab) => {
+    setLocalSubTab(tab) // instant UI update
+    const routes: Record<SubTab, string> = {
+      'performance': '/analytics/performance',
+      'mental-health': '/analytics/mentalhealth',
+      'correlation': '/analytics/correlation'
+    }
+    router.push(routes[tab])
+  }, [router])
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Comprehensive refresh function for all analytics data
@@ -50,9 +78,8 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
 
     try {
       setIsRefreshing(true)
-      console.log('🔄 Refreshing all analytics data...')
 
-      const [emotionLogsResult, betAnalysesResult, comprehensiveBetsResult] = await Promise.allSettled([
+      const [emotionLogsResult, betAnalysesResult, tradesData, comprehensiveBetsResult, parlaysResult] = await Promise.allSettled([
         storage.getEmotionLogs().catch(err => {
           console.error('Error loading emotion logs:', err)
           return [] as EmotionLog[]
@@ -61,18 +88,34 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           console.error('Error loading bet analyses:', err)
           return [] as BetAnalysis[]
         }),
+        storage.getTrades().catch(err => {
+          console.error('Error loading trades:', err)
+          return [] as Trade[]
+        }),
         storage.getComprehensiveBets().catch(err => {
           console.error('Error loading comprehensive bets:', err)
           return [] as ComprehensiveBet[]
+        }),
+        storage.getParlays().catch(err => {
+          console.error('Error loading parlays:', err)
+          return [] as Parlay[]
         })
       ])
 
       const emotionLogs = emotionLogsResult.status === 'fulfilled' ? emotionLogsResult.value : []
       const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value.slice(0, 50) : []
+      const tradesResult = tradesData.status === 'fulfilled' ? tradesData.value : []
       const comprehensiveBets = comprehensiveBetsResult.status === 'fulfilled' ? comprehensiveBetsResult.value.slice(0, 50) : []
+      const parlaysData = parlaysResult.status === 'fulfilled' ? parlaysResult.value : []
 
       const tradesMap = new Map<string, Trade>()
 
+      // Include existing Trade records
+      tradesResult.forEach((trade: Trade) => {
+        tradesMap.set(trade.id, trade)
+      })
+
+      // Overlay BetAnalysis records
       betAnalyses.forEach((analysis: BetAnalysis) => {
         tradesMap.set(analysis.id, {
           id: analysis.id,
@@ -94,15 +137,16 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         })
       })
 
+      // Overlay ComprehensiveBet records
       comprehensiveBets.forEach((bet: ComprehensiveBet) => {
         if (!tradesMap.has(bet.id)) {
           tradesMap.set(bet.id, {
             id: bet.id,
             timestamp: bet.timestamp,
-            title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+            title: bet.description || `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
             sport: bet.sport,
             stake: bet.stake,
-            actualReturn: bet.actualReturn || 0,
+            actualReturn: bet.actualReturn,
             outcome: bet.outcome === 'push' ? 'breakeven' :
               bet.outcome === 'win' ? 'profit' :
                 bet.outcome === 'loss' ? 'loss' :
@@ -124,7 +168,8 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       setLogs(emotionLogs)
       setTrades(performanceTrades)
       setComprehensiveBets(comprehensiveBets)
-      markDataLoaded(emotionLogs.length + performanceTrades.length)
+      setParlays(parlaysData)
+      markDataLoaded(emotionLogs.length + performanceTrades.length + parlaysData.length)
 
     } catch (error) {
       console.error('Error refreshing data:', error)
@@ -133,7 +178,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     }
   }, [hasAccess, markDataLoaded])
 
-  // Read subtab from URL query parameter (only once)
+  // Read subtab from URL query parameter (legacy support, redirects to proper route)
   useEffect(() => {
     if (!hasAccess || hasReadUrl.current) return
     hasReadUrl.current = true
@@ -143,48 +188,47 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     if (tab && ["correlation", "performance", "mental-health"].includes(tab)) {
       setActiveSubTab(tab)
     }
-  }, [hasAccess])
+  }, [hasAccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load data on mount (only once)
+  // Load data on mount
   useEffect(() => {
     if (!hasAccess) {
       setLoading(false)
       return
     }
 
-    // Prevent loading data multiple times
-    if (hasLoadedData.current) return
-    hasLoadedData.current = true
-
     let cancelled = false
 
     const loadData = async () => {
       try {
         setLoading(true)
-        const { data: { session } } = await supabase.auth.getSession()
 
-        if (!session || cancelled) {
-          setLoading(false)
-          return
-        }
+        if (cancelled) return
 
-        const startTime = performance.now()
-
-        const [emotionLogsResult, betAnalysesResult, tradesData, comprehensiveBetsData] = await Promise.allSettled([
+        const [emotionLogsResult, betAnalysesResult, tradesData, comprehensiveBetsData, parlaysData] = await Promise.allSettled([
           storage.getEmotionLogs().catch(() => [] as EmotionLog[]),
           storage.getBetAnalyses().catch(() => [] as BetAnalysis[]),
           storage.getTrades().catch(() => [] as Trade[]),
-          storage.getComprehensiveBets().catch(() => [] as ComprehensiveBet[])
+          storage.getComprehensiveBets().catch(() => [] as ComprehensiveBet[]),
+          storage.getParlays().catch(() => [] as Parlay[])
         ])
 
         const emotionLogs = emotionLogsResult.status === 'fulfilled' ? emotionLogsResult.value : []
         const betAnalyses = betAnalysesResult.status === 'fulfilled' ? betAnalysesResult.value.slice(0, 50) : []
         const tradesResult = tradesData.status === 'fulfilled' ? tradesData.value : []
         const comprehensiveBets = comprehensiveBetsData.status === 'fulfilled' ? comprehensiveBetsData.value.slice(0, 50) : []
+        const parlaysLoaded = parlaysData.status === 'fulfilled' ? parlaysData.value : []
 
         if (cancelled) return
 
         const tradesMap = new Map<string, Trade>()
+
+        // Include existing Trade records (from trades table)
+        tradesResult.forEach((trade: Trade) => {
+          tradesMap.set(trade.id, trade)
+        })
+
+        // Overlay BetAnalysis records (richer data takes priority)
         betAnalyses.forEach((analysis: BetAnalysis) => {
           tradesMap.set(analysis.id, {
             id: analysis.id,
@@ -206,15 +250,16 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           })
         })
 
+        // Overlay ComprehensiveBet records (only if not already present from bet analyses)
         comprehensiveBets.forEach((bet: ComprehensiveBet) => {
           if (!tradesMap.has(bet.id)) {
             tradesMap.set(bet.id, {
               id: bet.id,
               timestamp: bet.timestamp,
-              title: `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
+              title: bet.description || `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`,
               sport: bet.sport,
               stake: bet.stake,
-              actualReturn: bet.actualReturn || 0,
+              actualReturn: bet.actualReturn,
               outcome: bet.outcome === 'push' ? 'breakeven' :
                 bet.outcome === 'win' ? 'profit' :
                   bet.outcome === 'loss' ? 'loss' :
@@ -236,7 +281,8 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         setLogs(emotionLogs)
         setTrades(performanceTrades)
         setComprehensiveBets(comprehensiveBets)
-        markDataLoaded(emotionLogs.length + performanceTrades.length + comprehensiveBets.length)
+        setParlays(parlaysLoaded)
+        markDataLoaded(emotionLogs.length + performanceTrades.length + comprehensiveBets.length + parlaysLoaded.length)
 
       } catch (err) {
         if (cancelled) return
@@ -247,8 +293,16 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       }
     }
 
-    loadData()
-    return () => { cancelled = true }
+    // Safety timeout to prevent permanent loading state
+    const safetyTimeout = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('Analytics data load timed out after 8s, showing available data')
+        setLoading(false)
+      }
+    }, 8000)
+
+    loadData().finally(() => clearTimeout(safetyTimeout))
+    return () => { cancelled = true; clearTimeout(safetyTimeout) }
   }, [hasAccess, markDataLoaded, markError])
 
   // Listen for betting data and emotion logging updates
@@ -289,14 +343,6 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     return () => clearTimeout(timeoutId)
   }, [hasAccess, loading])
 
-  // Helper function to update subtab and URL
-  const handleSubTabChange = (subtab: SubTab) => {
-    setActiveSubTab(subtab)
-    // Use query params to avoid conflict with actual /analytics/[subtab] page routes
-    const url = new URL(window.location.href)
-    url.searchParams.set('tab', subtab)
-    window.history.replaceState(null, '', url.toString())
-  }
 
   // Render paywall if no access
   if (!hasAccess) {
@@ -328,7 +374,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               <span className="text-sm text-foreground">ROI Tracking & Performance Metrics</span>
             </div>
           </div>
-          <Button size="lg" className="gap-2" onClick={() => window.location.href = "/pricing"}>
+          <Button size="lg" className="gap-2" onClick={() => router.push("/pricing")}>
             <Crown className="h-5 w-5" />
             Upgrade to Premium
           </Button>
@@ -363,18 +409,18 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       </div>
 
       <div className="flex flex-wrap gap-2 justify-center">
-        <Button variant={activeSubTab === "performance" ? "default" : "outline"} onClick={() => handleSubTabChange("performance")} className="gap-2">
+        <Button variant={activeSubTab === "performance" ? "default" : "outline"} onClick={() => setActiveSubTab("performance")} className="gap-2">
           <TrendingUp className="h-4 w-4" /> Performance
         </Button>
-        <Button variant={activeSubTab === "mental-health" ? "default" : "outline"} onClick={() => handleSubTabChange("mental-health")} className="gap-2">
+        <Button variant={activeSubTab === "mental-health" ? "default" : "outline"} onClick={() => setActiveSubTab("mental-health")} className="gap-2">
           <Brain className="h-4 w-4" /> Mental Health
         </Button>
-        <Button variant={activeSubTab === "correlation" ? "default" : "outline"} onClick={() => handleSubTabChange("correlation")} className="gap-2">
+        <Button variant={activeSubTab === "correlation" ? "default" : "outline"} onClick={() => setActiveSubTab("correlation")} className="gap-2">
           <Activity className="h-4 w-4" /> Correlation
         </Button>
       </div>
 
-      {activeSubTab === "performance" && <PerformanceTab trades={trades} comprehensiveBets={comprehensiveBets} onRefreshData={refreshData} isRefreshing={isRefreshing} />}
+      {activeSubTab === "performance" && <PerformanceTab trades={trades} comprehensiveBets={comprehensiveBets} parlays={parlays} onRefreshData={refreshData} isRefreshing={isRefreshing} />}
       {activeSubTab === "mental-health" && <MentalHealthTab emotionLogs={logs} />}
       {activeSubTab === "correlation" && <CorrelationTab emotionLogs={logs} trades={trades} />}
     </div>

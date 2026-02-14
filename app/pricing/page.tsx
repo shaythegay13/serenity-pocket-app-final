@@ -7,6 +7,7 @@ import { Check, Star, Users, Zap, Crown, Sparkles, ArrowLeft } from "lucide-reac
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -69,6 +70,7 @@ const handleSubscribe = async (tierId: string) => {
 }
 
 export default function PricingPage() {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -112,15 +114,7 @@ export default function PricingPage() {
   }, [])
 
   const handleNavigateToTab = (tab: string) => {
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    )
+    router.push(`/${tab === 'odds' ? 'sports-dashboard' : tab}`)
   }
 
   const showGuarantee = (() => {
@@ -299,37 +293,35 @@ export default function PricingPage() {
     </div>
   )
 
-  // Show full authenticated layout for logged-in users
-  if (authed && userData) {
-    return (
-      <div className="min-h-screen bg-background">
-        <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
-        <div className="hidden md:block">
-          <Navigation />
-        </div>
-        <main className="pb-20 md:pb-0">
-          {pricingContent}
-        </main>
-        <BottomNav />
-      </div>
-    )
-  }
-
-  // Show basic layout for non-authenticated users
+  // Always render content immediately for SEO crawlability.
+  // Header/nav chrome loads in once auth resolves.
   return (
     <div className="min-h-screen bg-background">
-      {/* Back to Main Page header */}
-      <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-3">
-          <Link href="/">
-            <Button variant="ghost" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Main Page
-            </Button>
-          </Link>
+      {!loading && authed && userData ? (
+        <>
+          <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
+          <div className="hidden md:block">
+            <Navigation />
+          </div>
+        </>
+      ) : !loading ? (
+        <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-4 py-3">
+            <Link href="/">
+              <Button variant="ghost" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Main Page
+              </Button>
+            </Link>
+          </div>
         </div>
-      </div>
-      {pricingContent}
+      ) : null}
+
+      <main className={!loading && authed && userData ? "pb-20 md:pb-0" : ""}>
+        {pricingContent}
+      </main>
+
+      {!loading && authed && userData && <BottomNav />}
     </div>
   )
 }

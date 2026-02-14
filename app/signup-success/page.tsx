@@ -1,6 +1,6 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Mail, CheckCircle2 } from 'lucide-react';
 
 function SignupSuccessContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const email = searchParams.get('email') || '';
 
   return (
@@ -45,7 +46,7 @@ function SignupSuccessContent() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => window.location.href = '/signin'}
+                onClick={() => router.push('/login')}
               >
                 Go to Sign In Page
               </Button>

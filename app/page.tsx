@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useState, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { LandingPage } from "@/components/landing-page"
 
@@ -9,13 +9,14 @@ function HomeContent() {
   const [isNavigating, setIsNavigating] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   // Stable login handler that prevents double-clicks and race conditions
   const handleLogin = useCallback(() => {
     if (isNavigating) return
     setIsNavigating(true)
-    window.location.href = "/login"
-  }, [isNavigating])
+    router.push("/login")
+  }, [isNavigating, router])
 
   useEffect(() => {
     // Prevent running auth check multiple times
@@ -28,7 +29,7 @@ function HomeContent() {
         // Only redirect authenticated users to /home
         // Unauthenticated users stay on landing page - they must go through login first
         if (session) {
-          window.location.href = "/home"
+          router.replace("/home")
           return
         }
 
@@ -37,7 +38,7 @@ function HomeContent() {
         if (signup === "true") {
           const flow = searchParams.get("flow")
           const signupUrl = flow ? `/home?signup=true&flow=${flow}` : "/home?signup=true"
-          window.location.href = signupUrl
+          router.replace(signupUrl)
           return
         }
 

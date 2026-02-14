@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
@@ -18,6 +19,7 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTabProps) {
+  const router = useRouter()
   const [name, setName] = useState(userData?.name || "")
   const [avatarUrl, setAvatarUrl] = useState("")
   const [loading, setLoading] = useState(false)
@@ -143,8 +145,13 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
       const { resetErrorHandling } = await import('@/lib/auth-utils')
       resetErrorHandling()
 
-      // Use local scope for faster, more reliable logout
-      await supabase.auth.signOut({ scope: 'local' })
+      // Use local scope for faster, more reliable logout with timeout
+      const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Logout timeout')), 3000)
+      )
+      
+      await Promise.race([signOutPromise, timeoutPromise])
     } catch (error) {
       console.error("Profile tab logout error:", error)
       // Continue with redirect anyway since storage is already cleared
@@ -254,7 +261,7 @@ export function ProfileTab({ userData, updateUserData, forceRefresh }: ProfileTa
           </div>
           <Button
             variant="outline"
-            onClick={() => window.location.href = '/gambling-survey'}
+            onClick={() => router.push('/gambling-survey')}
             className="flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

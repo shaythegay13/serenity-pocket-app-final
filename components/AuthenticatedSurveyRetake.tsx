@@ -66,8 +66,7 @@ export function AuthenticatedSurveyRetake() {
   };
 
   const handleReturnHome = () => {
-    // Force a full page reload to refresh userData with new survey results
-    window.location.href = '/';
+    router.push('/home');
   };
 
   if (surveyComplete && surveyResult) {
@@ -78,7 +77,7 @@ export function AuthenticatedSurveyRetake() {
             type="button"
             aria-label="Close survey"
             className="absolute left-3 top-3 inline-flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            onClick={() => window.location.href = '/'}
+            onClick={() => router.push('/home')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -134,7 +133,7 @@ export function AuthenticatedSurveyRetake() {
           type="button"
           aria-label="Close survey"
           className="absolute left-3 top-3 inline-flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-          onClick={() => window.location.href = '/'}
+          onClick={() => router.push('/home')}
         >
           <X className="h-4 w-4" />
         </button>

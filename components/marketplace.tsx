@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +27,7 @@ interface MarketplaceProps {
 }
 
 export function Marketplace({ userData }: MarketplaceProps) {
+  const router = useRouter()
   const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>([])
   const [marketplaceLoading, setMarketplaceLoading] = useState(true)
   const [marketplacePurchasing, setMarketplacePurchasing] = useState<string | null>(null)
@@ -60,7 +62,7 @@ export function Marketplace({ userData }: MarketplaceProps) {
 
       if (!session) {
         toast.info('Sign in required', { description: 'Please sign in to purchase additional AI uses.' })
-        window.location.href = "/pricing"
+        router.push("/pricing")
         return
       }
 

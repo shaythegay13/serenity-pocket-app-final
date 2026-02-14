@@ -10,11 +10,34 @@ function LoginContent() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    let mounted = true;
+    
     const check = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) window.location.href = "/home"
+      try {
+        // Very short timeout - if auth is slow, just show login form
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 800)
+        );
+        
+        const { data: { session } } = await Promise.race([
+          supabase.auth.getSession(),
+          timeoutPromise
+        ]) as any;
+        
+        if (mounted && session) {
+          router.replace("/home")
+        }
+      } catch (error) {
+        // Silently continue - login form is already visible
+      }
     }
-    check()
+    
+    // Run auth check in background without blocking
+    check();
+    
+    return () => {
+      mounted = false;
+    };
   }, [router])
 
   // Get flow from URL parameters
@@ -25,13 +48,13 @@ function LoginContent() {
       onSwitchToSignUp={() => {
         // Redirect to home with signup flow trigger, preserving the flow parameter
         const signupUrl = flow ? `/?signup=true&flow=${flow}` : "/?signup=true"
-        window.location.href = signupUrl
+        router.push(signupUrl)
       }}
       onForgotPassword={() => {
-        window.location.href = "/auth/reset-password"
+        router.push("/auth/reset-password")
       }}
       onResendConfirmation={() => {
-        window.location.href = "/"
+        router.push("/")
       }}
     />
   )

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { UserData } from "@/lib/types"
@@ -20,6 +21,7 @@ interface HomeTabProps {
 }
 
 export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey }: HomeTabProps) {
+  const router = useRouter()
   const handleNavigate = (tab: string, subtab?: string) => {
     onNavigateToTab(tab, subtab)
   }
@@ -72,7 +74,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         {/* BetLab Button */}
         <Card 
           className="cursor-pointer transition-all duration-300 hover:scale-105 border-0 overflow-hidden rounded-3xl shadow-lg hover:shadow-xl"
-          onClick={() => window.location.href = '/betlab'}
+          onClick={() => router.push('/betlab')}
         >
           <CardContent className="p-8 sm:p-10 space-y-6 text-center bg-linear-to-br from-purple-400 via-purple-500 to-pink-400 hover:from-purple-500 hover:via-purple-600 hover:to-pink-500 transition-all duration-300 rounded-3xl">
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 mx-auto items-center justify-center rounded-full bg-white/25 backdrop-blur-sm shadow-lg">
@@ -93,7 +95,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
         {/* Marketplace Button */}
         <Card 
           className="cursor-pointer transition-all duration-300 hover:scale-105 border-0 overflow-hidden rounded-3xl shadow-lg hover:shadow-xl"
-          onClick={() => window.location.href = '/betlab/marketplace'}
+          onClick={() => router.push('/betlab/marketplace')}
         >
           <CardContent className="p-8 sm:p-10 space-y-6 text-center bg-linear-to-br from-green-400 via-green-500 to-emerald-400 hover:from-green-500 hover:via-green-600 hover:to-emerald-500 transition-all duration-300 rounded-3xl">
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 mx-auto items-center justify-center rounded-full bg-white/25 backdrop-blur-sm shadow-lg">

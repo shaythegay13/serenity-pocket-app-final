@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, lazy, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
@@ -11,11 +11,13 @@ import type { SurveyData, UserData, Achievement } from "@/lib/types"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { reconcileAllData } from "@/lib/services/data-reconciliation-service"
+import { hasAnonymousSession, getAnonymousSessionId, clearAnonymousSession } from "@/lib/anonymous-session"
 // Auth rate limit debug utilities (loads global debug functions)
 import "@/lib/auth-rate-limit-utils"
 
 export function HomeContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("home")
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -97,6 +99,7 @@ export function HomeContent() {
         // User is not authenticated, start signup flow
         console.log('🔧 Starting signup flow for unauthenticated user')
         setShowLanding(false)
+        setShowSignin(false) // Ensure signin is hidden
         setShowTerms(true)
         // Store the flow for after signup completion
         if (flow === "tiltlab" || flow === "smartslip") {
@@ -208,6 +211,26 @@ export function HomeContent() {
           setShowLanding(true)
         } else if (session && event === 'SIGNED_IN') {
           try {
+            // Migrate anonymous session data if present
+            if (hasAnonymousSession()) {
+              try {
+                const anonId = getAnonymousSessionId()
+                const res = await fetch('/api/public/migrate-session', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({ anonymous_session_id: anonId }),
+                })
+                if (res.ok) {
+                  clearAnonymousSession()
+                }
+              } catch (migrationErr) {
+                console.error('Anonymous session migration error:', migrationErr)
+              }
+            }
+
             const profile = await storage.getUserData()
             setUserData(profile)
             setAuthed(true)
@@ -300,9 +323,7 @@ export function HomeContent() {
     // For new users, always redirect to /home after survey completion
     // They can access premium features later when they subscribe
     localStorage.removeItem("entry_flow")
-    setTimeout(() => {
-      window.location.href = "/home"
-    }, 100)
+    router.push("/home")
   }
 
   const handleSignupComplete = () => {
@@ -469,9 +490,25 @@ export function HomeContent() {
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>}>
         <SigninComponent
-          onSwitchToSignUp={() => { }}
-          onForgotPassword={() => { }}
-          onResendConfirmation={() => { }}
+          onSwitchToSignUp={() => {
+            console.log('🔧 Signup button clicked - starting signup flow')
+            // Use URL parameter to ensure signup flow persists across auth checks
+            if (typeof window !== 'undefined') {
+              window.history.pushState(null, '', '/?signup=true')
+            }
+            // Immediately update states to prevent race conditions
+            setShowSignin(false)
+            setShowLanding(false)
+            setAuthFlow('signup')
+            setShowSignup(true)
+            console.log('🔧 Signup flow states updated')
+          }}
+          onForgotPassword={() => {
+            // TODO: Implement forgot password flow
+          }}
+          onResendConfirmation={() => {
+            // TODO: Implement resend confirmation flow
+          }}
         />
       </Suspense>
     )
@@ -487,7 +524,18 @@ export function HomeContent() {
       </div>}>
         <TermsComponent
           onAccept={handleTermsComplete}
-          onDecline={() => { }}
+          onDecline={() => {
+            console.log('🔧 Terms declined - redirecting to landing page')
+            // Clear signup flow and redirect to landing page
+            setShowTerms(false)
+            setShowSignup(false)
+            setAuthFlow('landing')
+            setShowLanding(true)
+            // Clean up URL
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, '', '/')
+            }
+          }}
         />
       </Suspense>
     )
@@ -498,29 +546,40 @@ export function HomeContent() {
   if (!authed) {
     // Check if we're in a signup flow - if so, continue showing terms/signup flow
     const signup = searchParams.get("signup")
-    if (signup !== "true" && !showTerms && !showSignup) {
+    const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
+    
+    console.log('🔧 Auth check:', { authed, signup, showTerms, showSignup, authFlow, inSignupFlow })
+    
+    if (!inSignupFlow) {
       // Not in signup flow, redirect to landing page
-      if (typeof window !== 'undefined') {
-        window.location.href = "/"
-      }
+      console.log('🔧 Not in signup flow - redirecting to landing')
+      router.push("/")
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-pulse text-muted-foreground">Redirecting...</div>
         </div>
       )
+    } else {
+      console.log('🔧 In signup flow - allowing access to signup components')
     }
   }
 
   // SECURITY: Explicit authentication check before rendering dashboard
   // This ensures NO unauthenticated user can ever see the dashboard
   if (authed !== true) {
-    // This should never happen, but provides a safety net
-    console.error('[HomeContent] Invalid auth state - redirecting to landing')
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Verifying authentication...</div>
-      </div>
-    )
+    // Check if we're in a signup flow - if so, allow signup components to render
+    const signup = searchParams.get("signup")
+    const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
+    
+    if (!inSignupFlow) {
+      // This should never happen, but provides a safety net
+      console.error('[HomeContent] Invalid auth state - redirecting to landing')
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground">Verifying authentication...</div>
+        </div>
+      )
+    }
   }
 
   // Main dashboard - ONLY renders when authed === true

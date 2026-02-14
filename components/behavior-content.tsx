@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -24,6 +25,7 @@ const BehaviorTab = dynamic(() => import("@/components/tabs/behavior-tab").then(
 })
 
 export function BehaviorContent() {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -89,7 +91,7 @@ export function BehaviorContent() {
 
   const handleNavigateToTab = (tab: string) => {
     // Handle navigation to other tabs if needed
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
+    router.push(`/${tab === 'odds' ? 'sports-dashboard' : tab}`)
   }
 
   // Show loading state only during initial auth check

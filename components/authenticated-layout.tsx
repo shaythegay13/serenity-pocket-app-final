@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { supabase } from "@/lib/supabase"
@@ -14,6 +15,7 @@ interface AuthenticatedLayoutProps {
 }
 
 export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedLayoutProps) {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -75,9 +77,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         if (event === 'SIGNED_OUT') {
           setUserData(null)
           setAuthed(false)
-          setTimeout(() => {
-            window.location.href = "/"
-          }, 100)
+          router.push("/")
         } else if (session && event === 'SIGNED_IN') {
           try {
             const userData = await storage.getUserData()
@@ -112,44 +112,28 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
     // Route to specific functional pages based on tab
     switch (tab) {
       case "home":
-        setTimeout(() => {
-          window.location.href = "/home"
-        }, 100)
+        router.push("/home")
         break
       case "odds": // Sports
-        setTimeout(() => {
-          window.location.href = "/?tab=odds"
-        }, 100)
+        router.push("/home?tab=odds")
         break
       case "analyze":
-        setTimeout(() => {
-          window.location.href = "/?tab=analyze"
-        }, 100)
+        router.push("/home?tab=analyze")
         break
       case "behavior":
-        setTimeout(() => {
-          window.location.href = "/?tab=behavior"
-        }, 100)
+        router.push("/behavior")
         break
       case "ai-picks": // Insights
-        setTimeout(() => {
-          window.location.href = "/?tab=ai-picks"
-        }, 100)
+        router.push("/betlab/smartslip")
         break
       case "analytics":
-        setTimeout(() => {
-          window.location.href = "/?tab=analytics"
-        }, 100)
+        router.push("/analytics/performance")
         break
       case "account":
-        setTimeout(() => {
-          window.location.href = "/?tab=account"
-        }, 100)
+        router.push("/account")
         break
       default:
-        setTimeout(() => {
-          window.location.href = "/home"
-        }, 100)
+        router.push("/home")
     }
   }
 
@@ -163,9 +147,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
 
   if (!authed || !userData) {
     // Redirect to home for authentication
-    setTimeout(() => {
-      window.location.href = "/home"
-    }, 100)
+    router.push("/home")
     return null
   }
 

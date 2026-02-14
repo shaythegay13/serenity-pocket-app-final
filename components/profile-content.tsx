@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -24,6 +25,7 @@ const AccountTab = dynamic(() => import("@/components/tabs/account-tab").then(mo
 })
 
 export function ProfileContent() {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,9 +43,14 @@ export function ProfileContent() {
     
     const checkAuth = async () => {
       try {
-        // Run auth check and user data fetch in parallel
+        // Add timeout to auth check
+        const authTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 2500)
+        );
+        
+        // Run auth check and user data fetch in parallel with timeout
         const [sessionResult, userDataResult] = await Promise.allSettled([
-          supabase.auth.getSession(),
+          Promise.race([supabase.auth.getSession(), authTimeoutPromise]),
           storage.getUserData().catch(() => null)
         ])
 
@@ -76,7 +83,7 @@ export function ProfileContent() {
 
   const handleNavigateToTab = (tab: string) => {
     // Handle navigation to other tabs if needed
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
+    router.push(`/${tab === 'odds' ? 'sports-dashboard' : tab}`)
   }
 
   // Show loading state only during initial auth check

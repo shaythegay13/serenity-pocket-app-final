@@ -198,6 +198,7 @@ export class BetTrackingService {
 
   /**
    * Update bet outcome and calculate P/L
+   * Searches ComprehensiveBets first, then falls back to BetAnalysis records
    */
   static async updateBetOutcome(
     betId: string,
@@ -206,40 +207,111 @@ export class BetTrackingService {
     postBetIntensity?: number,
     reflection?: string
   ): Promise<ComprehensiveBet | null> {
+    // Try ComprehensiveBets first
     const bets = await this.getAllBets()
     const betIndex = bets.findIndex(bet => bet.id === betId)
 
-    if (betIndex === -1) return null
+    if (betIndex !== -1) {
+      const bet = bets[betIndex]
 
-    const bet = bets[betIndex]
+      // Calculate return and P/L
+      const actualReturn = calculateBetReturn(bet.odds, bet.stake, outcome)
+      const profitLoss = calculateProfitLoss(bet.odds, bet.stake, outcome)
 
-    // Calculate return and P/L
-    const actualReturn = calculateBetReturn(bet.odds, bet.stake, outcome)
-    const profitLoss = calculateProfitLoss(bet.odds, bet.stake, outcome)
+      // Update bet with outcome
+      const updatedBet: ComprehensiveBet = {
+        ...bet,
+        outcome,
+        actualReturn,
+        profitLoss,
+        emotions: {
+          ...bet.emotions,
+          after: {
+            emotion: postBetEmotion || bet.emotions.before.emotion,
+            intensity: postBetIntensity || bet.emotions.before.intensity,
+            timestamp: new Date(),
+            reflection
+          }
+        },
+        completedAt: new Date()
+      }
 
-    // Update bet with outcome
-    const updatedBet: ComprehensiveBet = {
-      ...bet,
-      outcome,
-      actualReturn,
-      profitLoss,
-      emotions: {
-        ...bet.emotions,
-        after: {
-          emotion: postBetEmotion || bet.emotions.before.emotion,
-          intensity: postBetIntensity || bet.emotions.before.intensity,
-          timestamp: new Date(),
-          reflection
-        }
-      },
-      completedAt: new Date()
+      // Save updated bet
+      bets[betIndex] = updatedBet
+      await this.saveAllBets(bets)
+
+      return updatedBet
     }
 
-    // Save updated bet
-    bets[betIndex] = updatedBet
-    await this.saveAllBets(bets)
+    // Fallback: try to update BetAnalysis records
+    try {
+      const analyses = await storage.getBetAnalyses()
+      const analysisIndex = analyses.findIndex(a => a.id === betId)
 
-    return updatedBet
+      if (analysisIndex !== -1) {
+        const analysis = analyses[analysisIndex]
+        const odds = analysis.odds ?? -110
+        const actualReturn = calculateBetReturn(odds, analysis.stake, outcome)
+
+        // Map outcome to BetAnalysis format
+        const betOutcome = outcome === 'pending' ? 'pending' : outcome
+
+        const updatedAnalysis = {
+          ...analysis,
+          outcome: betOutcome as "win" | "loss" | "push" | "pending",
+          actualReturn,
+        }
+
+        await storage.updateBetAnalysis(updatedAnalysis)
+
+        // Return as ComprehensiveBet format for consistency
+        const asBet: ComprehensiveBet = {
+          id: updatedAnalysis.id,
+          timestamp: new Date(updatedAnalysis.timestamp),
+          sport: (updatedAnalysis.sport || "americanfootball_nfl") as ComprehensiveBet["sport"],
+          homeTeam: "Unknown",
+          awayTeam: "Unknown",
+          gameDate: new Date(updatedAnalysis.timestamp),
+          betType: updatedAnalysis.betType === "straight" ? "moneyline" : updatedAnalysis.betType as any,
+          selection: "away",
+          odds,
+          stake: updatedAnalysis.stake,
+          emotions: {
+            before: {
+              emotion: updatedAnalysis.emotionalState || "neutral",
+              intensity: updatedAnalysis.emotionalIntensity || 5,
+              timestamp: new Date(updatedAnalysis.timestamp)
+            },
+            after: {
+              emotion: postBetEmotion || updatedAnalysis.emotionalState || "neutral",
+              intensity: postBetIntensity || updatedAnalysis.emotionalIntensity || 5,
+              timestamp: new Date(),
+              reflection
+            }
+          },
+          biasesIdentified: updatedAnalysis.biasWarnings || [],
+          confidenceLevel: Math.round((updatedAnalysis.probabilityEstimate || 0.5) * 10),
+          reasoning: updatedAnalysis.aiRecommendation || "",
+          isLiveBet: false,
+          isChasingLoss: false,
+          isFavoriteTeam: false,
+          outcome: betOutcome as "win" | "loss" | "push" | "pending",
+          actualReturn,
+          profitLoss: actualReturn - updatedAnalysis.stake,
+          source: "bet-analyzer",
+          description: updatedAnalysis.description,
+          completedAt: new Date()
+        }
+
+        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
+        return asBet
+      }
+    } catch (error) {
+      console.error('Error updating bet analysis fallback:', error)
+    }
+
+    console.warn(`Bet ${betId} not found in ComprehensiveBets or BetAnalyses`)
+    return null
   }
 
   /**

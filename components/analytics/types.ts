@@ -1,9 +1,11 @@
 import type { BetAnalysis, AIServiceUsage, GameLineRecord } from "@/lib/types"
 
-export type UnifiedBetSource = "analysis" | "trade"
+export type UnifiedBetSource = "analysis" | "trade" | "parlay"
 
 export type UnifiedBet = BetAnalysis & {
   source: UnifiedBetSource
+  parlayLegsCount?: number
+  isParlay?: boolean
 }
 
 export type TimelineItem =

@@ -9,11 +9,22 @@ export default function DashboardPage() {
   const [isCheckingPendingSurvey, setIsCheckingPendingSurvey] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    
     const checkAndLinkPendingSurvey = async () => {
       try {
-        // Use getSession() for faster initial load (reads from localStorage first)
-        const { data: { session } } = await supabase.auth.getSession();
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 3000)
+        );
+        
+        // Use getSession() with timeout
+        const authPromise = supabase.auth.getSession();
+        
+        const { data: { session } } = await Promise.race([authPromise, timeoutPromise]) as any;
 
+        if (!mounted) return;
+        
         if (!session?.user) {
           // Not authenticated, redirect to home
           router.push('/');
@@ -33,8 +44,8 @@ export default function DashboardPage() {
             if (email === user.email) {
               console.log('Found pending survey, linking to account...');
 
-              // Attempt to link the survey
-              const linkResponse = await fetch('/api/gambling-survey/link-confirm', {
+              // Attempt to link the survey with timeout
+              const linkPromise = fetch('/api/gambling-survey/link-confirm', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -42,6 +53,12 @@ export default function DashboardPage() {
                 body: JSON.stringify({ email }),
                 credentials: 'include',
               });
+
+              const linkTimeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Link timeout')), 5000)
+              );
+
+              const linkResponse = await Promise.race([linkPromise, linkTimeoutPromise]) as any;
 
               if (linkResponse.ok) {
                 console.log('Successfully linked pending survey');
@@ -61,14 +78,21 @@ export default function DashboardPage() {
         }
       } catch (error) {
         console.error('Error checking pending survey:', error);
+        // Continue even if there's an error
       } finally {
-        setIsCheckingPendingSurvey(false);
-        // Redirect to the home page (main dashboard)
-        router.push('/');
+        if (mounted) {
+          setIsCheckingPendingSurvey(false);
+          // Redirect to the home page (main dashboard)
+          router.push('/');
+        }
       }
     };
 
     checkAndLinkPendingSurvey();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
   return (

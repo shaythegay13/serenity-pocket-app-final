@@ -153,7 +153,7 @@ export function HomeWelcomeDashboard() {
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-success'
+    if (score >= 60) return 'text-success'
     if (score >= 50) return 'text-warning'
     return 'text-destructive'
   }
@@ -291,7 +291,7 @@ export function HomeWelcomeDashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Emotional Trend</p>
                   <p className="text-xs text-muted-foreground">
-                    {emotionalScore >= 70
+                    {emotionalScore >= 60
                       ? "You're in a great emotional state for betting. Stay disciplined!"
                       : emotionalScore >= 50
                       ? "Your emotional wellness is moderate. Consider taking extra precautions."

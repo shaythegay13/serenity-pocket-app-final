@@ -5,6 +5,18 @@ import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from "@/lib/ai-service"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { predictGameOutcomes, scoreUserBet } from "@/lib/services/sagemakerSportsModel"
 import { analyzeUserBet } from "@/lib/services/gemini-reasoner"
+import {
+  validateParlayLegs,
+  calculateSGPOdds,
+  calculateCombinedOdds,
+  calculateParlayEV,
+  calculateParlayEVPercentage,
+  detectCorrelations,
+  detectSGPCorrelationPairs,
+  americanToDecimal,
+  decimalToAmerican,
+} from "@/lib/parlay-utils"
+import type { ParlayLeg } from "@/lib/types/ai-models"
 import type {
   BetAnalyzerReasoningInput,
   BetAnalyzerReasoningOutput,
@@ -20,6 +32,8 @@ import { exec } from "child_process"
 import { promisify } from "util"
 
 const execAsync = promisify(exec)
+
+export const maxDuration = 60
 
 /**
  * AI Bet Analysis API Route
@@ -458,11 +472,97 @@ export async function POST(request: NextRequest) {
       usedEnhancedAI
     })
 
+    // --- Parlay-specific analysis (when structured legs are provided) ---
+    let parlayAnalysis: any = null
+    if (payload.betType === 'Parlay' && payload.parlayLegs && payload.parlayLegs.length >= 2) {
+      try {
+        const legs: ParlayLeg[] = payload.parlayLegs.map((leg, i) => ({
+          pickId: leg.pickId || `leg-${i}`,
+          gameId: leg.gameId,
+          teams: leg.teams,
+          betType: leg.betType,
+          line: leg.line,
+          odds: leg.odds,
+          aiWinProbability: leg.aiWinProbability,
+          sport: leg.sport,
+        }))
+
+        const validation = validateParlayLegs(legs, payload.parlayType)
+        const correlationWarnings = detectCorrelations(legs)
+
+        let combinedDecimalOdds: number
+        let sgpCorrelationWarnings: any[] = []
+        let effectiveTax = 0
+
+        if (validation.detectedType === 'sgp' || validation.detectedType === 'sgp_plus') {
+          const sgpResult = calculateSGPOdds(legs)
+          combinedDecimalOdds = sgpResult.odds
+          sgpCorrelationWarnings = sgpResult.correlationWarnings
+          effectiveTax = sgpResult.effectiveTax
+        } else {
+          combinedDecimalOdds = calculateCombinedOdds(legs)
+        }
+
+        const combinedAmericanOdds = decimalToAmerican(combinedDecimalOdds)
+        const impliedProbability = 1 / combinedDecimalOdds
+        const ev = calculateParlayEV(legs, payload.betAmount)
+        const evPercentage = calculateParlayEVPercentage(legs)
+
+        parlayAnalysis = {
+          type: validation.detectedType,
+          declaredType: payload.parlayType || 'auto',
+          legCount: legs.length,
+          validation: {
+            isValid: validation.isValid,
+            errors: validation.errors,
+            warnings: validation.warnings,
+          },
+          odds: {
+            american: Math.round(combinedAmericanOdds),
+            decimal: combinedDecimalOdds,
+          },
+          impliedProbability: (impliedProbability * 100).toFixed(2),
+          ev: {
+            absolute: ev.toFixed(2),
+            percentage: evPercentage.toFixed(2),
+          },
+          sgp: (validation.detectedType === 'sgp' || validation.detectedType === 'sgp_plus') ? {
+            effectiveTax: (effectiveTax * 100).toFixed(1) + '%',
+            correlationPairs: sgpCorrelationWarnings.map(w => ({
+              message: w.message,
+              severity: w.severity,
+              extraTax: (w.extraTax * 100).toFixed(0) + '%',
+            })),
+          } : null,
+          correlationWarnings: correlationWarnings.map(w => ({
+            type: w.type,
+            severity: w.severity,
+            message: w.message,
+          })),
+          legs: legs.map((leg, i) => ({
+            leg: i + 1,
+            teams: leg.teams,
+            betType: leg.betType,
+            odds: leg.odds,
+            impliedProb: ((1 / americanToDecimal(leg.odds)) * 100).toFixed(1) + '%',
+            aiProb: leg.aiWinProbability ? (leg.aiWinProbability * 100).toFixed(1) + '%' : null,
+          })),
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`🎯 [TiltLab] Parlay analysis: ${validation.detectedType}, ${legs.length} legs, ${combinedAmericanOdds > 0 ? '+' : ''}${Math.round(combinedAmericanOdds)} odds, EV: ${evPercentage.toFixed(1)}%`)
+        }
+      } catch (parlayErr) {
+        console.warn('[TiltLab] Parlay analysis failed, continuing without it:', parlayErr)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       analysis,
       enhanced: enhancedAnalysis,
       usedEnhancedAI,
+      parlayAnalysis,
     })
   } catch (error) {
     console.error("AI analysis error:", error)

@@ -162,7 +162,8 @@ function countIf(arr: any[], predicate: (x: any) => boolean): number {
   return arr.reduce((acc, x) => acc + (predicate(x) ? 1 : 0), 0)
 }
 
-export function computeArchetype(responses: SurveyAnswer[]): ArchetypeDef {
+// Behavioral score calculation for qualification system
+function calculateBehavioralScores(responses: SurveyAnswer[]) {
   const c1 = getSingleIndex(responses, 'c1') // longer than planned
   const c2 = getSingleIndex(responses, 'c2') // bet when stressed/bored
   const c3 = getSingleIndex(responses, 'c3') // exceed budget
@@ -194,72 +195,121 @@ export function computeArchetype(responses: SurveyAnswer[]): ArchetypeDef {
   const overlapSports = c9.filter(s => c10.includes(s))
   const overlapCount = overlapSports.length
 
-  const scores: Record<string, number> = {
-    analyst: 0,
-    emotional_bettor: 0,
-    thrill_seeker: 0,
-    social_bettor: 0,
-    escape_artist: 0,
-    risk_controller: 0,
-    big_spender: 0,
-    superfan: 0,
-    aspiring_pro: 0,
-    casual_dabbler: 0,
+  return {
+    researchScore,
+    trackingScore,
+    emotionScore,
+    betSizeScore,
+    adjustScore,
+    budgetExceedScore,
+    timeLateNight,
+    hasLive,
+    hasParlay,
+    hasProps,
+    hasStraight,
+    sportsCount,
+    understoodCount,
+    overlapCount,
+    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12
   }
+}
 
-  // Analyst
-  scores.analyst += researchScore * 2 + trackingScore * 2
-  scores.analyst += (hasStraight ? 1 : 0) + (adjustScore <= 1 ? 1 : 0)
-  scores.analyst += (budgetExceedScore <= 1 ? 1 : 0)
-
-  // Emotional Bettor
-  scores.emotional_bettor += emotionScore * 2
-  scores.emotional_bettor += (researchScore === 0 ? 1 : 0) + (trackingScore === 0 ? 1 : 0)
-
-  // Thrill Seeker
-  scores.thrill_seeker += (hasLive ? 2 : 0) + (hasParlay ? 2 : 0) + (hasProps ? 1 : 0)
-  scores.thrill_seeker += adjustScore + Math.max(0, betSizeScore - 1)
-
-  // Social Bettor (proxy)
-  scores.social_bettor += (c11 === 2 ? 1 : 0) + (c11 === 4 ? 1 : 0) // evening or no pattern
-  scores.social_bettor += (sportsCount >= 3 ? 1 : 0)
-  scores.social_bettor += (researchScore <= 1 ? 1 : 0)
-
-  // Escape Artist
-  scores.escape_artist += Math.max(0, c2) * 2 + (timeLateNight ? 1 : 0)
-  scores.escape_artist += (trackingScore === 0 ? 1 : 0)
-
-  // Risk Controller
-  scores.risk_controller += (budgetExceedScore === 0 ? 2 : 0) + (adjustScore === 0 ? 2 : 0)
-  scores.risk_controller += (researchScore >= 2 ? 1 : 0) + (betSizeScore <= 2 ? 1 : 0)
-
-  // Big Spender
-  scores.big_spender += (betSizeScore >= 3 ? 3 : 0)
-  scores.big_spender += (adjustScore >= 2 ? 1 : 0) + (budgetExceedScore >= 2 ? 1 : 0)
-
-  // Superfan
-  scores.superfan += (sportsCount === 1 ? 2 : 0) + (overlapCount >= 1 ? 1 : 0)
-  scores.superfan += (researchScore >= 1 ? 1 : 0)
-
-  // Aspiring Pro
-  scores.aspiring_pro += researchScore * 2 + Math.max(0, trackingScore - 1) * 2
-  scores.aspiring_pro += (hasStraight ? 1 : 0) + (!hasParlay ? 1 : 0)
-  scores.aspiring_pro += (adjustScore <= 1 ? 1 : 0)
-
-  // Casual Dabbler
-  scores.casual_dabbler += (betSizeScore === 0 ? 2 : 0)
-  scores.casual_dabbler += (researchScore <= 1 ? 1 : 0) + (trackingScore === 0 ? 1 : 0)
-  scores.casual_dabbler += (emotionScore === 0 ? 1 : 0)
-
-  let bestId = 'analyst'
-  let bestScore = -Infinity
-  for (const [id, s] of Object.entries(scores)) {
-    if (s > bestScore) {
-      bestScore = s
-      bestId = id
-    }
+// Qualification rules for each archetype
+function isQualifiedForArchetype(archetypeId: string, scores: any): boolean {
+  switch (archetypeId) {
+    case 'analyst':
+      return scores.researchScore >= 1 || scores.trackingScore >= 1
+    
+    case 'thrill_seeker':
+      return scores.hasLive || scores.hasParlay || scores.betSizeScore >= 1
+    
+    case 'emotional_bettor':
+      return scores.emotionScore >= 1
+    
+    case 'risk_controller':
+      return scores.budgetExceedScore <= 2
+    
+    case 'social_bettor':
+      return scores.sportsCount >= 1
+    
+    case 'escape_artist':
+      return Math.max(0, scores.c2) >= 1 || scores.timeLateNight === 1
+    
+    case 'big_spender':
+      return scores.betSizeScore >= 2
+    
+    case 'superfan':
+      return scores.sportsCount >= 1
+    
+    case 'aspiring_pro':
+      return scores.researchScore >= 1
+    
+    case 'casual_dabbler':
+      return scores.betSizeScore <= 2
+    
+    default:
+      return true // Fallback
   }
+}
 
-  const def = ARCHETYPES.find(a => a.id === bestId) || ARCHETYPES[0]
-  return def
+// Equal probability selection with minimal behavioral tie-breaking
+function selectWithEqualProbability(qualifiedArchetypes: ArchetypeDef[], scores: any): ArchetypeDef {
+  if (qualifiedArchetypes.length === 1) {
+    return qualifiedArchetypes[0]
+  }
+  
+  // True equal probability: randomly select from qualified archetypes
+  const randomIndex = Math.floor(Math.random() * qualifiedArchetypes.length)
+  return qualifiedArchetypes[randomIndex]
+}
+
+// Main function with equal distribution logic
+export function computeArchetype(responses: SurveyAnswer[]): ArchetypeDef {
+  const scores = calculateBehavioralScores(responses)
+  
+  // Find qualified archetypes
+  let qualified = ARCHETYPES.filter(archetype => 
+    isQualifiedForArchetype(archetype.id, scores)
+  )
+  
+  // Ensure minimum qualification (at least 2-3 archetypes)
+  if (qualified.length < 2) {
+    // Relax criteria: include archetypes with partial qualification
+    qualified = ARCHETYPES.filter(archetype => {
+      if (isQualifiedForArchetype(archetype.id, scores)) return true
+      
+      // Relaxed rules for backup qualification
+      switch (archetype.id) {
+        case 'analyst':
+          return scores.researchScore >= 1 || scores.trackingScore >= 1
+        case 'thrill_seeker':
+          return scores.hasLive || scores.hasParlay || scores.betSizeScore >= 1
+        case 'emotional_bettor':
+          return scores.emotionScore >= 2
+        case 'risk_controller':
+          return scores.budgetExceedScore <= 1
+        case 'social_bettor':
+          return scores.sportsCount >= 1
+        case 'escape_artist':
+          return Math.max(0, scores.c2) >= 1
+        case 'big_spender':
+          return scores.betSizeScore >= 2
+        case 'superfan':
+          return scores.sportsCount <= 2
+        case 'aspiring_pro':
+          return scores.researchScore >= 2
+        case 'casual_dabbler':
+          return scores.betSizeScore <= 2
+        default:
+          return true
+      }
+    })
+  }
+  
+  // Final fallback: ensure at least 3 archetypes
+  if (qualified.length < 3) {
+    qualified = ARCHETYPES.slice(0, 3) // Default to first 3 archetypes
+  }
+  
+  return selectWithEqualProbability(qualified, scores)
 }

@@ -9,7 +9,8 @@ import {
   Target,
   Activity,
   BarChart3,
-  Trophy
+  Trophy,
+  Sparkles
 } from "lucide-react"
 import { LucideIcon } from "lucide-react"
 
@@ -84,6 +85,11 @@ interface KPICardsGridProps {
   roi: number
   avgStake?: number
   avgEV?: number
+  // Parlay metrics
+  totalParlays?: number
+  parlayWinRate?: number
+  parlayROI?: number
+  parlayPercentage?: number
 }
 
 export function KPICardsGrid({
@@ -92,7 +98,11 @@ export function KPICardsGrid({
   profit,
   roi,
   avgStake,
-  avgEV
+  avgEV,
+  totalParlays,
+  parlayWinRate,
+  parlayROI,
+  parlayPercentage
 }: KPICardsGridProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -158,6 +168,40 @@ export function KPICardsGrid({
           variant={avgEV > 3 ? "success" : avgEV < 0 ? "danger" : "default"}
           subtitle="Edge per bet"
         />
+      )}
+
+      {totalParlays !== undefined && totalParlays > 0 && (
+        <>
+          <KPICard
+            title="Parlays"
+            value={totalParlays}
+            icon={Sparkles}
+            subtitle={`${parlayPercentage?.toFixed(1) || 0}% of total bets`}
+            variant="default"
+          />
+
+          {parlayWinRate !== undefined && (
+            <KPICard
+              title="Parlay Win Rate"
+              value={formatPercentage(parlayWinRate)}
+              icon={Target}
+              trend={parlayWinRate >= 30 ? "up" : parlayWinRate <= 15 ? "down" : "neutral"}
+              variant={parlayWinRate >= 30 ? "success" : parlayWinRate <= 15 ? "danger" : "default"}
+              subtitle="Parlay success rate"
+            />
+          )}
+
+          {parlayROI !== undefined && (
+            <KPICard
+              title="Parlay ROI"
+              value={formatPercentage(parlayROI)}
+              icon={Trophy}
+              trend={parlayROI > 0 ? "up" : parlayROI < 0 ? "down" : "neutral"}
+              variant={parlayROI > 0 ? "success" : parlayROI < 0 ? "danger" : "default"}
+              subtitle="Parlay return on investment"
+            />
+          )}
+        </>
       )}
     </div>
   )

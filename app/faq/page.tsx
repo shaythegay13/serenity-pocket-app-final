@@ -1,7 +1,4 @@
-"use client"
-
 import { Card } from "@/components/ui/card"
-import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 const faqs = [
   {
@@ -50,51 +47,70 @@ const faqs = [
   }
 ]
 
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((faq) => ({
+    "@type": "Question",
+    name: faq.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: faq.answer,
+    },
+  })),
+}
+
 export default function FAQPage() {
   return (
-    <FooterPageWrapper>
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-foreground mb-4">
-              Frequently Asked Questions
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Find answers to common questions about PlayMind Labs
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {faqs.map((faq, index) => (
-              <Card key={index} className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-3">
-                  {faq.question}
-                </h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  {faq.answer}
-                </p>
-              </Card>
-            ))}
-          </div>
-
-          <div className="mt-12 text-center">
-            <Card className="p-8 bg-muted/50">
-              <h3 className="text-xl font-semibold text-foreground mb-4">
-                Still have questions?
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                Can't find what you're looking for? Our support team is here to help.
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <h1 className="text-4xl font-bold text-foreground mb-4">
+                Frequently Asked Questions
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Find answers to common questions about PlayMind Labs
               </p>
-              <a
-                href="/contact"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-              >
-                Contact Support
-              </a>
-            </Card>
+            </div>
+
+            <div className="space-y-6">
+              {faqs.map((faq, index) => (
+                <Card key={index} className="p-6">
+                  <h3 className="text-lg font-semibold text-foreground mb-3">
+                    {faq.question}
+                  </h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {faq.answer}
+                  </p>
+                </Card>
+              ))}
+            </div>
+
+            <div className="mt-12 text-center">
+              <Card className="p-8 bg-muted/50">
+                <h3 className="text-xl font-semibold text-foreground mb-4">
+                  Still have questions?
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  Can't find what you're looking for? Our support team is here to help.
+                </p>
+                <a
+                  href="/contact"
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                >
+                  Contact Support
+                </a>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
-    </FooterPageWrapper>
+    </>
   )
 }

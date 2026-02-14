@@ -241,8 +241,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         const safeTrades = Array.isArray(tradesData) ? tradesData : []
         const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
 
-        // Filter for pending comprehensive bets (outcome === "pending")
-        const pendingBets = safeComprehensiveBets.filter(bet => bet.outcome === "pending")
+        // Filter for pending comprehensive bets (include both explicit "pending" and undefined outcomes)
+        const pendingBets = safeComprehensiveBets.filter(bet => 
+          bet.outcome === "pending" || bet.outcome === undefined
+        )
 
         setLogs(safeLogs)
         setTrades(safeTrades)
@@ -272,7 +274,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       try {
         const comprehensiveBetsData = await storage.getComprehensiveBets().catch(() => [])
         const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
-        const pendingBets = safeComprehensiveBets.filter(bet => bet.outcome === "pending")
+        const pendingBets = safeComprehensiveBets.filter(bet => 
+          bet.outcome === "pending" || bet.outcome === undefined
+        )
         setPendingComprehensiveBets(pendingBets)
       } catch (error) {
         console.error("Error refreshing pending bets:", error)
@@ -340,15 +344,16 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
   // Load saved bets from storage for "Select Saved Bet" mode
   const loadSavedBets = async () => {
-    if (savedBets.length > 0) return // Already loaded
+    if (loadingBets) return // Prevent duplicate calls while loading
 
     setLoadingBets(true)
     try {
       const bets = await storage.getComprehensiveBets()
       // Filter for bets from bet analyzer or tiltlab that don't have outcomes yet
+      // Include both explicit "pending" and undefined outcomes
       const relevantBets = bets.filter(bet =>
         (bet.source === "bet-analyzer" || bet.source === "tiltlab") &&
-        bet.outcome === "pending"
+        (bet.outcome === "pending" || bet.outcome === undefined)
       ).slice(0, 20) // Limit to 20 most recent
 
       setSavedBets(relevantBets)

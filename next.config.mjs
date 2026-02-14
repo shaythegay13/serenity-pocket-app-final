@@ -26,7 +26,7 @@ const nextConfig = {
     },
   },
   // Fix cross-origin request warning in development
-  allowedDevOrigins: ['127.0.0.1:3000', 'localhost:3000'],
+  allowedDevOrigins: ['127.0.0.1:3000', 'localhost:3000', '127.0.0.1:3001', 'localhost:3001'],
 };
 
 export default withBundleAnalyzer(nextConfig);

@@ -1,4 +1,4 @@
-// Shared AI-related types for Serenity Pocket
+// Shared AI-related types for PlayMind Labs
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH"
 
@@ -247,6 +247,8 @@ export interface BetAnalyzerReasoningOutput {
 }
 
 // Parlay-related types
+
+// Extended leg type with persistence and tracking fields
 export interface ParlayLeg {
   pickId: string
   gameId?: string
@@ -256,6 +258,73 @@ export interface ParlayLeg {
   odds: number
   confidence?: number
   aiWinProbability?: number
+  // Persistence fields for parlay tracking
+  sport?: string
+  league?: string
+  selection?: string          // "home" | "away" | "over" | "under"
+  outcome?: 'won' | 'lost' | 'void' | 'push' | 'pending'
+  settledAt?: string
+}
+
+// Parlay outcome status
+export type ParlayOutcome = 'pending' | 'won' | 'lost' | 'void' | 'push'
+
+// Parlay type flag - classic multi-game, same game parlay, or SGP+
+export type ParlayType = 'classic' | 'sgp' | 'sgp_plus'
+
+/**
+ * Full parlay domain model for tracking user-built or recommended parlays.
+ * Stores legs, odds, emotional context at creation, and settlement data.
+ */
+export interface Parlay {
+  id: string
+  userId?: string
+  anonymousSessionId?: string
+  createdAt: string
+  type: ParlayType
+  legs: ParlayLeg[]
+  stake: number
+  totalOddsAmerican: number
+  totalOddsDecimal: number
+  impliedProbability: number
+  // AI-estimated combined probability (product of leg probs, assuming independence)
+  // TODO: Hook for future correlation modeling
+  trueProbability?: number
+  projectedEV?: number
+  riskScore?: number              // 0-1, variance/tilt proxy
+  kellyStakeFraction?: number
+  outcome: ParlayOutcome
+  actualPayout?: number
+  settledAt?: string
+  // Emotional context at creation time from most recent emotion check-in
+  emotionAtCreation?: string
+  emotionIntensityAtCreation?: number
+  // Tilt signal tags inferred from leg combinations
+  // e.g. "chasing_losses", "laddering", "cross_sport_mashup", "same_player_stacking"
+  tiltSignals?: string[]
+  // Back-reference for emotion check-in linkage
+  emotionCheckInId?: string
+}
+
+/**
+ * SmartSlip parlay recommendation shape returned by the picker API.
+ * Contains pre-computed odds, EV, and risk analysis for a recommended parlay.
+ */
+export interface ParlayRecommendation {
+  legs: ParlayLeg[]
+  totalOddsAmerican: number
+  totalOddsDecimal: number
+  impliedProbability: number
+  trueProbability: number
+  projectedEV: number
+  evPercentage: number
+  riskScore: number
+  suggestedStake: number
+  parlayType: ParlayType
+  // "core" = 2-3 tight legs with strong edges; "lotto" = 4+ legs with capped stake
+  category: 'core' | 'lotto'
+  correlationWarnings: CorrelationWarning[]
+  summary: string
 }
 
 export interface CorrelationWarning {

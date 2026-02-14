@@ -1,0 +1,43 @@
+# PlayMind Labs
+
+> AI-powered behavioral sports betting analytics platform
+
+PlayMind Labs combines behavioral psychology with artificial intelligence to help sports bettors make smarter, more disciplined decisions. We are the seatbelt, not the gas pedal.
+
+## What We Do
+
+PlayMind Labs provides tools that help sports bettors understand their emotional patterns, recognize cognitive biases, and maintain discipline. Our platform includes:
+
+- **Emotional Check-In**: Track emotions before, during, and after betting with a 6-core-emotion model (joy, calm, fear, greed, frustration, sadness) and 60 sub-emotions
+- **Serenity Assessment**: Discover your betting archetype through a behavioral psychology questionnaire
+- **PGSI Assessment**: Problem Gambling Severity Index screening tool for self-awareness
+- **SmartSlip AI Picks**: AI-powered betting recommendations based on behavioral stability scoring
+- **TiltLab**: Deep emotional analysis to identify triggers and patterns affecting betting decisions
+- **Emotional Wellness Score**: Real-time scoring (0-100) based on recent emotional logs and betting behavior
+- **Cooldown Mode**: Automatic safety controls when emotional volatility is detected
+
+## Free Tools (No Account Required)
+
+- /check-in - Emotional check-in for sports bettors
+- /serenity - Serenity archetype assessment
+- /pgsi - PGSI problem gambling screening
+
+## Key Pages
+
+- / - Homepage
+- /features - Platform features and comparison table
+- /pricing - Subscription plans (Foundation, Focus $19.99/mo, Mastery $39.99/mo, Apex $79.99/mo)
+- /faq - Frequently asked questions
+- /about - About the team and mission
+- /how-it-works - How the platform works
+- /responsible-use - Responsible gambling commitment
+- /contact - Contact information
+- /privacy - Privacy policy
+- /terms - Terms of service
+
+## Company
+
+- **Founded**: 2025
+- **Location**: New York City
+- **Mission**: Make betting smarter, not bigger
+- **Website**: https://www.playmindlabs.com

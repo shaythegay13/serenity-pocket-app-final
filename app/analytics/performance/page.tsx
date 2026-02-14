@@ -1,22 +1,14 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense } from "react"
+import { AnalyticsContent } from "@/components/analytics-content"
 
 export default function PerformancePage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    // Redirect to main analytics page with performance tab selected
-    router.replace("/analytics?tab=performance")
-  }, [router])
-
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <div className="animate-pulse text-muted-foreground">Loading Performance Analytics...</div>
-      </div>
-    </div>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">
+      <div className="animate-pulse text-muted-foreground">Loading Analytics...</div>
+    </div>}>
+      <AnalyticsContent />
+    </Suspense>
   )
 }

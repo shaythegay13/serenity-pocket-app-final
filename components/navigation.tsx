@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { Home, Brain, Sparkles, BarChart3 } from "lucide-react"
 import Image from "next/image"
@@ -9,8 +10,8 @@ import { usePathname, useRouter } from "next/navigation"
 const navItems = [
   { tab: "home", label: "Home", icon: Home, href: "/home" },
   { tab: "behavior", label: "My Mind", icon: Brain, href: "/behavior" },
-  { tab: "ai-picks", label: "BetLab", icon: Sparkles, href: "/betlab" },
-  { tab: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics" },
+  { tab: "ai-picks", label: "BetLab", icon: Sparkles, href: "/betlab/smartslip" },
+  { tab: "analytics", label: "Analytics", icon: BarChart3, href: "/analytics/performance" },
 ]
 
 interface NavigationProps {
@@ -23,18 +24,26 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
   const router = useRouter()
 
   // Determine active tab based on current pathname
-  const getActiveTab = () => {
+  const tabFromPathname = () => {
     if (pathname === "/home") return "home"
     if (pathname === "/") return "home"
     if (pathname === "/behavior") return "behavior"
     if (pathname?.startsWith("/betlab")) return "ai-picks"
-    if (pathname === "/analytics") return "analytics"
+    if (pathname === "/analytics" || pathname?.startsWith("/analytics/")) return "analytics"
     return "home"
   }
 
-  const activeTab = getActiveTab()
+  // Local state for instant UI response; synced with pathname once route change lands
+  const [localTab, setLocalTab] = useState(tabFromPathname())
 
-  const handleNavClick = (tab: string, href: string) => {
+  useEffect(() => {
+    setLocalTab(tabFromPathname())
+  }, [pathname])
+
+  const activeTab = localTab
+
+  const handleNavClick = useCallback((tab: string, href: string) => {
+    setLocalTab(tab) // instant UI highlight
     if (isHomePage && onNavigateToTab) {
       // Use direct navigation for betlab, internal navigation for other tabs
       if (tab === 'ai-picks') {
@@ -44,9 +53,15 @@ export function Navigation({ onNavigateToTab, isHomePage = false }: NavigationPr
       }
     } else {
       // Use regular navigation for other pages
-      router.push(href)
+      if (tab === 'ai-picks') {
+        router.push('/betlab/smartslip')
+      } else if (tab === 'analytics') {
+        router.push('/analytics/performance')
+      } else {
+        router.push(href)
+      }
     }
-  }
+  }, [isHomePage, onNavigateToTab, router])
 
   return (
     <nav className="hidden md:block border-b border-border/50 bg-card/50 backdrop-blur-sm">

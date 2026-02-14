@@ -22,6 +22,7 @@ import {
 import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw, Users } from "lucide-react"
 import type { Trade, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
+import type { Parlay } from "@/lib/types/ai-models"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import { KPICardsGrid } from "./KPICards"
 import { calculateBettingMetrics } from "./utils/calculations"
@@ -35,15 +36,35 @@ interface PerformanceTabProps {
   trades: Trade[]
   unifiedBets?: UnifiedBet[]
   comprehensiveBets?: ComprehensiveBet[]
+  parlays?: Parlay[]
   onRefreshData?: () => void
   isRefreshing?: boolean
 }
 
-export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: propComprehensiveBets = [], onRefreshData, isRefreshing }: PerformanceTabProps) {
+export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: propComprehensiveBets = [], parlays: propParlays = [], onRefreshData, isRefreshing }: PerformanceTabProps) {
   // Calculate metrics
   const metrics = useMemo(() => {
     if (unifiedBets.length > 0) {
       return calculateBettingMetrics(unifiedBets)
+    }
+
+    // Compute parlay metrics from actual parlay data
+    const settledParlays = propParlays.filter(p => p.outcome === 'won' || p.outcome === 'lost' || p.outcome === 'push' || p.outcome === 'void')
+    const parlayWins = propParlays.filter(p => p.outcome === 'won')
+    const parlayLosses = propParlays.filter(p => p.outcome === 'lost')
+    const parlayTotalStaked = settledParlays.reduce((s, p) => s + (p.stake || 0), 0)
+    const parlayTotalReturns = settledParlays.reduce((s, p) => s + (p.actualPayout || 0), 0)
+    const parlayProfit = parlayTotalReturns - parlayTotalStaked
+    const parlayMetrics = {
+      totalParlays: propParlays.length,
+      completedParlays: settledParlays.length,
+      parlayWins: parlayWins.length,
+      parlayLosses: parlayLosses.length,
+      parlayWinRate: (parlayWins.length + parlayLosses.length) > 0
+        ? (parlayWins.length / (parlayWins.length + parlayLosses.length)) * 100
+        : 0,
+      parlayROI: parlayTotalStaked > 0 ? (parlayProfit / parlayTotalStaked) * 100 : 0,
+      parlayPercentage: trades.length > 0 ? (propParlays.length / (trades.length + propParlays.length)) * 100 : 0,
     }
 
     // Fallback to trades data
@@ -76,9 +97,11 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       totalReturns,
       profit,
       roi,
-      avgEV
+      avgEV,
+      // Parlay metrics computed from actual parlay data
+      ...parlayMetrics
     }
-  }, [trades, unifiedBets])
+  }, [trades, unifiedBets, propParlays])
 
   // State for pending bets (from both BetAnalysis and ComprehensiveBet)
   const [pendingBets, setPendingBets] = useState<BetAnalysis[]>([])
@@ -90,38 +113,47 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
   const [betBeingSettled, setBetBeingSettled] = useState<ComprehensiveBet | null>(null)
   const [preSelectedOutcome, setPreSelectedOutcome] = useState<"profit" | "loss" | "breakeven" | undefined>(undefined)
 
-  // Load pending bets on mount
+  // Load pending bets function (reusable for mount and refresh)
+  const loadPendingBets = async () => {
+    setLoadingPending(true)
+    try {
+      // Load from both BetAnalysis and ComprehensiveBet sources
+      const [analyses, comprehensiveBets] = await Promise.all([
+        storage.getBetAnalyses().catch(() => []),
+        storage.getComprehensiveBets().catch(() => [])
+      ])
+
+      const pendingAnalyses = analyses.filter(bet => bet.outcome === 'pending')
+      const pendingCompBets = comprehensiveBets.filter(bet => bet.outcome === 'pending')
+
+      setPendingBets(pendingAnalyses)
+      setPendingComprehensiveBets(pendingCompBets)
+    } catch (error) {
+      console.error('Error loading pending bets:', error)
+    } finally {
+      setLoadingPending(false)
+    }
+  }
+
+  // Load pending bets on mount and when betting data changes
   useEffect(() => {
     let isMounted = true
 
-    const loadPendingBets = async () => {
-      setLoadingPending(true)
-      try {
-        // Load from both BetAnalysis and ComprehensiveBet sources
-        const [analyses, comprehensiveBets] = await Promise.all([
-          storage.getBetAnalyses().catch(() => []),
-          storage.getComprehensiveBets().catch(() => [])
-        ])
-
-        const pendingAnalyses = analyses.filter(bet => bet.outcome === 'pending')
-        const pendingCompBets = comprehensiveBets.filter(bet => bet.outcome === 'pending')
-
-        if (isMounted) {
-          setPendingBets(pendingAnalyses)
-          setPendingComprehensiveBets(pendingCompBets)
-        }
-      } catch (error) {
-        console.error('Error loading pending bets:', error)
-      } finally {
-        if (isMounted) {
-          setLoadingPending(false)
-        }
-      }
+    const doLoad = async () => {
+      if (!isMounted) return
+      await loadPendingBets()
     }
 
-    loadPendingBets()
+    doLoad()
 
-    return () => { isMounted = false }
+    // Also reload when betting data is saved (e.g., after settling a bet)
+    const handleDataUpdate = () => { doLoad() }
+    analyticsEvents.on(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleDataUpdate)
+
+    return () => {
+      isMounted = false
+      analyticsEvents.off(ANALYTICS_EVENTS.BETTING_DATA_SAVED, handleDataUpdate)
+    }
   }, [])
 
   // Handle bet outcome - opens emotion check-in dialog for legacy BetAnalysis bets
@@ -601,6 +633,10 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         roi={metrics.roi}
         avgStake={avgStake}
         avgEV={metrics.avgEV}
+        totalParlays={metrics.totalParlays}
+        parlayWinRate={metrics.parlayWinRate}
+        parlayROI={metrics.parlayROI}
+        parlayPercentage={metrics.parlayPercentage}
       />
 
       {/* Outcome Distribution */}

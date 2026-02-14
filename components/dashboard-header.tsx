@@ -53,6 +53,16 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
     }
   }, [menuOpen])
 
+  // Add emergency logout to window for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).emergencyLogout = () => {
+        console.log('🔧 Emergency logout triggered!')
+        handleLogout()
+      }
+    }
+  }, [])
+
   const handleLogout = async () => {
     console.log('🔧 Logout button clicked - starting logout process')
 
@@ -73,10 +83,15 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
         // Continue with logout anyway
       }
 
-      // Use local scope for faster, more reliable logout
-      // Global scope requires a network call which can hang
+      // Use local scope for faster, more reliable logout with timeout
       console.log('🔧 Signing out from Supabase...')
-      await supabase.auth.signOut({ scope: 'local' })
+      
+      const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Logout timeout')), 3000)
+      )
+      
+      await Promise.race([signOutPromise, timeoutPromise])
       console.log('🔧 Supabase sign out completed')
 
     } catch (error) {
@@ -99,13 +114,12 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-white p-2 rounded-lg shadow-sm">
+            <div className="relative w-32 h-16 overflow-hidden">
               <Image
                 src="/logo.png"
                 alt="PlayMind Labs"
-                width={162}
-                height={162}
-                className="h-[80px] w-auto sm:h-[100px]"
+                fill
+                className="object-cover object-center dark:invert"
                 priority
               />
             </div>
@@ -238,9 +252,20 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-red-600 hover:bg-accent"
                   role="menuitem"
                   type="button"
-                  onClick={() => {
-                    // Don't await - handleLogout clears storage first then redirects
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('🔧 Logout button clicked!')
+                    setMenuOpen(false)
                     handleLogout()
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      console.log('🔧 Logout button activated via keyboard!')
+                      setMenuOpen(false)
+                      handleLogout()
+                    }
                   }}
                 >
                   <span>Logout</span>

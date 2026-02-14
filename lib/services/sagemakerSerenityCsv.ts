@@ -12,7 +12,7 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 /**
- * Call the Serenity Pocket XGBoost multiclass model over CSV.
+ * Call the PlayMind Labs XGBoost multiclass model over CSV.
  * featuresCsv must be a single CSV row with NO label column, columns in the
  * exact order the model was trained on (all columns after `label`).
  */

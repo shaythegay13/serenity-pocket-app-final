@@ -1,4 +1,4 @@
-import { ParlayLeg, CorrelationWarning } from './types/ai-models'
+import { ParlayLeg, CorrelationWarning, PickerRecommendationItem, ParlayRecommendation, ParlayType, ParlayOutcome } from './types/ai-models'
 
 /**
  * 🎯 FIXED EV CALCULATION SYSTEM FOR PLAYMIND LABS SMARTSLIP
@@ -44,13 +44,13 @@ export function impliedProbabilityFromOdds(odds: number): number {
  * EV = true_prob * profit_if_win - lose_prob * stake_loss
  */
 export function calculateSingleBetEV(
-  americanOdds: number, 
+  americanOdds: number,
   trueWinProbability: number  // ← CRITICAL: Your AI model's estimate
 ): number {
   if (!Number.isFinite(trueWinProbability) || trueWinProbability < 0 || trueWinProbability > 1) {
     throw new Error(`Invalid trueWinProbability: ${trueWinProbability}. Must be 0-1 decimal.`)
   }
-  
+
   const decimalOdds = americanToDecimal(americanOdds)
   const profitIfWin = decimalOdds - 1  // Profit per unit staked
   const evPerUnit = trueWinProbability * profitIfWin - (1 - trueWinProbability) * 1
@@ -69,24 +69,117 @@ export function calculateEVPercentage(evPerUnit: number): number {
  */
 export function calculateCombinedOdds(legs: ParlayLeg[]): number {
   if (legs.length === 0) return 1
-  
+
   const combinedDecimalOdds = legs.reduce((product, leg) => {
     return product * americanToDecimal(leg.odds)
   }, 1)
-  
+
   return combinedDecimalOdds
+}
+
+// ==================== SGP PRICING ====================
+
+/**
+ * Known highly-correlated SGP market pairs.
+ * When both sides of a pair appear in the same SGP, an extra correlation
+ * penalty is applied on top of the base SGP tax.
+ */
+const SGP_CORRELATED_PAIRS: Array<{ marketA: string; marketB: string; extraTax: number; label: string }> = [
+  { marketA: 'player_passing_yards', marketB: 'player_receiving_yards', extraTax: 0.10, label: 'QB yards ↔ WR yards' },
+  { marketA: 'player_passing_yards', marketB: 'player_receptions',     extraTax: 0.10, label: 'QB yards ↔ WR receptions' },
+  { marketA: 'player_passing_tds',   marketB: 'player_receiving_tds',  extraTax: 0.08, label: 'QB TDs ↔ WR TDs' },
+  { marketA: 'player_rushing_yards', marketB: 'total',                 extraTax: 0.06, label: 'Rush yards ↔ Game total' },
+  { marketA: 'player_points',        marketB: 'moneyline',             extraTax: 0.05, label: 'Player points ↔ Moneyline' },
+  { marketA: 'player_points',        marketB: 'spread',                extraTax: 0.05, label: 'Player points ↔ Spread' },
+  { marketA: 'player_rebounds',      marketB: 'total',                 extraTax: 0.04, label: 'Rebounds ↔ Game total' },
+  { marketA: 'player_assists',       marketB: 'player_points',         extraTax: 0.04, label: 'Assists ↔ Points' },
+  { marketA: 'moneyline',            marketB: 'spread',                extraTax: 0.12, label: 'Moneyline ↔ Spread (near-duplicate)' },
+  { marketA: 'moneyline',            marketB: 'total',                 extraTax: 0.04, label: 'Moneyline ↔ Game total' },
+]
+
+/**
+ * Detect SGP-specific correlation pairs present in a set of legs.
+ * Returns warnings with the extra tax that should be applied.
+ */
+export function detectSGPCorrelationPairs(legs: ParlayLeg[]): Array<CorrelationWarning & { extraTax: number }> {
+  const warnings: Array<CorrelationWarning & { extraTax: number }> = []
+  if (legs.length < 2) return warnings
+
+  const marketTypes = legs.map(l => l.betType.toLowerCase())
+
+  for (const pair of SGP_CORRELATED_PAIRS) {
+    const idxA = marketTypes.findIndex(m => m === pair.marketA)
+    const idxB = marketTypes.findIndex((m, i) => m === pair.marketB && i !== idxA)
+    if (idxA !== -1 && idxB !== -1) {
+      warnings.push({
+        type: 'same-game',
+        severity: pair.extraTax >= 0.10 ? 'high' : 'medium',
+        message: `Correlated SGP pair: ${pair.label} → extra ${(pair.extraTax * 100).toFixed(0)}% tax`,
+        affectedLegs: [legs[idxA].pickId, legs[idxB].pickId],
+        extraTax: pair.extraTax,
+      })
+    }
+  }
+
+  return warnings
+}
+
+/**
+ * Calculate SGP odds with correlation tax.
+ *
+ * Base tax: 20-30% reduction (default taxMultiplier = 0.75 → 25% haircut).
+ * Correlated-pair surcharge: each detected pair adds its own extra penalty.
+ *
+ * Final odds = naiveProduct × baseTax × (1 − Σ extraTaxes)
+ *
+ * The floor is clamped so the result never drops below 1.01 decimal odds.
+ */
+export function calculateSGPOdds(
+  legs: ParlayLeg[],
+  baseTaxMultiplier: number = 0.75,
+): { odds: number; correlationWarnings: Array<CorrelationWarning & { extraTax: number }>; effectiveTax: number } {
+  const naive = legs.reduce((acc, leg) => acc * americanToDecimal(leg.odds), 1)
+
+  const correlationWarnings = detectSGPCorrelationPairs(legs)
+  const totalExtraTax = correlationWarnings.reduce((sum, w) => sum + w.extraTax, 0)
+
+  // Effective multiplier = baseTax × (1 − extra taxes), floored at 0.30
+  const effectiveMultiplier = Math.max(0.30, baseTaxMultiplier * (1 - totalExtraTax))
+  const effectiveTax = 1 - effectiveMultiplier
+
+  // Floor at 1.01 to avoid nonsensical sub-even odds
+  const odds = Math.max(1.01, naive * effectiveMultiplier)
+
+  return { odds, correlationWarnings, effectiveTax }
+}
+
+/**
+ * Recalculate parlay odds after removing pushed legs.
+ * Used during settlement when one or more legs push.
+ * Pushed legs are excluded — the parlay reprices with remaining legs only.
+ */
+export function recalculateOddsAfterPush(
+  legs: ParlayLeg[],
+  type: 'classic' | 'sgp' | 'sgp_plus',
+): number {
+  const activeLeg = legs.filter(l => l.outcome !== 'push' && l.outcome !== 'void')
+  if (activeLeg.length === 0) return 1
+  if (type === 'sgp') {
+    return calculateSGPOdds(activeLeg).odds
+  }
+  return calculateCombinedOdds(activeLeg)
 }
 
 /**
  * ✅ FIXED: Calculate expected value for a parlay using AI probabilities
  */
 export function calculateParlayEV(
-  legs: ParlayLeg[], 
-  stake: number, 
+  legs: ParlayLeg[],
+  stake: number,
   probabilities?: number[]
 ): number {
   if (legs.length === 0) return 0
-  
+
   // Use AI probabilities if provided, otherwise throw error (no fallback to book odds)
   const legProbabilities = probabilities || legs.map(leg => {
     if (!leg.aiWinProbability) {
@@ -94,17 +187,17 @@ export function calculateParlayEV(
     }
     return leg.aiWinProbability
   })
-  
+
   // For a parlay to win, all legs must win
   const combinedProbability = legProbabilities.reduce((product, prob) => product * prob, 1)
-  
+
   // Calculate potential payout
   const combinedDecimalOdds = calculateCombinedOdds(legs)
   const potentialPayout = stake * combinedDecimalOdds
-  
+
   // EV = (Probability * Payout) - Stake
   const ev = (combinedProbability * potentialPayout) - stake
-  
+
   return ev
 }
 
@@ -112,11 +205,11 @@ export function calculateParlayEV(
  * Calculate EV as percentage of stake
  */
 export function calculateParlayEVPercentage(
-  legs: ParlayLeg[], 
+  legs: ParlayLeg[],
   probabilities?: number[]
 ): number {
   if (legs.length === 0) return 0
-  
+
   const ev = calculateParlayEV(legs, 100, probabilities) // Use $100 as base
   return ev
 }
@@ -126,9 +219,9 @@ export function calculateParlayEVPercentage(
  */
 export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
   const warnings: CorrelationWarning[] = []
-  
+
   if (legs.length < 2) return warnings
-  
+
   // Check for same-game parlays
   const gameGroups = legs.reduce((groups, leg) => {
     if (leg.gameId) {
@@ -139,7 +232,7 @@ export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
     }
     return groups
   }, {} as Record<string, ParlayLeg[]>)
-  
+
   Object.entries(gameGroups).forEach(([gameId, gameLegs]) => {
     if (gameLegs.length > 1) {
       warnings.push({
@@ -150,7 +243,7 @@ export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
       })
     }
   })
-  
+
   // Check for same-team parlays
   const teamGroups = legs.reduce((groups, leg) => {
     const teams = leg.teams.split(' vs ')
@@ -163,7 +256,7 @@ export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
     })
     return groups
   }, {} as Record<string, ParlayLeg[]>)
-  
+
   Object.entries(teamGroups).forEach(([team, teamLegs]) => {
     if (teamLegs.length > 1) {
       warnings.push({
@@ -174,7 +267,7 @@ export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
       })
     }
   })
-  
+
   // Check for excessive number of legs
   if (legs.length > 8) {
     warnings.push({
@@ -184,7 +277,7 @@ export function detectCorrelations(legs: ParlayLeg[]): CorrelationWarning[] {
       affectedLegs: legs.map(leg => leg.pickId)
     })
   }
-  
+
   return warnings
 }
 
@@ -220,41 +313,237 @@ export function generateLegId(leg: Partial<ParlayLeg>): string {
 /**
  * Validate parlay legs for common issues
  */
-export function validateParlayLegs(legs: ParlayLeg[]): {
+export function validateParlayLegs(
+  legs: ParlayLeg[],
+  declaredType?: 'regular' | 'same_game',
+): {
   isValid: boolean
   errors: string[]
   warnings: string[]
+  detectedType: 'classic' | 'sgp' | 'sgp_plus'
 } {
   const errors: string[] = []
   const warnings: string[] = []
-  
-  if (legs.length === 0) {
-    errors.push('Parlay must have at least one leg')
+
+  // ── Minimum / maximum legs ──
+  if (legs.length < 2) {
+    errors.push('Parlay must have at least 2 legs')
   }
-  
-  if (legs.length > 10) {
-    errors.push('Parlay cannot have more than 10 legs')
+  if (legs.length > 20) {
+    errors.push('Parlay cannot have more than 20 legs')
+  } else if (legs.length > 10) {
+    warnings.push('Parlays with more than 10 legs have extremely low win probabilities')
   } else if (legs.length > 8) {
-    warnings.push('Parlays with more than 8 legs have extremely low win probabilities')
+    warnings.push('Parlays with more than 8 legs have very low win probabilities')
   }
-  
-  // Check for duplicate legs
+
+  // ── Duplicate legs ──
   const legIds = legs.map(leg => generateLegId(leg))
   const duplicateIds = legIds.filter((id, index) => legIds.indexOf(id) !== index)
   if (duplicateIds.length > 0) {
     errors.push('Duplicate legs detected')
   }
-  
-  // Check for invalid odds
+
+  // ── Invalid odds ──
   legs.forEach((leg, index) => {
     if (!leg.odds || leg.odds === 0) {
       errors.push(`Leg ${index + 1} has invalid odds`)
     }
   })
-  
+
+  // ── Type-specific validation ──
+  const gameIds = legs.map(l => l.gameId).filter(Boolean)
+  const uniqueGames = new Set(gameIds)
+
+  if (declaredType === 'same_game') {
+    // SGP: all legs MUST share the same eventId
+    if (uniqueGames.size > 1) {
+      errors.push('Same-game parlay legs must all belong to the same event')
+    }
+    if (uniqueGames.size === 0 && gameIds.length === 0) {
+      warnings.push('No gameId on legs — cannot verify same-game constraint')
+    }
+  } else if (declaredType === 'regular') {
+    // Regular: all legs must come from DIFFERENT events
+    if (gameIds.length > 0 && uniqueGames.size < gameIds.length) {
+      errors.push('Regular parlay legs must come from different events (use same-game parlay for same-event legs)')
+    }
+  }
+
+  // Auto-detect type regardless of declared type
+  let detectedType: 'classic' | 'sgp' | 'sgp_plus' = 'classic'
+  if (uniqueGames.size === 1 && gameIds.length === legs.length) {
+    detectedType = 'sgp'
+  } else if (gameIds.length > 0) {
+    const gameCounts: Record<string, number> = {}
+    gameIds.forEach(g => { gameCounts[g!] = (gameCounts[g!] || 0) + 1 })
+    if (Object.values(gameCounts).some(c => c >= 2) && uniqueGames.size > 1) {
+      detectedType = 'sgp_plus'
+    }
+  }
+
+  // SGP-specific correlation warnings
+  if (detectedType === 'sgp' || detectedType === 'sgp_plus') {
+    const sgpWarnings = detectSGPCorrelationPairs(legs)
+    sgpWarnings.forEach(w => {
+      warnings.push(w.message)
+    })
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
-    warnings
+    warnings,
+    detectedType,
   }
+}
+
+/**
+ * Generate high-EV parlay recommendations from a list of single bet recommendations.
+ * 
+ * Algorithm:
+ * 1. Filter for positive EV bets.
+ * 2. Generate 2-leg and 3-leg combinations (strictly cross-game for V1 to minimize correlation risk).
+ * 3. Calculate combined EV and Risk.
+ * 4. Rank by EV/Edge.
+ */
+export function generateParlayRecommendations(
+  singleBets: PickerRecommendationItem[],
+  maxRecommendations: number = 3,
+  sport?: string
+): ParlayRecommendation[] {
+  // 1. Filter candidates: Must be recommended, positive EV, and have necessary data
+  const candidates = singleBets.filter(bet =>
+    bet.isRecommended &&
+    (bet.numericRisk?.evPercentage || 0) > 0 &&
+    bet.gameId
+  ).sort((a, b) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0)) // Sort by highest EV
+
+  // Limit to top 8 candidates to prevent combinatorial explosion
+  const topCandidates = candidates.slice(0, 8)
+
+  const recommendations: ParlayRecommendation[] = []
+
+  // 2. Generate 2-Leg Parlays (The "Core" Parlays)
+  for (let i = 0; i < topCandidates.length; i++) {
+    for (let j = i + 1; j < topCandidates.length; j++) {
+      const leg1 = topCandidates[i]
+      const leg2 = topCandidates[j]
+
+      // STRICT CHECK: Must be different games for V1 to avoid SGP correlation complexity
+      if (leg1.gameId === leg2.gameId) continue
+
+      const parlay = createParlayFromLegs([leg1, leg2], 'core', sport)
+      if (parlay) recommendations.push(parlay)
+    }
+  }
+
+  // 3. Generate 3-Leg Parlays (The "Lotto" Parlays - optional, lower priority)
+  if (topCandidates.length >= 3) {
+    for (let i = 0; i < topCandidates.length; i++) {
+      for (let j = i + 1; j < topCandidates.length; j++) {
+        for (let k = j + 1; k < topCandidates.length; k++) {
+          const leg1 = topCandidates[i]
+          const leg2 = topCandidates[j]
+          const leg3 = topCandidates[k]
+
+          if (leg1.gameId === leg2.gameId || leg1.gameId === leg3.gameId || leg2.gameId === leg3.gameId) continue
+
+          const parlay = createParlayFromLegs([leg1, leg2, leg3], 'lotto', sport)
+          if (parlay) recommendations.push(parlay)
+        }
+      }
+    }
+  }
+
+  // 4. Sort by EV Percentage and return top N
+  return recommendations
+    .sort((a, b) => b.evPercentage - a.evPercentage)
+    .slice(0, maxRecommendations)
+}
+
+/**
+ * Helper to construct a ParlayRecommendation from selected single legs
+ */
+function createParlayFromLegs(
+  legsData: PickerRecommendationItem[],
+  category: 'core' | 'lotto',
+  sport?: string
+): ParlayRecommendation | null {
+  try {
+    const parlayLegs: ParlayLeg[] = legsData.map(l => ({
+      pickId: l.gameId + '_' + l.betType, // Temporary ID
+      gameId: l.gameId,
+      teams: l.teams,
+      betType: l.betType,
+      line: l.line,
+      odds: l.odds,
+      confidence: l.confidence,
+      // Infer true probability from EV if not explicitly available via `aiWinProbability`
+      // EV% = (TrueProb * DecimalOdds - 1)
+      // TrueProb = (EV% + 1) / DecimalOdds  <-- Approx if EV% is return on investment
+      // Or just use implied probability if we assume edge is small.
+      // Better: assume the single bet recommendation has an implied-from-odds probability
+      // and adjust it by the EV edge.
+      aiWinProbability: calculateImpliedFromEV(l.odds, l.numericRisk?.evPercentage || 0),
+      selection: l.line, // Just store line or side name in selection for now
+      sport: sport,
+    }))
+
+    const totalOddsDecimal = parlayLegs.reduce((acc, leg) => acc * americanToDecimal(leg.odds), 1)
+    const totalOddsAmerican = decimalToAmerican(totalOddsDecimal)
+
+    // Combined True Probability (assuming independence for different games)
+    const trueProbability = parlayLegs.reduce((acc, leg) => acc * (leg.aiWinProbability || 0.5), 1)
+
+    // Implied Probability from combined odds
+    const impliedProbability = 1 / totalOddsDecimal
+
+    // Projected EV
+    // EV = (TrueProb * (DecimalOdds - 1)) - ((1 - TrueProb) * 1)
+    const projectedEV = (trueProbability * (totalOddsDecimal - 1)) - (1 - trueProbability)
+    const evPercentage = projectedEV * 100
+
+    // Skip if somehow negative EV (shouldn't happen if inputs are +EV)
+    if (evPercentage <= 0) return null
+
+    // Risk Score: Higher odds = Higher risk. 
+    // Normalized 0-1. Parlays are inherently risky.
+    // Simple heuristic: 1 - TrueProb
+    const riskScore = 1 - trueProbability
+
+    return {
+      legs: parlayLegs,
+      totalOddsAmerican,
+      totalOddsDecimal,
+      impliedProbability,
+      trueProbability,
+      projectedEV,
+      evPercentage,
+      riskScore,
+      suggestedStake: 10, // Placeholder, should be calculated via Kelly
+      parlayType: 'classic',
+      category,
+      correlationWarnings: [],
+      summary: `${legsData.length}-Leg High Value Parlay (+${Math.round(evPercentage)}% EV)`
+    }
+  } catch (e) {
+    console.error("Error creating parlay recommendation:", e)
+    return null
+  }
+}
+
+/**
+ * Helper to back-calculate True Win Probability from Odds and EV Percentage
+ * EV% = (TrueProb * DecimalOdds) - 1   [ROI formula]
+ * TrueProb = (EV% + 1) / DecimalOdds
+ */
+function calculateImpliedFromEV(americanOdds: number, evPercentage: number): number {
+  const decimal = americanToDecimal(americanOdds)
+  // evPercentage is e.g. 5.5 for 5.5%
+  const roi = evPercentage / 100
+  // ROI = (Payout * Prob) - 1
+  // ROI + 1 = Decimal * Prob
+  // Prob = (ROI + 1) / Decimal
+  return (roi + 1) / decimal
 }

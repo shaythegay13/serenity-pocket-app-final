@@ -1,20 +1,10 @@
 "use client"
-// Diagnostic: Optimization for faster build times enabled.
 
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import Link from "next/link"
-import { useState, useEffect } from "react"
-import { ArrowLeft } from "lucide-react"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { Navigation } from "@/components/navigation"
-import { BottomNav } from "@/components/bottom-nav"
-import { supabase } from "@/lib/supabase"
-import type { UserData } from "@/lib/types"
-import { storageHybrid as storage } from "@/lib/storage-hybrid"
+import { useState } from "react"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
-// Move founder data outside component to prevent re-creation
 const founders = [
   {
     name: "Shay Bouchles",
@@ -30,72 +20,20 @@ const founders = [
   },
   {
     name: "Diamond Mc Pherson",
-    title: "Chief Technology Officer",
-    bio: "Diamond Mc Pherson is the CTO of PlayMind Labs, bringing nearly two decades of IT leadership and digital transformation expertise to architect the company's secure, scalable infrastructure. With a Bachelor's degree in Computer/Information Technology Administration from the University of Hertfordshire, an Associate's degree in Operating Systems Management from COSTAATT, and a Postgraduate Certificate in Cloud Computing from the University of Texas at Austin, Diamond combines deep technical knowledge with AWS Certified Solutions Architect credentials. Most recently, he served as Regional Hyper Support Coordinator at the International Rescue Committee, where he spearheaded the global implementation of Microsoft Dynamics 365 across LATAM, Africa, and Europe—boosting operational efficiency by 25%, increasing user engagement by 30%, and reducing IT support ticket volume by 40%. Prior to that, he spent 14 years at COSTAATT in Trinidad and Tobago, where he engineered a full-scale migration from VMware to Hyper-V, reducing licensing costs by 20% annually and training over 50 participants while managing 500+ user accounts with zero downtime. At PlayMind Labs, Diamond leads technical architecture, infrastructure design, and reliability engineering, ensuring the platform can handle sensitive behavioral data, real-time AI processing, and responsible gaming controls as the company scales.",
+    title: "Chief Marketing Officer",
+    bio: "Diamond Mc Pherson is the Chief Marketing Officer of PlayMind Labs, leading the company's global brand strategy, digital engagement, and community growth across the evolving landscape of sports betting innovation. With nearly two decades of IT leadership and digital transformation experience, Diamond brings a unique, data-driven perspective to marketing—bridging technology, analytics, and creativity to amplify PlayMind's presence and purpose. Holding a Bachelor's degree in Computer/Information Technology Administration from the University of Hertfordshire, an Associate's degree in Operating Systems Management from COSTAATT, and a Postgraduate Certificate in Cloud Computing from the University of Texas at Austin, he leverages his AWS Certified Solutions Architect expertise to design scalable, insights-powered campaigns. Before joining PlayMind Labs, Diamond served as Regional Hyper Support Coordinator at the International Rescue Committee, where he led global initiatives that increased engagement and digital adoption across LATAM, Africa, and Europe. His deep understanding of user experience, systems thinking, and digital communication drives PlayMind Labs' mission to connect data, emotion, and decision-making at the intersection of AI and sports intelligence.",
     image: "/diamond.png"
+  },
+  {
+    name: "Juan D. Petter",
+    title: "Chief Technology Officer",
+    bio: "Juan D. Petter is the CTO of PlayMind Labs, overseeing all technical strategy and driving the design and implementation of AI-driven platforms that fuse behavioral science with advanced analytics. His work empowers users to understand emotional patterns, optimize betting decisions, and gain actionable insights from complex data. With a focus on safe, reliable, and transparent AI systems, Juan ensures that PlayMind Labs' technology aligns with its mission of helping users win responsibly, leveraging data, discipline, and predictive modeling.",
+    image: "/juan.petter.png"
   }
 ] as const
 
 export default function AboutPage() {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [authed, setAuthed] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let isMounted = true
-
-    const checkAuth = async () => {
-      // Safety timeout to prevent permanent loading state
-      const timeoutId = setTimeout(() => {
-        if (isMounted && loading) {
-          console.warn('Auth check timed out, forcing loading state to false');
-          setLoading(false);
-          setAuthed(false);
-        }
-      }, 5000);
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (!isMounted) {
-          clearTimeout(timeoutId);
-          return;
-        }
-
-        setAuthed(!!session)
-
-        if (session) {
-          try {
-            const storedUserData = await storage.getUserData()
-            if (isMounted) {
-              setUserData(storedUserData)
-            }
-          } catch (error) {
-            console.error('Failed to fetch user data:', error)
-          }
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error)
-        setAuthed(false)
-      } finally {
-        clearTimeout(timeoutId);
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    checkAuth()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  const handleNavigateToTab = (tab: string) => {
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
-  }
 
   const handleImageError = (imageName: string) => {
     setImageErrors(prev => new Set(prev).add(imageName))
@@ -103,7 +41,6 @@ export default function AboutPage() {
 
   const getImageSrc = (founder: { name: string; title: string; bio: string; image: string }) => {
     if (imageErrors.has(founder.image)) {
-      // Try alternative extension
       const altImage = founder.image.endsWith('.png')
         ? founder.image.replace('.png', '.jpg')
         : founder.image.replace('.jpg', '.png')
@@ -116,218 +53,178 @@ export default function AboutPage() {
     return founder.image
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    )
-  }
-
-  const aboutContent = (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            About PlayMind Labs
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            We're on a mission to revolutionize sports betting through behavioral intelligence and responsible gaming technology.
-          </p>
-        </div>
-
-        {/* Mission & Vision */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-          <Card className="p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              Our Mission
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              PlayMind Labs exists to make betting smarter, not bigger. We're the seatbelt, not the gas pedal.
-              Our goal is to help you understand your psychology, recognize harmful patterns, and make more informed decisions.
-              Always bet responsibly and never wager more than you can afford to lose.
-            </p>
-          </Card>
-
-          <Card className="p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              Our Vision
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              A world where every sports bettor has access to sophisticated behavioral tools and analytics that help them understand their patterns, manage emotions, and make rational decisions. We envision a future where responsible gaming and data-driven insights go hand in hand.
-            </p>
-          </Card>
-        </div>
-
-        {/* Our Story */}
-        <Card className="p-8 mb-16">
-          <h2 className="text-2xl font-bold text-foreground mb-6 text-center">
-            Our Story
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <p className="text-muted-foreground leading-relaxed mb-4">
-              PlayMind Labs was born from a simple observation: while sports betting has become increasingly sophisticated with advanced analytics and real-time data, the human element—emotions, biases, and behavioral patterns—was largely overlooked.
-            </p>
-            <p className="text-muted-foreground leading-relaxed mb-4">
-              Our founders, bringing together expertise in behavioral psychology, financial technology, and artificial intelligence, recognized an opportunity to bridge this gap. They saw that the most successful bettors weren't just those with the best data, but those who understood themselves and maintained emotional discipline.
-            </p>
-            <p className="text-muted-foreground leading-relaxed">
-              Today, PlayMind Labs stands at the intersection of behavioral science and cutting-edge technology, providing users with the tools they need to bet smarter, stay in control, and enjoy sports betting as a form of entertainment rather than a source of stress.
+  return (
+    <FooterPageWrapper>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Hero Section */}
+          <div className="text-center mb-16">
+            <h1 className="text-4xl font-bold text-foreground mb-4">
+              About PlayMind Labs
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              We're on a mission to revolutionize sports betting through behavioral intelligence and responsible gaming technology.
             </p>
           </div>
-        </Card>
 
-        {/* Founders Section */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground text-center mb-12">
-            Meet Our Founders
-          </h2>
-
-          <div className="space-y-8 max-w-4xl mx-auto">
-            {founders.map((founder, index) => (
-              <Card key={index} className="p-8">
-                <div className="flex flex-col md:flex-row gap-8 items-center">
-                  <div className="shrink-0">
-                    <Image
-                      src={getImageSrc(founder)}
-                      alt={founder.name}
-                      width={120}
-                      height={120}
-                      className="rounded-full object-cover"
-                      unoptimized={true}
-                      onError={() => handleImageError(getImageSrc(founder))}
-                    />
-                  </div>
-
-                  <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-2xl font-bold text-foreground mb-2">
-                      {founder.name}
-                    </h3>
-
-                    <p className="text-primary font-medium text-lg mb-4">
-                      {founder.title}
-                    </p>
-
-                    <p className="text-muted-foreground leading-relaxed">
-                      {founder.bio}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Values Section */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground text-center mb-12">
-            Our Values
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="p-6 text-center">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🎯</span>
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Responsibility</h3>
-              <p className="text-muted-foreground text-sm">
-                We prioritize user welfare and responsible gaming above all else.
+          {/* Mission & Vision */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+            <Card className="p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-4">
+                Our Mission
+              </h2>
+              <p className="text-muted-foreground leading-relaxed">
+                PlayMind Labs exists to make betting smarter, not bigger. We're the seatbelt, not the gas pedal.
+                Our goal is to help you understand your psychology, recognize harmful patterns, and make more informed decisions.
+                Always bet responsibly and never wager more than you can afford to lose.
               </p>
             </Card>
 
-            <Card className="p-6 text-center">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🔬</span>
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Science-Based</h3>
-              <p className="text-muted-foreground text-sm">
-                Our methods are grounded in behavioral psychology and data science.
-              </p>
-            </Card>
-
-            <Card className="p-6 text-center">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🤝</span>
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Transparency</h3>
-              <p className="text-muted-foreground text-sm">
-                We believe in open communication and honest user relationships.
-              </p>
-            </Card>
-
-            <Card className="p-6 text-center">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🚀</span>
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Innovation</h3>
-              <p className="text-muted-foreground text-sm">
-                We continuously push the boundaries of what's possible in betting analytics.
+            <Card className="p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-4">
+                Our Vision
+              </h2>
+              <p className="text-muted-foreground leading-relaxed">
+                A world where every sports bettor has access to sophisticated behavioral tools and analytics that help them understand their patterns, manage emotions, and make rational decisions. We envision a future where responsible gaming and data-driven insights go hand in hand.
               </p>
             </Card>
           </div>
-        </div>
 
-        {/* CTA Section */}
-        <div className="text-center">
-          <Card className="p-8 bg-muted/50">
-            <h2 className="text-2xl font-semibold text-foreground mb-4">
-              Join Our Community
+          {/* Our Story */}
+          <Card className="p-8 mb-16">
+            <h2 className="text-2xl font-bold text-foreground mb-6 text-center">
+              Our Story
             </h2>
-            <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Be part of a growing community of responsible bettors who use data and behavioral insights to make smarter decisions.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="/pricing"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-              >
-                Get Started
-              </a>
-              <a
-                href="/contact"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-              >
-                Contact Us
-              </a>
+            <div className="max-w-4xl mx-auto">
+              <p className="text-muted-foreground leading-relaxed mb-4">
+                PlayMind Labs was born from a simple observation: while sports betting has become increasingly sophisticated with advanced analytics and real-time data, the human element—emotions, biases, and behavioral patterns—was largely overlooked.
+              </p>
+              <p className="text-muted-foreground leading-relaxed mb-4">
+                Our founders, bringing together expertise in behavioral psychology, financial technology, and artificial intelligence, recognized an opportunity to bridge this gap. They saw that the most successful bettors weren't just those with the best data, but those who understood themselves and maintained emotional discipline.
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                Today, PlayMind Labs stands at the intersection of behavioral science and cutting-edge technology, providing users with the tools they need to bet smarter, stay in control, and enjoy sports betting as a form of entertainment rather than a source of stress.
+              </p>
             </div>
           </Card>
-        </div>
-      </div>
-    </div>
-  )
 
-  // Show full authenticated layout for logged-in users
-  if (authed && userData) {
-    return (
-      <div className="min-h-screen bg-background">
-        <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
-        <div className="hidden md:block">
-          <Navigation />
-        </div>
-        <main className="pb-20 md:pb-0">
-          {aboutContent}
-        </main>
-        <BottomNav />
-      </div>
-    )
-  }
+          {/* Founders Section */}
+          <div className="mb-16">
+            <h2 className="text-3xl font-bold text-foreground text-center mb-12">
+              Meet Our Founders
+            </h2>
 
-  // Show basic layout for non-authenticated users
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Back to Main Page header */}
-      <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-3">
-          <Link href="/">
-            <Button variant="ghost" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Main Page
-            </Button>
-          </Link>
+            <div className="space-y-8 max-w-4xl mx-auto">
+              {founders.map((founder, index) => (
+                <Card key={index} className="p-8">
+                  <div className="flex flex-col md:flex-row gap-8 items-center">
+                    <div className="shrink-0">
+                      <Image
+                        src={getImageSrc(founder)}
+                        alt={founder.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full object-cover"
+                        unoptimized={true}
+                        onError={() => handleImageError(getImageSrc(founder))}
+                      />
+                    </div>
+
+                    <div className="flex-1 text-center md:text-left">
+                      <h3 className="text-2xl font-bold text-foreground mb-2">
+                        {founder.name}
+                      </h3>
+
+                      <p className="text-primary font-medium text-lg mb-4">
+                        {founder.title}
+                      </p>
+
+                      <p className="text-muted-foreground leading-relaxed">
+                        {founder.bio}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Values Section */}
+          <div className="mb-16">
+            <h2 className="text-3xl font-bold text-foreground text-center mb-12">
+              Our Values
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="p-6 text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl" role="img" aria-label="Target">&#127919;</span>
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">Responsibility</h3>
+                <p className="text-muted-foreground text-sm">
+                  We prioritize user welfare and responsible gaming above all else.
+                </p>
+              </Card>
+
+              <Card className="p-6 text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl" role="img" aria-label="Microscope">&#128300;</span>
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">Science-Based</h3>
+                <p className="text-muted-foreground text-sm">
+                  Our methods are grounded in behavioral psychology and data science.
+                </p>
+              </Card>
+
+              <Card className="p-6 text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl" role="img" aria-label="Handshake">&#129309;</span>
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">Transparency</h3>
+                <p className="text-muted-foreground text-sm">
+                  We believe in open communication and honest user relationships.
+                </p>
+              </Card>
+
+              <Card className="p-6 text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl" role="img" aria-label="Rocket">&#128640;</span>
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">Innovation</h3>
+                <p className="text-muted-foreground text-sm">
+                  We continuously push the boundaries of what's possible in betting analytics.
+                </p>
+              </Card>
+            </div>
+          </div>
+
+          {/* CTA Section */}
+          <div className="text-center">
+            <Card className="p-8 bg-muted/50">
+              <h2 className="text-2xl font-semibold text-foreground mb-4">
+                Join Our Community
+              </h2>
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                Be part of a growing community of responsible bettors who use data and behavioral insights to make smarter decisions.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <a
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                >
+                  Get Started
+                </a>
+                <a
+                  href="/contact"
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                >
+                  Contact Us
+                </a>
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
-      {aboutContent}
-    </div>
+    </FooterPageWrapper>
   )
 }

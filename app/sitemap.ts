@@ -1,11 +1,14 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://serenitypocket.com'
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.playmindlabs.com'
 
   // Static public pages
   const staticPages = [
     '',
+    '/check-in',
+    '/serenity',
+    '/pgsi',
     '/features',
     '/pricing',
     '/how-it-works',
@@ -15,14 +18,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/privacy',
     '/terms',
     '/responsible-use',
-    '/login',
-    '/survey',
   ]
 
   return staticPages.map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date(),
     changeFrequency: route === '' ? 'daily' : 'weekly',
-    priority: route === '' ? 1 : route === '/features' || route === '/pricing' ? 0.9 : 0.7,
+    priority: route === '' ? 1
+      : ['/check-in', '/serenity', '/pgsi'].includes(route) ? 0.9
+      : route === '/features' || route === '/pricing' ? 0.8
+      : 0.7,
   }))
 }

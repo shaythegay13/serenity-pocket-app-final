@@ -106,6 +106,7 @@ export interface EmotionLog {
   context: string
   phase: "before" | "during" | "after"
   tradeId?: string
+  parlayId?: string
 }
 
 // ============================================================================

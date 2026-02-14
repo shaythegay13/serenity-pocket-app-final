@@ -12,6 +12,7 @@ import type {
   AIServiceUsage,
 } from "./types"
 import type { ComprehensiveBet } from "./types/bet-tracking"
+import type { Parlay } from "./types/ai-models"
 
 const STORAGE_KEYS = {
   USER_DATA: "serenity_user_data",
@@ -26,6 +27,7 @@ const STORAGE_KEYS = {
   COMPREHENSIVE_BETS: "serenity_comprehensive_bets",
   GAME_LINES: "serenity_game_lines",
   AI_USAGE: "serenity_ai_service_usage",
+  PARLAYS: "serenity_parlays",
 }
 
 // Hybrid storage that uses Supabase for authenticated users and localStorage as fallback
@@ -91,13 +93,19 @@ export const storageHybrid: {
 
   // Daily Rings Operations
   updateDailyRingsForEmotion(): Promise<void>
+
+  // Parlay Operations
+  getParlays(): Promise<Parlay[]>
+  addParlay(parlay: Parlay): Promise<void>
+  updateParlay(parlay: Parlay): Promise<void>
+  getParlayById(id: string): Promise<Parlay | null>
 } = {
-  // Get current user ID
+  // Get current user ID from cached session (fast, no network call)
   async getCurrentUserId(): Promise<string | null> {
     const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return user?.id || null
+      data: { session },
+    } = await supabase.auth.getSession()
+    return session?.user?.id || null
   },
 
   // Bet Analyses Operations
@@ -192,7 +200,7 @@ export const storageHybrid: {
         console.log('addBetAnalysis: Attempting insert with payload:', JSON.stringify(payload, null, 2))
         console.log('addBetAnalysis: Full analysis object:', JSON.stringify(analysis, (key, value) =>
           value instanceof Date ? value.toISOString() : value
-        , 2))
+          , 2))
 
         const { data, error, status, statusText } = await supabase
           .from("bet_analyses")
@@ -1838,8 +1846,220 @@ export const storageHybrid: {
     if (typeof window === "undefined") return []
     const cached = localStorage.getItem(STORAGE_KEYS.AI_USAGE)
     return cached ? (JSON.parse(cached) as AIServiceUsage[]) : []
-  }
+  },
+
+  // =========================================================================
+  // Parlay Operations
+  // =========================================================================
+
+  async getParlays(): Promise<Parlay[]> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        // Fetch parlays with their legs from Supabase
+        const { data, error } = await supabase
+          .from("parlays")
+          .select("*, parlay_legs(*)")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(500)
+
+        if (data && !error) {
+          return data.map((row: any): Parlay => ({
+            id: row.id,
+            userId: row.user_id,
+            anonymousSessionId: row.anonymous_session_id,
+            createdAt: row.created_at,
+            type: row.type || 'classic',
+            legs: (row.parlay_legs || [])
+              .sort((a: any, b: any) => (a.leg_order || 0) - (b.leg_order || 0))
+              .map((leg: any) => ({
+                pickId: leg.pick_id || leg.id,
+                gameId: leg.game_id,
+                teams: leg.teams,
+                betType: leg.bet_type,
+                line: leg.line || 'N/A',
+                odds: leg.odds,
+                confidence: leg.confidence,
+                aiWinProbability: leg.ai_win_probability,
+                sport: leg.sport,
+                league: leg.league,
+                selection: leg.selection,
+                outcome: leg.outcome || 'pending',
+                settledAt: leg.settled_at,
+              })),
+            stake: parseFloat(row.stake) || 0,
+            totalOddsAmerican: row.total_odds_american,
+            totalOddsDecimal: parseFloat(row.total_odds_decimal) || 1,
+            impliedProbability: parseFloat(row.implied_probability) || 0,
+            trueProbability: row.true_probability ? parseFloat(row.true_probability) : undefined,
+            projectedEV: row.projected_ev ? parseFloat(row.projected_ev) : undefined,
+            riskScore: row.risk_score ? parseFloat(row.risk_score) : undefined,
+            kellyStakeFraction: row.kelly_stake_fraction ? parseFloat(row.kelly_stake_fraction) : undefined,
+            outcome: row.outcome || 'pending',
+            actualPayout: row.actual_payout ? parseFloat(row.actual_payout) : undefined,
+            settledAt: row.settled_at,
+            emotionAtCreation: row.emotion_at_creation,
+            emotionIntensityAtCreation: row.emotion_intensity_at_creation,
+            tiltSignals: row.tilt_signals,
+            emotionCheckInId: row.emotion_check_in_id,
+          }))
+        }
+
+        if (error) {
+          console.error("Error fetching parlays from Supabase:", error)
+        }
+      } catch (err) {
+        console.error("Exception fetching parlays:", err)
+      }
+    }
+
+    // Fallback to localStorage
+    if (typeof window !== "undefined") {
+      const data = localStorage.getItem(STORAGE_KEYS.PARLAYS)
+      return data ? JSON.parse(data) : []
+    }
+    return []
+  },
+
+  async addParlay(parlay: Parlay): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId) {
+      try {
+        // Insert the parlay header row
+        const { error: parlayError } = await supabase
+          .from("parlays")
+          .insert({
+            id: parlay.id,
+            user_id: userId,
+            anonymous_session_id: parlay.anonymousSessionId || null,
+            type: parlay.type || 'classic',
+            stake: parlay.stake,
+            total_odds_american: parlay.totalOddsAmerican,
+            total_odds_decimal: parlay.totalOddsDecimal,
+            implied_probability: parlay.impliedProbability,
+            true_probability: parlay.trueProbability || null,
+            projected_ev: parlay.projectedEV || null,
+            risk_score: parlay.riskScore || null,
+            kelly_stake_fraction: parlay.kellyStakeFraction || null,
+            outcome: parlay.outcome || 'pending',
+            actual_payout: parlay.actualPayout || null,
+            emotion_at_creation: parlay.emotionAtCreation || null,
+            emotion_intensity_at_creation: parlay.emotionIntensityAtCreation || null,
+            tilt_signals: parlay.tiltSignals || null,
+            emotion_check_in_id: parlay.emotionCheckInId || null,
+            created_at: parlay.createdAt,
+            settled_at: parlay.settledAt || null,
+          })
+
+        if (parlayError) {
+          console.error("Error inserting parlay to Supabase:", parlayError)
+        } else {
+          // Insert legs as separate rows
+          const legRows = parlay.legs.map((leg, index) => ({
+            parlay_id: parlay.id,
+            pick_id: leg.pickId,
+            game_id: leg.gameId || null,
+            teams: leg.teams,
+            bet_type: leg.betType,
+            line: leg.line || 'N/A',
+            odds: leg.odds,
+            confidence: leg.confidence || null,
+            ai_win_probability: leg.aiWinProbability || null,
+            sport: leg.sport || null,
+            league: leg.league || null,
+            selection: leg.selection || null,
+            outcome: leg.outcome || 'pending',
+            settled_at: leg.settledAt || null,
+            leg_order: index,
+          }))
+
+          const { error: legsError } = await supabase
+            .from("parlay_legs")
+            .insert(legRows)
+
+          if (legsError) {
+            console.error("Error inserting parlay legs to Supabase:", legsError)
+          } else {
+            console.log("✅ Parlay saved to Supabase:", parlay.id)
+          }
+        }
+      } catch (err) {
+        console.error("Exception saving parlay:", err)
+      }
+    }
+
+    // Also save to localStorage as backup
+    if (typeof window !== "undefined") {
+      const parlays: Parlay[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARLAYS) || "[]")
+      parlays.push(parlay)
+      // Keep only last 100 parlays in localStorage
+      const trimmed = parlays.slice(-100)
+      localStorage.setItem(STORAGE_KEYS.PARLAYS, JSON.stringify(trimmed))
+    }
+  },
+
+  async updateParlay(parlay: Parlay): Promise<void> {
+    const userId = await this.getCurrentUserId()
+
+    if (userId && parlay.id) {
+      try {
+        // Update the parlay header (includes repriced odds from push settlement)
+        const { error } = await supabase
+          .from("parlays")
+          .update({
+            outcome: parlay.outcome,
+            actual_payout: parlay.actualPayout || null,
+            total_odds_american: parlay.totalOddsAmerican,
+            total_odds_decimal: parlay.totalOddsDecimal,
+            settled_at: parlay.settledAt || null,
+            emotion_check_in_id: parlay.emotionCheckInId || null,
+            tilt_signals: parlay.tiltSignals || null,
+          })
+          .eq("id", parlay.id)
+          .eq("user_id", userId)
+
+        if (error) {
+          console.error("Error updating parlay in Supabase:", error)
+        }
+
+        // Update individual leg outcomes
+        for (const leg of parlay.legs) {
+          if (leg.outcome && leg.outcome !== 'pending') {
+            await supabase
+              .from("parlay_legs")
+              .update({
+                outcome: leg.outcome,
+                settled_at: leg.settledAt || null,
+              })
+              .eq("parlay_id", parlay.id)
+              .eq("pick_id", leg.pickId)
+          }
+        }
+      } catch (err) {
+        console.error("Exception updating parlay:", err)
+      }
+    }
+
+    // Also update in localStorage
+    if (typeof window !== "undefined") {
+      const parlays: Parlay[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARLAYS) || "[]")
+      const index = parlays.findIndex((p: Parlay) => p.id === parlay.id)
+      if (index !== -1) {
+        parlays[index] = parlay
+        localStorage.setItem(STORAGE_KEYS.PARLAYS, JSON.stringify(parlays))
+      }
+    }
+  },
+
+  async getParlayById(id: string): Promise<Parlay | null> {
+    const parlays = await this.getParlays()
+    return parlays.find((p: Parlay) => p.id === id) || null
+  },
 }
+
 
 // Default data generators
 function getDefaultUserData(): UserData {

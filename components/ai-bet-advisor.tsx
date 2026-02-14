@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -167,9 +167,123 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
     sportsbook: "DraftKings",
   })
 
+  // Track whether parlay data was loaded so single-bet handler doesn't overwrite
+  const parlayLoadedRef = useRef(false)
+
+  // Prefill from SmartSlip Parlay Recommendations
+  const loadPendingParlay = () => {
+    if (typeof window === "undefined") return false
+
+    try {
+      const rawParlay = window.localStorage.getItem("pendingParlayAnalysis")
+      if (rawParlay) {
+        const parlay = JSON.parse(rawParlay)
+        console.log("TiltLab: Loading pending parlay analysis", parlay)
+
+        // Build comprehensive leg descriptions with picks and odds for every leg
+        const legDescriptions = parlay.legs.map((leg: any, i: number) => {
+          const oddsStr = leg.odds > 0 ? `+${leg.odds}` : `${leg.odds}`
+          const pick = leg.line || leg.selection || 'N/A'
+          const betLabel = leg.betType === 'moneyline' ? 'Moneyline' : leg.betType === 'spread' ? 'Spread' : leg.betType === 'over' ? 'Over' : leg.betType === 'under' ? 'Under' : leg.betType
+          const prob = leg.aiWinProbability ? `${(leg.aiWinProbability * 100).toFixed(1)}%` : null
+          return `Leg ${i + 1}: ${leg.teams}\n  Pick: ${pick} (${oddsStr})  |  Type: ${betLabel}${prob ? `  |  Win Prob: ${prob}` : ''}`
+        }).join('\n\n')
+
+        const slipText = [
+          `PARLAY — ${parlay.legs.length} Legs | ${parlay.category === 'core' ? 'Core Value' : 'Lotto'} Parlay`,
+          `Combined Odds: ${parlay.totalOddsAmerican > 0 ? '+' : ''}${parlay.totalOddsAmerican}`,
+          `True Win Probability: ${(parlay.trueProbability * 100).toFixed(1)}%`,
+          `Projected EV: +${parlay.evPercentage.toFixed(1)}%`,
+          `Suggested Stake: $${parlay.suggestedStake}`,
+          '',
+          '--- LEGS ---',
+          legDescriptions,
+        ].join('\n')
+
+        // Extract team info from first leg for API odds sourcing
+        const firstLeg = parlay.legs?.[0]
+        const firstLegParts = (firstLeg?.teams || '').split(' @ ')
+        const firstAwayTeam = firstLegParts[0]?.trim() || ''
+        const firstHomeTeam = firstLegParts[1]?.trim() || ''
+
+        // Collect all recommended picks for notes
+        const allPicksList = parlay.legs.map((leg: any, i: number) => {
+          const pick = leg.line || leg.selection || 'Unknown'
+          return `Leg ${i + 1}: ${pick}`
+        }).join('\n')
+
+        // Determine sport from first leg, or keep current
+        const firstLegSport = parlay.legs?.[0]?.sport
+        const allSameSport = parlay.legs?.every((l: any) => l.sport === firstLegSport)
+        const parlayGameIds = parlay.legs?.map((l: any) => l.gameId).filter(Boolean)
+        const isSGP = parlayGameIds?.length > 0 && new Set(parlayGameIds).size === 1
+
+        setFormData(prev => ({
+          ...prev,
+          betType: "Parlay",
+          sport: allSameSport && firstLegSport ? firstLegSport : prev.sport,
+          odds: parlay.totalOddsAmerican,
+          betAmount: parlay.suggestedStake || 10,
+          bettingSlip: slipText,
+          notes: `SmartSlip Parlay Recommendation\n${parlay.summary}\n\nRecommended Picks:\n${allPicksList}\n\nTrue Win Probability: ${(parlay.trueProbability * 100).toFixed(1)}%\nProjected EV: +${parlay.evPercentage.toFixed(1)}%`,
+          // Use first leg teams for API odds sourcing context
+          homeTeam: firstHomeTeam,
+          awayTeam: firstAwayTeam,
+          // Set favorite to first leg recommended pick for API context
+          favoriteTeam: firstLeg?.line || firstLeg?.selection || '',
+          underdogTeam: '',
+          selection: "other",
+          // Pass structured parlay data for SGP/correlation analysis
+          parlayLegs: parlay.legs?.map((leg: any, i: number) => ({
+            pickId: leg.pickId || `leg-${i}`,
+            gameId: leg.gameId,
+            teams: leg.teams,
+            betType: leg.betType,
+            line: leg.line,
+            odds: leg.odds,
+            aiWinProbability: leg.aiWinProbability,
+            sport: leg.sport,
+          })),
+          parlayType: isSGP ? 'same_game' : 'regular',
+        }))
+
+        setBetSlipText(slipText)
+        setBetInputTab("paste")
+
+        // Mark parlay as loaded so single-bet handler doesn't overwrite
+        parlayLoadedRef.current = true
+
+        // Clear stale single-bet data that would overwrite us
+        window.localStorage.removeItem("pendingBetAnalysis")
+
+        // Delay parlay cleanup so data survives a remount from router.push()
+        setTimeout(() => window.localStorage.removeItem("pendingParlayAnalysis"), 1000)
+        return true
+      }
+    } catch (err) {
+      console.warn("AI Bet Advisor: Failed to parse pendingParlayAnalysis", err)
+    }
+    return false
+  }
+
+  // Load on mount
+  useEffect(() => {
+    loadPendingParlay()
+  }, [])
+
+  // Also listen for custom event from SmartSlip (component may already be mounted)
+  useEffect(() => {
+    const handler = () => loadPendingParlay()
+    window.addEventListener('loadParlayAnalysis', handler)
+    return () => window.removeEventListener('loadParlayAnalysis', handler)
+  }, [])
+
   // Prefill from Live Odds "Analyze This Bet (Advanced)" flow
   useEffect(() => {
     if (typeof window === "undefined") return
+
+    // Skip if parlay data was already loaded (prevents overwrite)
+    if (parlayLoadedRef.current) return
 
     try {
       const raw = window.localStorage.getItem("pendingBetAnalysis")
@@ -547,7 +661,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
       console.log('AI Bet Advisor: Access token exists:', !!accessToken)
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 20000)
+      const timeoutId = setTimeout(() => controller.abort(), 60000)
       const response = await fetch("/api/ai/analyze-bet", {
         method: "POST",
         headers: {

@@ -89,12 +89,12 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
               <div className="flex items-center space-x-3">
                 <Image
                   src="/logo.png"
-                  alt="Serenity Pocket"
+                  alt="PlayMind Labs"
                   width={108}
                   height={108}
                   className="h-27 w-27"
                 />
-                <span className="text-2xl font-bold tracking-tight">Serenity Pocket</span>
+                <span className="text-2xl font-bold tracking-tight">PlayMind Labs</span>
               </div>
               <h1 className="text-3xl md:text-4xl font-extrabold text-white text-center max-w-2xl tracking-tight leading-tight">
                 Make Smarter, <br />Safer Betting Decisions
@@ -135,7 +135,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
 
             <div className="max-w-2xl text-center space-y-4 pt-6 border-t border-white/5">
               <p className="text-xs text-gray-500 leading-relaxed">
-                <span className="font-semibold text-gray-300">Serenity Pocket</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools.
+                <span className="font-semibold text-gray-300">PlayMind Labs</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools.
               </p>
             </div>
             

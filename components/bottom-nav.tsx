@@ -17,11 +17,10 @@ export function BottomNav() {
   
   // Determine active tab based on current pathname
   const getActiveTab = () => {
-    if (pathname === "/home") return "home"
-    if (pathname === "/") return "home"
+    if (pathname === "/home" || pathname === "/") return "home"
     if (pathname === "/behavior") return "behavior"
     if (pathname === "/betlab") return "ai-picks"
-    if (pathname === "/analytics") return "analytics"
+    if (pathname === "/analytics" || pathname?.startsWith("/analytics/")) return "analytics"
     return "home"
   }
 

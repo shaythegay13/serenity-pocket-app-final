@@ -1,5 +1,3 @@
-"use client"
-
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,7 +43,7 @@ export default function FeaturesPage() {
               Platform Features
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Discover the powerful behavioral and AI tools that make PlayMind Labs the most comprehensive 
+              Discover the powerful behavioral and AI tools that make PlayMind Labs the most comprehensive
               responsible betting platform available.
             </p>
           </div>
@@ -55,7 +53,7 @@ export default function FeaturesPage() {
             {featuredFeatures.map((feature, index) => {
               const Icon = feature.icon
               const tier = SUBSCRIPTION_TIERS.find(t => t.id === feature.tier)
-              
+
               return (
                 <Card key={index} className="p-8 relative overflow-hidden">
                   <div className="absolute top-4 right-4">
@@ -63,7 +61,7 @@ export default function FeaturesPage() {
                       {tier?.displayName}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex items-start gap-4">
                     <div className="p-3 bg-primary/10 rounded-lg">
                       <Icon className="h-6 w-6 text-primary" />
@@ -87,7 +85,7 @@ export default function FeaturesPage() {
             <h2 className="text-3xl font-bold text-foreground text-center mb-8">
               Compare All Features
             </h2>
-            
+
             <Card className="p-6">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -136,7 +134,7 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
-                    
+
                     {/* Premium Features */}
                     <tr className="border-b border-border bg-muted/50">
                       <td className="py-3 px-4 font-medium text-foreground">Basic Analytics Dashboard</td>
@@ -145,7 +143,7 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
-                    
+
                     {/* Premium Plus Features */}
                     <tr className="border-b border-border bg-muted/50">
                       <td className="py-3 px-4 font-medium text-foreground">Emotional Volatility Warnings</td>
@@ -161,8 +159,8 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
-                    
-                    {/* Elite Features */}
+
+                    {/* Apex Features */}
                     <tr className="border-b border-border bg-muted/50">
                       <td className="py-3 px-4 font-medium text-foreground">Priority Support & Early Feature Access</td>
                       <td className="text-center py-3 px-2">-</td>

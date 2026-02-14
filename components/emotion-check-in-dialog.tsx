@@ -26,6 +26,8 @@ interface EmotionCheckInDialogProps {
   preSelectedBet?: ComprehensiveBet
   /** Pre-set the outcome when settling a bet */
   preSelectedOutcome?: "profit" | "loss" | "breakeven"
+  /** Pre-select a parlay for emotion logging */
+  preSelectedParlay?: any
 }
 
 // Core emotions with 10 sub-emotions each
@@ -68,7 +70,7 @@ const coreEmotions = [
   }
 ]
 
-export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData, updateUserData, onBettingDataSaved, preSelectedBet, preSelectedOutcome }: EmotionCheckInDialogProps) {
+export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData, updateUserData, onBettingDataSaved, preSelectedBet, preSelectedOutcome, preSelectedParlay }: EmotionCheckInDialogProps) {
   const [step, setStep] = useState<"core" | "sub" | "details">("core")
   const [selectedCore, setSelectedCore] = useState<typeof coreEmotions[0] | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState("")
@@ -130,6 +132,30 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       }
     }
   }, [open, preSelectedBet, preSelectedOutcome])
+
+  // Handle pre-selected parlay when dialog opens
+  useEffect(() => {
+    if (open && preSelectedParlay) {
+      // Set up the dialog for parlay emotion logging
+      setPhase("before") // Parlays are typically logged before the event
+      setBetDataMode("manual")
+      
+      // Auto-fill form with parlay data
+      setBetAmount(preSelectedParlay.suggestedStake?.toString() || "")
+      setBetOdds(preSelectedParlay.totalOddsAmerican?.toString() || "")
+      
+      // Create parlay description from legs
+      const legDescriptions = preSelectedParlay.legs?.map((leg: any) => 
+        `${leg.team || leg.selection} (${leg.market || leg.betType})`
+      ).join(" + ") || "Parlay"
+      
+      setGameDescription(`Parlay: ${legDescriptions}`)
+      setIsLiveBet(false) // Parlays are typically not live bets
+      
+      // Set context to include parlay details
+      setContext(`Parlay with ${preSelectedParlay.legs?.length || 0} legs. EV: ${preSelectedParlay.evPercentage?.toFixed(1)}%`)
+    }
+  }, [open, preSelectedParlay])
 
   // Parse game description to extract teams
   useEffect(() => {
@@ -338,18 +364,67 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   }
 
   const loadSavedBets = async () => {
-    if (savedBets.length > 0) return // Already loaded
+    if (loadingBets) return // Prevent duplicate calls while loading
 
     setLoadingBets(true)
     try {
-      const bets = await storage.getComprehensiveBets()
-      // Filter for bets from bet analyzer or tiltlab that don't have outcomes yet
-      const relevantBets = bets.filter(bet =>
-        (bet.source === "bet-analyzer" || bet.source === "tiltlab") &&
-        bet.outcome === "pending"
-      ).slice(0, 20) // Limit to 20 most recent
+      // Load from both comprehensive_bets and bet_analyses
+      const [comprehensiveBets, betAnalyses] = await Promise.all([
+        storage.getComprehensiveBets().catch(() => []),
+        storage.getBetAnalyses().catch(() => [])
+      ])
 
-      setSavedBets(relevantBets)
+      // Pending comprehensive bets (any source) - include both explicit "pending" and undefined outcomes
+      const pendingCompBets = comprehensiveBets.filter(bet => 
+        bet.outcome === "pending" || bet.outcome === undefined
+      )
+
+      // Pending bet analyses converted to ComprehensiveBet format
+      const pendingAnalyses: ComprehensiveBet[] = betAnalyses
+        .filter(a => a.outcome === "pending")
+        .map(a => ({
+          id: a.id,
+          timestamp: new Date(a.timestamp),
+          sport: (a.sport || "americanfootball_nfl") as ComprehensiveBet["sport"],
+          homeTeam: "Unknown",
+          awayTeam: "Unknown",
+          gameDate: new Date(a.timestamp),
+          betType: a.betType === "straight" ? "moneyline" : a.betType as any,
+          selection: "away" as const,
+          odds: a.odds ?? -110,
+          stake: a.stake,
+          emotions: {
+            before: {
+              emotion: a.emotionalState || "neutral",
+              intensity: a.emotionalIntensity || 5,
+              timestamp: new Date(a.timestamp)
+            },
+            after: {
+              emotion: "",
+              intensity: 5,
+              timestamp: new Date()
+            }
+          },
+          biasesIdentified: a.biasWarnings || [],
+          confidenceLevel: Math.round((a.probabilityEstimate || 0.5) * 10),
+          reasoning: a.aiRecommendation || "",
+          isLiveBet: false,
+          isChasingLoss: false,
+          isFavoriteTeam: false,
+          outcome: "pending" as const,
+          source: "bet-analyzer" as const,
+          description: a.description
+        }))
+
+      // Merge and deduplicate by ID, limit to 20
+      const allPending = new Map<string, ComprehensiveBet>()
+      for (const bet of [...pendingCompBets, ...pendingAnalyses]) {
+        if (!allPending.has(bet.id)) {
+          allPending.set(bet.id, bet)
+        }
+      }
+
+      setSavedBets(Array.from(allPending.values()).slice(0, 20))
     } catch (error) {
       console.error("Error loading saved bets:", error)
       toast.error("Failed to load saved bets")

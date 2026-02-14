@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { generatePickerRecommendations } from "@/lib/services/gemini-reasoner"
+import { generateParlayRecommendations } from "@/lib/parlay-utils"
 import {
   conductSportsResearch,
   type SportsResearchInput,
@@ -14,6 +15,7 @@ import type {
   PickerReasoningInput,
   PickerReasoningOutput,
   UserPsychologySnapshot,
+  ParlayRecommendation,
 } from "@/lib/types/ai-models"
 import { isEnhancedAIAvailable } from "@/lib/ai-service"
 import {
@@ -62,6 +64,36 @@ const llmProbService = new LlmTrueProbabilityService({
   probabilityEngine
 })
 const smartSlipService = new SmartSlipEvService(llmProbService)
+
+function getNoGamesMessage(sport: string): string {
+  const now = new Date()
+  const month = now.getMonth() // 0-indexed
+
+  const sportMessages: Record<string, string> = {
+    basketball_nba: month === 1
+      ? "No NBA games scheduled right now — the league is likely on All-Star break. Games typically resume after the All-Star Game. Try another sport or check back soon!"
+      : month >= 6 && month <= 9
+        ? "The NBA is currently in the off-season. The regular season starts in October."
+        : "No upcoming NBA games found right now. Games are usually scheduled in the evening (ET). Check back later today!",
+    americanfootball_nfl: month >= 1 && month <= 8
+      ? "The NFL season has ended. The next season starts in September. Try NBA, NHL, or NCAAB in the meantime!"
+      : "No upcoming NFL games right now. Games are typically on Sundays, Mondays, and Thursdays.",
+    baseball_mlb: month >= 10 || month <= 2
+      ? "MLB is in the off-season. Spring Training starts in February and the regular season begins in late March."
+      : "No upcoming MLB games found right now. Check back closer to game time!",
+    icehockey_nhl: month === 1
+      ? "No NHL games right now — the league may be on All-Star break. Games typically resume shortly after."
+      : month >= 6 && month <= 9
+        ? "The NHL is currently in the off-season. The regular season starts in October."
+        : "No upcoming NHL games found right now. Check back later today!",
+    basketball_ncaab: "No upcoming NCAAB games found right now. College basketball games are usually scheduled in the evening.",
+    americanfootball_ncaaf: month >= 1 && month <= 7
+      ? "College football is in the off-season. The season starts in late August."
+      : "No upcoming NCAAF games right now. Games are typically on Saturdays.",
+  }
+
+  return sportMessages[sport] || `No upcoming games found for this sport right now. The league may be between seasons or on a break. Please try another sport or check back later.`
+}
 
 async function callPsychPicker(
   emotionalScore: number,
@@ -546,14 +578,14 @@ export async function POST(request: NextRequest) {
     })
 
     // Gate based on anchored risk (combines emotional + research factors)
-    // Primary gate: emotional score < 70 OR critical anchored risk
-    if (emotionalScore < 70 || shouldBlockBetting(anchoredRisk.overallRisk)) {
+    // Primary gate: emotional score < 60 OR critical anchored risk
+    if (emotionalScore < 60 || shouldBlockBetting(anchoredRisk.overallRisk)) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
         message: shouldBlockBetting(anchoredRisk.overallRisk)
           ? `${anchoredRisk.suggestedIntervention.message} (Risk level: ${riskLevel.label})`
-          : `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`,
+          : `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`,
         recommendations: [],
         emotionalScore,
         anchoredRisk: {
@@ -612,9 +644,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
-        message:
-          oddsResult.error ||
-          "No live games are available for this sport right now. Please check back later.",
+        message: getNoGamesMessage(sport),
         recommendations: [],
         emotionalScore,
         meta: {
@@ -628,14 +658,25 @@ export async function POST(request: NextRequest) {
     const rawGames = oddsResult.data as Array<any>
     console.log(`[SmartSlip] Raw games fetched: ${rawGames.length}`)
 
+    const now = Date.now()
     const games = rawGames.filter((g: any) => {
       const gKeyRaw = g.sportKey || g.sport_key || g.sport
       const gKey = normalizeSportKey(gKeyRaw)
-      return gKey === sport
+      if (gKey !== sport) return false
+
+      // Filter out games that ended long ago (allow in-progress: up to 4h old)
+      const ct = g.commenceTime || g.commence_time
+      if (ct) {
+        const gameTime = typeof ct === 'string' ? Date.parse(ct) : (ct instanceof Date ? ct.getTime() : NaN)
+        const FOUR_HOURS = 4 * 60 * 60 * 1000
+        if (!Number.isNaN(gameTime) && gameTime < now - FOUR_HOURS) return false
+      }
+
+      return true
     })
 
     console.log(
-      `[SmartSlip] Games after sport filter: ${games.length} (requested: ${sport})`,
+      `[SmartSlip] Games after sport+date filter: ${games.length} (requested: ${sport})`,
     )
 
     if (games.length === 0) {
@@ -646,8 +687,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
-        message:
-          "No live games are available for this sport right now. Please check back later.",
+        message: getNoGamesMessage(sport),
         recommendations: [],
         emotionalScore,
         meta: {
@@ -826,10 +866,13 @@ export async function POST(request: NextRequest) {
             homeTeam,
             awayTeam,
             startTime:
-              game.commenceTime?.toISOString?.() ||
-              (typeof game.commence_time === "string"
-                ? game.commence_time
-                : undefined),
+              typeof game.commenceTime === "string"
+                ? game.commenceTime
+                : game.commenceTime instanceof Date
+                  ? game.commenceTime.toISOString()
+                  : typeof game.commence_time === "string"
+                    ? game.commence_time
+                    : undefined,
             currentOdds: {
               moneylineHome: homeOdds,
               moneylineAway: awayOdds,
@@ -1262,7 +1305,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Emotional gate stays the real guardrail
-    const emotionallySafe = emotionalScore >= 70
+    const emotionallySafe = emotionalScore >= 60
 
     // If we have any picks (even informational), we’ll say shouldBet = emotionallySafe
     const hasAnyPicks = (reasoningOutput.recommendations?.length || 0) > 0
@@ -1270,7 +1313,7 @@ export async function POST(request: NextRequest) {
     const shouldBet = emotionallySafe && hasAnyPicks
 
     const shouldBetMessage = !emotionallySafe
-      ? `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`
+      ? `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`
       : hasAnyPicks
         ? "SmartSlip found some options for tonight. Focus on long‑term discipline and only wager what you can afford to lose."
         : "No games available or odds data found for this sport right now."
@@ -1295,11 +1338,16 @@ export async function POST(request: NextRequest) {
       } : null
     })
 
+    // Generate Parlay Recommendations (new for Phase 2)
+    const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(filtered, 3, sport)
+    console.log(`[SmartSlip] Generated ${parlayRecommendations.length} parlay recommendations`)
+
     return NextResponse.json({
       success: true,
       shouldBet,
       message: shouldBetMessage,
       recommendations: reasoningOutput.recommendations,
+      parlayRecommendations,
       emotionalScore,
       // Anchored Risk Assessment (research-backed)
       anchoredRisk: {
@@ -1374,7 +1422,7 @@ function buildDemographicProfile(userData: any): DemographicProfile | undefined 
     'doctorate': 'masters_doctoral',
   }
   const education = educationMap[surveyData.educationLevel?.toLowerCase()] ||
-                   educationMap[userData.education_level?.toLowerCase()]
+    educationMap[userData.education_level?.toLowerCase()]
 
   // Map employment status
   const employmentMap: Record<string, DemographicProfile['employmentStatus']> = {
@@ -1386,7 +1434,7 @@ function buildDemographicProfile(userData: any): DemographicProfile | undefined 
     'student': 'outside_labor_force',
   }
   const employmentStatus = employmentMap[surveyData.employmentStatus?.toLowerCase()] ||
-                          employmentMap[userData.employment_status?.toLowerCase()]
+    employmentMap[userData.employment_status?.toLowerCase()]
 
   // Map income level
   const incomeRange = surveyData.incomeRange || userData.income_range

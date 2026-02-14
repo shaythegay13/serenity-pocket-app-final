@@ -196,7 +196,7 @@
 
   /* Gradient text utilities */
   .gradient-text {
-    @apply bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent;
+    @apply bg-linear-to-r from-primary via-secondary to-primary bg-clip-text text-transparent;
   }
   .gradient-data {
     @apply bg-linear-to-r from-[#3b82f6] to-[#8b5cf6] bg-clip-text text-transparent;
@@ -268,4 +268,9 @@
       height: 64px !important;
     }
   }
+}
+
+/* Custom logo dark mode styling - invert only black text, preserve purple */
+.dark .logo-dark-mode {
+  filter: invert(1) brightness(1.2) contrast(1.1) saturate(1.5);
 }

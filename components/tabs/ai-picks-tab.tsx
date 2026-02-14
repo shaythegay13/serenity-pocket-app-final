@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,8 @@ import { useEmotionalStability } from "@/lib/hooks/use-emotional-stability"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import AIBetAdvisor from "@/components/ai-bet-advisor"
+import { ParlayCard } from "@/components/parlay-card"
+import type { ParlayRecommendation } from "@/lib/types/ai-models"
 import { supabase } from "@/lib/supabase"
 import { AIUsageIndicator } from "@/components/ai-usage-indicator"
 import { PremiumFeatureWall } from "@/components/premium-feature-wall"
@@ -172,11 +175,40 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [isFetchingPicks, setIsFetchingPicks] = useState(false)
   const [lastPicksFetchAt, setLastPicksFetchAt] = useState<number | null>(null)
   const [picks, setPicks] = useState<any[]>([])
+  const [parlayPicks, setParlayPicks] = useState<ParlayRecommendation[]>([])
   const { score: emotionalScore, shouldReceiveAIPicks, color, level, recommendation } = useEmotionalStability(userData)
   const [selectedSport, setSelectedSport] = useState('basketball_nba')
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [dailyBetCount, setDailyBetCount] = useState(0)
-  const [activeSection, setActiveSection] = useState<'picks' | 'advisor' | 'marketplace'>('picks')
+  const router = useRouter()
+  const pathname = usePathname()
+  
+  // Get active section from URL
+  const sectionFromPathname = (): 'picks' | 'advisor' | 'marketplace' => {
+    if (pathname === '/betlab/smartslip') return 'picks'
+    if (pathname === '/betlab/tiltlab') return 'advisor'
+    if (pathname === '/betlab/marketplace') return 'marketplace'
+    return 'picks' // default
+  }
+
+  // Local state for instant UI response; synced with pathname once route change lands
+  const [localSection, setLocalSection] = useState<'picks' | 'advisor' | 'marketplace'>(sectionFromPathname())
+
+  useEffect(() => {
+    setLocalSection(sectionFromPathname())
+  }, [pathname])
+
+  const activeSection = localSection
+  
+  const setActiveSection = useCallback((section: 'picks' | 'advisor' | 'marketplace') => {
+    setLocalSection(section) // instant UI update
+    const routes = {
+      'picks': '/betlab/smartslip',
+      'advisor': '/betlab/tiltlab',
+      'marketplace': '/betlab/marketplace'
+    }
+    router.push(routes[section])
+  }, [router])
 
   // Anchored Risk state (research-backed risk assessment)
   const [anchoredRisk, setAnchoredRisk] = useState<{
@@ -342,6 +374,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const fetchAIPicks = async (force: boolean = false) => {
     if (cooldown) {
       setPicks([])
+      setParlayPicks([])
       return
     }
     if (!emotionalScore) {
@@ -469,6 +502,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           description: data.message
         })
         setPicks([])
+        setParlayPicks([])
       } else {
         console.log('AI Picks: shouldBet is true, processing recommendations')
         const recs = data.recommendations || []
@@ -477,6 +511,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           { pLoss?: number; pPush?: number; pWin?: number }
         >
         console.log('AI Picks: Processing', recs.length, 'recommendations')
+
+        if (data.parlayRecommendations) {
+          console.log('AI Picks: Setting', data.parlayRecommendations.length, 'parlay recommendations')
+          setParlayPicks(data.parlayRecommendations)
+        }
+
 
         const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
         const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
@@ -579,6 +619,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         description: errorMessage
       })
       setPicks([])
+      setParlayPicks([])
     } finally {
       console.log('AI Picks: Reached finally block, clearing loading states')
       setLoading(false)
@@ -667,6 +708,40 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     }
   }
 
+
+  const handleAnalyzeParlay = (parlay: ParlayRecommendation) => {
+    try {
+      window.localStorage.setItem('pendingParlayAnalysis', JSON.stringify(parlay))
+      // Notify TiltLab component (may already be mounted and won't re-read on its own)
+      window.dispatchEvent(new Event('loadParlayAnalysis'))
+      setActiveSection('advisor')
+      toast.info('TiltLab Ready', { description: 'Parlay loaded into TiltLab for risk analysis.' })
+    } catch (e) {
+      toast.error('Failed to load parlay')
+    }
+  }
+
+  const handleBuildParlaySlip = (parlay: ParlayRecommendation) => {
+    // For now, redirect to advisor/slip builder.
+    // In future, this could open a quick-bet slip drawer.
+    handleAnalyzeParlay(parlay)
+  }
+
+  const handleEmotionCheckInParlay = (parlay: ParlayRecommendation) => {
+    // Save parlay to localStorage and open emotion check-in dialog
+    try {
+      window.localStorage.setItem('pendingParlayEmotionCheckIn', JSON.stringify(parlay))
+      // Trigger emotion check-in dialog
+      const event = new CustomEvent('openEmotionCheckIn', { 
+        detail: { preSelectedParlay: parlay } 
+      })
+      window.dispatchEvent(event)
+      toast.info('Emotion Check-In Ready', { description: 'How are you feeling about this parlay?' })
+    } catch (e) {
+      toast.error('Failed to open emotion check-in')
+    }
+  }
+
   if (!hasAccess) {
     return (
       <PremiumFeatureWall
@@ -697,7 +772,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         </TabsList>
 
         <TabsContent value="picks" className="space-y-6 mt-6">
-          {/* Existing AI Picks content */}
+          <div>
+            {/* Existing AI Picks content */}
 
           {(cooldown) && (
             <Card className="p-4 bg-red-500/10 border-red-500/30">
@@ -740,7 +816,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                     {emotionalScore}%
                   </p>
                   <Badge
-                    variant={emotionalScore >= 70 ? 'default' : 'destructive'}
+                    variant={emotionalScore >= 60 ? 'default' : 'destructive'}
                     className="mt-2"
                   >
                     {level?.replace('_', ' ')}
@@ -748,8 +824,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 </div>
                 <div className="text-center p-4 rounded-lg bg-background/50">
                   <p className="text-xs text-muted-foreground mb-1">Status</p>
-                  <p className={`text-2xl font-bold ${emotionalScore >= 70 ? 'text-green-500' : 'text-yellow-500'}`}>
-                    {emotionalScore >= 70 ? 'Ready' : 'Caution'}
+                  <p className={`text-2xl font-bold ${emotionalScore >= 60 ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {emotionalScore >= 60 ? 'Ready' : 'Caution'}
                   </p>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-background/50">
@@ -780,7 +856,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
               <div className="mt-4 p-4 rounded-lg bg-background/50">
                 <div className="flex items-start gap-2">
-                  {emotionalScore >= 70 ? (
+                  {emotionalScore >= 60 ? (
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
                   ) : (
                     <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
@@ -854,12 +930,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           )}
 
           {/* No Picks State */}
-          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 70 && (
+          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 60 && (
             <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
               <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
               <p className="text-muted-foreground mb-4">
-                Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.
+                Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.
               </p>
               <Button variant="outline" onClick={() => onNavigateToTab('behavior')}>
                 Log Your Emotions
@@ -867,7 +943,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </Card>
           )}
           {/* No Picks State: emotionally OK but no edges */}
-          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore >= 70 && (
+          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore >= 60 && (
             <Card className="p-8 text-center bg-linear-to-br from-slate-500/10 to-slate-900/10 border-slate-500/30">
               <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-foreground mb-2">No +EV edges found</h3>
@@ -881,83 +957,92 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </Card>
           )}
 
-          {/* AI Picks */}
+          {/* SmartSlip Picks - Primary Recommendations */}
           {!loading && picks.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {picks.map((pick: any, idx: number) => (
-                <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
-                    <div className="flex items-center gap-2">
-                      {pick.informational ? (
-                        <Badge variant="secondary" className="text-xs bg-gray-800">
-                          {pick.informationalLabel ?? "Market Efficient"}
-                        </Badge>
-                      ) : (pick.isRecommended === true ||
-                        (pick.isRecommended === undefined &&
-                          typeof pick.expectedValue === "number" &&
-                          Number.isFinite(pick.expectedValue) &&
-                          pick.expectedValue > 0)
-                      ) ? (
-                        <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Recommended
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Not Recommended
-                        </Badge>
-                      )}
-
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-amber-500" />
+                  <h3 className="text-lg font-semibold text-foreground">SmartSlip Picks</h3>
+                  <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
+                    {picks.filter(p => p.isRecommended === true || (p.isRecommended === undefined && p.expectedValue > 0)).length} Recommended
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {picks.map((pick: any, idx: number) => (
+                  <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
+                    <div className="flex items-center justify-between mb-4">
+                      <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
                       <div className="flex items-center gap-2">
-                        {pick.informational && (
-                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                            {pick.informationalLabel || 'Market Efficient'}
+                        {pick.informational ? (
+                          <Badge variant="secondary" className="text-xs bg-gray-800">
+                            {pick.informationalLabel ?? "Market Efficient"}
+                          </Badge>
+                        ) : (pick.isRecommended === true ||
+                          (pick.isRecommended === undefined &&
+                            typeof pick.expectedValue === "number" &&
+                            Number.isFinite(pick.expectedValue) &&
+                            pick.expectedValue > 0)
+                        ) ? (
+                          <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Recommended
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Not Recommended
                           </Badge>
                         )}
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-semibold text-amber-500 tabular-nums">
-                          {pick.confidence}% Confidence
-                        </span>
+
+                        <div className="flex items-center gap-2">
+                          {pick.informational && (
+                            <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                              {pick.informationalLabel || 'Market Efficient'}
+                            </Badge>
+                          )}
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <span className="text-sm font-semibold text-amber-500 tabular-nums">
+                            {pick.confidence}% Confidence
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
 
-                  <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
-                    <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
-                    <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
-                      {pick.odds > 0 ? '+' : ''}{pick.odds}
-                    </p>
-                  </div>
+                    <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
+                      <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
+                      <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
+                        {pick.odds > 0 ? '+' : ''}{pick.odds}
+                      </p>
+                    </div>
 
-                  <div className="space-y-3 mb-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Expected Value:</span>
-                      <div className="text-right">
-                        <span
-                          className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'
-                            }`}
-                        >
-                          {pick.expectedValue >= 0 ? '+' : ''}
-                          {pick.expectedValue.toFixed(2)}
-                        </span>
-                        {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Expected Value:</span>
+                        <div className="text-right">
                           <span
-                            className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'
+                            className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'
                               }`}
                           >
-                            ({pick.evPercentage >= 0 ? '+' : ''}
-                            {pick.evPercentage.toFixed(1)}%)
+                            {pick.expectedValue >= 0 ? '+' : ''}
+                            {pick.expectedValue.toFixed(2)}
                           </span>
-                        )}
+                          {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
+                            <span
+                              className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'
+                                }`}
+                            >
+                              ({pick.evPercentage >= 0 ? '+' : ''}
+                              {pick.evPercentage.toFixed(1)}%)
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
-                    {pick.isRecommended === false && (
+                      {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
+                      {pick.isRecommended === false && (
                       <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                         <p className="text-sm font-semibold text-red-500">Not Recommended</p>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -1012,7 +1097,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                   </div>
 
                   {/* Why this pick? Accordion */}
-                  < Accordion type="single" collapsible className="mb-4" >
+                  <Accordion type="single" collapsible className="mb-4">
                     <AccordionItem value="reasons" className="border-none">
                       <AccordionTrigger className="py-2 hover:no-underline">
                         <div className="flex items-center gap-2 text-sm font-medium text-primary">
@@ -1073,29 +1158,54 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 </Card>
               ))}
             </div>
-          )
-          }
+
+              {/* Smart Parlays Section - Additional Options */}
+              {!loading && parlayPicks.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    <h3 className="text-lg font-semibold text-foreground">Smart Parlays</h3>
+                    <Badge variant="secondary" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                      High Value Combinations
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {parlayPicks.map((parlay, idx) => (
+                      <ParlayCard
+                        key={idx}
+                        parlay={parlay}
+                        onAnalyze={handleAnalyzeParlay}
+                        onLogBet={handleBuildParlaySlip}
+                        onEmotionCheckIn={handleEmotionCheckInParlay}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          )}
 
           {/* Anchored Risk Assessment Card - shown after picks */}
           {anchoredRisk && (
             <Card className={`p-6 border-2 ${anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
-                anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
-                  anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
-                    'border-red-500/30 bg-red-500/5'
+              anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
+                  'border-red-500/30 bg-red-500/5'
               }`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                   <Activity className={`h-5 w-5 ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                          'text-red-500'
+                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                      anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                        'text-red-500'
                     }`} />
                   Research-Anchored Risk Assessment
                 </h3>
                 <Badge variant="outline" className={`${anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
-                    anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
-                      anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
-                        'border-red-500 text-red-500'
+                  anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
+                    anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
+                      'border-red-500 text-red-500'
                   }`}>
                   {anchoredRisk.riskLevel} Risk
                 </Badge>
@@ -1105,9 +1215,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 <div className="text-center p-4 rounded-lg bg-background/50">
                   <p className="text-xs text-muted-foreground mb-1">Overall Risk</p>
                   <p className={`text-3xl font-bold ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                          'text-red-500'
+                    anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                      anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                        'text-red-500'
                     }`}>
                     {(anchoredRisk.overallRisk * 100).toFixed(0)}%
                   </p>
@@ -1121,9 +1231,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 <div className="text-center p-4 rounded-lg bg-background/50">
                   <p className="text-xs text-muted-foreground mb-1">Intervention</p>
                   <p className={`text-lg font-bold capitalize ${anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
-                      anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
-                        anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
-                          'text-red-500'
+                    anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
+                      anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
+                        'text-red-500'
                     }`}>
                     {anchoredRisk.intervention.urgency === 'none' ? 'None Needed' : anchoredRisk.intervention.urgency}
                   </p>
@@ -1205,7 +1315,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               Always bet responsibly and never wager more than you can afford to lose.
             </p>
           </Card>
-        </TabsContent >
+          </div>
+        </TabsContent>
 
         <TabsContent value="advisor" className="space-y-6 mt-6">
           <AIBetAdvisor onNavigateToTab={onNavigateToTab} />
@@ -1304,7 +1415,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </div>
           )}
         </TabsContent>
-      </Tabs >
-    </div >
+      </Tabs>
+    </div>
   )
 }

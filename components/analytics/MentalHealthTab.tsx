@@ -109,13 +109,13 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
   }, [emotionLogs])
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return "text-success"
+    if (score >= 60) return "text-success"
     if (score >= 50) return "text-warning"
     return "text-destructive"
   }
 
   const getScoreStatus = (score: number) => {
-    if (score >= 70) return { icon: Smile, text: "Excellent", color: "success" }
+    if (score >= 60) return { icon: Smile, text: "Excellent", color: "success" }
     if (score >= 50) return { icon: Meh, text: "Moderate", color: "warning" }
     return { icon: Frown, text: "Needs Attention", color: "destructive" }
   }
@@ -220,7 +220,7 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
                     <Cell
                       key={`cell-${index}`}
                       fill={
-                        entry.score >= 70
+                        entry.score >= 60
                           ? 'oklch(0.65 0.18 150)'
                           : entry.score >= 50
                           ? 'oklch(0.7 0.18 70)'
@@ -259,7 +259,7 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
                     </span>
                     <Badge
                       variant={
-                        phase.avgScore >= 70
+                        phase.avgScore >= 60
                           ? "default"
                           : phase.avgScore >= 50
                           ? "secondary"
@@ -272,7 +272,7 @@ export function MentalHealthTab({ emotionLogs }: MentalHealthTabProps) {
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all ${
-                        phase.avgScore >= 70
+                        phase.avgScore >= 60
                           ? 'bg-success'
                           : phase.avgScore >= 50
                           ? 'bg-warning'

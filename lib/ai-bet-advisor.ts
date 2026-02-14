@@ -1,6 +1,6 @@
 /**
  * AI Bet Advisor - Responsible Betting Analysis
- * Integrated from hackathon serenitypocketai project
+ * Integrated from hackathon project
  *
  * This module provides dual-agent AI analysis for betting:
  * 1. Analytical Agent: Technical betting analysis, EV considerations
@@ -87,6 +87,19 @@ export interface BetScenario {
 
   // Metadata
   sportsbook?: string
+
+  // Parlay-specific fields (populated when betType === 'Parlay')
+  parlayLegs?: Array<{
+    pickId: string
+    gameId?: string
+    teams: string
+    betType: string
+    line: string
+    odds: number
+    aiWinProbability?: number
+    sport?: string
+  }>
+  parlayType?: 'regular' | 'same_game'
 }
 
 export interface HarmSignal {

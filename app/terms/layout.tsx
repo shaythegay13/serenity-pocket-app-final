@@ -1,9 +1,12 @@
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Terms of Service | PlayMind Labs",
+  title: "Terms of Service",
   description: "PlayMind Labs terms of service. Read our terms and conditions for using our AI-powered betting analytics platform.",
   keywords: ["terms of service", "betting platform terms", "user agreement"],
+  alternates: {
+    canonical: "/terms",
+  },
 }
 
 export default function TermsLayout({

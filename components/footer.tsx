@@ -2,36 +2,99 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import {
+  LinkedInIcon,
+  InstagramIcon,
+  TikTokIcon,
+  YoutubeIcon,
+  XIcon,
+  LumaCalendarIcon
+} from "@/components/ui/social-icons"
 
 export function Footer() {
   return (
     <footer className="border-t border-border bg-background">
       <div className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between gap-8">
           {/* Logo and Description - Full width on all screens */}
-          <div className="space-y-4">
+          <div className="space-y-4 md:max-w-sm">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="bg-white p-1.5 rounded-lg shrink-0">
+              <div className="shrink-0">
+                <div className="relative w-32 h-16 overflow-hidden rounded-none">
                 <Image
                   src="/logo.png"
                   alt="PlayMind Labs Logo"
-                  width={32}
-                  height={32}
-                  className="rounded-none"
+                  fill
+                  className="object-cover object-center dark:invert"
                 />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">PlayMind Labs</h3>
-                <p className="text-sm text-muted-foreground">The science of smarter betting</p>
               </div>
             </Link>
             <p className="text-sm text-muted-foreground max-w-sm">
               AI-powered sports betting analytics platform for smarter decisions.
             </p>
+
+            {/* Social Media Links */}
+            <div className="flex items-center gap-4 pt-2">
+              <Link
+                href="https://www.linkedin.com/company/playmind-labs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="LinkedIn"
+              >
+                <LinkedInIcon className="h-5 w-5" />
+              </Link>
+              <Link
+                href="https://www.instagram.com/playmindlabs/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Instagram"
+              >
+                <InstagramIcon className="h-5 w-5" />
+              </Link>
+              <Link
+                href="https://www.tiktok.com/@playmindlabs5"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="TikTok"
+              >
+                <TikTokIcon className="h-5 w-5" />
+              </Link>
+              <Link
+                href="https://www.youtube.com/@playmindlabs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="YouTube"
+              >
+                <YoutubeIcon className="h-5 w-5" />
+              </Link>
+              <Link
+                href="https://x.com/PlayMindLabs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="X (Twitter)"
+              >
+                <XIcon className="h-5 w-5" />
+              </Link>
+              <Link
+                href="https://luma.com/calendar/cal-bxGkf0dgOWPc1N4?"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Luma Calendar"
+              >
+                <LumaCalendarIcon className="h-5 w-5" />
+              </Link>
+            </div>
           </div>
 
           {/* Resources and Company Sections - Side by side on mobile and desktop */}
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-8 md:gap-16">
             {/* Resources Section */}
             <div>
               <h4 className="text-lg font-semibold text-foreground mb-4">Resources</h4>

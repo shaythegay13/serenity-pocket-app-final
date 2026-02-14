@@ -103,7 +103,7 @@ class EmotionalStabilityService {
 
   /**
    * Check if user should receive AI picks based on emotional stability
-   * Uses the centralized threshold from emotional-scoring.ts (70+)
+   * Uses the centralized threshold from emotional-scoring.ts (60+)
    */
   async checkShouldReceiveAIPicks(userData: UserData): Promise<boolean> {
     const score = await this.getScore(userData)
@@ -167,7 +167,7 @@ class EmotionalStabilityService {
       shouldBet,
       message: shouldBet
         ? undefined
-        : `Your emotional stability score is ${stability.score}/100. We recommend waiting until you're in a more stable state (70+) before placing bets.`
+        : `Your emotional stability score is ${stability.score}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`
     }
   }
 

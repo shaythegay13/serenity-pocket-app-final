@@ -126,9 +126,22 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
       console.warn(`[TheOddsAPI] No games returned for key: ${sportKey}. Check if key format is correct or if season is active.`);
     }
 
+    // Filter out stale games at the source — only keep future or in-progress (started < 4h ago)
+    const now = Date.now();
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    const freshGames = Array.isArray(data) ? data.filter((game: any) => {
+      const ct = game.commence_time;
+      if (!ct) return true; // keep if no date info
+      const t = Date.parse(ct);
+      if (Number.isNaN(t)) return true;
+      return t >= now - FOUR_HOURS;
+    }) : data;
+
+    console.log(`[TheOddsAPI] ${data.length} total games, ${freshGames.length} after date filter for ${sportKey}`);
+
     return {
       success: true,
-      data: data.map((game: any) => {
+      data: freshGames.map((game: any) => {
         const homeTeam = game.home_team;
         const awayTeam = game.away_team;
 
@@ -270,9 +283,21 @@ async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> 
     }
 
     const data = await response.json();
+
+    // Filter out stale games — only keep future or in-progress (started < 4h ago)
+    const nowRapid = Date.now();
+    const FOUR_HOURS_RAPID = 4 * 60 * 60 * 1000;
+    const freshRapidGames = Array.isArray(data) ? data.filter((game: any) => {
+      const ct = game.commence_time;
+      if (!ct) return true;
+      const t = Date.parse(ct);
+      if (Number.isNaN(t)) return true;
+      return t >= nowRapid - FOUR_HOURS_RAPID;
+    }) : data;
+
     return {
       success: true,
-      data: data.map((game: any) => {
+      data: freshRapidGames.map((game: any) => {
         const homeTeam = game.home_team;
         const awayTeam = game.away_team;
         const bookmaker = game.bookmakers?.[0];

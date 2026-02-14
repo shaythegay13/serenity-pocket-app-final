@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.shaythegay13.serenitypocket',
-  appName: 'Serenity Pocket',
+  appId: 'com.shaythegay13.playmindlabs',
+  appName: 'PlayMind Labs',
   webDir: 'out',
   server: {
     androidScheme: 'https',

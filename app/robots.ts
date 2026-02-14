@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://serenitypocket.com'
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.playmindlabs.com'
 
   return {
     rules: [
@@ -10,6 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/api/',
+          '/home/',
           '/dashboard/',
           '/account/',
           '/profile/',
@@ -17,6 +18,7 @@ export default function robots(): MetadataRoute.Robots {
           '/analytics/',
           '/onboarding/',
           '/auth/',
+          '/pgsi-survey/',
         ],
       },
     ],

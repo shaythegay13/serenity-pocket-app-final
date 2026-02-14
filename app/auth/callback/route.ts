@@ -29,8 +29,30 @@ export async function GET(request: NextRequest) {
       }
 
       if (data.session) {
-        // Redirect to home page for logged-in users - session will be picked up by client
-        return NextResponse.redirect(new URL('/home', requestUrl.origin))
+        // Migrate anonymous session data to the authenticated user
+        const anonSessionId = request.cookies.get('pml_anon_session')?.value
+        const redirectResponse = NextResponse.redirect(new URL('/home', requestUrl.origin))
+
+        if (anonSessionId) {
+          try {
+            await supabase.rpc('migrate_anonymous_session_to_user', {
+              p_anonymous_session_id: anonSessionId,
+              p_user_id: data.session.user.id,
+            })
+          } catch (migrationErr) {
+            console.error('Anonymous session migration error:', migrationErr)
+          }
+          // Clear the anonymous session cookie
+          redirectResponse.cookies.set('pml_anon_session', '', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 0,
+          })
+        }
+
+        return redirectResponse
       }
     } catch (err) {
       console.error('Unexpected error in callback:', err)

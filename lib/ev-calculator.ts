@@ -1,7 +1,7 @@
 /**
  * lib/ev-calculator.ts
  *
- * Core Expected Value (EV) calculator for Serenity Pocket.
+ * Core Expected Value (EV) calculator for PlayMind Labs.
  * Handles odds conversion, vig removal, and EV/Edge/Kelly calculations.
  */
 

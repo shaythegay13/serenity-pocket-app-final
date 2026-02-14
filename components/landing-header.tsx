@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Brain } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 
 interface LandingHeaderProps {
@@ -14,11 +14,14 @@ export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-              <Brain className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">PlayMind Labs</span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/logo.png"
+              alt="PlayMind Labs Logo"
+              width={40}
+              height={40}
+              className="rounded-md"
+            />
           </Link>
 
           {/* Navigation */}
@@ -40,7 +43,7 @@ export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
           {/* CTA */}
           <Button
             onClick={onGetStarted}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg"
+            className="bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg"
           >
             Get Started
           </Button>

@@ -160,7 +160,7 @@ function calculatePatternsScore(trades: Trade[]): number {
  */
 function getStabilityLevel(score: number): EmotionalStabilityResult['level'] {
   if (score >= 85) return 'VERY_HIGH'
-  if (score >= 70) return 'HIGH'
+  if (score >= 60) return 'HIGH'
   if (score >= 50) return 'MODERATE'
   if (score >= 30) return 'LOW'
   return 'VERY_LOW'
@@ -173,7 +173,7 @@ function getRecommendation(score: number): string {
   if (score >= 85) {
     return 'Excellent emotional stability. You\'re in a great state for making rational betting decisions.'
   }
-  if (score >= 70) {
+  if (score >= 60) {
     return 'Good emotional stability. You\'re ready to analyze bets objectively.'
   }
   if (score >= 50) {
@@ -189,7 +189,7 @@ function getRecommendation(score: number): string {
  * Quick check if user should receive AI picks
  */
 export function shouldReceiveAIPicks(emotionalScore: number): boolean {
-  return emotionalScore >= 70
+  return emotionalScore >= 60
 }
 
 /**
@@ -197,7 +197,7 @@ export function shouldReceiveAIPicks(emotionalScore: number): boolean {
  */
 export function getScoreColor(score: number): string {
   if (score >= 85) return 'text-green-500'
-  if (score >= 70) return 'text-blue-500'
+  if (score >= 60) return 'text-blue-500'
   if (score >= 50) return 'text-yellow-500'
   if (score >= 30) return 'text-orange-500'
   return 'text-red-500'
@@ -207,7 +207,7 @@ export function getScoreColor(score: number): string {
  * Get badge variant for score display
  */
 export function getScoreBadgeVariant(score: number): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (score >= 70) return 'default'
+  if (score >= 60) return 'default'
   if (score >= 50) return 'secondary'
   return 'destructive'
 }

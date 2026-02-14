@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
@@ -8,81 +8,87 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { supabase } from "@/lib/supabase"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
-import dynamic from "next/dynamic"
+import { AnalyticsTab } from "@/components/tabs/analytics-tab"
 
-// Lazy load the analytics tab component
-const AnalyticsTab = dynamic(() => import("@/components/tabs/analytics-tab").then(mod => ({ default: mod.AnalyticsTab })), {
-  loading: () => (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <div className="animate-pulse text-muted-foreground">Loading Analytics...</div>
-      </div>
-    </div>
-  ),
-  ssr: false
-})
+// Default user data for fallback when fetch fails but user is authenticated
+const DEFAULT_USER_DATA: UserData = {
+  name: "Trader",
+  level: 1,
+  xp: 0,
+  xpToNextLevel: 500,
+  emotionalAwarenessStreak: 0,
+  biasRecognitionScore: 0,
+  mindfulDecisionPercentage: 0,
+  totalTrades: 0,
+  mindfulTrades: 0,
+  serenityTokens: 0,
+  dailyRings: { emotionalAwareness: 0, biasRecognition: 0, mindfulness: 0 },
+  lastRingReset: new Date(),
+  perfectDays: 0,
+  longestStreak: 0,
+  totalEmotionsLogged: 0,
+  totalBiasesIdentified: 0,
+  totalJournalsCompleted: 0,
+  totalModulesCompleted: 0,
+  totalBreathingExercises: 0,
+  mostProductiveDay: 0,
+  subscriptionTier: 'free',
+  subscriptionStatus: 'active',
+}
 
 export function AnalyticsContent() {
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [authed, setAuthed] = useState<boolean | null>(null)
+  const [authed, setAuthed] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let isMounted = true
 
     const checkAuth = async () => {
-      // Safety timeout to prevent permanent loading state
-      const timeoutId = setTimeout(() => {
-        if (isMounted && loading) {
-          console.warn('Analytics auth check timed out, forcing loading state to false');
-          setLoading(false);
-          setAuthed(false);
-        }
-      }, 5000); // 5 second timeout
-
       try {
-        // Run auth check and user data fetch in parallel
-        const [sessionResult, userDataResult] = await Promise.allSettled([
-          supabase.auth.getSession(),
-          storage.getUserData().catch(() => null)
-        ])
+        // Step 1: Check session (same as home page)
+        const { data: { session } } = await supabase.auth.getSession()
 
-        if (!isMounted) {
-          clearTimeout(timeoutId);
-          return;
+        if (!isMounted) return
+
+        if (!session) {
+          setAuthed(false)
+          return
         }
 
-        const session = sessionResult.status === 'fulfilled' ? sessionResult.value.data.session : null
-        const storedUserData = userDataResult.status === 'fulfilled' ? userDataResult.value : null
+        setAuthed(true)
 
-        setAuthed(!!session)
-
-        if (session) {
-          setUserData(storedUserData)
+        // Step 2: Fetch user data (only if authenticated)
+        try {
+          const data = await storage.getUserData()
+          if (isMounted) setUserData(data)
+        } catch (err) {
+          console.warn('Failed to load user data, using defaults:', err)
+          if (isMounted) setUserData(DEFAULT_USER_DATA)
         }
       } catch (error) {
         console.error('Auth check failed:', error)
-        setAuthed(false)
+        if (isMounted) setAuthed(false)
       } finally {
-        clearTimeout(timeoutId);
-        if (isMounted) {
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       }
     }
 
-    checkAuth()
+    // Safety timeout: guarantee loading clears after 5s no matter what
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('[Analytics] Safety timeout fired after 5s')
+        setLoading(false)
+      }
+    }, 5000)
+
+    checkAuth().finally(() => clearTimeout(safetyTimeout))
 
     return () => {
       isMounted = false
+      clearTimeout(safetyTimeout)
     }
   }, [])
-
-  const handleNavigateToTab = (tab: string) => {
-    // Handle navigation to other tabs if needed
-    window.location.href = `/${tab === 'odds' ? 'sports-dashboard' : tab}`
-  }
 
   // Show loading state only during initial auth check
   if (loading) {
@@ -103,17 +109,8 @@ export function AnalyticsContent() {
         <Navigation />
 
         <main className="container mx-auto px-4 py-6">
-          {userData ? (
-            <Suspense fallback={
-              <div className="min-h-[60vh] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <div className="animate-pulse text-muted-foreground">Loading Analytics...</div>
-                </div>
-              </div>
-            }>
-              <AnalyticsTab userData={userData} />
-            </Suspense>
+          {authed && userData ? (
+            <AnalyticsTab userData={userData} />
           ) : (
             <div className="text-center py-12">
               <p>Please sign in to access the analytics feature.</p>

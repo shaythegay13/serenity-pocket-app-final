@@ -65,6 +65,9 @@ export interface ComprehensiveBet {
 
   // Original description (fallback when team parsing fails)
   description?: string
+
+  // Links this bet to a parent parlay (if this bet is a parlay leg)
+  parlayId?: string
 }
 
 export interface BetPerformanceMetrics {

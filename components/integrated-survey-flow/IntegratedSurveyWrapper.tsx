@@ -45,7 +45,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
 
       // Compute archetype
       const archetype = computeArchetypeFromSnapshot(responses);
-      
+
       setSurveyResult({ score, archetype });
       setCurrentFlow(SurveyFlow.COMPLETE);
 
@@ -81,7 +81,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
         >
           <X className="h-5 w-5" />
         </button>
-        
+
         {/* Welcome Screen */}
         {currentFlow === SurveyFlow.WELCOME && (
           <div className="flex flex-col items-center justify-center space-y-8 p-10 bg-[#020617]">
@@ -92,7 +92,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
                   alt="PlayMind Labs"
                   width={108}
                   height={108}
-                  className="h-27 w-27"
+                  className="h-27 w-27 logo-dark-mode"
                 />
                 <span className="text-2xl font-bold tracking-tight">PlayMind Labs</span>
               </div>
@@ -126,7 +126,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
               </ul>
             </div>
 
-            <Button 
+            <Button
               onClick={handleStartSurvey}
               className="w-full md:w-auto px-10 py-4 h-14 text-lg font-bold rounded-xl bg-linear-to-r from-[#3b82f6] to-[#a855f7] hover:opacity-90 transition-opacity"
             >
@@ -138,7 +138,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
                 <span className="font-semibold text-gray-300">PlayMind Labs</span> helps you develop healthier sports betting habits through emotional awareness and progress tracking. Your personalized score tracks improvements as you engage with our daily tools.
               </p>
             </div>
-            
+
             <button
               type="button"
               onClick={onSwitchToLogin}
@@ -189,7 +189,7 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
               </div>
             </div>
 
-            <Button 
+            <Button
               onClick={handleComplete}
               className="w-full md:w-auto px-10 py-4 h-14 text-lg font-bold rounded-xl bg-linear-to-r from-[#10b981] to-[#059669] hover:opacity-90 transition-opacity"
             >

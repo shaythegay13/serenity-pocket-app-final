@@ -69,8 +69,8 @@ export function ParlayBuilder({
   if (selectedLegs.length < 2) return null
   
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border shadow-lg">
-      <div className="container mx-auto px-4 py-4">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border shadow-lg pb-[env(safe-area-inset-bottom)] md:pb-0 mb-16 md:mb-0">
+      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
         <Card className="p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">

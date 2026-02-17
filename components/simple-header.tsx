@@ -7,12 +7,25 @@ import Link from "next/link"
 import { useTheme } from "next-themes"
 import { useState, useEffect } from "react"
 
+import { supabase } from "@/lib/supabase"
+
 export function SimpleHeader() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [isAuthed, setIsAuthed] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthed(!!session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const toggleTheme = () => {
@@ -24,7 +37,7 @@ export function SimpleHeader() {
     <header className="border-b border-border bg-card">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href={isAuthed ? "/home" : "/"} className="flex items-center gap-3">
             <Image
               src="/logo.png"
               alt="PlayMind Labs"

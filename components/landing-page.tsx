@@ -130,7 +130,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           <div className="max-w-4xl mx-auto text-center space-y-8">
 
             {/* Main Headline */}
-            <h1 className="text-6xl md:text-7xl font-bold tracking-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight">
               <span className="text-white">Win with </span>
               <span className="bg-linear-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Data
@@ -142,7 +142,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             </h1>
 
             {/* Subheading */}
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed px-2">
               Advanced behavioral analytics and AI-powered insights to transform your betting strategy.
               Make smarter decisions backed by psychology and predictive modeling.
             </p>
@@ -156,14 +156,14 @@ export function LandingPage({ onLogin }: LandingPageProps) {
 
         <div className="container mx-auto px-4 relative">
           <div className="max-w-5xl mx-auto text-center space-y-8">
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
               <span className="text-white">Try Our </span>
               <span className="bg-linear-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Free Tools
               </span>
             </h2>
 
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed px-2">
               No account required. Experience the power of behavioral betting analytics right now.
             </p>
 

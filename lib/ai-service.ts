@@ -155,6 +155,18 @@ export async function getEnhancedBetAnalysis(params: {
     favoriteTeamForm?: string[]
     underdogTeamForm?: string[]
   }
+  // Player prop context (optional - only for player prop bets)
+  playerPropContext?: {
+    playerName: string
+    playerTeam: string
+    playerPosition?: string
+    propStat: string
+    propLine: number
+    propDirection: 'over' | 'under'
+    historicalHitRate?: number
+    recentPerformance?: number[]
+    averageStat?: number
+  }
   builtInAnalysis: {
     analyticalInsights: string[]
     emotionalRisk: string
@@ -196,6 +208,21 @@ STRICT LOGIC RULES:
 - If EV is negative, the enhancedReasoning must explain that the user is paying 'juice' and has no mathematical edge.
 - If risk is HIGH or recommendation is 'PROCEED WITH CAUTION', the enhancedReasoning must start with a bold cautionary warning.
 
+**PLAYER PROP ANALYSIS**:
+When analyzing player prop bets (if player prop context is provided):
+- Evaluate if user is selecting based on player popularity vs statistical merit
+- Check for "favorite player" bias similar to "favorite team" bias
+- Consider variance: player props typically have higher variance than game outcomes
+- Factor in recency bias (last game performance vs season average)
+- If historical hit rate is provided, use it to assess realistic probability
+- For combined stats (PTS+REB+AST), these tend to hit more consistently
+
+**PLAYER PROP RED FLAGS**:
+- User betting on player after a huge game (recency bias)
+- User always betting on same popular player (fan bias)
+- Line significantly above/below player's average (market has information)
+- Player returning from injury (unpredictable performance)
+
 You have access to both analytical data AND the user's emotional state. Always consider both.`
 
   const userPrompt = `Please analyze this betting scenario and provide enhanced reasoning:
@@ -213,6 +240,13 @@ You have access to both analytical data AND the user's emotional state. Always c
 - Injuries: ${params.injuries || "None reported"}
 - Weather: ${params.weather || "N/A"}
 
+${params.playerPropContext ? `## Player Prop Details
+- Player: ${params.playerPropContext.playerName} (${params.playerPropContext.playerTeam}${params.playerPropContext.playerPosition ? ` - ${params.playerPropContext.playerPosition}` : ''})
+- Prop: ${params.playerPropContext.propStat} ${params.playerPropContext.propDirection.toUpperCase()} ${params.playerPropContext.propLine}
+${params.playerPropContext.averageStat ? `- Season Average: ${params.playerPropContext.averageStat}` : ''}
+${params.playerPropContext.historicalHitRate ? `- Historical Hit Rate: ${(params.playerPropContext.historicalHitRate * 100).toFixed(1)}%` : ''}
+${params.playerPropContext.recentPerformance ? `- Recent Games: ${params.playerPropContext.recentPerformance.join(', ')}` : ''}
+` : ''}
 ${params.sportsDbContext ? `## Team Recent Form (from TheSportsDB)
 - Favorite recent form: ${params.sportsDbContext.favoriteTeamForm?.join(" ") || "n/a"}
 - Underdog recent form: ${params.sportsDbContext.underdogTeamForm?.join(" ") || "n/a"}

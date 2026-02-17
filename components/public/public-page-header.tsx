@@ -26,7 +26,7 @@ export function PublicPageHeader() {
                   src="/logo.png"
                   alt="PlayMind Labs Logo"
                   fill
-                  className="object-cover object-center dark:invert"
+                  className="object-cover object-center logo-dark-mode"
                 />
               </div>
             </div>
@@ -38,11 +38,10 @@ export function PublicPageHeader() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  pathname === link.href
-                    ? 'text-white bg-white/10'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === link.href
+                  ? 'text-white bg-white/10'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
               >
                 {link.label}
               </Link>

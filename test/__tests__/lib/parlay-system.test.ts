@@ -3,6 +3,7 @@
  *
  * Test Case 1: 3-leg regular (cross-game) parlay
  * Test Case 2: 4-leg NFL SGP (Mahomes props)
+ * Test Case 3: Non-Big 4 Sports Parlay Eligibility
  * Additional: Settlement with push/reduce, validation, EV
  */
 
@@ -19,6 +20,15 @@ import {
   calculateImpliedProbability,
 } from '@/lib/parlay-utils'
 import { determineParlayType, detectTiltSignals } from '@/lib/parlay-tracking-service'
+import {
+  isParlayEligible,
+  isSGPEligible,
+  getSportsWithParlays,
+  getSportsWithSGP,
+  getParlayEligibleSportIds,
+  normalizeSportKey,
+  mapTiltLabSportToConfig,
+} from '@/lib/sports-config'
 import type { ParlayLeg } from '@/lib/types/ai-models'
 
 // ============================================================================
@@ -370,5 +380,325 @@ describe('Tilt Signal Detection', () => {
     ]
     const signals = detectTiltSignals(mixedSport)
     expect(signals).toContain('cross_sport_mashup')
+  })
+})
+
+// ============================================================================
+// Test Case 3: Non-Big 4 Sports Parlay Eligibility
+// ============================================================================
+
+describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
+  // ── Sports Config Coverage ──
+  describe('Sports Config Coverage', () => {
+    test('Big 4 sports are parlay eligible', () => {
+      const big4 = ['basketball_nba', 'americanfootball_nfl', 'baseball_mlb', 'icehockey_nhl']
+      big4.forEach(sport => {
+        expect(isParlayEligible(sport)).toBe(true)
+        expect(isSGPEligible(sport)).toBe(true)
+      })
+    })
+
+    test('Soccer leagues are parlay eligible', () => {
+      const soccerLeagues = [
+        'soccer_epl', 'soccer_mls', 'soccer_champions_league',
+        'soccer_la_liga', 'soccer_serie_a', 'soccer_bundesliga'
+      ]
+      soccerLeagues.forEach(sport => {
+        expect(isParlayEligible(sport)).toBe(true)
+      })
+    })
+
+    test('Tennis is parlay eligible', () => {
+      expect(isParlayEligible('tennis_atp')).toBe(true)
+      expect(isParlayEligible('tennis_wta')).toBe(true)
+      expect(isSGPEligible('tennis_atp')).toBe(true)
+    })
+
+    test('Golf is parlay eligible (no SGP)', () => {
+      expect(isParlayEligible('golf_pga')).toBe(true)
+      expect(isParlayEligible('golf_lpga')).toBe(true)
+      // Golf doesn't have traditional SGP
+      expect(isSGPEligible('golf_pga')).toBe(false)
+    })
+
+    test('UFC/MMA is parlay eligible', () => {
+      expect(isParlayEligible('mma_ufc')).toBe(true)
+      expect(isParlayEligible('boxing')).toBe(true)
+      expect(isSGPEligible('mma_ufc')).toBe(true)
+    })
+
+    test('Motorsports are parlay eligible', () => {
+      expect(isParlayEligible('motorsports_f1')).toBe(true)
+      expect(isParlayEligible('motorsports_nascar')).toBe(true)
+      expect(isParlayEligible('motorsports_indycar')).toBe(true)
+    })
+
+    test('Niche sports are parlay eligible', () => {
+      const nicheSports = ['darts_pdc', 'table_tennis', 'cricket', 'rugby_union', 'aussie_rules']
+      nicheSports.forEach(sport => {
+        expect(isParlayEligible(sport)).toBe(true)
+      })
+    })
+
+    test('Esports are parlay eligible', () => {
+      const esports = ['esports_lol', 'esports_csgo', 'esports_dota2', 'esports_valorant']
+      esports.forEach(sport => {
+        expect(isParlayEligible(sport)).toBe(true)
+      })
+    })
+  })
+
+  // ── Sport Key Normalization ──
+  describe('Sport Key Normalization', () => {
+    test('normalizes common abbreviations', () => {
+      expect(normalizeSportKey('NFL')).toBe('americanfootball_nfl')
+      expect(normalizeSportKey('NBA')).toBe('basketball_nba')
+      expect(normalizeSportKey('UFC')).toBe('mma_ufc')
+      expect(normalizeSportKey('EPL')).toBe('soccer_epl')
+    })
+
+    test('normalizes display names', () => {
+      expect(normalizeSportKey('Tennis')).toBe('tennis_atp')
+      expect(normalizeSportKey('Golf')).toBe('golf_pga')
+      expect(normalizeSportKey('Boxing')).toBe('boxing')
+    })
+
+    test('handles case insensitivity', () => {
+      expect(normalizeSportKey('nfl')).toBe('americanfootball_nfl')
+      expect(normalizeSportKey('Nba')).toBe('basketball_nba')
+      expect(normalizeSportKey('UFC')).toBe('mma_ufc')
+    })
+
+    test('returns input if already valid key', () => {
+      expect(normalizeSportKey('basketball_nba')).toBe('basketball_nba')
+      expect(normalizeSportKey('soccer_epl')).toBe('soccer_epl')
+    })
+  })
+
+  // ── TiltLab Sport Mapping ──
+  describe('TiltLab Sport Mapping', () => {
+    test('maps display names to config', () => {
+      const soccer = mapTiltLabSportToConfig('Soccer')
+      expect(soccer).toBeDefined()
+      expect(soccer?.id).toBe('soccer_epl')
+
+      const ufc = mapTiltLabSportToConfig('UFC')
+      expect(ufc).toBeDefined()
+      expect(ufc?.id).toBe('mma_ufc')
+    })
+
+    test('maps international leagues', () => {
+      const laLiga = mapTiltLabSportToConfig('La Liga')
+      expect(laLiga?.id).toBe('soccer_la_liga')
+
+      const bundesliga = mapTiltLabSportToConfig('Bundesliga')
+      expect(bundesliga?.id).toBe('soccer_bundesliga')
+    })
+
+    test('maps niche sports', () => {
+      const darts = mapTiltLabSportToConfig('Darts')
+      expect(darts?.id).toBe('darts_pdc')
+
+      const cricket = mapTiltLabSportToConfig('Cricket')
+      expect(cricket?.id).toBe('cricket')
+    })
+  })
+
+  // ── Parlay Validation with Non-Big 4 ──
+  describe('Parlay Validation with Non-Big 4 Sports', () => {
+    const soccerLegs: ParlayLeg[] = [
+      {
+        pickId: 'soccer-1',
+        gameId: 'game-arsenal-chelsea',
+        teams: 'Arsenal vs Chelsea',
+        betType: 'moneyline',
+        line: 'Arsenal ML',
+        odds: +150,
+        sport: 'soccer_epl',
+      },
+      {
+        pickId: 'soccer-2',
+        gameId: 'game-liverpool-mancity',
+        teams: 'Liverpool vs Man City',
+        betType: 'total',
+        line: 'Over 2.5',
+        odds: -115,
+        sport: 'soccer_epl',
+      },
+    ]
+
+    const ufcLegs: ParlayLeg[] = [
+      {
+        pickId: 'ufc-1',
+        gameId: 'game-ufc-main',
+        teams: 'Fighter A vs Fighter B',
+        betType: 'moneyline',
+        line: 'Fighter A ML',
+        odds: -200,
+        sport: 'mma_ufc',
+      },
+      {
+        pickId: 'ufc-2',
+        gameId: 'game-ufc-comain',
+        teams: 'Fighter C vs Fighter D',
+        betType: 'moneyline',
+        line: 'Fighter D ML',
+        odds: +175,
+        sport: 'mma_ufc',
+      },
+    ]
+
+    test('validates soccer parlay', () => {
+      const result = validateParlayLegs(soccerLegs, 'regular')
+      expect(result.isValid).toBe(true)
+      expect(result.detectedType).toBe('classic')
+      // Should not have eligibility warnings for supported sport
+      expect(result.warnings.some(w => w.includes('may not support parlays'))).toBe(false)
+    })
+
+    test('validates UFC parlay', () => {
+      const result = validateParlayLegs(ufcLegs, 'regular')
+      expect(result.isValid).toBe(true)
+      expect(result.detectedType).toBe('classic')
+    })
+
+    test('validates mixed sport parlay (soccer + UFC)', () => {
+      const mixedLegs = [soccerLegs[0], ufcLegs[0]]
+      const result = validateParlayLegs(mixedLegs, 'regular')
+      expect(result.isValid).toBe(true)
+    })
+
+    test('validates tennis parlay', () => {
+      const tennisLegs: ParlayLeg[] = [
+        {
+          pickId: 'tennis-1',
+          gameId: 'game-atp-finals-1',
+          teams: 'Djokovic vs Alcaraz',
+          betType: 'moneyline',
+          line: 'Djokovic ML',
+          odds: -150,
+          sport: 'tennis_atp',
+        },
+        {
+          pickId: 'tennis-2',
+          gameId: 'game-atp-finals-2',
+          teams: 'Sinner vs Medvedev',
+          betType: 'moneyline',
+          line: 'Sinner ML',
+          odds: +120,
+          sport: 'tennis_atp',
+        },
+      ]
+      const result = validateParlayLegs(tennisLegs, 'regular')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  // ── Canonical Config Change Propagation ──
+  describe('Single Source of Truth', () => {
+    test('getParlayEligibleSportIds returns all parlay-eligible sports', () => {
+      const eligibleIds = getParlayEligibleSportIds()
+
+      // Should include Big 4
+      expect(eligibleIds).toContain('basketball_nba')
+      expect(eligibleIds).toContain('americanfootball_nfl')
+
+      // Should include non-Big 4
+      expect(eligibleIds).toContain('soccer_epl')
+      expect(eligibleIds).toContain('tennis_atp')
+      expect(eligibleIds).toContain('mma_ufc')
+      expect(eligibleIds).toContain('darts_pdc')
+      expect(eligibleIds).toContain('esports_lol')
+      expect(eligibleIds).toContain('americanfootball_cfl')
+
+      // Should be a substantial list (40+ sports now)
+      expect(eligibleIds.length).toBeGreaterThanOrEqual(40)
+    })
+
+    test('getSportsWithParlays and isParlayEligible are consistent', () => {
+      const sportsWithParlays = getSportsWithParlays()
+      const parlayEligibleIds = getParlayEligibleSportIds()
+
+      // Every sport from getSportsWithParlays should pass isParlayEligible
+      sportsWithParlays.forEach(sport => {
+        expect(isParlayEligible(sport.id)).toBe(true)
+        expect(parlayEligibleIds).toContain(sport.id)
+      })
+    })
+
+    test('SGP eligibility is a subset of parlay eligibility', () => {
+      const sgpSports = getSportsWithSGP()
+      const parlayEligibleIds = getParlayEligibleSportIds()
+
+      // Every SGP-eligible sport should also be parlay-eligible
+      sgpSports.forEach(sport => {
+        expect(parlayEligibleIds).toContain(sport.id)
+      })
+    })
+
+    test('Common non-SGP sports are correctly identified', () => {
+      // Sports that allow parlays but NOT same-game parlays
+      expect(isParlayEligible('golf_pga')).toBe(true)
+      expect(isSGPEligible('golf_pga')).toBe(false)
+
+      expect(isParlayEligible('americanfootball_cfl')).toBe(true)
+      expect(isSGPEligible('americanfootball_cfl')).toBe(false)
+
+      expect(isParlayEligible('tennis_itf')).toBe(true)
+      expect(isSGPEligible('tennis_itf')).toBe(false)
+    })
+
+    test('SGP validation warns for non-SGP sports', () => {
+      const golfSgpLegs: ParlayLeg[] = [
+        {
+          pickId: 'golf-1',
+          gameId: 'pga-tour-1',
+          teams: 'Scheffler vs Rahm',
+          betType: 'matchup',
+          line: 'Scheffler',
+          odds: -120,
+          sport: 'golf_pga',
+        },
+        {
+          pickId: 'golf-2',
+          gameId: 'pga-tour-1', // Same "game" (tournament event)
+          teams: 'Scheffler vs Rahm',
+          betType: 'outright',
+          line: 'Scheffler To Win',
+          odds: +450,
+          sport: 'golf_pga',
+        },
+      ]
+
+      // This is an SGP (same gameId) for a sport that doesn't support SGP
+      const result = validateParlayLegs(golfSgpLegs, 'same_game')
+      expect(result.detectedType).toBe('sgp')
+      expect(result.warnings.some(w => w.includes('SGP may not be available'))).toBe(true)
+      expect(result.warnings.some(w => w.includes('golf_pga'))).toBe(true)
+    })
+  })
+
+  // ── Jurisdictional/Prop Restrictions ──
+  describe('Jurisdictional & Prop Restrictions', () => {
+    test('NCAAB correctly identifies restricted player props', () => {
+      const ncaab = normalizeSportKey('NCAAB')
+      const config = mapTiltLabSportToConfig('NCAAB')
+
+      expect(ncaab).toBe('basketball_ncaab')
+      expect(config?.hasPlayerProps).toBe(false) // Most states restrict college props
+    })
+
+    test('CFL correctly identifies restricted player props', () => {
+      const config = mapTiltLabSportToConfig('CFL')
+      expect(config?.hasPlayerProps).toBe(false)
+    })
+
+    test('Esports correctly identifies restricted player props for Dota/Valorant', () => {
+      const dota = mapTiltLabSportToConfig('Dota 2')
+      const valorant = mapTiltLabSportToConfig('Valorant')
+
+      expect(dota?.hasPlayerProps).toBe(false)
+      expect(valorant?.hasPlayerProps).toBe(false)
+    })
   })
 })

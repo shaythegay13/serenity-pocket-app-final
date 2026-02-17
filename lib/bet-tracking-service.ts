@@ -23,7 +23,8 @@ export class BetTrackingService {
       "Moneyline": "moneyline",
       "Spread": "spread",
       "Over/Under": "total",
-      "Parlay": "parlay"
+      "Parlay": "parlay",
+      "Player Prop": "prop"
     }
 
     // Parse game date from scenario, falling back to current date
@@ -85,7 +86,25 @@ export class BetTrackingService {
       // Metadata
       source: "tiltlab",
       sportsbook: betScenario.sportsbook || "DraftKings",
-      outcome: "pending"
+      outcome: "pending",
+
+      // Player prop fields (only populated for player prop bets)
+      ...(betScenario.betType === "Player Prop" && {
+        playerName: betScenario.playerName,
+        playerTeam: betScenario.playerTeam,
+        propCategory: betScenario.propCategory,
+        propStat: betScenario.propStat,
+        propLine: betScenario.propLine,
+        propDirection: betScenario.propDirection,
+      }),
+
+      // Store description as fallback for display when teams are Unknown
+      description: betScenario.betType === "Player Prop"
+        ? `${betScenario.playerName} ${betScenario.propDirection || 'over'} ${betScenario.propLine} ${betScenario.propStat?.replace('player_', '').replace(/_/g, ' ') || 'prop'}`
+        : (betScenario.bettingSlip ||
+          (betScenario.homeTeam && betScenario.awayTeam
+            ? `${betScenario.awayTeam} @ ${betScenario.homeTeam} - ${betScenario.betType}`
+            : betScenario.notes || `${betScenario.betType} bet`))
     }
 
     // Save to storage
@@ -118,13 +137,17 @@ export class BetTrackingService {
     emotionalIntensity?: number,
     isLiveBet?: boolean,
     overrideTeams?: { awayTeam: string; homeTeam: string },
-    overrideSelection?: "home" | "away"
+    overrideSelection?: "home" | "away",
+    betType?: GameBetMarketType
   ): Promise<ComprehensiveBet> {
     const betId = typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-    // Extract sport and teams from description
+    // Try to parse as player prop first
+    const playerPropParsed = this.parsePlayerPropFromText(description)
+
+    // Extract sport and teams from description (for non-player-prop bets)
     const parsed = this.parseBetDescription(description)
 
     // Use override values if provided, otherwise use parsed values
@@ -132,20 +155,31 @@ export class BetTrackingService {
     const finalAwayTeam = overrideTeams?.awayTeam || parsed.awayTeam || "Unknown"
     const finalSelection = overrideSelection || parsed.selection || "away"
 
+    // Determine final bet type
+    const finalBetType = betType || (playerPropParsed?.isPlayerProp ? "prop" : parsed.betType)
+
     const comprehensiveBet: ComprehensiveBet = {
       id: betId,
       timestamp: new Date(),
 
       // Core bet details
       sport: parsed.sport || "americanfootball_nfl",
-      homeTeam: finalHomeTeam,
-      awayTeam: finalAwayTeam,
+      homeTeam: playerPropParsed?.isPlayerProp ? "N/A" : finalHomeTeam,
+      awayTeam: playerPropParsed?.isPlayerProp ? "N/A" : finalAwayTeam,
       gameDate: new Date(), // For bet analyzer, we don't have game date info
-      betType: parsed.betType,
-      selection: finalSelection,
-      line: parsed.line,
-      odds,
+      betType: finalBetType,
+      selection: playerPropParsed?.isPlayerProp ? (playerPropParsed.propDirection || "over") : finalSelection,
+      line: playerPropParsed?.isPlayerProp ? playerPropParsed.propLine : parsed.line,
+      odds: playerPropParsed?.odds || odds,
       stake,
+
+      // Player prop fields (only populated for player prop bets)
+      ...(playerPropParsed?.isPlayerProp && {
+        playerName: playerPropParsed.playerName,
+        propStat: playerPropParsed.propStat,
+        propLine: playerPropParsed.propLine,
+        propDirection: playerPropParsed.propDirection,
+      }),
 
       // Emotions timeline (include all three phases)
       emotions: {
@@ -573,6 +607,122 @@ export class BetTrackingService {
       // Collapse multiple spaces
       .replace(/\s+/g, ' ')
       .trim()
+  }
+
+  /**
+   * Parse player prop bet from text description
+   * Detects patterns like:
+   * - "LeBron James Over 25.5 points -110"
+   * - "Patrick Mahomes O 275.5 passing yards +105"
+   * - "Ohtani U 7.5 strikeouts -120"
+   */
+  static parsePlayerPropFromText(text: string): {
+    isPlayerProp: boolean
+    playerName?: string
+    propDirection?: 'over' | 'under'
+    propLine?: number
+    propStat?: string
+    odds?: number
+  } | null {
+    // Stat name normalization map
+    const statNormalization: Record<string, string> = {
+      // NBA
+      'pts': 'player_points',
+      'points': 'player_points',
+      'rebs': 'player_rebounds',
+      'rebounds': 'player_rebounds',
+      'asts': 'player_assists',
+      'assists': 'player_assists',
+      'threes': 'player_threes',
+      '3s': 'player_threes',
+      '3-pointers': 'player_threes',
+      'three pointers': 'player_threes',
+      'pra': 'player_points_rebounds_assists',
+      'pts+rebs+asts': 'player_points_rebounds_assists',
+      'pts+rebs': 'player_points_rebounds',
+      'pts+asts': 'player_points_assists',
+      // NFL
+      'pass yds': 'player_pass_yds',
+      'passing yds': 'player_pass_yds',
+      'passing yards': 'player_pass_yds',
+      'pass yards': 'player_pass_yds',
+      'rush yds': 'player_rush_yds',
+      'rushing yds': 'player_rush_yds',
+      'rushing yards': 'player_rush_yds',
+      'rush yards': 'player_rush_yds',
+      'rec yds': 'player_reception_yds',
+      'receiving yds': 'player_reception_yds',
+      'receiving yards': 'player_reception_yds',
+      'receptions': 'player_receptions',
+      'rec': 'player_receptions',
+      'catches': 'player_receptions',
+      'pass tds': 'player_pass_tds',
+      'passing tds': 'player_pass_tds',
+      'rush tds': 'player_rush_tds',
+      'rushing tds': 'player_rush_tds',
+      'tds': 'player_anytime_td',
+      'touchdowns': 'player_anytime_td',
+      'anytime td': 'player_anytime_td',
+      // MLB
+      'ks': 'pitcher_strikeouts',
+      'strikeouts': 'pitcher_strikeouts',
+      'so': 'pitcher_strikeouts',
+      'hits': 'batter_hits',
+      'runs': 'batter_runs_scored',
+      'rbis': 'batter_rbis',
+      'home runs': 'batter_home_runs',
+      'hrs': 'batter_home_runs',
+      'total bases': 'batter_total_bases',
+      // NHL
+      'goals': 'player_goals',
+      'hockey assists': 'player_assists_hockey',
+      'shots': 'player_shots_on_goal',
+      'sog': 'player_shots_on_goal',
+      'saves': 'goalie_saves',
+    }
+
+    // Pattern 1: "[Player Name] [Over/Under/O/U] [Line] [Stat] [Odds]"
+    // e.g., "LeBron James Over 25.5 points -110"
+    const pattern1 = /^(.+?)\s+(over|under|o|u)\s+(\d+\.?\d*)\s+(.+?)\s*([+-]\d+)?$/i
+
+    // Pattern 2: "[Player Name] [Line]+ [Stat] [Odds]" (alternate line format)
+    // e.g., "Mahomes 275+ pass yds -115"
+    const pattern2 = /^(.+?)\s+(\d+\.?\d*)\+\s+(.+?)\s*([+-]\d+)?$/i
+
+    let match = text.trim().match(pattern1)
+    if (match) {
+      const [, playerName, direction, line, stat, oddsStr] = match
+      const normalizedDirection = direction.toLowerCase().startsWith('o') ? 'over' : 'under'
+      const statLower = stat.toLowerCase().trim()
+      const normalizedStat = statNormalization[statLower] || `player_${statLower.replace(/\s+/g, '_')}`
+
+      return {
+        isPlayerProp: true,
+        playerName: playerName.trim(),
+        propDirection: normalizedDirection,
+        propLine: parseFloat(line),
+        propStat: normalizedStat,
+        odds: oddsStr ? parseInt(oddsStr) : undefined
+      }
+    }
+
+    match = text.trim().match(pattern2)
+    if (match) {
+      const [, playerName, line, stat, oddsStr] = match
+      const statLower = stat.toLowerCase().trim()
+      const normalizedStat = statNormalization[statLower] || `player_${statLower.replace(/\s+/g, '_')}`
+
+      return {
+        isPlayerProp: true,
+        playerName: playerName.trim(),
+        propDirection: 'over', // Alternate line format assumes over
+        propLine: parseFloat(line),
+        propStat: normalizedStat,
+        odds: oddsStr ? parseInt(oddsStr) : undefined
+      }
+    }
+
+    return null
   }
 
   /**

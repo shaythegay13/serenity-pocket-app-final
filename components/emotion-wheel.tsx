@@ -55,7 +55,7 @@ export function EmotionWheel({ onEmotionSelect, selectedEmotion }: EmotionWheelP
           <button
             key={category}
             onClick={() => handleCategoryClick(category)}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`p-4 min-h-[80px] rounded-lg border-2 transition-all touch-manipulation ${
               selectedCategory === category
                 ? "border-primary bg-primary/10 scale-105"
                 : "border-border hover:border-primary/50 hover:bg-muted"

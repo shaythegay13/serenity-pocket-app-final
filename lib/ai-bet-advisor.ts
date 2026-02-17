@@ -9,26 +9,10 @@
  */
 
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from './ai-service'
+import { SUPPORTED_SPORTS } from './sports-config'
+import type { PropCategory } from './types/ai-models'
 
-export type SupportedSportKey =
-  | 'basketball_nba'
-  | 'americanfootball_nfl'
-  | 'baseball_mlb'
-  | 'icehockey_nhl'
-  | 'basketball_ncaab'
-  | 'americanfootball_ncaaf'
-  | 'soccer_epl'
-  | 'soccer_mls'
-  | 'soccer_ucl'
-  | 'mma_ufc'
-  | 'boxing'
-  | 'tennis'
-  | 'golf'
-  | 'formula1'
-  | 'nascar'
-  | 'esports_lol'
-  | 'esports_csgo'
-  | 'other'
+export type SupportedSportKey = keyof typeof SUPPORTED_SPORTS | 'other';
 
 export type GameBetMarketType =
   | 'moneyline'
@@ -45,7 +29,7 @@ export interface BetScenario {
   homeTeam: string
   awayTeam: string
   gameDate?: Date
-  betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay'
+  betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay' | 'Player Prop'
   selection: "home" | "away" | "over" | "under" | "draw" | "other"
   line?: number // Spread points, total points, etc.
   odds?: number // American odds
@@ -87,6 +71,14 @@ export interface BetScenario {
 
   // Metadata
   sportsbook?: string
+
+  // Player Prop fields (populated when betType === 'Player Prop')
+  playerName?: string
+  playerTeam?: string
+  propCategory?: PropCategory
+  propStat?: string           // e.g., "player_points", "player_pass_yds"
+  propLine?: number           // e.g., 25.5
+  propDirection?: 'over' | 'under'
 
   // Parlay-specific fields (populated when betType === 'Parlay')
   parlayLegs?: Array<{
@@ -266,27 +258,49 @@ export function analyticalAgent(payload: BetScenario): AnalyticalAnalysis {
   const budget = Number(payload.budget) || 0
   const percent = budget > 0 ? Math.round((amt / budget) * 100) : 0
   const isParlay = payload.betType === 'Parlay'
+  const isPlayerProp = payload.betType === 'Player Prop'
   const type = payload.betType
   const sport = payload.sport
 
   const insights: string[] = []
-  insights.push(`Bet type: ${type} • Sport: ${sport}`)
+  if (isPlayerProp && payload.playerName) {
+    const direction = payload.propDirection || 'over'
+    const line = payload.propLine ?? 0
+    const propDisplay = payload.propStat?.replace('player_', '').replace(/_/g, ' ') || 'stat'
+    insights.push(`Player Prop: ${payload.playerName} ${direction} ${line} ${propDisplay}`)
+    insights.push(`Sport: ${sport}`)
+  } else {
+    insights.push(`Bet type: ${type} • Sport: ${sport}`)
+  }
   insights.push(`Stake: $${amt} • ${percent}% of weekly budget`)
   if (isParlay) insights.push('Parlay: payout potential rises but probability drops sharply')
+  if (isPlayerProp) {
+    insights.push('Player props carry higher variance than game outcomes')
+    insights.push('Consider minutes/playing time, injury status, and matchup')
+  }
   if (type === 'Spread' || type === 'Over/Under') insights.push('Lines typically priced near even odds; vig affects EV')
   if (type === 'Moneyline') insights.push('Assess fair odds vs offered price; avoid heavy juice')
 
   const evNotes: string[] = []
   if (isParlay) evNotes.push('Compounded legs reduce win probability; EV often negative without edge')
+  if (isPlayerProp) evNotes.push('Props can offer value when recent performance differs from season average')
   evNotes.push('EV hinges on fair probability vs payout; track implied odds and vig')
   evNotes.push('Consider bankroll impact; higher stake % increases risk of ruin')
 
   const factors: string[] = []
-  factors.push('Team injuries and rest')
-  factors.push('Recent form and matchup stats')
-  factors.push('Home/away splits and travel')
-  factors.push('Line movement and market consensus')
-  factors.push('Weather (for outdoor sports)')
+  if (isPlayerProp) {
+    factors.push('Player injury status and minutes projection')
+    factors.push('Recent game log and performance trend')
+    factors.push('Matchup vs opponent (pace, defense)')
+    factors.push('Home/away splits')
+    factors.push('Rest days and back-to-back games')
+  } else {
+    factors.push('Team injuries and rest')
+    factors.push('Recent form and matchup stats')
+    factors.push('Home/away splits and travel')
+    factors.push('Line movement and market consensus')
+    factors.push('Weather (for outdoor sports)')
+  }
 
   return { insights, evNotes, factors }
 }
@@ -623,6 +637,17 @@ export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnh
     | undefined
   if (hasClaude) {
     try {
+      // Build player prop context if this is a player prop bet
+      const playerPropContext = payload.betType === 'Player Prop' && payload.playerName
+        ? {
+            playerName: payload.playerName,
+            playerTeam: payload.playerTeam || '',
+            propStat: payload.propStat || '',
+            propLine: payload.propLine || 0,
+            propDirection: payload.propDirection || 'over' as const,
+          }
+        : undefined
+
       claudeAnalysis = await getEnhancedBetAnalysis({
         sport: payload.sport,
         betType: payload.betType,
@@ -640,6 +665,7 @@ export async function analyzeScenarioWithAI(payload: BetScenario): Promise<AIEnh
         bettingSlip: payload.bettingSlip,
         history: payload.history,
         notes: payload.notes,
+        playerPropContext,
         builtInAnalysis: {
           analyticalInsights: [
             ...base.analytical.insights,

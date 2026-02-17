@@ -243,6 +243,33 @@ Use ALL available research to form your predictions:
   - Below 50: HIGH RISK. Low/No edge or dangerous emotional state (frustration/greed). NEVER RECOMMEND 'PREFERRED'.
 - **GAME TYPE MATCHING**: Match game variance to emotional state (e.g., avoid high-odds underdogs if user is frustrated).
 
+**PLAYER PROP ANALYSIS**:
+When analyzing player props (if player prop data is provided):
+- Consider player's recent performance trends (last 5-10 games if available)
+- Factor in matchup quality (opponent's defensive rankings vs position)
+- Account for game script expectations (spread/total implications)
+- Evaluate correlation with team performance
+- Check for injury/rest factors affecting player usage
+- Higher variance than game bets - adjust confidence accordingly
+
+**PROP-SPECIFIC VALUE SIGNALS**:
+- Over props: Look for high-usage players in favorable game scripts (big favorites often rest stars late)
+- Under props: Consider players on short rest, tough defensive matchups, or foul trouble risk
+- Combined stats (PTS+REB+AST): Evaluate floor vs ceiling - combined props hit more consistently
+- Touchdown props: Consider red zone usage, target share near goal line
+- Receptions/Targets: Factor in pace of play and expected game script
+
+**PLAYER PROP OUTPUT FIELDS**:
+When recommending a player prop, include these additional fields:
+- playerId: Unique player identifier
+- playerName: Full player name (e.g., "Patrick Mahomes")
+- playerTeam: Team abbreviation (e.g., "KC")
+- playerPosition: Position (e.g., "QB", "WR", "PG")
+- propCategory: Category type (passing, rushing, receiving, scoring, rebounding, etc.)
+- propStat: Specific stat market (e.g., "player_pass_yds", "player_points")
+- propLine: The numeric line (e.g., 250.5)
+- propDirection: "over" or "under"
+
 STRICT LOGIC RULES:
 - If stake > 20% of weekly budget, label riskLevel as 'HIGH'
 - If riskLevel is 'HIGH', shortExplanation must start with cautionary warning
@@ -369,6 +396,40 @@ Available bet types:
                 },
               },
               required: ["ev", "evPercentage"],
+            },
+            // Player prop fields (optional - only include when recommending player props)
+            playerId: {
+              type: "string",
+              description: "Unique player identifier (only for player props)"
+            },
+            playerName: {
+              type: "string",
+              description: "Full player name (e.g., 'Patrick Mahomes') - only for player props"
+            },
+            playerTeam: {
+              type: "string",
+              description: "Team abbreviation (e.g., 'KC') - only for player props"
+            },
+            playerPosition: {
+              type: "string",
+              description: "Position abbreviation (e.g., 'QB', 'WR', 'PG') - only for player props"
+            },
+            propCategory: {
+              type: "string",
+              description: "Prop category (passing, rushing, receiving, scoring, rebounding, etc.) - only for player props"
+            },
+            propStat: {
+              type: "string",
+              description: "Specific stat market (e.g., 'player_pass_yds', 'player_points') - only for player props"
+            },
+            propLine: {
+              type: "number",
+              description: "The numeric line value (e.g., 250.5) - only for player props"
+            },
+            propDirection: {
+              type: "string",
+              enum: ["over", "under"],
+              description: "Direction of the prop bet - only for player props"
             },
           },
           required: [

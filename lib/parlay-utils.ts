@@ -1,4 +1,5 @@
-import { ParlayLeg, CorrelationWarning, PickerRecommendationItem, ParlayRecommendation, ParlayType, ParlayOutcome } from './types/ai-models'
+import { ParlayLeg, CorrelationWarning, PickerRecommendationItem, ParlayRecommendation, ParlayType, ParlayOutcome, isPlayerPropLeg, PropCategory } from './types/ai-models'
+import { isParlayEligible, isSGPEligible, getSportById, getParlayEligibleSportIds, getSGPEligibleSportIds } from './sports-config'
 
 /**
  * 🎯 FIXED EV CALCULATION SYSTEM FOR PLAYMIND LABS SMARTSLIP
@@ -98,6 +99,90 @@ const SGP_CORRELATED_PAIRS: Array<{ marketA: string; marketB: string; extraTax: 
 ]
 
 /**
+ * Player-to-player correlation pairs for SGP detection.
+ * These capture correlations between different players on the same team
+ * or between opposing players in the same game.
+ */
+interface PlayerCorrelationPair {
+  playerA: { position?: string; stat?: string; category?: PropCategory }
+  playerB: { position?: string; stat?: string; category?: PropCategory }
+  sameTeam: boolean
+  extraTax: number
+  label: string
+}
+
+const PLAYER_CORRELATION_PAIRS: PlayerCorrelationPair[] = [
+  // Same player, multiple props (highest correlation)
+  // This is handled separately in detectPlayerCorrelations
+
+  // QB-WR/TE same team correlations (NFL)
+  {
+    playerA: { position: 'QB', category: 'passing' },
+    playerB: { position: 'WR', category: 'receiving' },
+    sameTeam: true,
+    extraTax: 0.12,
+    label: 'QB passing ↔ WR receiving (same team)'
+  },
+  {
+    playerA: { position: 'QB', category: 'passing' },
+    playerB: { position: 'TE', category: 'receiving' },
+    sameTeam: true,
+    extraTax: 0.10,
+    label: 'QB passing ↔ TE receiving (same team)'
+  },
+  {
+    playerA: { position: 'QB', stat: 'player_pass_tds' },
+    playerB: { category: 'touchdown' },
+    sameTeam: true,
+    extraTax: 0.15,
+    label: 'QB passing TDs ↔ teammate ATTD'
+  },
+
+  // RB correlations (NFL)
+  {
+    playerA: { position: 'RB', category: 'rushing' },
+    playerB: { position: 'RB', category: 'rushing' },
+    sameTeam: true,
+    extraTax: 0.08,
+    label: 'RB ↔ RB rushing (same team - split carries)'
+  },
+
+  // NBA Point Guard ↔ Teammate correlations
+  {
+    playerA: { position: 'PG', stat: 'player_assists' },
+    playerB: { category: 'scoring' },
+    sameTeam: true,
+    extraTax: 0.08,
+    label: 'PG assists ↔ teammate scoring'
+  },
+  {
+    playerA: { position: 'PG', stat: 'player_assists' },
+    playerB: { position: 'C', stat: 'player_points' },
+    sameTeam: true,
+    extraTax: 0.10,
+    label: 'PG assists ↔ Center points (PnR correlation)'
+  },
+
+  // NBA Rebound correlations
+  {
+    playerA: { category: 'rebounding' },
+    playerB: { category: 'rebounding' },
+    sameTeam: true,
+    extraTax: 0.06,
+    label: 'Teammate rebounding competition'
+  },
+
+  // Cross-team correlations (opposing players)
+  {
+    playerA: { position: 'QB', category: 'passing' },
+    playerB: { position: 'QB', category: 'passing' },
+    sameTeam: false,
+    extraTax: 0.05,
+    label: 'Opposing QB passing (game script correlation)'
+  },
+]
+
+/**
  * Detect SGP-specific correlation pairs present in a set of legs.
  * Returns warnings with the extra tax that should be applied.
  */
@@ -125,6 +210,104 @@ export function detectSGPCorrelationPairs(legs: ParlayLeg[]): Array<CorrelationW
 }
 
 /**
+ * Detect player-level correlations in parlay legs.
+ * This includes same-player stacking and position-based correlations.
+ *
+ * @param legs - Array of parlay legs to analyze
+ * @returns Array of correlation warnings with severity and extra tax
+ */
+export function detectPlayerCorrelations(legs: ParlayLeg[]): Array<CorrelationWarning & { extraTax: number }> {
+  const warnings: Array<CorrelationWarning & { extraTax: number }> = []
+  const playerLegs = legs.filter(isPlayerPropLeg)
+
+  if (playerLegs.length < 2) return warnings
+
+  // Check for same-player stacking (highest correlation)
+  const playerGroups = new Map<string, ParlayLeg[]>()
+  for (const leg of playerLegs) {
+    const playerId = leg.playerId!
+    if (!playerGroups.has(playerId)) {
+      playerGroups.set(playerId, [])
+    }
+    playerGroups.get(playerId)!.push(leg)
+  }
+
+  for (const [playerId, playerLegGroup] of playerGroups) {
+    if (playerLegGroup.length > 1) {
+      const playerName = playerLegGroup[0].playerName || playerId
+      const stats = playerLegGroup.map(l => l.propStat).join(', ')
+      warnings.push({
+        type: 'same-game',
+        severity: 'high',
+        message: `Same player stacking: ${playerName} (${stats}) → 15% extra tax`,
+        affectedLegs: playerLegGroup.map(l => l.pickId),
+        extraTax: 0.15
+      })
+    }
+  }
+
+  // Check position-based correlations between different players
+  for (let i = 0; i < playerLegs.length; i++) {
+    for (let j = i + 1; j < playerLegs.length; j++) {
+      const legA = playerLegs[i]
+      const legB = playerLegs[j]
+
+      // Skip if same player (already handled above)
+      if (legA.playerId === legB.playerId) continue
+
+      // Check if same game (required for correlation)
+      if (legA.gameId !== legB.gameId) continue
+
+      const sameTeam = legA.playerTeam === legB.playerTeam
+
+      // Find matching correlation pair
+      for (const pair of PLAYER_CORRELATION_PAIRS) {
+        if (pair.sameTeam !== sameTeam) continue
+
+        const matchesA = matchesPlayerCriteria(legA, pair.playerA)
+        const matchesB = matchesPlayerCriteria(legB, pair.playerB)
+        const matchesReverse = matchesPlayerCriteria(legA, pair.playerB) && matchesPlayerCriteria(legB, pair.playerA)
+
+        if ((matchesA && matchesB) || matchesReverse) {
+          warnings.push({
+            type: 'same-game',
+            severity: pair.extraTax >= 0.10 ? 'high' : 'medium',
+            message: `${pair.label} → ${(pair.extraTax * 100).toFixed(0)}% extra tax`,
+            affectedLegs: [legA.pickId, legB.pickId],
+            extraTax: pair.extraTax
+          })
+          break // Only add one warning per pair
+        }
+      }
+    }
+  }
+
+  return warnings
+}
+
+/**
+ * Check if a leg matches player correlation criteria
+ */
+function matchesPlayerCriteria(
+  leg: ParlayLeg,
+  criteria: { position?: string; stat?: string; category?: PropCategory }
+): boolean {
+  // If no criteria specified, it's a wildcard match
+  if (!criteria.position && !criteria.stat && !criteria.category) return true
+
+  // Check position match
+  if (criteria.position && leg.playerPosition !== criteria.position) return false
+
+  // Check stat match
+  if (criteria.stat && leg.propStat !== criteria.stat) return false
+
+  // Check category match
+  if (criteria.category && leg.propCategory !== criteria.category) return false
+
+  return true
+}
+
+/**
  * Calculate SGP odds with correlation tax.
  *
  * Base tax: 20-30% reduction (default taxMultiplier = 0.75 → 25% haircut).
@@ -140,7 +323,12 @@ export function calculateSGPOdds(
 ): { odds: number; correlationWarnings: Array<CorrelationWarning & { extraTax: number }>; effectiveTax: number } {
   const naive = legs.reduce((acc, leg) => acc * americanToDecimal(leg.odds), 1)
 
-  const correlationWarnings = detectSGPCorrelationPairs(legs)
+  // Detect both market-level and player-level correlations
+  const marketCorrelations = detectSGPCorrelationPairs(legs)
+  const playerCorrelations = detectPlayerCorrelations(legs)
+
+  // Combine all correlation warnings
+  const correlationWarnings = [...marketCorrelations, ...playerCorrelations]
   const totalExtraTax = correlationWarnings.reduce((sum, w) => sum + w.extraTax, 0)
 
   // Effective multiplier = baseTax × (1 − extra taxes), floored at 0.30
@@ -351,6 +539,16 @@ export function validateParlayLegs(
     }
   })
 
+  // ── Sport eligibility validation ──
+  const legsWithSport = legs.filter(l => l.sport)
+  const ineligibleSports = legsWithSport
+    .filter(l => l.sport && !isParlayEligible(l.sport))
+    .map(l => l.sport)
+  if (ineligibleSports.length > 0) {
+    const uniqueIneligible = [...new Set(ineligibleSports)]
+    warnings.push(`Sport(s) may not support parlays: ${uniqueIneligible.join(', ')}`)
+  }
+
   // ── Type-specific validation ──
   const gameIds = legs.map(l => l.gameId).filter(Boolean)
   const uniqueGames = new Set(gameIds)
@@ -382,13 +580,27 @@ export function validateParlayLegs(
     }
   }
 
-  // SGP-specific correlation warnings
+  // SGP-specific correlation warnings (market-level)
   if (detectedType === 'sgp' || detectedType === 'sgp_plus') {
     const sgpWarnings = detectSGPCorrelationPairs(legs)
     sgpWarnings.forEach(w => {
       warnings.push(w.message)
     })
+
+    // Check SGP eligibility for the sport
+    const sgpSports = legsWithSport.map(l => l.sport).filter(Boolean) as string[]
+    const sgpIneligible = sgpSports.filter(sport => !isSGPEligible(sport))
+    if (sgpIneligible.length > 0) {
+      const uniqueIneligible = [...new Set(sgpIneligible)]
+      warnings.push(`SGP may not be available for: ${uniqueIneligible.join(', ')}`)
+    }
   }
+
+  // Player-level correlation warnings (applies to any parlay with player props)
+  const playerCorrelations = detectPlayerCorrelations(legs)
+  playerCorrelations.forEach(w => {
+    warnings.push(w.message)
+  })
 
   return {
     isValid: errors.length === 0,
@@ -424,13 +636,44 @@ export function generateParlayRecommendations(
 
   const recommendations: ParlayRecommendation[] = []
 
-  // 2. Generate 2-Leg Parlays (The "Core" Parlays)
+  // 2. Generate SGP (Same Game Parlays) - game pick + player prop(s) from same game
+  const picksByGame = new Map<string, PickerRecommendationItem[]>()
+  for (const pick of candidates) {
+    if (!pick.gameId) continue
+    const existing = picksByGame.get(pick.gameId) || []
+    existing.push(pick)
+    picksByGame.set(pick.gameId, existing)
+  }
+
+  for (const [gameId, picks] of picksByGame) {
+    const gamePicksForGame = picks.filter(p => p.betType !== 'prop' && !p.propStat)
+    const propPicksForGame = picks.filter(p => p.betType === 'prop' || p.propStat)
+
+    // Only create SGPs if we have both game picks and prop picks for the same game
+    if (gamePicksForGame.length > 0 && propPicksForGame.length > 0) {
+      // Take the best game pick and best prop pick
+      const bestGamePick = gamePicksForGame[0]
+      const bestPropPick = propPicksForGame[0]
+
+      const sgp = createSGPFromLegs([bestGamePick, bestPropPick], sport)
+      if (sgp) recommendations.push(sgp)
+
+      // If we have multiple props, create a 3-leg SGP
+      if (propPicksForGame.length >= 2) {
+        const secondPropPick = propPicksForGame[1]
+        const sgp3Leg = createSGPFromLegs([bestGamePick, bestPropPick, secondPropPick], sport)
+        if (sgp3Leg) recommendations.push(sgp3Leg)
+      }
+    }
+  }
+
+  // 3. Generate 2-Leg Classic Parlays (different games)
   for (let i = 0; i < topCandidates.length; i++) {
     for (let j = i + 1; j < topCandidates.length; j++) {
       const leg1 = topCandidates[i]
       const leg2 = topCandidates[j]
 
-      // STRICT CHECK: Must be different games for V1 to avoid SGP correlation complexity
+      // Must be different games for classic parlays
       if (leg1.gameId === leg2.gameId) continue
 
       const parlay = createParlayFromLegs([leg1, leg2], 'core', sport)
@@ -546,4 +789,86 @@ function calculateImpliedFromEV(americanOdds: number, evPercentage: number): num
   // ROI + 1 = Decimal * Prob
   // Prob = (ROI + 1) / Decimal
   return (roi + 1) / decimal
+}
+
+/**
+ * Helper to construct an SGP (Same Game Parlay) from legs within the same game
+ * Applies correlation tax via calculateSGPOdds
+ */
+function createSGPFromLegs(
+  legsData: PickerRecommendationItem[],
+  sport?: string
+): ParlayRecommendation | null {
+  try {
+    const parlayLegs: ParlayLeg[] = legsData.map(l => ({
+      pickId: (l.gameId || 'unknown') + '_' + l.betType + '_' + (l.propStat || ''),
+      gameId: l.gameId,
+      teams: l.teams,
+      betType: l.betType,
+      line: l.line,
+      odds: l.odds,
+      confidence: l.confidence,
+      aiWinProbability: calculateImpliedFromEV(l.odds, l.numericRisk?.evPercentage || 0),
+      selection: l.line,
+      sport: sport,
+      // Player prop fields
+      playerId: l.playerId,
+      playerName: l.playerName,
+      playerTeam: l.playerTeam,
+      propCategory: l.propCategory,
+      propStat: l.propStat,
+      propLine: l.propLine,
+      propDirection: l.propDirection,
+    }))
+
+    // Use SGP odds calculation with correlation tax
+    const sgpResult = calculateSGPOdds(parlayLegs)
+    const totalOddsDecimal = sgpResult.odds
+    const totalOddsAmerican = decimalToAmerican(totalOddsDecimal)
+
+    // Combined True Probability (adjusted for correlations)
+    // For SGPs, reduce the combined probability slightly due to correlations
+    const correlationAdjustment = 1 - (sgpResult.effectiveTax * 0.5) // Partial adjustment
+    const trueProbability = parlayLegs.reduce((acc, leg) => acc * (leg.aiWinProbability || 0.5), 1) * correlationAdjustment
+
+    // Implied Probability from combined odds
+    const impliedProbability = 1 / totalOddsDecimal
+
+    // Projected EV (accounting for correlation tax in odds)
+    const projectedEV = (trueProbability * (totalOddsDecimal - 1)) - (1 - trueProbability)
+    const evPercentage = projectedEV * 100
+
+    // Skip if negative EV after correlation tax
+    if (evPercentage <= -5) return null // Allow slightly negative for display purposes
+
+    // Risk Score: Higher for SGPs due to correlation
+    const riskScore = Math.min(0.9, (1 - trueProbability) + 0.1) // Slightly higher risk for SGPs
+
+    // Build summary with player prop info
+    const propLegs = parlayLegs.filter(l => l.propStat)
+    const propSummary = propLegs.length > 0
+      ? propLegs.map(l => `${l.playerName} ${l.propDirection} ${l.propLine}`).join(' + ')
+      : ''
+
+    return {
+      legs: parlayLegs,
+      totalOddsAmerican,
+      totalOddsDecimal,
+      impliedProbability,
+      trueProbability,
+      projectedEV,
+      evPercentage,
+      riskScore,
+      suggestedStake: 10, // Smaller stakes for SGPs due to higher variance
+      parlayType: 'sgp',
+      category: legsData.length <= 2 ? 'core' : 'lotto',
+      correlationWarnings: sgpResult.correlationWarnings,
+      summary: propSummary
+        ? `SGP: ${propSummary} (${evPercentage > 0 ? '+' : ''}${Math.round(evPercentage)}% EV)`
+        : `${legsData.length}-Leg SGP (${evPercentage > 0 ? '+' : ''}${Math.round(evPercentage)}% EV)`
+    }
+  } catch (e) {
+    console.error("Error creating SGP recommendation:", e)
+    return null
+  }
 }

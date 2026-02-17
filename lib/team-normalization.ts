@@ -280,7 +280,7 @@ export function extractAndNormalizeTeams(
 ): { awayTeam: string; homeTeam: string; detectedSport?: string } {
   // Clean description
   let cleaned = description
-    .replace(/^(football|basketball|baseball|hockey|soccer|nba|nfl|mlb|nhl|ncaab|ncaaf|mma|ufc)[,:\-–—\s]+/i, '')
+    .replace(/^(americanfootball_nfl|basketball_nba|baseball_mlb|icehockey_nhl|soccer_usa_mls|soccer_epl|soccer_uefa_champions_league|football|basketball|baseball|hockey|soccer|nba|nfl|mlb|nhl|ncaab|ncaaf|mma|ufc)[,:\-–—\s]+/i, '')
     .replace(/[,\-–—]\s*(superbowl|super bowl|world series|stanley cup|nba finals|playoffs|championship|week \d+|round \d+|game \d+).*$/i, '')
     .trim()
 

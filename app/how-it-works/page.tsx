@@ -11,7 +11,7 @@ export default function HowItWorksPage() {
     <FooterPageWrapper>
       <div className="container mx-auto px-4 py-10 max-w-5xl">
         <div className="text-center space-y-2 mb-8">
-          <h1 className="text-4xl font-bold text-foreground">How PlayMind Labs Works</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground">How PlayMind Labs Works</h1>
           <p className="text-muted-foreground">Behavioral fintech for safer, smarter sports betting</p>
         </div>
 
@@ -68,7 +68,7 @@ export default function HowItWorksPage() {
             </div>
             <div className="flex gap-3">
               <Button asChild>
-                <Link href="/login">Log In</Link>
+                <Link href="/login">Get Started</Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/pricing">See Pricing</Link>

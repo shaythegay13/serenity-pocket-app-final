@@ -11,23 +11,40 @@ import {
   LumaCalendarIcon
 } from "@/components/ui/social-icons"
 
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
+
 export function Footer() {
+  const [isAuthed, setIsAuthed] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthed(!!session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <footer className="border-t border-border bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between gap-8">
           {/* Logo and Description - Full width on all screens */}
           <div className="space-y-4 md:max-w-sm">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <Link href={isAuthed ? "/home" : "/"} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="shrink-0">
                 <div className="relative w-32 h-16 overflow-hidden rounded-none">
-                <Image
-                  src="/logo.png"
-                  alt="PlayMind Labs Logo"
-                  fill
-                  className="object-cover object-center dark:invert"
-                />
-              </div>
+                  <Image
+                    src="/logo.png"
+                    alt="PlayMind Labs Logo"
+                    fill
+                    className="object-cover object-center logo-dark-mode-auto"
+                  />
+                </div>
               </div>
             </Link>
             <p className="text-sm text-muted-foreground max-w-sm">

@@ -30,7 +30,8 @@ import type { UnifiedBet } from "./types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
-import { normalizeTeamName } from "@/lib/team-normalization"
+import { normalizeTeamName, extractAndNormalizeTeams } from "@/lib/team-normalization"
+import { getSportById } from "@/lib/sports-config"
 
 interface PerformanceTabProps {
   trades: Trade[]
@@ -48,23 +49,28 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       return calculateBettingMetrics(unifiedBets)
     }
 
-    // Compute parlay metrics from actual parlay data
+    // Compute parlay metrics from both actual parlay data and manual entries in trades
     const settledParlays = propParlays.filter(p => p.outcome === 'won' || p.outcome === 'lost' || p.outcome === 'push' || p.outcome === 'void')
-    const parlayWins = propParlays.filter(p => p.outcome === 'won')
-    const parlayLosses = propParlays.filter(p => p.outcome === 'lost')
-    const parlayTotalStaked = settledParlays.reduce((s, p) => s + (p.stake || 0), 0)
-    const parlayTotalReturns = settledParlays.reduce((s, p) => s + (p.actualPayout || 0), 0)
+    const manualParlays = trades.filter(t => t.isParlay)
+    const settledManualParlays = manualParlays.filter(t => t.outcome && t.actualReturn != null)
+
+    const totalParlayWins = propParlays.filter(p => p.outcome === 'won').length + manualParlays.filter(t => t.outcome === 'profit').length
+    const totalParlayLosses = propParlays.filter(p => p.outcome === 'lost').length + manualParlays.filter(t => t.outcome === 'loss').length
+
+    const parlayTotalStaked = settledParlays.reduce((s, p) => s + (p.stake || 0), 0) + settledManualParlays.reduce((s, t) => s + (t.stake || 0), 0)
+    const parlayTotalReturns = settledParlays.reduce((s, p) => s + (p.actualPayout || 0), 0) + settledManualParlays.reduce((s, t) => s + (t.actualReturn || 0), 0)
     const parlayProfit = parlayTotalReturns - parlayTotalStaked
+
     const parlayMetrics = {
-      totalParlays: propParlays.length,
-      completedParlays: settledParlays.length,
-      parlayWins: parlayWins.length,
-      parlayLosses: parlayLosses.length,
-      parlayWinRate: (parlayWins.length + parlayLosses.length) > 0
-        ? (parlayWins.length / (parlayWins.length + parlayLosses.length)) * 100
+      totalParlays: propParlays.length + manualParlays.length,
+      completedParlays: settledParlays.length + settledManualParlays.length,
+      parlayWins: totalParlayWins,
+      parlayLosses: totalParlayLosses,
+      parlayWinRate: (totalParlayWins + totalParlayLosses) > 0
+        ? (totalParlayWins / (totalParlayWins + totalParlayLosses)) * 100
         : 0,
       parlayROI: parlayTotalStaked > 0 ? (parlayProfit / parlayTotalStaked) * 100 : 0,
-      parlayPercentage: trades.length > 0 ? (propParlays.length / (trades.length + propParlays.length)) * 100 : 0,
+      parlayPercentage: trades.length > 0 ? ((propParlays.length + manualParlays.length) / trades.length) * 100 : 0,
     }
 
     // Fallback to trades data
@@ -80,11 +86,11 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
     // Calculate average expected value from completed trades
     const tradesWithEV = completed.filter(t => t.stake && t.stake > 0)
-    const avgEV = tradesWithEV.length > 0 
+    const avgEV = tradesWithEV.length > 0
       ? tradesWithEV.reduce((sum: number, trade: Trade) => {
-          const profit = (trade.actualReturn || 0) - (trade.stake || 0)
-          return sum + profit
-        }, 0) / tradesWithEV.length
+        const profit = (trade.actualReturn || 0) - (trade.stake || 0)
+        return sum + profit
+      }, 0) / tradesWithEV.length
       : 0
 
     return {
@@ -126,7 +132,30 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const pendingAnalyses = analyses.filter(bet => bet.outcome === 'pending')
       const pendingCompBets = comprehensiveBets.filter(bet => bet.outcome === 'pending')
 
-      setPendingBets(pendingAnalyses)
+      // Deduplicate: ComprehensiveBets take priority over BetAnalysis
+      // Create a set of IDs from comprehensive bets for fast lookup
+      const compBetIds = new Set(pendingCompBets.map(b => b.id))
+
+      // Also check for duplicates by matching on description + stake + timestamp (within 5 minutes)
+      const isDuplicate = (analysis: BetAnalysis) => {
+        // Check exact ID match first
+        if (compBetIds.has(analysis.id)) return true
+
+        // Check for same bet logged to both systems by matching key fields
+        return pendingCompBets.some(compBet => {
+          const timeDiff = Math.abs(new Date(analysis.timestamp).getTime() - new Date(compBet.timestamp).getTime())
+          const sameTimeWindow = timeDiff < 5 * 60 * 1000 // Within 5 minutes
+          const sameStake = Math.abs(analysis.stake - compBet.stake) < 0.01
+          const sameOdds = Math.abs((analysis.odds ?? 0) - compBet.odds) < 1
+
+          return sameTimeWindow && sameStake && sameOdds
+        })
+      }
+
+      // Filter out analyses that are duplicates of comprehensive bets
+      const uniqueAnalyses = pendingAnalyses.filter(a => !isDuplicate(a))
+
+      setPendingBets(uniqueAnalyses)
       setPendingComprehensiveBets(pendingCompBets)
     } catch (error) {
       console.error('Error loading pending bets:', error)
@@ -162,13 +191,23 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     const bet = pendingBets.find(b => b.id === betId)
     if (!bet) return
 
+    // Extract teams from description if they are Unknown
+    let homeTeam = "Unknown"
+    let awayTeam = "Unknown"
+
+    if (bet.description) {
+      const extracted = extractAndNormalizeTeams(bet.description, bet.sport)
+      homeTeam = extracted.homeTeam
+      awayTeam = extracted.awayTeam
+    }
+
     // Convert BetAnalysis to ComprehensiveBet format for the dialog
     const comprehensiveBet: ComprehensiveBet = {
       id: bet.id,
       timestamp: new Date(bet.timestamp),
       sport: (bet.sport || "americanfootball_nfl") as ComprehensiveBet["sport"],
-      homeTeam: "Unknown",
-      awayTeam: "Unknown",
+      homeTeam,
+      awayTeam,
       gameDate: new Date(bet.timestamp),
       betType: bet.betType === "straight" ? "moneyline" : bet.betType as any,
       selection: "away",
@@ -252,33 +291,17 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
     ].filter(item => item.value > 0)
   }, [trades])
 
-  // Format sport key to display name (e.g., "basketball_nba" -> "NBA")
+  // Format sport key to display name
   const formatSportName = (sportKey: string): string => {
     if (!sportKey || sportKey === 'Unknown') return 'Unknown'
+    const config = getSportById(sportKey)
+    if (config?.displayName) return config.displayName
 
-    // Common sport key mappings
-    const sportNames: Record<string, string> = {
-      'basketball_nba': 'NBA',
-      'americanfootball_nfl': 'NFL',
-      'baseball_mlb': 'MLB',
-      'icehockey_nhl': 'NHL',
-      'basketball_ncaab': 'NCAAB',
-      'americanfootball_ncaaf': 'NCAAF',
-      'soccer_epl': 'EPL',
-      'soccer_mls': 'MLS',
-      'soccer_champions_league': 'Champions League',
-      'mma_ufc': 'UFC',
-      'boxing': 'Boxing',
-      'tennis_atp': 'ATP Tennis',
-      'tennis_wta': 'WTA Tennis',
-      'golf_pga': 'PGA Golf',
-      'motorsports_f1': 'F1',
-      'motorsports_nascar': 'NASCAR',
-      'esports_lol': 'LoL',
-      'esports_csgo': 'CS:GO',
-    }
-
-    return sportNames[sportKey] || sportKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    // Fallback for database keys like americanfootball_nfl
+    return sportKey
+      .replace(/^[a-z]+_(.*)$/i, '$1') // Extract the part after _
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase()) || sportKey
   }
 
   // Sport performance
@@ -473,6 +496,70 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       .slice(0, 10)
   }, [propComprehensiveBets, pendingComprehensiveBets, unifiedBets])
 
+  // Player betting statistics - count bets on specific players (props)
+  const playerStats = useMemo(() => {
+    const playerMap = new Map<string, { bets: number; wins: number; losses: number; pushes: number; profit: number }>()
+
+    const addPlayerStats = (playerName: string, betsToAdd: number, wins: number, losses: number, pushes: number, profit: number) => {
+      if (!playerMap.has(playerName)) {
+        playerMap.set(playerName, { bets: 0, wins: 0, losses: 0, pushes: 0, profit: 0 })
+      }
+      const stats = playerMap.get(playerName)!
+      stats.bets += betsToAdd
+      stats.wins += wins
+      stats.losses += losses
+      stats.pushes += pushes
+      stats.profit += profit
+    }
+
+    // Process all comprehensive bets (settled and pending)
+    [...propComprehensiveBets, ...pendingComprehensiveBets].forEach(bet => {
+      if (bet.playerName) {
+        const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
+        addPlayerStats(
+          bet.playerName,
+          1,
+          bet.outcome === 'win' ? 1 : 0,
+          bet.outcome === 'loss' ? 1 : 0,
+          bet.outcome === 'push' ? 1 : 0,
+          betProfit
+        )
+      }
+    })
+
+    // Process parlay legs which often contain player props
+    propParlays.forEach(parlay => {
+      parlay.legs.forEach(leg => {
+        if (leg.playerName) {
+          addPlayerStats(
+            leg.playerName,
+            1,
+            leg.outcome === 'won' ? 1 : 0,
+            leg.outcome === 'lost' ? 1 : 0,
+            leg.outcome === 'push' ? 1 : 0,
+            0 // Leg-specific profit is complex to attribute in a parlay
+          )
+        }
+      })
+    })
+
+    return Array.from(playerMap.entries())
+      .map(([player, stats]) => ({
+        player,
+        bets: stats.bets,
+        wins: stats.wins,
+        losses: stats.losses,
+        pushes: stats.pushes,
+        profit: Math.round(stats.profit * 100) / 100,
+        winRate: (stats.wins + stats.losses) > 0
+          ? (stats.wins / (stats.wins + stats.losses)) * 100
+          : 0
+      }))
+      .filter(p => p.bets > 0)
+      .sort((a, b) => b.bets - a.bets)
+      .slice(0, 10)
+  }, [propComprehensiveBets, pendingComprehensiveBets, propParlays])
+
   // Cumulative profit over time
   const cumulativeProfit = useMemo(() => {
     const sorted = [...trades]
@@ -522,17 +609,26 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
           <div className="space-y-3">
             {/* Show pending comprehensive bets first */}
-            {pendingComprehensiveBets.map(bet => (
+            {pendingComprehensiveBets.map(bet => {
+              // Helper to check if team name is valid/known
+              const isValidTeam = (team: string | undefined) =>
+                team && team.trim() !== "" && team !== "Unknown"
+
+              // Determine display text: use description if teams are unknown/invalid
+              const hasValidTeams = isValidTeam(bet.homeTeam) && isValidTeam(bet.awayTeam)
+              const displayText = hasValidTeams
+                ? `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`
+                : bet.description || `${bet.betType} bet`
+
+              return (
               <Card key={bet.id} className="p-4 border-l-4 border-l-orange-500">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="font-medium text-foreground">
-                      {bet.homeTeam === "Unknown" && bet.awayTeam === "Unknown" && bet.description
-                        ? bet.description
-                        : `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`}
+                      {displayText}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {bet.sport} • ${bet.stake.toFixed(2)} • {bet.odds > 0 ? '+' : ''}{bet.odds}
+                      {formatSportName(bet.sport)} • ${bet.stake.toFixed(2)} • {bet.odds > 0 ? '+' : ''}{bet.odds}
                     </div>
                     {bet.emotions.before.emotion && (
                       <div className="text-xs text-muted-foreground mt-1">
@@ -570,7 +666,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
                   </div>
                 </div>
               </Card>
-            ))}
+            )})}
 
             {/* Show legacy pending bet analyses */}
             {pendingBets.map(bet => (
@@ -579,7 +675,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
                   <div className="flex-1">
                     <div className="font-medium text-foreground">{bet.description || 'Unknown Bet'}</div>
                     <div className="text-sm text-muted-foreground">
-                      {bet.sport} • ${bet.stake.toFixed(2)} • {(bet.odds ?? 0) > 0 ? '+' : ''}{bet.odds ?? 'N/A'}
+                      {formatSportName(bet.sport || 'Unknown')} • ${bet.stake.toFixed(2)} • {(bet.odds ?? 0) > 0 ? '+' : ''}{bet.odds ?? 'N/A'}
                     </div>
                   </div>
 
@@ -892,6 +988,90 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         ) : (
           <div className="h-[200px] flex items-center justify-center text-muted-foreground">
             No team data available yet. Log bets with team names to see statistics.
+          </div>
+        )}
+      </Card>
+
+      {/* Player Performance Insights */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="h-5 w-5 text-primary" />
+          <h4 className="font-semibold text-foreground">Player Performance Insights</h4>
+        </div>
+        {playerStats.length > 0 ? (
+          <div className="space-y-6">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={playerStats}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.2 0.01 250)" />
+                <XAxis
+                  dataKey="player"
+                  stroke="oklch(0.55 0.01 250)"
+                  tick={{ fill: 'oklch(0.55 0.01 250)', fontSize: 11 }}
+                />
+                <YAxis
+                  stroke="oklch(0.55 0.01 250)"
+                  tick={{ fill: 'oklch(0.55 0.01 250)' }}
+                  label={{ value: 'Win Rate %', angle: -90, position: 'insideLeft', fill: 'oklch(0.55 0.01 250)' }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'oklch(0.16 0.01 250)',
+                    border: '1px solid oklch(0.18 0.01 250)',
+                    borderRadius: '0.5rem',
+                    color: 'oklch(0.98 0 0)'
+                  }}
+                />
+                <Bar dataKey="winRate" name="Win Rate %">
+                  {playerStats.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.winRate >= 50 ? 'oklch(0.65 0.18 150)' : 'oklch(0.55 0.24 25)'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {playerStats.map(player => (
+                <Card key={player.player} className="p-4 border-l-4 border-l-blue-500">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h5 className="font-semibold text-foreground truncate" title={player.player}>
+                        {player.player}
+                      </h5>
+                      <Badge variant="outline">{player.bets} {player.bets === 1 ? 'bet' : 'bets'}</Badge>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Win Rate:</span>
+                        <Badge variant={player.winRate >= 50 ? "default" : "secondary"}>
+                          {player.winRate.toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Record:</span>
+                        <span className="text-foreground">{player.wins}-{player.losses}</span>
+                      </div>
+                      {player.profit !== 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Profit:</span>
+                          <span className={player.profit >= 0 ? "text-success" : "text-destructive"}>
+                            ${player.profit.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground">
+            <Target className="h-12 w-12 mx-auto opacity-20 mb-2" />
+            <p>No player performance data available yet.</p>
+            <p className="text-xs mt-1">Player statistics will appear here when you log player prop bets.</p>
           </div>
         )}
       </Card>

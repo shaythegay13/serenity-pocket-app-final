@@ -280,6 +280,10 @@ export interface Trade {
   betType?: string
   /** Odds for the bet (American format) */
   odds?: number
+  /** Whether this bet is a parlay */
+  isParlay?: boolean
+  /** Player name for prop bets */
+  playerName?: string
 }
 
 export interface GameMarketSnapshot {

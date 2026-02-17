@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import { extractAndNormalizeTeams, normalizeTeamName } from "@/lib/team-normalization"
+import { getSportDisplayName } from "@/lib/sports-config"
 
 interface EmotionsTabProps {
   userData: UserData
@@ -195,6 +196,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
   // Team selection state - which team is the user betting on
   const [parsedTeams, setParsedTeams] = useState<{ awayTeam: string; homeTeam: string }>({ awayTeam: "", homeTeam: "" })
   const [selectedTeamSide, setSelectedTeamSide] = useState<"home" | "away" | "">("")
+  const [isParlay, setIsParlay] = useState(false)
 
   // Parse game description to extract teams
   useEffect(() => {
@@ -242,7 +244,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
         const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
 
         // Filter for pending comprehensive bets (include both explicit "pending" and undefined outcomes)
-        const pendingBets = safeComprehensiveBets.filter(bet => 
+        const pendingBets = safeComprehensiveBets.filter(bet =>
           bet.outcome === "pending" || bet.outcome === undefined
         )
 
@@ -274,7 +276,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       try {
         const comprehensiveBetsData = await storage.getComprehensiveBets().catch(() => [])
         const safeComprehensiveBets = Array.isArray(comprehensiveBetsData) ? comprehensiveBetsData : []
-        const pendingBets = safeComprehensiveBets.filter(bet => 
+        const pendingBets = safeComprehensiveBets.filter(bet =>
           bet.outcome === "pending" || bet.outcome === undefined
         )
         setPendingComprehensiveBets(pendingBets)
@@ -340,6 +342,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     // Reset team selection
     setParsedTeams({ awayTeam: "", homeTeam: "" })
     setSelectedTeamSide("")
+    setIsParlay(false)
   }
 
   // Load saved bets from storage for "Select Saved Bet" mode
@@ -371,7 +374,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     // Auto-fill form with selected bet data
     setStake(bet.stake.toString())
     setOdds(bet.odds.toString())
-    setGameDescription(`${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+    setGameDescription(bet.description || `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+    setIsParlay(bet.betType === 'parlay')
     setActualReturn("") // User still needs to enter actual return
   }
 
@@ -499,7 +503,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               intensity[0],
               isLiveBet, // Pass live bet flag for risk tracking
               teamsOverride,
-              selectedTeamSide || undefined
+              selectedTeamSide || undefined,
+              isParlay ? "parlay" : undefined
             )
             createdComprehensiveBet = true
           } else if (selectedBet) {
@@ -583,7 +588,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
           const betAnalysis = {
             id: `bet_${Date.now()}`,
             timestamp: new Date(),
-            betType: "straight" as const,
+            betType: (isParlay ? "parlay" : "straight") as any,
             sport: selectedBet?.sport || "general",
             description: gameDescription,
             odds: oddsNumber,
@@ -591,7 +596,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
             emotionalState: selectedEmotion,
             emotionalIntensity: emotionalInt,
             biasWarnings: [],
-            aiRecommendation: "",
+            aiRecommendation: context || "", // Store user's notes
             expectedValue: 0,
             probabilityEstimate: 0.5,
             outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
@@ -688,7 +693,8 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               intensity[0],
               isLiveBet, // Pass live bet flag for risk tracking
               teamsOverrideDuring,
-              selectedTeamSide || undefined
+              selectedTeamSide || undefined,
+              isParlay ? "parlay" : undefined
             )
           } else if (selectedBet) {
             await BetTrackingService.updateBetEmotion(
@@ -807,8 +813,13 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                         : `${bet.awayTeam} vs ${bet.homeTeam}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
+                      {getSportDisplayName(bet.sport)} • {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
                     </p>
+                    {bet.reasoning && (
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        Notes: {bet.reasoning}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(bet.timestamp), "MMM d, yyyy 'at' h:mm a")}
                     </p>
@@ -1165,9 +1176,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                             type="number"
                             step="0.01"
                             min="0"
-                            placeholder="50.00"
+                            placeholder="e.g. 50.00"
                             value={stake}
                             onChange={(e: ChangeEvent<HTMLInputElement>) => setStake(e.target.value)}
+                            className="placeholder:opacity-50"
                           />
                         </div>
 
@@ -1176,9 +1188,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           <Input
                             id="odds"
                             type="text"
-                            placeholder="+110"
+                            placeholder="e.g. +110"
                             value={odds}
                             onChange={(e: ChangeEvent<HTMLInputElement>) => setOdds(e.target.value)}
+                            className="placeholder:opacity-50"
                           />
                         </div>
                       </div>
@@ -1191,12 +1204,13 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           placeholder="e.g., Lakers vs Warriors - NBA"
                           value={gameDescription}
                           onChange={(e: ChangeEvent<HTMLInputElement>) => setGameDescription(e.target.value)}
+                          className="placeholder:opacity-50"
                         />
                       </div>
 
                       {/* Team Selection - Which team are you betting on? */}
                       {(parsedTeams.awayTeam !== "" && parsedTeams.awayTeam !== "Unknown") ||
-                       (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
+                        (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
                         <div className="space-y-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                           <Label className="text-sm font-medium">Which team are you betting on?</Label>
                           <div className="grid grid-cols-2 gap-2">
@@ -1204,11 +1218,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("away")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
-                                  selectedTeamSide === "away"
-                                    ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
-                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
-                                }`}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${selectedTeamSide === "away"
+                                  ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
+                                  }`}
                               >
                                 {parsedTeams.awayTeam}
                               </button>
@@ -1217,11 +1230,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("home")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
-                                  selectedTeamSide === "home"
-                                    ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
-                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
-                                }`}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${selectedTeamSide === "home"
+                                  ? "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-accent"
+                                  }`}
                               >
                                 {parsedTeams.homeTeam}
                               </button>
@@ -1249,14 +1261,38 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                           role="switch"
                           aria-checked={isLiveBet}
                           onClick={() => setIsLiveBet(!isLiveBet)}
-                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${
-                            isLiveBet ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
-                          }`}
+                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${isLiveBet ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
+                            }`}
                         >
                           <span
-                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${
-                              isLiveBet ? "translate-x-7" : "translate-x-1"
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${isLiveBet ? "translate-x-7" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Parlay Toggle - New feature integration */}
+                      <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <div className="flex-1">
+                          <Label htmlFor="tabIsParlay" className="text-sm font-medium cursor-pointer">
+                            Is this a parlay?
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Track emotions specifically for parlay bets
+                          </p>
+                        </div>
+                        <button
+                          id="tabIsParlay"
+                          type="button"
+                          role="switch"
+                          aria-checked={isParlay}
+                          onClick={() => setIsParlay(!isParlay)}
+                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${isParlay ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
                             }`}
+                        >
+                          <span
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${isParlay ? "translate-x-7" : "translate-x-1"
+                              }`}
                           />
                         </button>
                       </div>
@@ -1293,11 +1329,18 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <p className="font-medium text-sm">
-                                      {bet.awayTeam} vs {bet.homeTeam}
+                                      {bet.homeTeam === "Unknown" && bet.awayTeam === "Unknown" && bet.description
+                                        ? bet.description
+                                        : `${bet.awayTeam} vs ${bet.homeTeam}`}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {bet.betType} • {bet.sport} • ${bet.stake} @ {bet.odds}
+                                      {bet.betType} • {getSportDisplayName(bet.sport)} • ${bet.stake} @ {bet.odds}
                                     </p>
+                                    {bet.reasoning && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                        Notes: {bet.reasoning}
+                                      </p>
+                                    )}
                                     <p className="text-xs text-muted-foreground mt-1">
                                       Source: {bet.source === "bet-analyzer" ? "Bet Analyzer" : "TiltLab"}
                                     </p>
@@ -1316,7 +1359,9 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                               <p className="text-sm font-medium text-green-600 dark:text-green-400">Selected bet details auto-filled</p>
                               <p className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">
-                                {selectedBet.awayTeam} vs {selectedBet.homeTeam} - {selectedBet.betType}
+                                {selectedBet.homeTeam === "Unknown" && selectedBet.awayTeam === "Unknown" && selectedBet.description
+                                  ? selectedBet.description
+                                  : `${selectedBet.awayTeam} vs ${selectedBet.homeTeam}`} - {selectedBet.betType}
                               </p>
                             </div>
                           )}

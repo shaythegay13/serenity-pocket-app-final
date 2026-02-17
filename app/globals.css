@@ -181,6 +181,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
@@ -198,23 +199,30 @@
   .gradient-text {
     @apply bg-linear-to-r from-primary via-secondary to-primary bg-clip-text text-transparent;
   }
+
   .gradient-data {
     @apply bg-linear-to-r from-[#3b82f6] to-[#8b5cf6] bg-clip-text text-transparent;
   }
+
   .gradient-discipline {
     @apply bg-linear-to-r from-[#ec4899] to-[#8b5cf6] bg-clip-text text-transparent;
   }
+
   .gradient-primary {
     @apply bg-linear-to-r from-[#3b82f6] to-[#a855f7];
   }
 
   /* Hide scrollbar utility for mobile-friendly horizontal scrolling */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari, Opera */
+    display: none;
+    /* Chrome, Safari, Opera */
   }
 
   /* Touch-friendly tap targets - ensure minimum 44px for accessibility */
@@ -246,6 +254,7 @@
 
   /* Desktop (lg breakpoint 1024px+): Force 96px size */
   @media (min-width: 1024px) {
+
     .archetype-avatar.h-24.w-24,
     .archetype-avatar.lg\:h-24.lg\:w-24 {
       width: 96px !important;
@@ -271,6 +280,7 @@
 }
 
 /* Custom logo dark mode styling - invert only black text, preserve purple */
-.dark .logo-dark-mode {
+.logo-dark-mode,
+.dark .logo-dark-mode-auto {
   filter: invert(1) brightness(1.2) contrast(1.1) saturate(1.5);
 }

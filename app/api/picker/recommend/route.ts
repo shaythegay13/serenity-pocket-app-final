@@ -30,7 +30,9 @@ import {
   getKellyFraction,
   getSportVariance,
 } from "@/lib/risk-index"
-import { getSportById } from "@/lib/sports-config"
+import { getSportById, normalizeSportKey } from "@/lib/sports-config"
+import { getPlayerPropsForGames } from "@/lib/services/player-data-service"
+import type { PlayerPropLine } from "@/lib/types/player-props"
 
 // -- ANCHORED RISK IMPORTS --
 import {
@@ -150,39 +152,6 @@ interface PickerRequestBody {
   weeklyBudget?: number
   currentEmotion?: string
   currentEmotionIntensity?: number
-}
-
-function normalizeSportKey(input?: string): string {
-  const raw = String(input || "").trim()
-  if (!raw) return "basketball_nba"
-  const v = raw.toLowerCase()
-  if (v === "basketball_nba" || v.includes("basketball_nba")) return "basketball_nba"
-  if (v === "americanfootball_nfl" || v.includes("americanfootball_nfl"))
-    return "americanfootball_nfl"
-  if (v === "baseball_mlb" || v.includes("baseball_mlb")) return "baseball_mlb"
-  if (v === "icehockey_nhl" || v.includes("icehockey_nhl")) return "icehockey_nhl"
-  if (v === "nba" || v.includes(" nba")) return "basketball_nba"
-  if (v === "nfl" || v.includes(" nfl")) return "americanfootball_nfl"
-  if (v === "mlb" || v.includes(" mlb")) return "baseball_mlb"
-  if (v === "nhl" || v.includes(" nhl")) return "icehockey_nhl"
-  if (v.includes("ncaab") || v.includes("ncaa_basketball")) return "basketball_ncaab"
-  if (v.includes("ncaaf") || v.includes("ncaa_football")) return "americanfootball_ncaaf"
-  if (v.includes("epl") || v.includes("premier league")) return "soccer_epl"
-  if (v.includes("mls")) return "soccer_mls"
-  if (v.includes("ucl") || v.includes("champions league"))
-    return "soccer_champions_league"
-  if (v.includes("ufc") || v.includes("mma")) return "mma_ufc"
-  if (v.includes("boxing")) return "boxing"
-  if (v.includes("atp")) return "tennis_atp"
-  if (v.includes("wta")) return "tennis_wta"
-  if (v.includes("tennis")) return "tennis_atp"
-  if (v.includes("pga")) return "golf_pga"
-  if (v.includes("golf")) return "golf_pga"
-  if (v.includes("f1")) return "motorsports_f1"
-  if (v.includes("nascar")) return "motorsports_nascar"
-  if (v.includes("lol")) return "esports_lol"
-  if (v.includes("csgo")) return "esports_csgo"
-  return raw
 }
 
 function oddsToImpliedProb(odds: number, sportKey: string = ""): number {
@@ -452,6 +421,147 @@ async function buildFallbackRecommendations(args: {
   return { recommendations: sortedFinal }
 }
 
+/**
+ * Build player prop recommendations from available prop lines
+ * Uses EV calculation to identify positive-value props
+ */
+async function buildPlayerPropRecommendations(args: {
+  playerPropsByGame: Map<string, PlayerPropLine[]>
+  games: Array<{ id?: string; context: CurrentGameContext }>
+  riskTolerance: "conservative" | "moderate" | "aggressive"
+  weeklyBudget: number
+  emotionalScore?: number
+  maxPropsPerGame?: number
+  maxTotalProps?: number
+}): Promise<any[]> {
+  const {
+    playerPropsByGame,
+    games,
+    riskTolerance,
+    weeklyBudget,
+    emotionalScore,
+    maxPropsPerGame = 2,
+    maxTotalProps = 6
+  } = args
+
+  const alignment =
+    typeof emotionalScore === "number"
+      ? Math.max(0, Math.min(100, Math.round(emotionalScore)))
+      : 70
+
+  const riskLevel =
+    riskTolerance === "conservative"
+      ? "LOW"
+      : riskTolerance === "aggressive"
+        ? "HIGH"
+        : "MEDIUM"
+
+  const baseStake =
+    riskTolerance === "aggressive"
+      ? 30
+      : riskTolerance === "conservative"
+        ? 10
+        : 20
+
+  const propPicks: any[] = []
+
+  // Create a map from gameId to game context for lookups
+  const gameContextMap = new Map(games.map(g => [g.id, g.context]))
+
+  for (const [gameId, props] of playerPropsByGame) {
+    const gameContext = gameContextMap.get(gameId)
+    if (!gameContext) continue
+
+    // Process each prop for this game
+    const gamePropPicks: any[] = []
+
+    for (const prop of props) {
+      // Use AI probability if available, otherwise use historical hit rate or estimate
+      const aiOverProb = prop.aiOverProbability ?? prop.historicalHitRate ?? 0.5
+      const aiUnderProb = prop.aiUnderProbability ?? (1 - aiOverProb)
+
+      // Calculate EV for both directions
+      const overEv = computeEv({
+        offeredAmericanOdds: prop.overOdds,
+        precomputedTrueWinProb: aiOverProb,
+        stake: baseStake
+      })
+
+      const underEv = computeEv({
+        offeredAmericanOdds: prop.underOdds,
+        precomputedTrueWinProb: aiUnderProb,
+        stake: baseStake
+      })
+
+      // Create pick for the better direction
+      const bestDirection = overEv.evDollars > underEv.evDollars ? 'over' : 'under'
+      const bestEv = bestDirection === 'over' ? overEv : underEv
+      const bestOdds = bestDirection === 'over' ? prop.overOdds : prop.underOdds
+      const bestProb = bestDirection === 'over' ? aiOverProb : aiUnderProb
+
+      // Calculate Kelly fraction
+      const kellyFraction = bestEv.evPercent > 0
+        ? Math.min(0.1, (bestProb * (bestOdds > 0 ? bestOdds / 100 : 100 / Math.abs(bestOdds)) - (1 - bestProb)) / (bestOdds > 0 ? bestOdds / 100 : 100 / Math.abs(bestOdds)))
+        : 0
+
+      const pick = {
+        gameId,
+        teams: `${gameContext.awayTeam} @ ${gameContext.homeTeam}`,
+        startTime: gameContext.startTime,
+        betType: "prop",
+        line: `${prop.playerName} ${bestDirection === 'over' ? 'Over' : 'Under'} ${prop.line} ${prop.statDisplayName}`,
+        odds: bestOdds,
+        emotionalAlignment: alignment,
+        confidence: Math.round(bestProb * 100),
+        suggestedStakeFraction: Math.max(0, kellyFraction),
+        suggestedStakeAbsolute: Math.round(Math.max(0, kellyFraction) * weeklyBudget * 0.3),
+        riskLevel,
+        shortExplanation: `${prop.playerName} ${bestDirection} ${prop.line} ${prop.statDisplayName}. EV: ${bestEv.evPercent.toFixed(1)}%.`,
+        numericRisk: {
+          ev: bestEv.evDollars,
+          evPercentage: bestEv.evPercent
+        },
+        // Player prop specific fields
+        playerId: prop.playerId,
+        playerName: prop.playerName,
+        playerTeam: undefined, // Not available in PlayerPropLine
+        propCategory: prop.category,
+        propStat: prop.stat,
+        propLine: prop.line,
+        propDirection: bestDirection,
+        isRecommended: bestEv.evPercent > 0,
+        recommendation: bestEv.evPercent > 0 ? "BET" : "PASS",
+        informational: bestEv.evPercent <= 0
+      }
+
+      gamePropPicks.push(pick)
+    }
+
+    // Sort by EV and take top props for this game
+    gamePropPicks.sort((a, b) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0))
+    propPicks.push(...gamePropPicks.slice(0, maxPropsPerGame))
+  }
+
+  // Sort all props by EV and limit total
+  propPicks.sort((a, b) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0))
+
+  // Prioritize positive EV, then fill with near-zero
+  const positiveEvProps = propPicks.filter(p => (p.numericRisk?.evPercentage || 0) > 0)
+  const nearZeroProps = propPicks.filter(p => {
+    const ev = p.numericRisk?.evPercentage || 0
+    return ev <= 0 && ev > -3
+  })
+
+  const finalProps = [...positiveEvProps.slice(0, maxTotalProps)]
+  if (finalProps.length < maxTotalProps) {
+    finalProps.push(...nearZeroProps.slice(0, maxTotalProps - finalProps.length))
+  }
+
+  console.log(`[SmartSlip] Generated ${finalProps.length} player prop picks. Positive EV: ${finalProps.filter(p => p.isRecommended).length}.`)
+
+  return finalProps
+}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -595,6 +705,11 @@ export async function POST(request: NextRequest) {
           confidence: anchoredRisk.confidence,
           clinicalContext: anchoredRisk.clinicalContext,
           intervention: anchoredRisk.suggestedIntervention,
+          breakdown: {
+            emotional: anchoredRisk.breakdown.emotionalContribution,
+            behavioral: anchoredRisk.breakdown.behavioralContribution,
+            demographic: anchoredRisk.breakdown.demographicBase,
+          },
           researchIntegration: RESEARCH_CITATIONS.map(c => c.shortName),
         },
       })
@@ -1338,8 +1453,51 @@ export async function POST(request: NextRequest) {
       } : null
     })
 
+    // Fetch Player Props for each game (new for player-level recommendations)
+    let playerPropsByGame: Map<string, PlayerPropLine[]> = new Map()
+    const gameIds = enrichedGames.map((g: any) => g.id).filter(Boolean)
+
+    if (gameIds.length > 0 && shouldBet) {
+      try {
+        console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`)
+        playerPropsByGame = await getPlayerPropsForGames(gameIds, sport)
+        const totalProps = Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0)
+        console.log(`[SmartSlip] Found ${totalProps} total player props across ${playerPropsByGame.size} games`)
+      } catch (propsError) {
+        console.warn('[SmartSlip] Failed to fetch player props (continuing without them):', propsError)
+      }
+    }
+
+    // Convert player props map to array format for response
+    const playerPropsArray = Array.from(playerPropsByGame.entries()).map(([gameId, props]) => ({
+      gameId,
+      props,
+      propCount: props.length
+    }))
+
+    // Generate Player Prop Recommendations
+    let propPicks: any[] = []
+    if (playerPropsByGame.size > 0 && shouldBet) {
+      try {
+        propPicks = await buildPlayerPropRecommendations({
+          playerPropsByGame,
+          games: enrichedGames,
+          riskTolerance,
+          weeklyBudget,
+          emotionalScore,
+          maxPropsPerGame: 2,
+          maxTotalProps: 6
+        })
+        console.log(`[SmartSlip] Generated ${propPicks.length} player prop recommendations`)
+      } catch (propError) {
+        console.warn('[SmartSlip] Failed to generate prop recommendations:', propError)
+      }
+    }
+
     // Generate Parlay Recommendations (new for Phase 2)
-    const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(filtered, 3, sport)
+    // Include both game picks and prop picks for parlay combinations
+    const allPicksForParlays = [...filtered, ...propPicks.filter(p => p.isRecommended)]
+    const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(allPicksForParlays, 3, sport)
     console.log(`[SmartSlip] Generated ${parlayRecommendations.length} parlay recommendations`)
 
     return NextResponse.json({
@@ -1347,7 +1505,18 @@ export async function POST(request: NextRequest) {
       shouldBet,
       message: shouldBetMessage,
       recommendations: reasoningOutput.recommendations,
+      propPicks, // Player prop recommendations
       parlayRecommendations,
+      // Raw player props for SGP and player-level exploration
+      playerProps: playerPropsArray,
+      playerPropsSummary: {
+        gamesWithProps: playerPropsByGame.size,
+        totalProps: Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0),
+        availableMarkets: playerPropsArray.length > 0
+          ? [...new Set(playerPropsArray.flatMap(g => g.props.map(p => p.stat)))]
+          : [],
+        recommendedProps: propPicks.filter(p => p.isRecommended).length
+      },
       emotionalScore,
       // Anchored Risk Assessment (research-backed)
       anchoredRisk: {

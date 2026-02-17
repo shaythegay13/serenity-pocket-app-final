@@ -20,7 +20,7 @@ export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {
   const losses = completed.filter(bet => bet.outcome === 'loss')
 
   // Parlay-specific calculations
-  const parlays = unifiedBets.filter(bet => bet.isParlay || bet.parlayLegsCount && bet.parlayLegsCount > 1)
+  const parlays = unifiedBets.filter(bet => bet.isParlay || (bet.parlayLegsCount && bet.parlayLegsCount > 1) || bet.betType === 'parlay')
   const completedParlays = parlays.filter(bet => bet.outcome && bet.outcome !== 'pending')
   const parlayWins = completedParlays.filter(bet => bet.outcome === 'win')
   const parlayLosses = completedParlays.filter(bet => bet.outcome === 'loss')
@@ -47,10 +47,10 @@ export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {
 
   // Parlay-specific metrics
   const parlayWinRate = completedParlays.length > 0 ? (parlayWins.length / completedParlays.length) * 100 : 0
-  const parlayROI = completedParlays.reduce((sum, bet) => sum + bet.stake, 0) > 0 
-    ? ((completedParlays.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0) - 
-        completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) / 
-       completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) * 100 
+  const parlayROI = completedParlays.reduce((sum, bet) => sum + bet.stake, 0) > 0
+    ? ((completedParlays.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0) -
+      completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) /
+      completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) * 100
     : 0
 
   const avgEV = unifiedBets.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (unifiedBets.length || 1)

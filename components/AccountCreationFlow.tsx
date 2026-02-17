@@ -30,17 +30,17 @@ export default function AccountCreationFlow({ email, surveyId, onComplete }: Acc
   // Calculate password strength
   const calculatePasswordStrength = (pwd: string): number => {
     let strength = 0;
-    
+
     // Length check
     if (pwd.length >= 8) strength += 20;
     if (pwd.length >= 12) strength += 10;
-    
+
     // Character type checks
     if (/[a-z]/.test(pwd)) strength += 15;
     if (/[A-Z]/.test(pwd)) strength += 15;
     if (/[0-9]/.test(pwd)) strength += 20;
     if (/[^a-zA-Z0-9]/.test(pwd)) strength += 20;
-    
+
     return Math.min(100, strength);
   };
 
@@ -94,6 +94,23 @@ export default function AccountCreationFlow({ email, surveyId, onComplete }: Acc
     setIsCreating(true);
 
     try {
+      // Check if username is already taken
+      const { data: existingUser, error: usernameError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (usernameError) {
+        console.error('Error checking username:', usernameError);
+      }
+
+      if (existingUser) {
+        setError('Username is already taken. Please choose another one.');
+        setIsCreating(false);
+        return;
+      }
+
       // Create account with Supabase
       const userMetadata: Record<string, any> = { username };
       if (surveyId) userMetadata.initial_survey_id = surveyId;
@@ -114,6 +131,29 @@ export default function AccountCreationFlow({ email, surveyId, onComplete }: Acc
           setError(signUpError.message);
         }
         return;
+      }
+
+      // Explicitly create user profile row immediately to ensure email is synced
+      if (data.user) {
+        try {
+          console.log('📝 Creating/Syncing user profile for:', data.user.id);
+          const { error: profileError } = await supabase
+            .from('user_profiles')
+            .upsert({
+              id: data.user.id,
+              username: username,
+              email: emailValue, // Explicitly assign email
+              name: username,    // Default name to username
+            }, { onConflict: 'id' });
+
+          if (profileError) {
+            console.error('Error syncing profile on signup:', profileError);
+          } else {
+            console.log('✅ Profile synced successfully on signup');
+          }
+        } catch (profileErr) {
+          console.error('Unexpected error syncing profile:', profileErr);
+        }
       }
 
       // Check if email confirmation is required
@@ -239,8 +279,8 @@ export default function AccountCreationFlow({ email, surveyId, onComplete }: Acc
                 <span>Password strength:</span>
                 <span className="font-medium">{getPasswordStrengthText()}</span>
               </div>
-              <Progress 
-                value={passwordStrength} 
+              <Progress
+                value={passwordStrength}
                 className={`h-1 ${getPasswordStrengthColor()}`}
               />
               <div className="text-xs text-muted-foreground space-y-1">

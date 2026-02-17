@@ -38,11 +38,11 @@ export default function FeaturesPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Hero Section */}
-          <div className="text-center mb-16">
-            <h1 className="text-4xl font-bold text-foreground mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
               Platform Features
             </h1>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-2">
               Discover the powerful behavioral and AI tools that make PlayMind Labs the most comprehensive
               responsible betting platform available.
             </p>
@@ -81,14 +81,14 @@ export default function FeaturesPage() {
           </div>
 
           {/* Feature Comparison Table */}
-          <div className="mb-16">
-            <h2 className="text-3xl font-bold text-foreground text-center mb-8">
+          <div className="mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-6 sm:mb-8">
               Compare All Features
             </h2>
 
-            <Card className="p-6">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+            <Card className="p-3 sm:p-6">
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <table className="w-full text-xs sm:text-sm min-w-[600px]">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-4 px-4 font-semibold text-foreground">Feature</th>
@@ -199,7 +199,7 @@ export default function FeaturesPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild>
-                  <a href="/pricing">View Pricing Plans</a>
+                  <a href="/login">Get Started</a>
                 </Button>
                 <Button variant="outline" asChild>
                   <a href="/faq">Learn More</a>

@@ -85,12 +85,12 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
 
       // Use local scope for faster, more reliable logout with timeout
       console.log('🔧 Signing out from Supabase...')
-      
+
       const signOutPromise = supabase.auth.signOut({ scope: 'local' })
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Logout timeout')), 3000)
       )
-      
+
       await Promise.race([signOutPromise, timeoutPromise])
       console.log('🔧 Supabase sign out completed')
 
@@ -119,7 +119,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                 src="/logo.png"
                 alt="PlayMind Labs"
                 fill
-                className="object-cover object-center dark:invert"
+                className="object-cover object-center logo-dark-mode-auto"
                 priority
               />
             </div>
@@ -129,7 +129,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full p-0 h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 lg:h-24 lg:w-24"
+              className="rounded-full p-0 h-11 w-11 min-h-[44px] min-w-[44px] sm:h-14 sm:w-14 md:h-16 md:w-16 lg:h-20 lg:w-20"
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
@@ -146,7 +146,7 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
             {menuOpen && (
               <div
                 className={cn(
-                  "absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-md border border-border bg-popover shadow-md",
+                  "absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-56 max-w-[14rem] overflow-hidden rounded-md border border-border bg-popover shadow-md",
                   "origin-top-right z-50 max-h-[calc(100vh-5rem)] overflow-y-auto",
                 )}
                 role="menu"

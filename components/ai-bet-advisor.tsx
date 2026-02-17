@@ -29,6 +29,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Home as HomeIcon, RefreshCcw, CheckCircle2 } from "lucide-react"
+import { normalizeSportKey, getPopularSports } from "@/lib/sports-config"
+import { getPropMarketsForSport, PROP_MARKET_DISPLAY_NAMES, type PlayerPropMarket } from "@/lib/types/player-props"
+import type { PropCategory } from "@/lib/types/ai-models"
 
 
 
@@ -300,23 +303,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         awayRecord?: string
       }
 
-      const sportMap: Record<string, SupportedSportKey> = {
-        basketball_nba: "basketball_nba",
-        americanfootball_nfl: "americanfootball_nfl",
-        baseball_mlb: "baseball_mlb",
-        icehockey_nhl: "icehockey_nhl",
-        basketball_ncaab: "basketball_ncaab",
-        americanfootball_ncaaf: "americanfootball_ncaaf",
-        soccer_epl: "soccer_epl",
-        mma_ufc: "mma_ufc",
-        NBA: "basketball_nba",
-        NFL: "americanfootball_nfl",
-        MLB: "baseball_mlb",
-        NHL: "icehockey_nhl",
-        UFC: "mma_ufc",
-      }
-
-      const mappedSport = payload.sport ? sportMap[payload.sport] || "americanfootball_nfl" : "americanfootball_nfl"
+      const mappedSport = normalizeSportKey(payload.sport || "americanfootball_nfl") as SupportedSportKey
 
       // Use enhanced odds analysis
       const homeOdds = typeof payload.bestHomeOdds === "number" ? payload.bestHomeOdds : NaN
@@ -734,57 +721,9 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         console.warn("AI Bet Advisor: Failed to save comprehensive bet data", e)
       }
 
-      // Keep legacy bet analysis save for backward compatibility
-      try {
-        const analysisId =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-
-        const selection = [
-          formData.favoriteTeam,
-          formData.underdogTeam,
-        ].filter(Boolean).join(" vs ")
-
-        const description = selection
-          ? `${formData.sport}: ${selection} — ${formData.betType}`
-          : `${formData.sport}: ${formData.betType}`
-
-        const betAnalysis: BetAnalysis = {
-          id: analysisId,
-          timestamp: new Date(),
-          betType:
-            formData.betType === "Moneyline"
-              ? "moneyline"
-              : formData.betType === "Spread"
-                ? "spread"
-                : formData.betType === "Over/Under"
-                  ? "total"
-                  : "parlay",
-          sport: formData.sport || "Unknown",
-          description,
-          odds: formData.odds ? Number(formData.odds) || 0 : 0,
-          stake: Number(formData.betAmount) || 0,
-          emotionalState: formData.currentEmotion || "neutral",
-          emotionalIntensity: formData.currentEmotionIntensity || 5,
-          biasWarnings: [],
-          aiRecommendation:
-            data.analysis?.recommendation?.reason ||
-            data.analysis?.recommendation?.recommendation ||
-            "",
-          expectedValue: undefined,
-          probabilityEstimate: undefined,
-          outcome: "pending",
-        }
-
-        // @ts-ignore - Method added dynamically to storageHybrid
-        await storage.addBetAnalysis(betAnalysis)
-
-        // Emit event to refresh analytics data across the app
-        analyticsEvents.emit(ANALYTICS_EVENTS.BETTING_DATA_SAVED)
-      } catch (e) {
-        console.warn("AI Bet Advisor: legacy bet analysis save failed", e)
-      }
+      // NOTE: Legacy bet_analyses save removed to prevent duplicate entries.
+      // Comprehensive bets saved above via BetTrackingService.saveTiltLabBet() is the single source of truth.
+      // The BETTING_DATA_SAVED event is already emitted by saveTiltLabBet().
     } catch (err) {
       const isAbort = (err as any)?.name === 'AbortError'
       setError(isAbort ? 'TiltLab timed out. Please try again.' : "An unexpected error occurred")
@@ -1049,55 +988,48 @@ We'll automatically extract the details and populate the form.`}
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="americanfootball_nfl">NFL</SelectItem>
-                              <SelectItem value="basketball_nba">NBA</SelectItem>
-                              <SelectItem value="baseball_mlb">MLB</SelectItem>
-                              <SelectItem value="icehockey_nhl">NHL</SelectItem>
-                              <SelectItem value="basketball_ncaab">College Basketball</SelectItem>
-                              <SelectItem value="americanfootball_ncaaf">College Football</SelectItem>
-                              <SelectItem value="soccer_epl">English Premier League</SelectItem>
-                              <SelectItem value="soccer_mls">MLS</SelectItem>
-                              <SelectItem value="mma_ufc">UFC/MMA</SelectItem>
-                              <SelectItem value="tennis_atp">ATP Tennis</SelectItem>
-                              <SelectItem value="tennis_wta">WTA Tennis</SelectItem>
-                              <SelectItem value="golf_pga">PGA Tour Golf</SelectItem>
-                              <SelectItem value="boxing">Boxing</SelectItem>
-                              <SelectItem value="soccer_champions_league">Champions League</SelectItem>
-                              <SelectItem value="motorsports_f1">Formula 1</SelectItem>
-                              <SelectItem value="motorsports_nascar">NASCAR</SelectItem>
-                              <SelectItem value="esports_lol">League of Legends</SelectItem>
-                              <SelectItem value="esports_csgo">Counter-Strike</SelectItem>
+                              {getPopularSports().map(sport => (
+                                <SelectItem key={sport.id} value={sport.id}>
+                                  {sport.displayName}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="other">Other</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
 
-                        <div>
-                          <Label htmlFor="homeTeam">Home Team</Label>
-                          <Input
-                            id="homeTeam"
-                            value={formData.homeTeam}
-                            onChange={(e) => updateFormData("homeTeam", e.target.value)}
-                            placeholder="e.g., Warriors"
-                          />
-                        </div>
+                        {formData.betType !== "Player Prop" && (
+                          <>
+                            <div>
+                              <Label htmlFor="homeTeam">Home Team</Label>
+                              <Input
+                                id="homeTeam"
+                                value={formData.homeTeam}
+                                onChange={(e) => updateFormData("homeTeam", e.target.value)}
+                                placeholder="e.g., Warriors"
+                              />
+                            </div>
 
-                        <div>
-                          <Label htmlFor="awayTeam">Away Team</Label>
-                          <Input
-                            id="awayTeam"
-                            value={formData.awayTeam}
-                            onChange={(e) => updateFormData("awayTeam", e.target.value)}
-                            placeholder="e.g., Lakers"
-                          />
-                        </div>
+                            <div>
+                              <Label htmlFor="awayTeam">Away Team</Label>
+                              <Input
+                                id="awayTeam"
+                                value={formData.awayTeam}
+                                onChange={(e) => updateFormData("awayTeam", e.target.value)}
+                                placeholder="e.g., Lakers"
+                              />
+                            </div>
+                          </>
+                        )}
 
                         <div className="md:col-span-2">
                           <Label>Bet Type</Label>
                           <SegmentedControl
                             options={[
                               { value: "Spread", label: "Spread" },
-                              { value: "Moneyline", label: "Moneyline" },
+                              { value: "Moneyline", label: "ML" },
                               { value: "Over/Under", label: "Total" },
+                              { value: "Player Prop", label: "Prop" },
                               { value: "Parlay", label: "Parlay" },
                             ]}
                             value={formData.betType}
@@ -1173,37 +1105,118 @@ We'll automatically extract the details and populate the form.`}
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="homeOdds">Home Team Odds (American)</Label>
-                            <Input
-                              id="homeOdds"
-                              type="number"
-                              value={Number.isNaN(homeOdds) ? "" : homeOdds}
-                              onChange={(e) => {
-                                const odds = parseInt(e.target.value) || NaN
-                                setHomeOdds(odds)
-                                analyzeCurrentOdds(odds, awayOdds)
-                              }}
-                              placeholder="e.g., -110"
-                            />
-                          </div>
+                        {formData.betType === "Player Prop" && (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="playerName">Player Name</Label>
+                                <Input
+                                  id="playerName"
+                                  value={formData.playerName || ""}
+                                  onChange={(e) => updateFormData("playerName", e.target.value)}
+                                  placeholder="e.g., LeBron James"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="playerTeam">Team (optional)</Label>
+                                <Input
+                                  id="playerTeam"
+                                  value={formData.playerTeam || ""}
+                                  onChange={(e) => updateFormData("playerTeam", e.target.value)}
+                                  placeholder="e.g., LAL"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="propStat">Prop Type</Label>
+                                <Select
+                                  value={formData.propStat || ""}
+                                  onValueChange={(value) => updateFormData("propStat", value)}
+                                >
+                                  <SelectTrigger id="propStat">
+                                    <SelectValue placeholder="Select prop type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getPropMarketsForSport(formData.sport).map(market => (
+                                      <SelectItem key={market} value={market}>
+                                        {PROP_MARKET_DISPLAY_NAMES[market] || market}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="propLine">Line</Label>
+                                <Input
+                                  id="propLine"
+                                  type="number"
+                                  step="0.5"
+                                  value={formData.propLine ?? ""}
+                                  onChange={(e) => updateFormData("propLine", parseFloat(e.target.value) || undefined)}
+                                  placeholder="e.g., 25.5"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label>Over/Under</Label>
+                                <SegmentedControl
+                                  options={[
+                                    { value: "over", label: "Over" },
+                                    { value: "under", label: "Under" },
+                                  ]}
+                                  value={formData.propDirection || "over"}
+                                  onChange={(value) => updateFormData("propDirection", value as 'over' | 'under')}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="propOdds">Odds (American)</Label>
+                                <Input
+                                  id="propOdds"
+                                  type="number"
+                                  value={formData.odds || ""}
+                                  onChange={(e) => updateFormData("odds", parseInt(e.target.value) || 0)}
+                                  placeholder="e.g., -110"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
 
-                          <div>
-                            <Label htmlFor="awayOdds">Away Team Odds (American)</Label>
-                            <Input
-                              id="awayOdds"
-                              type="number"
-                              value={Number.isNaN(awayOdds) ? "" : awayOdds}
-                              onChange={(e) => {
-                                const odds = parseInt(e.target.value) || NaN
-                                setAwayOdds(odds)
-                                analyzeCurrentOdds(homeOdds, odds)
-                              }}
-                              placeholder="e.g., +105"
-                            />
+                        {formData.betType !== "Player Prop" && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="homeOdds">Home Team Odds (American)</Label>
+                              <Input
+                                id="homeOdds"
+                                type="number"
+                                value={Number.isNaN(homeOdds) ? "" : homeOdds}
+                                onChange={(e) => {
+                                  const odds = parseInt(e.target.value) || NaN
+                                  setHomeOdds(odds)
+                                  analyzeCurrentOdds(odds, awayOdds)
+                                }}
+                                placeholder="e.g., -110"
+                              />
+                            </div>
+
+                            <div>
+                              <Label htmlFor="awayOdds">Away Team Odds (American)</Label>
+                              <Input
+                                id="awayOdds"
+                                type="number"
+                                value={Number.isNaN(awayOdds) ? "" : awayOdds}
+                                onChange={(e) => {
+                                  const odds = parseInt(e.target.value) || NaN
+                                  setAwayOdds(odds)
+                                  analyzeCurrentOdds(homeOdds, odds)
+                                }}
+                                placeholder="e.g., +105"
+                              />
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         <div>
                           <Label htmlFor="betAmount">Proposed Bet Amount ($)</Label>

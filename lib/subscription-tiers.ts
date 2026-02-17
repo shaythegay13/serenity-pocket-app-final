@@ -55,8 +55,8 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
     features: [
       "Everything in the Previous Tier and:",
       "Priority Support & Early Feature Access",
-      "TiltLab Emotional Analysis (25x/week)",
-      "SmartSlip AI Picks (25x/week)",
+      "TiltLab Emotional Analysis (7x/week)",
+      "SmartSlip AI Picks (7x/week)",
     ],
   },
 ]

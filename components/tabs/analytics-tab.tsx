@@ -43,7 +43,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
   const [parlays, setParlays] = useState<Parlay[]>([])
   const router = useRouter()
   const pathname = usePathname()
-  
+
   // Get active subtab from URL pathname
   const subTabFromPathname = (): SubTab => {
     if (pathname === '/analytics/performance') return 'performance'
@@ -134,6 +134,9 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
           biasesIdentified: analysis.biasWarnings,
           confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
           reasoning: analysis.aiRecommendation || '',
+          betType: analysis.betType,
+          isParlay: analysis.betType === 'parlay',
+          playerName: (analysis as any).playerName,
         })
       })
 
@@ -157,6 +160,9 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             biasesIdentified: bet.biasesIdentified,
             confidenceLevel: bet.confidenceLevel,
             reasoning: bet.reasoning || '',
+            betType: bet.betType,
+            isParlay: bet.betType === 'parlay',
+            playerName: bet.playerName,
           })
         }
       })
@@ -247,6 +253,9 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
             biasesIdentified: analysis.biasWarnings,
             confidenceLevel: analysis.probabilityEstimate ? analysis.probabilityEstimate * 100 : 50,
             reasoning: analysis.aiRecommendation || '',
+            betType: analysis.betType,
+            isParlay: analysis.betType === 'parlay',
+            playerName: (analysis as any).playerName,
           })
         })
 
@@ -270,6 +279,9 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
               biasesIdentified: bet.biasesIdentified,
               confidenceLevel: bet.confidenceLevel,
               reasoning: bet.reasoning || '',
+              betType: bet.betType,
+              isParlay: bet.betType === 'parlay',
+              playerName: bet.playerName,
             })
           }
         })
@@ -327,7 +339,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
       try {
         const result = await reconcileAllData()
         const total = result.emotionLogsReconciled + result.betAnalysesReconciled +
-                     result.comprehensiveBetsReconciled + result.tradesReconciled
+          result.comprehensiveBetsReconciled + result.tradesReconciled
 
         if (total > 0) {
           console.log(`[Analytics] Auto-reconciled ${total} missing records`)
@@ -408,21 +420,21 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
         <p className="text-muted-foreground">Advanced insights into your betting and emotional patterns</p>
       </div>
 
-      <div className="flex flex-wrap gap-2 justify-center">
-        <Button variant={activeSubTab === "performance" ? "default" : "outline"} onClick={() => setActiveSubTab("performance")} className="gap-2">
-          <TrendingUp className="h-4 w-4" /> Performance
+      <div className="flex flex-wrap gap-2 justify-center px-2">
+        <Button variant={activeSubTab === "performance" ? "default" : "outline"} onClick={() => setActiveSubTab("performance")} className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4 min-h-[44px]">
+          <TrendingUp className="h-4 w-4" /> <span className="hidden sm:inline">Performance</span><span className="sm:hidden">Perf</span>
         </Button>
-        <Button variant={activeSubTab === "mental-health" ? "default" : "outline"} onClick={() => setActiveSubTab("mental-health")} className="gap-2">
-          <Brain className="h-4 w-4" /> Mental Health
+        <Button variant={activeSubTab === "mental-health" ? "default" : "outline"} onClick={() => setActiveSubTab("mental-health")} className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4 min-h-[44px]">
+          <Brain className="h-4 w-4" /> <span className="hidden sm:inline">Mental Health</span><span className="sm:hidden">Mental</span>
         </Button>
-        <Button variant={activeSubTab === "correlation" ? "default" : "outline"} onClick={() => setActiveSubTab("correlation")} className="gap-2">
-          <Activity className="h-4 w-4" /> Correlation
+        <Button variant={activeSubTab === "correlation" ? "default" : "outline"} onClick={() => setActiveSubTab("correlation")} className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4 min-h-[44px]">
+          <Activity className="h-4 w-4" /> <span className="hidden sm:inline">Correlation</span><span className="sm:hidden">Corr</span>
         </Button>
       </div>
 
       {activeSubTab === "performance" && <PerformanceTab trades={trades} comprehensiveBets={comprehensiveBets} parlays={parlays} onRefreshData={refreshData} isRefreshing={isRefreshing} />}
-      {activeSubTab === "mental-health" && <MentalHealthTab emotionLogs={logs} />}
-      {activeSubTab === "correlation" && <CorrelationTab emotionLogs={logs} trades={trades} />}
+      {activeSubTab === "mental-health" && <MentalHealthTab emotionLogs={logs} comprehensiveBets={comprehensiveBets} userData={userData} />}
+      {activeSubTab === "correlation" && <CorrelationTab emotionLogs={logs} trades={trades} parlays={parlays} comprehensiveBets={comprehensiveBets} />}
     </div>
   )
 }

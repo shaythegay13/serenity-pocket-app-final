@@ -448,12 +448,16 @@ export const storageHybrid: {
 
       if (!data) {
         // No profile row yet – create a minimal one so the rest of the app has a stable shape
+        const { data: authUserRes } = await supabase.auth.getUser()
+        const userEmail = authUserRes.user?.email || null
+
         const defaultData = getDefaultUserData()
         const { error: insertError } = await supabase
           .from("user_profiles")
           .insert({
             id: userId,
             name: defaultData.name,
+            email: userEmail, // Ensure email is populated on creation
           })
 
         if (insertError) {
@@ -465,7 +469,7 @@ export const storageHybrid: {
           })
         }
 
-        return defaultData
+        return { ...defaultData, email: userEmail || undefined }
       }
 
       if (error) {
@@ -475,6 +479,19 @@ export const storageHybrid: {
           hint: (error as any).hint,
           code: (error as any).code,
         })
+      }
+
+      // Check if email is missing and try to sync it from auth
+      if (!data.email) {
+        const { data: authUserRes } = await supabase.auth.getUser()
+        if (authUserRes.user?.email) {
+          console.log('🔄 Syncing missing email to profile:', authUserRes.user.email)
+          await supabase
+            .from("user_profiles")
+            .update({ email: authUserRes.user.email })
+            .eq("id", userId)
+          data.email = authUserRes.user.email
+        }
       }
 
       // Convert snake_case DB fields to camelCase
@@ -576,10 +593,14 @@ export const storageHybrid: {
       if (data.serenityTokens !== undefined) updateData.serenity_tokens = data.serenityTokens
       if (data.dailyRings !== undefined) updateData.daily_rings = data.dailyRings
       if (data.lastRingReset !== undefined) {
-        updateData.last_ring_reset =
+        const dateValue =
           data.lastRingReset instanceof Date
-            ? data.lastRingReset.toISOString()
-            : new Date(data.lastRingReset as any).toISOString()
+            ? data.lastRingReset
+            : new Date(data.lastRingReset as any)
+        // Only set if the date is valid
+        if (!isNaN(dateValue.getTime())) {
+          updateData.last_ring_reset = dateValue.toISOString()
+        }
       }
       if (data.perfectDays !== undefined) updateData.perfect_days = data.perfectDays
       if (data.longestStreak !== undefined) updateData.longest_streak = data.longestStreak
@@ -592,19 +613,25 @@ export const storageHybrid: {
       if (data.lastEmotionCheckIn !== undefined) {
         // NOTE: The Supabase user_profiles table does not have a `last_emotion_check_in` column.
         // Persist this recency marker locally only.
-        const iso =
+        const dateValue =
           data.lastEmotionCheckIn instanceof Date
-            ? data.lastEmotionCheckIn.toISOString()
-            : new Date(data.lastEmotionCheckIn as any).toISOString()
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, iso)
+            ? data.lastEmotionCheckIn
+            : new Date(data.lastEmotionCheckIn as any)
+        // Only set if the date is valid
+        if (!isNaN(dateValue.getTime()) && typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEYS.LAST_CHECK_IN, dateValue.toISOString())
         }
       }
 
       // Add email if present
       if (data.email !== undefined) {
         updateData.email = data.email || null
+      } else {
+        // Try to get email from auth if not provided in data but we're updating
+        const { data: authUserRes } = await supabase.auth.getUser()
+        if (authUserRes.user?.email) {
+          updateData.email = authUserRes.user.email
+        }
       }
 
       // Add subscription fields if present

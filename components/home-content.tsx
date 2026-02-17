@@ -265,7 +265,7 @@ export function HomeContent() {
       try {
         const result = await reconcileAllData()
         const total = result.emotionLogsReconciled + result.betAnalysesReconciled +
-                     result.comprehensiveBetsReconciled + result.tradesReconciled
+          result.comprehensiveBetsReconciled + result.tradesReconciled
 
         if (total > 0) {
           console.log(`[Home] Auto-reconciled ${total} missing records`)
@@ -278,6 +278,20 @@ export function HomeContent() {
 
     return () => clearTimeout(timeoutId)
   }, [authed, loading])
+
+  // Redirect unauthenticated users to landing page at root URL
+  // Side effect moved to useEffect to avoid rendering errors
+  useEffect(() => {
+    if (authed === false) {
+      const signup = searchParams.get("signup")
+      const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
+
+      if (!inSignupFlow) {
+        console.log('🔧 Not in signup flow - redirecting to landing page')
+        router.push("/")
+      }
+    }
+  }, [authed, searchParams, showTerms, showSignup, authFlow, router])
 
   const handleNavigateToTab = (tab: string, subtab?: string) => {
     // Update the active tab state immediately
@@ -541,42 +555,16 @@ export function HomeContent() {
     )
   }
 
-  // Redirect unauthenticated users to landing page at root URL
-  // SECURITY: This must catch ALL unauthenticated states
-  if (!authed) {
-    // Check if we're in a signup flow - if so, continue showing terms/signup flow
+  // SECURITY: Catch unauthenticated users who are not in a signup flow
+  // Show a "Redirecting..." splash while the useEffect handles the router.push("/")
+  if (authed === false) {
     const signup = searchParams.get("signup")
     const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
-    
-    console.log('🔧 Auth check:', { authed, signup, showTerms, showSignup, authFlow, inSignupFlow })
-    
-    if (!inSignupFlow) {
-      // Not in signup flow, redirect to landing page
-      console.log('🔧 Not in signup flow - redirecting to landing')
-      router.push("/")
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Redirecting...</div>
-        </div>
-      )
-    } else {
-      console.log('🔧 In signup flow - allowing access to signup components')
-    }
-  }
 
-  // SECURITY: Explicit authentication check before rendering dashboard
-  // This ensures NO unauthenticated user can ever see the dashboard
-  if (authed !== true) {
-    // Check if we're in a signup flow - if so, allow signup components to render
-    const signup = searchParams.get("signup")
-    const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
-    
     if (!inSignupFlow) {
-      // This should never happen, but provides a safety net
-      console.error('[HomeContent] Invalid auth state - redirecting to landing')
       return (
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Verifying authentication...</div>
+          <div className="animate-pulse text-muted-foreground">Redirecting to landing page...</div>
         </div>
       )
     }

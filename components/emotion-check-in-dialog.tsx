@@ -10,10 +10,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { extractAndNormalizeTeams, normalizeTeamName } from "@/lib/team-normalization"
-import { ArrowLeft, ChevronDown } from "lucide-react"
+import { getSportById, getSportDisplayName } from "@/lib/sports-config"
 import type { UserData } from "@/lib/types"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
+import { ArrowLeft } from "lucide-react"
 
 interface EmotionCheckInDialogProps {
   open: boolean
@@ -97,6 +98,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   // Team selection state - which team is the user betting on
   const [parsedTeams, setParsedTeams] = useState<{ awayTeam: string; homeTeam: string }>({ awayTeam: "", homeTeam: "" })
   const [selectedTeamSide, setSelectedTeamSide] = useState<"home" | "away" | "">("")
+  const [isParlay, setIsParlay] = useState(false)
 
   // Handle pre-selected bet when dialog opens (for settling bets from analytics)
   useEffect(() => {
@@ -139,19 +141,19 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       // Set up the dialog for parlay emotion logging
       setPhase("before") // Parlays are typically logged before the event
       setBetDataMode("manual")
-      
+
       // Auto-fill form with parlay data
       setBetAmount(preSelectedParlay.suggestedStake?.toString() || "")
       setBetOdds(preSelectedParlay.totalOddsAmerican?.toString() || "")
-      
+
       // Create parlay description from legs
-      const legDescriptions = preSelectedParlay.legs?.map((leg: any) => 
+      const legDescriptions = preSelectedParlay.legs?.map((leg: any) =>
         `${leg.team || leg.selection} (${leg.market || leg.betType})`
       ).join(" + ") || "Parlay"
-      
+
       setGameDescription(`Parlay: ${legDescriptions}`)
       setIsLiveBet(false) // Parlays are typically not live bets
-      
+
       // Set context to include parlay details
       setContext(`Parlay with ${preSelectedParlay.legs?.length || 0} legs. EV: ${preSelectedParlay.evPercentage?.toFixed(1)}%`)
     }
@@ -222,7 +224,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
             const betAnalysis = {
               id: `bet_${Date.now()}`,
               timestamp: new Date(),
-              betType: "straight" as const,
+              betType: (isParlay ? "parlay" : "straight") as any,
               sport: "general", // Could be parsed from description
               description: gameDescription,
               odds: oddsNumber,
@@ -264,7 +266,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               intensity[0],
               isLiveBet, // Pass live bet flag for risk tracking
               teamsOverride,
-              selectedTeamSide || undefined
+              selectedTeamSide || undefined,
+              isParlay ? "parlay" : undefined
             )
           }
         }
@@ -361,6 +364,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     // Reset team selection
     setParsedTeams({ awayTeam: "", homeTeam: "" })
     setSelectedTeamSide("")
+    setIsParlay(false)
   }
 
   const loadSavedBets = async () => {
@@ -375,7 +379,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
       ])
 
       // Pending comprehensive bets (any source) - include both explicit "pending" and undefined outcomes
-      const pendingCompBets = comprehensiveBets.filter(bet => 
+      const pendingCompBets = comprehensiveBets.filter(bet =>
         bet.outcome === "pending" || bet.outcome === undefined
       )
 
@@ -438,7 +442,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
     // Auto-fill form with selected bet data
     setBetAmount(bet.stake.toString())
     setBetOdds(bet.odds.toString())
-    setGameDescription(`${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+    setGameDescription(bet.description || `${bet.awayTeam} vs ${bet.homeTeam} - ${bet.betType}`)
+    setIsParlay(bet.betType === 'parlay')
     setActualReturn("") // User still needs to enter actual return
   }
 
@@ -725,10 +730,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                             type="number"
                             step="0.01"
                             min="0"
-                            placeholder="50.00"
+                            placeholder="e.g. 50.00"
                             value={betAmount}
                             onChange={(e) => setBetAmount(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-gray-400/70"
                           />
                         </div>
 
@@ -737,10 +742,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           <input
                             id="betOdds"
                             type="text"
-                            placeholder="+110"
+                            placeholder="e.g. +110"
                             value={betOdds}
                             onChange={(e) => setBetOdds(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-gray-400/70"
                           />
                         </div>
                       </div>
@@ -753,13 +758,13 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           placeholder="e.g., Lakers vs Warriors - NBA"
                           value={gameDescription}
                           onChange={(e) => setGameDescription(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-gray-400/70"
                         />
                       </div>
 
                       {/* Team Selection - Which team are you betting on? */}
                       {(parsedTeams.awayTeam !== "" && parsedTeams.awayTeam !== "Unknown") ||
-                       (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
+                        (parsedTeams.homeTeam !== "" && parsedTeams.homeTeam !== "Unknown") ? (
                         <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <Label className="text-sm font-medium">Which team are you betting on?</Label>
                           <div className="grid grid-cols-2 gap-2">
@@ -767,11 +772,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("away")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
-                                  selectedTeamSide === "away"
-                                    ? "border-blue-500 bg-blue-100 text-blue-700"
-                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${selectedTeamSide === "away"
+                                  ? "border-blue-500 bg-blue-100 text-blue-700"
+                                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                  }`}
                               >
                                 {parsedTeams.awayTeam}
                               </button>
@@ -780,11 +784,10 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                               <button
                                 type="button"
                                 onClick={() => setSelectedTeamSide("home")}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${
-                                  selectedTeamSide === "home"
-                                    ? "border-blue-500 bg-blue-100 text-blue-700"
-                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
+                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors touch-manipulation min-h-[44px] active:scale-95 ${selectedTeamSide === "home"
+                                  ? "border-blue-500 bg-blue-100 text-blue-700"
+                                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                  }`}
                               >
                                 {parsedTeams.homeTeam}
                               </button>
@@ -821,25 +824,66 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                           />
                         </button>
                       </div>
+
+                      {/* Parlay Toggle - New feature integration */}
+                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex-1">
+                          <Label htmlFor="isParlay" className="text-sm font-medium cursor-pointer">
+                            Is this a parlay?
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Track emotions specifically for parlay bets
+                          </p>
+                        </div>
+                        <button
+                          id="isParlay"
+                          type="button"
+                          role="switch"
+                          aria-checked={isParlay}
+                          onClick={() => setIsParlay(!isParlay)}
+                          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors touch-manipulation ${isParlay ? "bg-blue-600" : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm ${isParlay ? "translate-x-7" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   {/* Select Saved Bet Mode */}
                   {betDataMode === "select" && (
                     <div className="space-y-4">
+                      {/* Show pre-selected bet confirmation at the top if we have one */}
+                      {selectedBet && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <p className="text-sm font-medium text-green-800">Selected bet details auto-filled</p>
+                          <p className="text-xs text-green-600 mt-1">
+                            {selectedBet.awayTeam === "Unknown" && selectedBet.homeTeam === "Unknown" && selectedBet.description
+                              ? selectedBet.description
+                              : `${selectedBet.awayTeam} vs ${selectedBet.homeTeam} - ${selectedBet.betType}`}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            ${selectedBet.stake} @ {selectedBet.odds > 0 ? '+' : ''}{selectedBet.odds}
+                          </p>
+                        </div>
+                      )}
+
                       {loadingBets ? (
                         <div className="text-center py-4">
                           <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                           <p className="text-sm text-muted-foreground mt-2">Loading saved bets...</p>
                         </div>
-                      ) : savedBets.length === 0 ? (
+                      ) : savedBets.length === 0 && !selectedBet ? (
                         <div className="text-center py-4">
                           <p className="text-sm text-muted-foreground">No saved bets found (pending outcome).</p>
                           <p className="text-xs text-muted-foreground mt-1">Analyze some bets or create manual entries first.</p>
                         </div>
-                      ) : (
+                      ) : savedBets.length > 0 ? (
                         <div className="space-y-2">
-                          <Label className="text-sm text-muted-foreground">Select a bet from your analysis history:</Label>
+                          <Label className="text-sm text-muted-foreground">Or select a different bet from your history:</Label>
                           <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-2">
                             {savedBets.map((bet) => (
                               <button
@@ -854,10 +898,12 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <p className="font-medium text-sm">
-                                      {bet.awayTeam} vs {bet.homeTeam}
+                                      {bet.awayTeam === "Unknown" && bet.homeTeam === "Unknown"
+                                        ? bet.description || "Unknown Bet"
+                                        : `${bet.awayTeam} vs ${bet.homeTeam}`}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {bet.betType} • {bet.sport} • ${bet.stake} @ {bet.odds}
+                                      {bet.betType} • {getSportDisplayName(bet.sport)} • ${bet.stake} @ {bet.odds}
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-1">
                                       Source: {bet.source === "bet-analyzer" ? "Bet Analyzer" : "TiltLab"}
@@ -872,17 +918,8 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                               </button>
                             ))}
                           </div>
-
-                          {selectedBet && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                              <p className="text-sm font-medium text-green-800">Selected bet details auto-filled above</p>
-                              <p className="text-xs text-green-600 mt-1">
-                                {selectedBet.awayTeam} vs {selectedBet.homeTeam} - {selectedBet.betType}
-                              </p>
-                            </div>
-                          )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   )}
 
@@ -895,7 +932,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                         type="number"
                         step="0.01"
                         min="0"
-                        placeholder={outcome === "profit" ? "105.00" : outcome === "loss" ? "0.00" : "50.00"}
+                        placeholder={outcome === "profit" ? "e.g. 105.00" : outcome === "loss" ? "e.g. 0.00" : "e.g. 50.00"}
                         value={actualReturn}
                         onChange={(e) => setActualReturn(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -939,6 +976,6 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
           )}
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }

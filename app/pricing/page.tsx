@@ -39,6 +39,15 @@ const flowgladPrices = {
 
 const handleSubscribe = async (tierId: string) => {
   try {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    // REDIRECT TO LOGIN IF NOT AUTHENTICATED
+    // This prevents unauthenticated users from bypassing the login wall via the pricing page
+    if (!session) {
+      window.location.href = '/login'
+      return
+    }
+
     // For free plan, just redirect to home - users are automatically on free plan
     if (tierId === 'free') {
       window.location.href = '/home'
@@ -50,17 +59,17 @@ const handleSubscribe = async (tierId: string) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+        'Authorization': `Bearer ${session?.access_token || ''}`,
       },
       body: JSON.stringify({
         tier: tierId
       }),
     })
 
-    const session = await response.json()
+    const data = await response.json()
 
-    if (session.url) {
-      window.location.href = session.url
+    if (data.url) {
+      window.location.href = data.url
     } else {
       console.error('No checkout URL returned')
     }
@@ -139,14 +148,14 @@ export default function PricingPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto">
         {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
+        <div className="text-center mb-12 sm:mb-16">
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-6 sm:mb-8 px-2">
             Choose the plan that fits your betting style and goals. All plans include our core responsible gaming features.
           </p>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <Badge variant="secondary" className="text-sm">
               No hidden fees
             </Badge>

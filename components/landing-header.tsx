@@ -4,23 +4,40 @@ import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import Link from "next/link"
 
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
+
 interface LandingHeaderProps {
   onGetStarted?: () => void
 }
 
 export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
+  const [isAuthed, setIsAuthed] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthed(!!session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-800/50 bg-[#0a0a1a]/80 backdrop-blur-xl">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href={isAuthed ? "/home" : "/"} className="flex items-center">
             <Image
               src="/logo.png"
               alt="PlayMind Labs Logo"
               width={40}
               height={40}
-              className="rounded-md"
+              className="rounded-md logo-dark-mode"
             />
           </Link>
 

@@ -24,7 +24,7 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
         {/* Header */}
         <div className="text-center space-y-3">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="PlayMind Labs" width={60} height={60} />
+            <Image src="/logo.png" alt="PlayMind Labs" width={60} height={60} className="logo-dark-mode" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Terms & Agreements</h1>
           <p className="text-muted-foreground">

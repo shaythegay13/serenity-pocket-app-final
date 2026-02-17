@@ -19,6 +19,7 @@ export interface EmotionalStabilityCache {
   level: EmotionalStabilityResult['level']
   recommendation: string
   factors: EmotionalStabilityResult['factors']
+  adaptiveThreshold: number
   lastCalculated: number
   userId: string
 }
@@ -59,7 +60,8 @@ class EmotionalStabilityService {
         score: cached.score,
         level: cached.level,
         recommendation: cached.recommendation,
-        factors: cached.factors
+        factors: cached.factors,
+        adaptiveThreshold: cached.adaptiveThreshold
       }
     }
 
@@ -149,7 +151,8 @@ class EmotionalStabilityService {
           emotionalVariance: 50,
           surveyScore: userData.surveyData?.score ? (100 - userData.surveyData.score) : 50,
           bettingPatterns: 50
-        }
+        },
+        adaptiveThreshold: 60 // Default threshold
       }
     }
   }

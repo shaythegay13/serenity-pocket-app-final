@@ -23,7 +23,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
   useEffect(() => {
     let mounted = true
     let timeoutId: NodeJS.Timeout
-    
+
     const checkAuth = async () => {
       // Add timeout to prevent infinite loading
       timeoutId = setTimeout(() => {
@@ -41,7 +41,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
         ])
 
         if (!mounted) return
-        
+
         if (!session) {
           setAuthed(false)
           setLoading(false)
@@ -50,10 +50,10 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
 
         setAuthed(true)
         setUserData(userData)
-        
+
       } catch (error) {
         console.error('🔐 Auth check error:', error)
-        
+
         // Use enhanced error handler
         const wasHandled = await handleAuthError(error)
         if (!wasHandled && mounted) {
@@ -73,7 +73,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        
+
         if (event === 'SIGNED_OUT') {
           setUserData(null)
           setAuthed(false)
@@ -87,7 +87,7 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
             }
           } catch (error) {
             console.error('Error getting user data:', error)
-            
+
             // Use enhanced error handler
             const wasHandled = await handleAuthError(error)
             if (!wasHandled && mounted) {
@@ -146,19 +146,19 @@ export function AuthenticatedLayout({ children, activeTab = "" }: AuthenticatedL
   }
 
   if (!authed || !userData) {
-    // Redirect to home for authentication
-    router.push("/home")
+    // Redirect to landing page for authentication
+    router.push("/")
     return null
   }
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
-      
+
       <div className="hidden md:block">
         <Navigation />
       </div>
-      
+
       <main className="pb-20 md:pb-0">
         {children}
       </main>

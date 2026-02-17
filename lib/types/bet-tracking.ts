@@ -68,6 +68,15 @@ export interface ComprehensiveBet {
 
   // Links this bet to a parent parlay (if this bet is a parlay leg)
   parlayId?: string
+
+  // Player prop fields for player-level analytics
+  playerId?: string           // External player ID
+  playerName?: string         // Display name
+  playerTeam?: string         // Team abbreviation
+  propCategory?: string       // Typed category for correlations
+  propStat?: string           // Specific stat
+  propLine?: number           // Numeric line
+  propDirection?: 'over' | 'under' // Selection
 }
 
 export interface BetPerformanceMetrics {

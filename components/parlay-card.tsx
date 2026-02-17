@@ -13,15 +13,25 @@ interface ParlayCardProps {
 
 export function ParlayCard({ parlay, onAnalyze, onLogBet, onEmotionCheckIn }: ParlayCardProps) {
     const isHighValue = parlay.evPercentage > 10
+    const isSGP = parlay.parlayType === 'sgp'
+    const hasCorrelations = parlay.correlationWarnings && parlay.correlationWarnings.length > 0
 
     return (
-        <Card className="p-0 overflow-hidden border-purple-500/30 bg-background/50 hover:border-purple-500/50 transition-colors">
+        <Card className={`p-0 overflow-hidden ${isSGP ? 'border-blue-500/30 hover:border-blue-500/50' : 'border-purple-500/30 hover:border-purple-500/50'} bg-background/50 transition-colors`}>
             {/* Header */}
-            <div className="p-4 bg-linear-to-r from-purple-500/10 to-blue-500/10 border-b border-purple-500/10">
+            <div className={`p-4 ${isSGP ? 'bg-linear-to-r from-blue-500/10 to-cyan-500/10 border-b border-blue-500/10' : 'bg-linear-to-r from-purple-500/10 to-blue-500/10 border-b border-purple-500/10'}`}>
                 <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className="border-purple-500 text-purple-500">
-                        {parlay.legs.length}-Leg Parlay
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={isSGP ? "border-blue-500 text-blue-500" : "border-purple-500 text-purple-500"}>
+                            {isSGP ? 'SGP' : `${parlay.legs.length}-Leg`}
+                        </Badge>
+                        {hasCorrelations && (
+                            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Correlated
+                            </Badge>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-green-500">
                             +{parlay.evPercentage.toFixed(1)}% EV
@@ -50,23 +60,42 @@ export function ParlayCard({ parlay, onAnalyze, onLogBet, onEmotionCheckIn }: Pa
 
             {/* Legs */}
             <div className="p-4 space-y-3">
-                {parlay.legs.map((leg, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm p-2 rounded-lg bg-secondary/20">
-                        <div>
-                            <p className="font-medium text-foreground">{leg.teams}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {leg.betType === 'moneyline' ? 'Moneyline' :
-                                    leg.betType === 'spread' ? `Spread ${leg.line}` :
-                                        leg.betType === 'total' ? `Total ${leg.line}` : leg.betType}
-                            </p>
+                {parlay.legs.map((leg, idx) => {
+                    const isPlayerProp = Boolean(leg.playerName && leg.propStat)
+                    return (
+                        <div key={idx} className={`flex items-center justify-between text-sm p-2 rounded-lg ${isPlayerProp ? 'bg-blue-500/10' : 'bg-secondary/20'}`}>
+                            <div>
+                                {isPlayerProp ? (
+                                    <>
+                                        <p className="font-medium text-foreground">{leg.playerName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {leg.propDirection === 'over' ? 'Over' : 'Under'} {leg.propLine} {leg.line?.split(' ').slice(-1)[0] || ''}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="font-medium text-foreground">{leg.teams}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {leg.betType === 'moneyline' ? 'Moneyline' :
+                                                leg.betType === 'spread' ? `Spread ${leg.line}` :
+                                                    leg.betType === 'total' ? `Total ${leg.line}` : leg.betType}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                            <div className="text-right flex items-center gap-2">
+                                {isPlayerProp && (
+                                    <Badge variant="secondary" className="text-xs bg-blue-500/20 text-blue-500">
+                                        Prop
+                                    </Badge>
+                                )}
+                                <span className="font-mono text-xs bg-background/50 px-2 py-1 rounded">
+                                    {leg.odds > 0 ? '+' : ''}{leg.odds}
+                                </span>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <span className="font-mono text-xs bg-background/50 px-2 py-1 rounded">
-                                {leg.odds > 0 ? '+' : ''}{leg.odds}
-                            </span>
-                        </div>
-                    </div>
-                ))}
+                    )
+                })}
             </div>
 
             {/* Footer */}

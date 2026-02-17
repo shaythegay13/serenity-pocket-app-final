@@ -30,7 +30,7 @@ export function HomeTab({ userData, updateUserData, onNavigateToTab, refreshKey 
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold bg-linear-to-r from-foreground via-primary to-secondary bg-clip-text text-transparent">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-linear-to-r from-foreground via-primary to-secondary bg-clip-text text-transparent break-words">
           Welcome back, {userData.name}!
         </h1>
         <p className="text-lg sm:text-xl text-muted-foreground">

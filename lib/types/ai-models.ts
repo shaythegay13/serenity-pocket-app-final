@@ -165,6 +165,16 @@ export interface PickerRecommendationItem {
   isRecommended?: boolean
   // EV validation result with realistic assessment
   evValidation?: EVValidation
+
+  // Player prop fields for SGP and player-level betting
+  playerId?: string           // External player ID
+  playerName?: string         // Display name (e.g., "Patrick Mahomes")
+  playerTeam?: string         // Team abbreviation (e.g., "KC")
+  playerPosition?: string     // Position (e.g., "QB", "WR", "PG")
+  propCategory?: PropCategory // Typed category for correlations
+  propStat?: string           // Specific stat (e.g., "passing_yards", "receptions")
+  propLine?: number           // Numeric line (e.g., 250.5)
+  propDirection?: 'over' | 'under' // Over/under selection
 }
 
 export interface PickerReasoningInput {
@@ -248,6 +258,14 @@ export interface BetAnalyzerReasoningOutput {
 
 // Parlay-related types
 
+// Player prop category for correlation detection
+export type PropCategory =
+  | 'passing' | 'rushing' | 'receiving' | 'defense' | 'touchdown'  // NFL
+  | 'scoring' | 'rebounding' | 'playmaking' | 'combined'           // NBA
+  | 'pitching' | 'hitting'                                          // MLB
+  | 'goaltending' | 'skating'                                       // NHL
+  | 'performance' | 'other'
+
 // Extended leg type with persistence and tracking fields
 export interface ParlayLeg {
   pickId: string
@@ -264,6 +282,23 @@ export interface ParlayLeg {
   selection?: string          // "home" | "away" | "over" | "under"
   outcome?: 'won' | 'lost' | 'void' | 'push' | 'pending'
   settledAt?: string
+
+  // Player prop fields for SGP and player-level betting
+  playerId?: string           // External player ID (e.g., from TheOddsAPI)
+  playerName?: string         // Display name (e.g., "Patrick Mahomes")
+  playerTeam?: string         // Team abbreviation (e.g., "KC")
+  playerPosition?: string     // Position (e.g., "QB", "WR", "PG")
+  propCategory?: PropCategory // Typed category for correlations
+  propStat?: string           // Specific stat (e.g., "passing_yards", "receptions")
+  propLine?: number           // Numeric line (e.g., 250.5)
+  propDirection?: 'over' | 'under' // Over/under selection
+}
+
+/**
+ * Type guard to check if a parlay leg is a player prop
+ */
+export function isPlayerPropLeg(leg: ParlayLeg): boolean {
+  return Boolean(leg.playerId && leg.propStat)
 }
 
 // Parlay outcome status

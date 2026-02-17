@@ -13,15 +13,22 @@ import {
   ResponsiveContainer,
   Cell
 } from "recharts"
-import { Activity, TrendingUp, TrendingDown, AlertTriangle, Brain } from "lucide-react"
+import { Activity, TrendingUp, TrendingDown, AlertTriangle, Brain, Target, Users } from "lucide-react"
 import type { EmotionLog, Trade } from "@/lib/types"
+import type { Parlay } from "@/lib/types/ai-models"
+import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { EmotionOutcomePoint } from "./types"
 import { EMOTION_SCORE_LOOKUP } from "./constants"
 
 interface CorrelationTabProps {
   emotionLogs: EmotionLog[]
   trades: Trade[]
+  parlays?: Parlay[]
+  comprehensiveBets?: ComprehensiveBet[]
 }
+
+// Threshold for "high tilt" emotions
+const TILT_THRESHOLD = 45
 
 // Emotion categories for grouping
 const EMOTION_CATEGORIES: Record<string, string> = {
@@ -46,7 +53,7 @@ const EMOTION_CATEGORIES: Record<string, string> = {
   'composed': 'calm',
   'tranquil': 'calm',
   'stable': 'calm',
-  
+
   // Negative emotions
   'anxious': 'fear',
   'worried': 'fear',
@@ -100,7 +107,7 @@ interface EmotionMatrixData {
   riskPattern: string
 }
 
-export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
+export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiveBets = [] }: CorrelationTabProps) {
   // Process data for emotion-betting matrix
   const emotionMatrixData = useMemo(() => {
     // Group trades by emotion category
@@ -131,14 +138,14 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
       if (trade.preTradeEmotion && trade.stake && trade.outcome) {
         const emotionCategory = EMOTION_CATEGORIES[trade.preTradeEmotion.toLowerCase()] || 'calm'
         const data = emotionMap.get(emotionCategory)
-        
+
         if (data) {
           data.count++
           data.totalStake += trade.stake
-          
+
           const profitLoss = (trade.actualReturn || 0) - trade.stake
           data.totalProfitLoss += profitLoss
-          
+
           if (trade.outcome === 'profit') {
             data.wins++
           } else if (trade.outcome === 'loss') {
@@ -152,14 +159,14 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
 
     // Convert to matrix data format - ensure all 6 emotions are included
     const result: EmotionMatrixData[] = []
-    
+
     allEmotions.forEach(emotion => {
       const data = emotionMap.get(emotion)
       if (data && data.count > 0) {
         const winRate = ((data.wins + data.pushes * 0.5) / data.count) * 100
         const avgStake = data.totalStake / data.count
         const roi = data.totalStake > 0 ? (data.totalProfitLoss / data.totalStake) * 100 : 0
-        
+
         let riskPattern = 'Disciplined'
         if (emotion === 'greed' || emotion === 'frustration') {
           riskPattern = 'Aggressive'
@@ -168,7 +175,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
         } else if (emotion === 'joy') {
           riskPattern = 'Confident'
         }
-        
+
         result.push({
           emotion,
           winRate: Math.round(winRate * 10) / 10,
@@ -188,7 +195,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
         } else if (emotion === 'joy') {
           riskPattern = 'Confident'
         }
-        
+
         result.push({
           emotion,
           winRate: 0,
@@ -249,10 +256,10 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     // Calculate emotional impact score based on performance variance
     const positiveEmotions = emotionMatrixData.filter(d => ['joy', 'calm'].includes(d.emotion))
     const negativeEmotions = emotionMatrixData.filter(d => ['greed', 'frustration', 'fear', 'sadness'].includes(d.emotion))
-    
+
     const positiveAvgWinRate = positiveEmotions.reduce((sum, d) => sum + d.winRate, 0) / positiveEmotions.length || 0
     const negativeAvgWinRate = negativeEmotions.reduce((sum, d) => sum + d.winRate, 0) / negativeEmotions.length || 0
-    
+
     const impactScore = Math.min(100, Math.round(Math.abs(positiveAvgWinRate - negativeAvgWinRate) * 2))
 
     return {
@@ -275,9 +282,51 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     fill: d.profitLoss >= 0 ? '#22c55e' : '#ef4444'
   }))
 
+  // Player behavior by emotion
+  const playerEmotionStats = useMemo(() => {
+    const statsMap = new Map<string, Map<string, number>>() // Player -> Emotion -> Count
+
+    // Process trades (mapped from comprehensive bets)
+    trades.forEach(trade => {
+      if (trade.playerName && trade.preTradeEmotion) {
+        const player = trade.playerName
+        const emotion = trade.preTradeEmotion.toLowerCase()
+        if (!statsMap.has(player)) statsMap.set(player, new Map())
+        const emotionMap = statsMap.get(player)!
+        emotionMap.set(emotion, (emotionMap.get(emotion) || 0) + 1)
+      }
+    })
+
+    // Process parlay legs directly for more coverage
+    parlays.forEach(parlay => {
+      if (parlay.emotionAtCreation) {
+        const emotion = parlay.emotionAtCreation.toLowerCase()
+        parlay.legs.forEach(leg => {
+          if (leg.playerName) {
+            const player = leg.playerName
+            if (!statsMap.has(player)) statsMap.set(player, new Map())
+            const emotionMap = statsMap.get(player)!
+            emotionMap.set(emotion, (emotionMap.get(emotion) || 0) + 1)
+          }
+        })
+      }
+    })
+
+    return Array.from(statsMap.entries()).map(([player, emotions]) => {
+      const sortedEmotions = Array.from(emotions.entries())
+        .sort((a, b) => b[1] - a[1])
+
+      return {
+        player,
+        dominantEmotion: sortedEmotions[0][0],
+        totalBets: Array.from(emotions.values()).reduce((a, b) => a + b, 0)
+      }
+    }).sort((a, b) => b.totalBets - a.totalBets).slice(0, 5)
+  }, [trades, parlays])
+
   // Calculate detailed AI insights based on specific sub-emotions
   const aiInsights = useMemo(() => {
-    const insights: Array<{type: string, title: string, message: string, advice: string}> = []
+    const insights: Array<{ type: string, title: string, message: string, advice: string }> = []
 
     // Analyze trades by their specific pre-trade emotion (sub-emotions)
     const emotionStats = new Map<string, {
@@ -356,8 +405,8 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     const lowStakeEmotion = sortedByStake[sortedByStake.length - 1]
 
     if (highStakeEmotion && lowStakeEmotion &&
-        highStakeEmotion.avgStake > lowStakeEmotion.avgStake * 1.5 &&
-        highStakeEmotion.emotion !== lowStakeEmotion.emotion) {
+      highStakeEmotion.avgStake > lowStakeEmotion.avgStake * 1.5 &&
+      highStakeEmotion.emotion !== lowStakeEmotion.emotion) {
       const stakeIncrease = ((highStakeEmotion.avgStake / lowStakeEmotion.avgStake) - 1) * 100
       const isNegativeEmotion = ['anxious', 'frustrated', 'angry', 'fomo', 'impulsive', 'desperate', 'stressed', 'panicked', 'resentful', 'bitter'].includes(highStakeEmotion.emotion)
 
@@ -440,6 +489,19 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
       })
     }
 
+    // Player-specific emotional insights
+    playerEmotionStats.forEach(stat => {
+      const dangerousEmotions = ['greed', 'fomo', 'impulsive', 'frustration', 'angry', 'desperate']
+      if (stat.totalBets >= 2 && dangerousEmotions.includes(stat.dominantEmotion)) {
+        insights.push({
+          type: 'player-behavior',
+          title: `Emotional pattern with ${stat.player}`,
+          message: `You tend to bet on ${stat.player} when feeling "${stat.dominantEmotion}".`,
+          advice: `Ask yourself if you're betting on ${stat.player} because of data, or because they are a familiar "comfort bet" during emotional times.`
+        })
+      }
+    })
+
     // Add a general insight if we have enough data but no other insights
     if (insights.length === 0 && emotionData.length >= 2) {
       const avgWinRate = emotionData.reduce((sum, d) => sum + d.winRate * d.totalBets, 0) / allTotalBets
@@ -452,7 +514,65 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
     }
 
     return insights
-  }, [trades])
+  }, [trades, playerEmotionStats])
+
+  // Tilt predictor analysis using comprehensive bets
+  const tiltPredictors = useMemo(() => {
+    // Filter to completed bets with emotional data
+    const completedBets = comprehensiveBets.filter(bet =>
+      bet.emotions?.before?.emotion &&
+      bet.outcome &&
+      bet.outcome !== "pending"
+    )
+
+    if (completedBets.length === 0) return { highRisk: [], optimal: [] }
+
+    // Group by pre-bet emotion
+    const emotionOutcomes: Record<string, { wins: number; losses: number; pushes: number; totalStake: number; totalPL: number }> = {}
+
+    completedBets.forEach(bet => {
+      const emotion = bet.emotions.before.emotion.toLowerCase()
+      if (!emotionOutcomes[emotion]) {
+        emotionOutcomes[emotion] = { wins: 0, losses: 0, pushes: 0, totalStake: 0, totalPL: 0 }
+      }
+
+      if (bet.outcome === "win") emotionOutcomes[emotion].wins++
+      else if (bet.outcome === "loss") emotionOutcomes[emotion].losses++
+      else emotionOutcomes[emotion].pushes++
+
+      emotionOutcomes[emotion].totalStake += bet.stake
+      emotionOutcomes[emotion].totalPL += bet.profitLoss || 0
+    })
+
+    const results = Object.entries(emotionOutcomes)
+      .map(([emotion, stats]) => {
+        const total = stats.wins + stats.losses + stats.pushes
+        const emotionScore = EMOTION_SCORE_LOOKUP[emotion] ?? 50
+        return {
+          emotion,
+          emotionScore,
+          winRate: total > 0 ? (stats.wins / total) * 100 : 0,
+          totalBets: total,
+          totalPL: stats.totalPL,
+          roi: stats.totalStake > 0 ? (stats.totalPL / stats.totalStake) * 100 : 0
+        }
+      })
+      .filter(e => e.totalBets >= 2) // Need at least 2 bets
+
+    // High-risk: tilt emotions (score < TILT_THRESHOLD) with low win rates
+    const highRisk = results
+      .filter(e => e.emotionScore < TILT_THRESHOLD)
+      .sort((a, b) => a.winRate - b.winRate)
+      .slice(0, 5)
+
+    // Optimal: positive emotions (score >= 60) with high win rates
+    const optimal = results
+      .filter(e => e.emotionScore >= 60)
+      .sort((a, b) => b.winRate - a.winRate)
+      .slice(0, 5)
+
+    return { highRisk, optimal }
+  }, [comprehensiveBets])
 
   const getRiskPatternColor = (pattern: string) => {
     switch (pattern) {
@@ -524,10 +644,10 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                 </div>
                 {summaryMetrics.highestRiskState && summaryMetrics.bestPerformingState &&
                   summaryMetrics.highestRiskState.emotion !== summaryMetrics.bestPerformingState.emotion && (
-                  <div className="text-xs text-red-600">
-                    {Math.round(summaryMetrics.bestPerformingState.winRate - summaryMetrics.highestRiskState.winRate)}% lower win rate than {summaryMetrics.bestPerformingState.emotion}
-                  </div>
-                )}
+                    <div className="text-xs text-red-600">
+                      {Math.round(summaryMetrics.bestPerformingState.winRate - summaryMetrics.highestRiskState.winRate)}% lower win rate than {summaryMetrics.bestPerformingState.emotion}
+                    </div>
+                  )}
               </div>
             </Card>
 
@@ -545,9 +665,9 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                   {summaryMetrics.emotionalImpactScore}/100
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {summaryMetrics.emotionalImpactScore > 70 ? 'Strong correlation detected' : 
-                   summaryMetrics.emotionalImpactScore > 40 ? 'Moderate correlation detected' : 
-                   'Weak correlation detected'}
+                  {summaryMetrics.emotionalImpactScore > 70 ? 'Strong correlation detected' :
+                    summaryMetrics.emotionalImpactScore > 40 ? 'Moderate correlation detected' :
+                      'Weak correlation detected'}
                 </div>
                 <div className="text-xs text-blue-600">
                   Emotions significantly affect outcomes
@@ -576,23 +696,20 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                   {emotionMatrixData.map((row, index) => (
                     <tr key={row.emotion} className="border-b">
                       <td className="p-2 font-medium capitalize">{row.emotion}</td>
-                      <td className={`text-right p-2 font-medium ${
-                        row.winRate >= 70 ? 'text-green-600' : 
-                        row.winRate >= 50 ? 'text-yellow-600' : 
-                        'text-red-600'
-                      }`}>
+                      <td className={`text-right p-2 font-medium ${row.winRate >= 70 ? 'text-green-600' :
+                        row.winRate >= 50 ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}>
                         {row.winRate}%
                       </td>
                       <td className="text-right p-2">${row.avgStake}</td>
                       <td className="text-right p-2">{row.totalBets}</td>
-                      <td className={`text-right p-2 font-medium ${
-                        row.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <td className={`text-right p-2 font-medium ${row.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {row.profitLoss >= 0 ? '+' : ''}{row.profitLoss}
                       </td>
-                      <td className={`text-right p-2 font-medium ${
-                        row.roi >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <td className={`text-right p-2 font-medium ${row.roi >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {row.roi >= 0 ? '+' : ''}{row.roi}%
                       </td>
                       <td className={`p-2 ${getRiskPatternColor(row.riskPattern)}`}>
@@ -606,6 +723,77 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
               </table>
             </div>
           </Card>
+
+          {/* Parlay vs Single Bet Psychology */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Brain className="h-5 w-5 text-purple-500" />
+                <h4 className="text-lg font-semibold text-foreground">Parlay vs Single Psychology</h4>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { label: 'Single Bets', data: trades.filter(t => !t.isParlay) },
+                  { label: 'Parlays', data: trades.filter(t => t.isParlay) }
+                ].map(group => {
+                  const completed = group.data.filter(t => t.outcome && t.actualReturn != null)
+                  const wins = completed.filter(t => t.outcome === 'profit').length
+                  const winRate = completed.length > 0 ? (wins / completed.length) * 100 : 0
+                  const avgIntensity = group.data.reduce((sum, t) => sum + (t.preTradeIntensity || 0), 0) / (group.data.length || 1)
+
+                  return (
+                    <div key={group.label} className="p-3 rounded-lg border border-border bg-muted/30">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold">{group.label}</span>
+                        <Badge variant="outline">{group.data.length} tracked</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Win Rate</p>
+                          <p className={`font-bold ${winRate >= 30 ? 'text-success' : 'text-foreground'}`}>
+                            {winRate.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Avg Intensity</p>
+                          <p className="font-bold text-foreground">
+                            {avgIntensity.toFixed(1)}/10
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="h-5 w-5 text-blue-500" />
+                <h4 className="text-lg font-semibold text-foreground">Tilt Risk Assessment</h4>
+              </div>
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">High-Intensity Losses</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {trades.filter(t => t.outcome === 'loss' && (t.preTradeIntensity || 0) >= 4).length}
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                    Bets lost when emotional intensity was 4 or higher (on 1-5 scale).
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/30">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">Disciplined Wins</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {trades.filter(t => t.outcome === 'profit' && (t.preTradeIntensity || 0) <= 2).length}
+                  </p>
+                  <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                    Wins achieved when emotional intensity was 2 or lower.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -635,7 +823,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
               <div className="mt-4 text-center">
                 <p className="text-sm text-red-600">
                   You bet {Math.round(
-                    (stakeSizeData.find(d => d.emotion === 'Greed')?.stake || 0) / 
+                    (stakeSizeData.find(d => d.emotion === 'Greed')?.stake || 0) /
                     (stakeSizeData.find(d => d.emotion === 'Calm')?.stake || 1)
                   )}x more when feeling greed or frustration
                 </p>
@@ -657,7 +845,7 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                       borderRadius: "0.5rem"
                     }}
                     formatter={(value: any) => [
-                      `$${value >= 0 ? '+' : ''}${value}`, 
+                      `$${value >= 0 ? '+' : ''}${value}`,
                       "Profit/Loss"
                     ]}
                   />
@@ -690,6 +878,8 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                         return <TrendingDown className="h-5 w-5 text-orange-500 mt-0.5" />
                       case 'opportunity':
                         return <Activity className="h-5 w-5 text-blue-500 mt-0.5" />
+                      case 'player-behavior':
+                        return <Target className="h-5 w-5 text-indigo-500 mt-0.5" />
                       default:
                         return <Brain className="h-5 w-5 text-purple-500 mt-0.5" />
                     }
@@ -735,6 +925,123 @@ export function CorrelationTab({ emotionLogs, trades }: CorrelationTabProps) {
                 </div>
               )}
             </div>
+          </Card>
+
+          {/* Pre-Bet Emotion Impact (Tilt Predictors) */}
+          {(tiltPredictors.highRisk.length > 0 || tiltPredictors.optimal.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* High-Risk Pre-Bet Emotions */}
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <h4 className="text-lg font-semibold text-foreground">High-Risk Pre-Bet Emotions</h4>
+                </div>
+                {tiltPredictors.highRisk.length > 0 ? (
+                  <div className="space-y-3">
+                    {tiltPredictors.highRisk.map((emotion, idx) => (
+                      <div key={emotion.emotion} className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-bold text-red-500">#{idx + 1}</span>
+                          <div>
+                            <p className="font-medium text-foreground capitalize">{emotion.emotion}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {emotion.totalBets} bets • ROI: {emotion.roi > 0 ? '+' : ''}{emotion.roi.toFixed(0)}%
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-red-500">{emotion.winRate.toFixed(0)}%</p>
+                          <p className="text-xs text-muted-foreground">win rate</p>
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Consider NOT betting when feeling these emotions - your outcomes suffer significantly.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Brain className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Not enough tilt emotion data yet</p>
+                  </div>
+                )}
+              </Card>
+
+              {/* Optimal Pre-Bet Emotions */}
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  <h4 className="text-lg font-semibold text-foreground">Optimal Pre-Bet Emotions</h4>
+                </div>
+                {tiltPredictors.optimal.length > 0 ? (
+                  <div className="space-y-3">
+                    {tiltPredictors.optimal.map((emotion, idx) => (
+                      <div key={emotion.emotion} className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-bold text-green-500">#{idx + 1}</span>
+                          <div>
+                            <p className="font-medium text-foreground capitalize">{emotion.emotion}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {emotion.totalBets} bets • ROI: {emotion.roi > 0 ? '+' : ''}{emotion.roi.toFixed(0)}%
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-500">{emotion.winRate.toFixed(0)}%</p>
+                          <p className="text-xs text-muted-foreground">win rate</p>
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-xs text-muted-foreground mt-4">
+                      You perform best when betting with these emotional states.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Brain className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Not enough positive emotion data yet</p>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* Player Behavioral Correlations */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="h-5 w-5 text-indigo-500" />
+              <h4 className="text-lg font-semibold text-foreground">Player Behavioral Correlations</h4>
+            </div>
+            {playerEmotionStats.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {playerEmotionStats.map(stat => (
+                    <div key={stat.player} className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/20">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-semibold text-foreground truncate max-w-[150px]" title={stat.player}>
+                          {stat.player}
+                        </span>
+                        <Badge variant="outline" className="text-indigo-600 border-indigo-200">
+                          {stat.totalBets} {stat.totalBets === 1 ? 'bet' : 'bets'}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Dominant state: <span className="font-medium text-indigo-600 capitalize">{stat.dominantEmotion}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground italic text-center">
+                  Patterns are detected across single bets and individual parlay legs
+                </p>
+              </>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto opacity-20 mb-2" />
+                <p>No player-specific behavioral patterns detected yet.</p>
+                <p className="text-xs mt-1">Log bets with player names to see emotional correlations.</p>
+              </div>
+            )}
           </Card>
         </>
       ) : (

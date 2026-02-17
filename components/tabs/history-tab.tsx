@@ -5,12 +5,12 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { 
-  History, 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Target, 
+import {
+  History,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Target,
   Filter,
   Search,
   Calendar,
@@ -29,13 +29,9 @@ interface HistoryTabProps {
   onNavigateToTab: (tab: string) => void
 }
 
-// Available sports
-const AVAILABLE_SPORTS = [
-  { key: "basketball_nba", label: "NBA" },
-  { key: "americanfootball_nfl", label: "NFL" },
-  { key: "baseball_mlb", label: "MLB" },
-  { key: "icehockey_nhl", label: "NHL" },
-]
+// Available sports dynamically from config
+import { getPopularSports, getSportDisplayName } from "@/lib/sports-config"
+const AVAILABLE_SPORTS = getPopularSports().map(s => ({ key: s.id, label: s.displayName }))
 
 export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
   const [loading, setLoading] = useState(true)
@@ -91,9 +87,9 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       const bet = analyses[betIndex]
       const actualReturn =
         outcome === 'win' ? calculateWinReturn(bet.stake, bet.odds ?? -110) :
-        outcome === 'push' ? bet.stake :
-        outcome === 'pending' ? undefined :
-        0
+          outcome === 'push' ? bet.stake :
+            outcome === 'pending' ? undefined :
+              0
 
       const updatedBet = {
         ...bet,
@@ -106,10 +102,10 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       updatedAnalyses[betIndex] = updatedBet
       setAnalyses(updatedAnalyses)
       setSelectedBet(updatedBet)
-      
+
       // Save to storage
       await storage.updateBetAnalysis(updatedBet)
-      
+
       toast.success('Outcome updated', {
         description: `Bet marked as ${outcome.toUpperCase()} - Return: $${actualReturn?.toFixed(2) || '0.00'}`
       })
@@ -140,11 +136,11 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
       filtered = filtered.filter(bet => {
         // Check if bet.sport matches the filter key directly
         if (bet.sport === filterSport) return true
-        
+
         // Check if bet.sport matches the label of the selected sport
         const selectedSport = AVAILABLE_SPORTS.find(s => s.key === filterSport)
         if (selectedSport && bet.sport === selectedSport.label) return true
-        
+
         return false
       })
     }
@@ -171,13 +167,13 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
     const completed = analyses.filter(bet => bet.outcome && bet.outcome !== 'pending')
     const wins = completed.filter(bet => bet.outcome === 'win')
     const losses = completed.filter(bet => bet.outcome === 'loss')
-    
+
     const totalStaked = completed.reduce((sum, bet) => sum + bet.stake, 0)
     const totalReturns = completed.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0)
     const profit = totalReturns - totalStaked
     const roi = totalStaked > 0 ? (profit / totalStaked) * 100 : 0
     const winRate = completed.length > 0 ? (wins.length / completed.length) * 100 : 0
-    
+
     const avgEV = analyses.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (analyses.length || 1)
 
     return {
@@ -199,7 +195,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
 
   // Get unique sports from user's bets for additional filtering
   const userSports = Array.from(new Set(analyses.map(bet => bet.sport)))
-  
+
   // Combine available sports with any custom sports the user has bet on
   const allSportOptions = [
     ...AVAILABLE_SPORTS,
@@ -262,7 +258,7 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
           <BarChart3 className="h-5 w-5 text-blue-500" />
           Performance Overview
         </h3>
-        
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Win Rate */}
           <div className="p-4 rounded-lg bg-background/50 text-center">
@@ -449,19 +445,18 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
                     <Badge variant="outline" className="text-xs">
-                      {bet.sport}
+                      {getSportDisplayName(bet.sport)}
                     </Badge>
                     <Badge variant="outline" className="text-xs">
                       {bet.betType}
                     </Badge>
                     {bet.outcome && (
                       <Badge
-                        className={`text-xs ${
-                          bet.outcome === 'win' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
-                          bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
-                          bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500 border-gray-500/30' :
-                          'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
-                        }`}
+                        className={`text-xs ${bet.outcome === 'win' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
+                            bet.outcome === 'loss' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
+                              bet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500 border-gray-500/30' :
+                                'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
+                          }`}
                       >
                         {bet.outcome.toUpperCase()}
                       </Badge>
@@ -538,16 +533,15 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                     {selectedBet.description}
                   </h3>
                   <div className="flex gap-2">
-                    <Badge variant="outline">{selectedBet.sport}</Badge>
+                    <Badge variant="outline">{getSportDisplayName(selectedBet.sport)}</Badge>
                     <Badge variant="outline">{selectedBet.betType}</Badge>
                     {selectedBet.outcome && (
                       <Badge
-                        className={`${
-                          selectedBet.outcome === 'win' ? 'bg-green-500/20 text-green-500' :
-                          selectedBet.outcome === 'loss' ? 'bg-red-500/20 text-red-500' :
-                          selectedBet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500' :
-                          'bg-yellow-500/20 text-yellow-500'
-                        }`}
+                        className={`${selectedBet.outcome === 'win' ? 'bg-green-500/20 text-green-500' :
+                            selectedBet.outcome === 'loss' ? 'bg-red-500/20 text-red-500' :
+                              selectedBet.outcome === 'push' ? 'bg-gray-500/20 text-gray-500' :
+                                'bg-yellow-500/20 text-yellow-500'
+                          }`}
                       >
                         {selectedBet.outcome.toUpperCase()}
                       </Badge>
@@ -599,11 +593,19 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                   </div>
                 </div>
 
-                {/* AI Recommendation */}
+                {/* Notes/Context */}
                 {selectedBet.aiRecommendation && (
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">AI Recommendation</p>
+                    <p className="text-sm text-muted-foreground mb-1">Notes</p>
                     <p className="text-sm text-foreground">{selectedBet.aiRecommendation}</p>
+                  </div>
+                )}
+
+                {/* Full Description (if different from title) */}
+                {selectedBet.description && selectedBet.description.length > 50 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Full Description</p>
+                    <p className="text-sm text-foreground">{selectedBet.description}</p>
                   </div>
                 )}
 
@@ -662,20 +664,18 @@ export function HistoryTab({ userData, onNavigateToTab }: HistoryTabProps) {
                       <div className="grid grid-cols-2 gap-4 mb-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Result</p>
-                          <p className={`text-lg font-semibold ${
-                            selectedBet.outcome === 'win' ? 'text-green-500' :
-                            selectedBet.outcome === 'loss' ? 'text-red-500' :
-                            'text-gray-500'
-                          }`}>
+                          <p className={`text-lg font-semibold ${selectedBet.outcome === 'win' ? 'text-green-500' :
+                              selectedBet.outcome === 'loss' ? 'text-red-500' :
+                                'text-gray-500'
+                            }`}>
                             {selectedBet.outcome?.toUpperCase() || 'PENDING'}
                           </p>
                         </div>
                         {selectedBet.actualReturn !== undefined && (
                           <div>
                             <p className="text-xs text-muted-foreground">Return</p>
-                            <p className={`text-lg font-semibold ${
-                              selectedBet.actualReturn >= selectedBet.stake ? 'text-green-500' : 'text-red-500'
-                            }`}>
+                            <p className={`text-lg font-semibold ${selectedBet.actualReturn >= selectedBet.stake ? 'text-green-500' : 'text-red-500'
+                              }`}>
                               ${selectedBet.actualReturn.toFixed(2)}
                             </p>
                           </div>

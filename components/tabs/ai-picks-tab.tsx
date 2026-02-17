@@ -19,7 +19,7 @@ import type { ParlayRecommendation } from "@/lib/types/ai-models"
 import { supabase } from "@/lib/supabase"
 import { AIUsageIndicator } from "@/components/ai-usage-indicator"
 import { PremiumFeatureWall } from "@/components/premium-feature-wall"
-import { getPopularSports, getSportById } from "@/lib/sports-config"
+import { getPopularSports, getSportById, isSportInSeason } from "@/lib/sports-config"
 
 interface MarketplaceProduct {
   id: string
@@ -175,6 +175,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [isFetchingPicks, setIsFetchingPicks] = useState(false)
   const [lastPicksFetchAt, setLastPicksFetchAt] = useState<number | null>(null)
   const [picks, setPicks] = useState<any[]>([])
+  const [propPicks, setPropPicks] = useState<any[]>([])
   const [parlayPicks, setParlayPicks] = useState<ParlayRecommendation[]>([])
   const { score: emotionalScore, shouldReceiveAIPicks, color, level, recommendation } = useEmotionalStability(userData)
   const [selectedSport, setSelectedSport] = useState('basketball_nba')
@@ -374,6 +375,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const fetchAIPicks = async (force: boolean = false) => {
     if (cooldown) {
       setPicks([])
+      setPropPicks([])
       setParlayPicks([])
       return
     }
@@ -502,6 +504,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           description: data.message
         })
         setPicks([])
+        setPropPicks([])
         setParlayPicks([])
       } else {
         console.log('AI Picks: shouldBet is true, processing recommendations')
@@ -517,6 +520,13 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           setParlayPicks(data.parlayRecommendations)
         }
 
+        // Set player prop recommendations
+        if (data.propPicks) {
+          console.log('AI Picks: Setting', data.propPicks.length, 'player prop recommendations')
+          setPropPicks(data.propPicks)
+        } else {
+          setPropPicks([])
+        }
 
         const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
         const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
@@ -619,6 +629,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         description: errorMessage
       })
       setPicks([])
+      setPropPicks([])
       setParlayPicks([])
     } finally {
       console.log('AI Picks: Reached finally block, clearing loading states')
@@ -756,18 +767,18 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   return (
     <div className="space-y-6">
       <Tabs value={activeSection} onValueChange={(v: string) => setActiveSection(v as 'picks' | 'advisor' | 'marketplace')} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="picks">
-            <Sparkles className="h-4 w-4 mr-2" />
-            SmartSlip
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsTrigger value="picks" className="flex-col xs:flex-row gap-1 xs:gap-2 py-2 px-1 xs:px-3 text-xs xs:text-sm min-h-[44px]">
+            <Sparkles className="h-4 w-4 shrink-0" />
+            <span className="truncate">SmartSlip</span>
           </TabsTrigger>
-          <TabsTrigger value="advisor">
-            <Brain className="h-4 w-4 mr-2" />
-            TiltLab
+          <TabsTrigger value="advisor" className="flex-col xs:flex-row gap-1 xs:gap-2 py-2 px-1 xs:px-3 text-xs xs:text-sm min-h-[44px]">
+            <Brain className="h-4 w-4 shrink-0" />
+            <span className="truncate">TiltLab</span>
           </TabsTrigger>
-          <TabsTrigger value="marketplace">
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Marketplace
+          <TabsTrigger value="marketplace" className="flex-col xs:flex-row gap-1 xs:gap-2 py-2 px-1 xs:px-3 text-xs xs:text-sm min-h-[44px]">
+            <ShoppingCart className="h-4 w-4 shrink-0" />
+            <span className="truncate">Shop</span>
           </TabsTrigger>
         </TabsList>
 
@@ -888,17 +899,38 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">Sport</label>
                 <div className="flex flex-wrap gap-2">
-                  {availableSports.map((sport) => (
-                    <Button
-                      key={sport.id}
-                      variant={selectedSport === sport.id ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectedSport(sport.id)}
-                      title={sport.displayName}
-                    >
-                      {sport.icon} {sport.name}
-                    </Button>
-                  ))}
+                  {availableSports.map((sport) => {
+                    const inSeason = isSportInSeason(sport.id);
+                    const isSelected = selectedSport === sport.id;
+                    return (
+                      <Button
+                        key={sport.id}
+                        variant={isSelected ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSelectedSport(sport.id)}
+                        title={`${sport.displayName}${inSeason ? ' (In Season)' : ' (Off Season)'}`}
+                        className={
+                          isSelected
+                            ? ''
+                            : inSeason
+                              ? 'border-green-500/50 text-green-600 hover:bg-green-500/10 hover:text-green-600'
+                              : 'border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-500 opacity-70'
+                        }
+                      >
+                        {sport.icon} {sport.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-green-500/50 border border-green-500"></div>
+                    <span>In Season</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-red-500/50 border border-red-500"></div>
+                    <span>Off Season</span>
+                  </div>
                 </div>
               </div>
               <div>
@@ -1159,6 +1191,75 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               ))}
             </div>
 
+              {/* Player Props Section */}
+              {!loading && propPicks.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-blue-500" />
+                    <h3 className="text-lg font-semibold text-foreground">Player Props</h3>
+                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                      {propPicks.filter(p => p.isRecommended).length} Recommended
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {propPicks.map((prop, idx) => (
+                      <Card key={idx} className={`p-4 border ${prop.isRecommended ? 'border-green-500/30 bg-green-500/5' : 'border-muted'}`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-foreground">{prop.playerName}</p>
+                            <p className="text-sm text-muted-foreground">{prop.teams}</p>
+                          </div>
+                          <Badge variant={prop.isRecommended ? "default" : "secondary"} className={prop.isRecommended ? "bg-green-500" : ""}>
+                            {prop.isRecommended ? "BET" : "PASS"}
+                          </Badge>
+                        </div>
+                        <div className="mb-3">
+                          <p className="text-lg font-bold text-foreground">
+                            {prop.propDirection === 'over' ? 'Over' : 'Under'} {prop.propLine} {prop.line?.split(' ').slice(-1)[0] || ''}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Odds: {prop.odds > 0 ? '+' : ''}{prop.odds}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="bg-background/50 p-2 rounded">
+                            <p className="text-xs text-muted-foreground">EV</p>
+                            <p className={`font-semibold ${(prop.numericRisk?.evPercentage || 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {(prop.numericRisk?.evPercentage || 0) > 0 ? '+' : ''}{(prop.numericRisk?.evPercentage || 0).toFixed(1)}%
+                            </p>
+                          </div>
+                          <div className="bg-background/50 p-2 rounded">
+                            <p className="text-xs text-muted-foreground">Confidence</p>
+                            <p className="font-semibold text-foreground">{prop.confidence}%</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleAnalyzePick(prop)}
+                          >
+                            <Brain className="h-4 w-4 mr-1" />
+                            Analyze
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleLogBet(prop)}
+                            disabled={!prop.isRecommended}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Log Bet
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Smart Parlays Section - Additional Options */}
               {!loading && parlayPicks.length > 0 && (
                 <div className="space-y-4">
@@ -1241,6 +1342,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
               </div>
 
               {/* Risk Breakdown */}
+              {anchoredRisk.breakdown && (
               <div className="p-4 rounded-lg bg-background/50 mb-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Risk Breakdown (Research-Weighted)</p>
                 <div className="space-y-2">
@@ -1250,10 +1352,10 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                       <div className="w-32 bg-muted rounded-full h-2">
                         <div
                           className="bg-purple-500 h-2 rounded-full"
-                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.emotional * 125)}%` }}
+                          style={{ width: `${Math.min(100, (anchoredRisk.breakdown.emotional ?? 0) * 125)}%` }}
                         />
                       </div>
-                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.emotional * 100).toFixed(1)}%</span>
+                      <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.emotional ?? 0) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1262,10 +1364,10 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                       <div className="w-32 bg-muted rounded-full h-2">
                         <div
                           className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.behavioral * 1000)}%` }}
+                          style={{ width: `${Math.min(100, (anchoredRisk.breakdown.behavioral ?? 0) * 1000)}%` }}
                         />
                       </div>
-                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.behavioral * 100).toFixed(1)}%</span>
+                      <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.behavioral ?? 0) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1274,14 +1376,15 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                       <div className="w-32 bg-muted rounded-full h-2">
                         <div
                           className="bg-amber-500 h-2 rounded-full"
-                          style={{ width: `${Math.min(100, anchoredRisk.breakdown.demographic * 1000)}%` }}
+                          style={{ width: `${Math.min(100, (anchoredRisk.breakdown.demographic ?? 0) * 1000)}%` }}
                         />
                       </div>
-                      <span className="text-xs tabular-nums w-12 text-right">{(anchoredRisk.breakdown.demographic * 100).toFixed(1)}%</span>
+                      <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.demographic ?? 0) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Clinical Context */}
               <div className="p-3 rounded-lg bg-muted mb-4">

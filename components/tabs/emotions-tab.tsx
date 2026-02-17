@@ -397,6 +397,11 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       return
     }
 
+    if (isLogging) return
+    setIsLogging(true)
+
+    try {
+
     // Create a unique ID for this emotion log attempt
     const now = new Date()
     const uniqueId = `${selectedEmotion}-${phase}-${Math.floor(now.getTime() / 1000)}` // Unique per second
@@ -526,7 +531,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       // Create new trade entry (Legacy - Keep for backward compatibility)
       // Skip if we already created a comprehensive bet to avoid duplicates
       if (!createdComprehensiveBet) {
-        const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` — ${sport}` : ''}`
+        const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` â€” ${sport}` : ''}`
         const newTrade: Trade = {
           id: Date.now().toString(),
           timestamp: new Date(),
@@ -617,7 +622,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               intensity[0],
               `Emotional check-in: ${context || "No additional context"}`
             )
-            console.log('✅ Updated comprehensive bet with outcome and emotional data')
+            console.log('âœ… Updated comprehensive bet with outcome and emotional data')
           } catch (error) {
             console.error('Error updating comprehensive bet:', error)
           }
@@ -726,6 +731,12 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
 
     // Reset form
     handleReset()
+    } catch (error) {
+      console.error('Error logging emotion:', error)
+      toast.error('Failed to log emotion. Please try again.')
+    } finally {
+      setIsLogging(false)
+    }
   }
 
   return (
@@ -813,7 +824,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                         : `${bet.awayTeam} vs ${bet.homeTeam}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {getSportDisplayName(bet.sport)} • {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
+                      {getSportDisplayName(bet.sport)} â€¢ {bet.betType} â€¢ ${bet.stake} â€¢ {bet.emotions.before.emotion || "Pre-bet check-in"}
                     </p>
                     {bet.reasoning && (
                       <p className="text-xs text-muted-foreground line-clamp-1">
@@ -951,21 +962,21 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     // 
                     // For adjacent outer circles to touch (not overlap):
                     //   Distance between centers = 2r
-                    //   2·d·sin(π/9) = 2r  (where d = ring radius, θ = 40°)
-                    //   d = r / sin(π/9) = r / sin(20°) ≈ 2.924r
+                    //   2Â·dÂ·sin(Ï€/9) = 2r  (where d = ring radius, Î¸ = 40Â°)
+                    //   d = r / sin(Ï€/9) = r / sin(20Â°) â‰ˆ 2.924r
                     //
                     // For all circles to fit in parent (R = 50%):
-                    //   d + r ≤ 50
-                    //   2.924r + r ≤ 50
-                    //   3.924r ≤ 50
-                    //   r ≤ 12.74%
+                    //   d + r â‰¤ 50
+                    //   2.924r + r â‰¤ 50
+                    //   3.924r â‰¤ 50
+                    //   r â‰¤ 12.74%
                     //
                     const parentRadius = 50
-                    const angleStep = Math.PI / 9 // 20° in radians
-                    const sinAngle = Math.sin(angleStep) // sin(20°) ≈ 0.342
+                    const angleStep = Math.PI / 9 // 20Â° in radians
+                    const sinAngle = Math.sin(angleStep) // sin(20Â°) â‰ˆ 0.342
 
                     // Calculate optimal circle radius
-                    const circleRadiusPercent = parentRadius / (1 / sinAngle + 1) // ≈ 12.74%
+                    const circleRadiusPercent = parentRadius / (1 / sinAngle + 1) // â‰ˆ 12.74%
                     const circleDiameter = circleRadiusPercent * 2
                     const circleSize = `${circleDiameter}%`
 
@@ -977,10 +988,10 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                       y = 0
                     } else {
                       // Ring radius calculated for adjacent tangency
-                      const ringRadius = circleRadiusPercent / sinAngle // ≈ 37.26%
+                      const ringRadius = circleRadiusPercent / sinAngle // â‰ˆ 37.26%
 
                       const angleIndex = index - 1
-                      const angleDegrees = (360 / 9) * angleIndex // 0°, 40°, 80°, ...
+                      const angleDegrees = (360 / 9) * angleIndex // 0Â°, 40Â°, 80Â°, ...
                       const angleRadians = (angleDegrees * Math.PI) / 180
 
                       // Position using polar coordinates, starting from top
@@ -1120,15 +1131,15 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     <RadioGroup value={outcome} onValueChange={(val: string) => setOutcome(val as any)}>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="profit" id="profit" />
-                        <Label htmlFor="profit" className="cursor-pointer flex-1 font-normal">Won 💰</Label>
+                        <Label htmlFor="profit" className="cursor-pointer flex-1 font-normal">Won ðŸ’°</Label>
                       </div>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="loss" id="loss" />
-                        <Label htmlFor="loss" className="cursor-pointer flex-1 font-normal">Lost 📉</Label>
+                        <Label htmlFor="loss" className="cursor-pointer flex-1 font-normal">Lost ðŸ“‰</Label>
                       </div>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="breakeven" id="breakeven" />
-                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Pushed ⚖️</Label>
+                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Pushed âš–ï¸</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -1334,7 +1345,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                         : `${bet.awayTeam} vs ${bet.homeTeam}`}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {bet.betType} • {getSportDisplayName(bet.sport)} • ${bet.stake} @ {bet.odds}
+                                      {bet.betType} â€¢ {getSportDisplayName(bet.sport)} â€¢ ${bet.stake} @ {bet.odds}
                                     </p>
                                     {bet.reasoning && (
                                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
@@ -1347,7 +1358,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                   </div>
                                   {selectedBet?.id === bet.id && (
                                     <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                                      <span className="text-primary-foreground text-xs">✓</span>
+                                      <span className="text-primary-foreground text-xs">âœ“</span>
                                     </div>
                                   )}
                                 </div>

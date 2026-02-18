@@ -434,7 +434,7 @@ describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
     })
 
     test('Niche sports are parlay eligible', () => {
-      const nicheSports = ['darts_pdc', 'table_tennis', 'cricket', 'rugby_union', 'aussie_rules']
+      const nicheSports = ['darts_pdc', 'table_tennis', 'cricket_ipl', 'rugby_union', 'aussie_rules']
       nicheSports.forEach(sport => {
         expect(isParlayEligible(sport)).toBe(true)
       })
@@ -500,7 +500,7 @@ describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
       expect(darts?.id).toBe('darts_pdc')
 
       const cricket = mapTiltLabSportToConfig('Cricket')
-      expect(cricket?.id).toBe('cricket')
+      expect(cricket?.id).toBe('cricket_ipl') // Cricket maps to IPL as default
     })
   })
 

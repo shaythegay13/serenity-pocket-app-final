@@ -193,27 +193,29 @@ export function TermsAgreement({ onAccept, onDecline }: TermsAgreementProps) {
 
         {/* Checkboxes */}
         <div className="space-y-3">
-          <div className="flex items-start space-x-3 p-4 rounded-lg border border-border">
+          <div className="flex items-start space-x-3 p-4 rounded-lg border border-border bg-muted/30">
             <Checkbox
               id="terms"
               checked={agreedToTerms}
               onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+              className="size-5 border-2 border-muted-foreground/50 data-[state=checked]:border-primary mt-0.5"
             />
             <label htmlFor="terms" className="text-sm cursor-pointer leading-relaxed">
-              I have read and agree to the <span className="font-semibold">Terms of Service</span>. 
-              I understand that trading and betting involve substantial risk of loss and that Serenity 
+              I have read and agree to the <span className="font-semibold">Terms of Service</span>.
+              I understand that trading and betting involve substantial risk of loss and that Serenity
               Pocket does not provide financial advice.
             </label>
           </div>
 
-          <div className="flex items-start space-x-3 p-4 rounded-lg border border-border">
+          <div className="flex items-start space-x-3 p-4 rounded-lg border border-border bg-muted/30">
             <Checkbox
               id="privacy"
               checked={agreedToPrivacy}
               onCheckedChange={(checked) => setAgreedToPrivacy(checked as boolean)}
+              className="size-5 border-2 border-muted-foreground/50 data-[state=checked]:border-primary mt-0.5"
             />
             <label htmlFor="privacy" className="text-sm cursor-pointer leading-relaxed">
-              I have read and agree to the <span className="font-semibold">Privacy Policy</span>. 
+              I have read and agree to the <span className="font-semibold">Privacy Policy</span>.
               I consent to the collection and use of my information as described.
             </label>
           </div>

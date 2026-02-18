@@ -92,6 +92,32 @@ function getNoGamesMessage(sport: string): string {
     americanfootball_ncaaf: month >= 1 && month <= 7
       ? "College football is in the off-season. The season starts in late August."
       : "No upcoming NCAAF games right now. Games are typically on Saturdays.",
+    // Cricket leagues
+    cricket_ipl: month < 2 || month > 4
+      ? "The IPL season runs March–May. Check back during the season, or try another cricket league like Big Bash or PSL!"
+      : "No upcoming IPL matches found right now. Matches are usually in the evening (IST). Check back later!",
+    cricket_mlc: month < 6 || month > 7
+      ? "Major League Cricket runs July–August. Try IPL, Big Bash, or international cricket in the meantime!"
+      : "No upcoming MLC matches found right now. Check back closer to match time!",
+    cricket_big_bash: !(month >= 11 || month <= 1)
+      ? "The Big Bash League runs December–February. Try IPL or international cricket in the meantime!"
+      : "No upcoming BBL matches found right now. Check back closer to match time!",
+    cricket_cpl: month < 7 || month > 9
+      ? "The Caribbean Premier League runs August–October. Try other cricket leagues in the meantime!"
+      : "No upcoming CPL matches found right now. Check back closer to match time!",
+    cricket_the_hundred: month < 6 || month > 7
+      ? "The Hundred runs July–August. Try IPL, Big Bash, or international cricket in the meantime!"
+      : "No upcoming Hundred matches found right now. Check back closer to match time!",
+    cricket_psl: month < 1 || month > 2
+      ? "The Pakistan Super League runs February–March. Try IPL or Big Bash in the meantime!"
+      : "No upcoming PSL matches found right now. Check back closer to match time!",
+    cricket_sa20: month > 1
+      ? "SA20 runs January–February. Try IPL or Big Bash in the meantime!"
+      : "No upcoming SA20 matches found right now. Check back closer to match time!",
+    cricket_icc_odi: "No upcoming ICC ODI matches scheduled right now. International cricket schedules vary — check back soon!",
+    cricket_icc_t20: "No upcoming ICC T20 matches scheduled right now. Check back closer to the next T20 World Cup or bilateral series!",
+    cricket_test: "No upcoming Test matches scheduled right now. Test cricket schedules vary by series — check back soon!",
+    cricket_icc_world_cup: "The ICC Cricket World Cup is a periodic tournament. Check back when the next edition is scheduled!",
   }
 
   return sportMessages[sport] || `No upcoming games found for this sport right now. The league may be between seasons or on a break. Please try another sport or check back later.`
@@ -1350,23 +1376,103 @@ export async function POST(request: NextRequest) {
       } recommendations`,
     )
 
-    // Process Gemini's picks - label based on EV
+    // RE-SCORE Gemini's picks with MATH-BASED EV instead of trusting LLM arithmetic.
+    // Gemini provides: team selection, bet type, confidence (probability estimate).
+    // We provide: proper EV calculation using computeEv() with real odds data.
+    const gameContextMap = new Map(enrichedGames.map(g => [g.id, g.context]))
+
     const filtered = (reasoningOutput.recommendations || []).map((r: any) => {
-      const evPct = r.numericRisk?.evPercentage ?? 0
+      const gameCtx = r.gameId ? gameContextMap.get(r.gameId) : null
+
+      // Use Gemini's confidence (0-100) as its true probability estimate
+      const geminiTrueProb = typeof r.confidence === 'number' && r.confidence > 0
+        ? Math.max(0.05, Math.min(0.95, r.confidence / 100))
+        : undefined
+
+      // Get the actual offered odds from the game context
+      let offeredOdds = typeof r.odds === 'number' && r.odds !== 0 ? r.odds : undefined
+      let consensusOdds: { sideA: number; sideB: number } | undefined
+
+      if (gameCtx) {
+        const bt = (r.betType || '').toLowerCase()
+        if (bt === 'moneyline') {
+          const isHome = r.line?.toLowerCase().includes(gameCtx.homeTeam?.toLowerCase?.() || '___')
+          if (isHome) {
+            offeredOdds = offeredOdds ?? gameCtx.currentOdds?.moneylineHome
+            if (gameCtx.averageOdds?.moneylineHome && gameCtx.averageOdds?.moneylineAway) {
+              consensusOdds = { sideA: gameCtx.averageOdds.moneylineHome, sideB: gameCtx.averageOdds.moneylineAway }
+            }
+          } else {
+            offeredOdds = offeredOdds ?? gameCtx.currentOdds?.moneylineAway
+            if (gameCtx.averageOdds?.moneylineHome && gameCtx.averageOdds?.moneylineAway) {
+              consensusOdds = { sideA: gameCtx.averageOdds.moneylineHome, sideB: gameCtx.averageOdds.moneylineAway }
+            }
+          }
+        } else if (bt === 'spread') {
+          const isHome = r.line?.toLowerCase().includes(gameCtx.homeTeam?.toLowerCase?.() || '___')
+          if (isHome) {
+            offeredOdds = offeredOdds ?? gameCtx.currentOdds?.spreadHomeOdds
+            if (gameCtx.averageOdds?.spreadHomeOdds && gameCtx.averageOdds?.spreadAwayOdds) {
+              consensusOdds = { sideA: gameCtx.averageOdds.spreadHomeOdds, sideB: gameCtx.averageOdds.spreadAwayOdds }
+            }
+          } else {
+            offeredOdds = offeredOdds ?? gameCtx.currentOdds?.spreadAwayOdds
+            if (gameCtx.averageOdds?.spreadHomeOdds && gameCtx.averageOdds?.spreadAwayOdds) {
+              consensusOdds = { sideA: gameCtx.averageOdds.spreadHomeOdds, sideB: gameCtx.averageOdds.spreadAwayOdds }
+            }
+          }
+        } else if (bt === 'over' || bt === 'total') {
+          offeredOdds = offeredOdds ?? gameCtx.currentOdds?.totalOverOdds
+          if (gameCtx.averageOdds?.totalOverOdds && gameCtx.averageOdds?.totalUnderOdds) {
+            consensusOdds = { sideA: gameCtx.averageOdds.totalOverOdds, sideB: gameCtx.averageOdds.totalUnderOdds }
+          }
+        } else if (bt === 'under') {
+          offeredOdds = offeredOdds ?? gameCtx.currentOdds?.totalUnderOdds
+          if (gameCtx.averageOdds?.totalOverOdds && gameCtx.averageOdds?.totalUnderOdds) {
+            consensusOdds = { sideA: gameCtx.averageOdds.totalOverOdds, sideB: gameCtx.averageOdds.totalUnderOdds }
+          }
+        }
+      }
+
+      // Compute proper math-based EV if we have odds + AI probability
+      let mathEvPct = r.numericRisk?.evPercentage ?? 0
+      let mathEvDollars = r.numericRisk?.ev ?? 0
+      let evSource = 'gemini'
+
+      if (offeredOdds && geminiTrueProb) {
+        const stake = r.suggestedStakeAbsolute || 25
+        const evResult = computeEv({
+          stake,
+          offeredAmericanOdds: offeredOdds,
+          consensusAmericanOdds: consensusOdds,
+          precomputedTrueWinProb: geminiTrueProb
+        })
+        mathEvPct = evResult.evPercent
+        mathEvDollars = evResult.evDollars
+        evSource = 'math'
+
+        console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}% (was ${(r.numericRisk?.evPercentage ?? 0).toFixed(2)}% from Gemini)`)
+      }
+
+      const evPct = mathEvPct
       if (evPct <= 0) {
         return {
           ...r,
+          numericRisk: { ev: mathEvDollars, evPercentage: mathEvPct },
           informational: true,
           informationalLabel: evPct > -2 ? "Near Market Efficient" : "Negative EV",
           isRecommended: false,
-          recommendation: "PASS"
+          recommendation: "PASS",
+          evSource
         }
       }
       return {
         ...r,
+        numericRisk: { ev: mathEvDollars, evPercentage: mathEvPct },
         isRecommended: true,
         recommendation: "BET",
-        informational: false
+        informational: false,
+        evSource
       }
     }).sort((a: any, b: any) => {
       if (a.isRecommended && !b.isRecommended) return -1;
@@ -1374,7 +1480,7 @@ export async function POST(request: NextRequest) {
       return (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0);
     })
 
-    console.log(`[SmartSlip] Gemini returned ${filtered.length} picks, ${filtered.filter((r: any) => r.isRecommended).length} with positive EV`)
+    console.log(`[SmartSlip] Re-scored ${filtered.length} picks with math EV. Positive EV (BET): ${filtered.filter((r: any) => r.isRecommended).length}.`)
 
     reasoningOutput = {
       ...reasoningOutput,
@@ -1419,12 +1525,12 @@ export async function POST(request: NextRequest) {
       psych_model: (psychResult as any).model_id,
     })
 
-    // Emotional gate stays the real guardrail
+    // Emotional gate: advises against betting but does NOT hide game analysis
     const emotionallySafe = emotionalScore >= 60
-
-    // If we have any picks (even informational), we’ll say shouldBet = emotionallySafe
     const hasAnyPicks = (reasoningOutput.recommendations?.length || 0) > 0
 
+    // shouldBet = whether we advise the user to actually place wagers
+    // Recommendations are ALWAYS returned so the UI can show game assessments
     const shouldBet = emotionallySafe && hasAnyPicks
 
     const shouldBetMessage = !emotionallySafe
@@ -1457,7 +1563,7 @@ export async function POST(request: NextRequest) {
     let playerPropsByGame: Map<string, PlayerPropLine[]> = new Map()
     const gameIds = enrichedGames.map((g: any) => g.id).filter(Boolean)
 
-    if (gameIds.length > 0 && shouldBet) {
+    if (gameIds.length > 0) {
       try {
         console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`)
         playerPropsByGame = await getPlayerPropsForGames(gameIds, sport)
@@ -1477,7 +1583,7 @@ export async function POST(request: NextRequest) {
 
     // Generate Player Prop Recommendations
     let propPicks: any[] = []
-    if (playerPropsByGame.size > 0 && shouldBet) {
+    if (playerPropsByGame.size > 0) {
       try {
         propPicks = await buildPlayerPropRecommendations({
           playerPropsByGame,

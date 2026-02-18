@@ -1,3 +1,30 @@
+import { incrementGeminiUsage, canMakeGeminiRequest } from './api-monitoring'
+
+// ─── Response cache to reduce RPD burn on duplicate requests ────────────
+const GEMINI_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const geminiCache = new Map<string, { response: string; expiresAt: number }>()
+
+// Simple string hash for cache keys (FNV-1a inspired)
+function hashString(str: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i)
+    hash = (hash * 0x01000193) >>> 0
+  }
+  return hash.toString(36)
+}
+
+// Auto-cleanup expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of geminiCache.entries()) {
+    if (entry.expiresAt < now) geminiCache.delete(key)
+  }
+}, GEMINI_CACHE_TTL)
+
+// Gemini 2.5 Flash fallback model for when Pro quota is low
+const GEMINI_FLASH_MODEL = 'gemini-2.5-flash'
+
 export type GeminiRole = "user" | "model"
 
 export interface GeminiMessage {
@@ -19,12 +46,27 @@ export async function geminiGenerateText(args: {
     throw new Error('GOOGLE_GEMINI_API_KEY is not set')
   }
 
+  // Check daily quota before making request
+  if (!canMakeGeminiRequest()) {
+    throw new Error('Gemini API daily quota exhausted (100 RPD on free tier). Try again tomorrow or upgrade to paid tier.')
+  }
+
+  // Auto-downgrade to Flash when Pro quota is running low (>80% used)
+  const { apiMonitoring } = require('./api-monitoring')
+  const geminiUsed = (await apiMonitoring.getUsageStats()).geminiAPI.used
+  const geminiLimit = parseInt(process.env.GEMINI_DAILY_LIMIT || '100')
+  const quotaUsedPct = (geminiUsed / geminiLimit) * 100
+  const shouldUseFallback = quotaUsedPct >= 80 && !args.model // Only auto-downgrade if no explicit model override
+
   const rawModel = (
-    args.model || 
-    process.env.GEMINI_MODEL_ID || 
-    process.env.GOOGLE_GEMINI_MODEL || 
-    'gemini-2.5-pro'
+    shouldUseFallback
+      ? GEMINI_FLASH_MODEL
+      : (args.model || process.env.GEMINI_MODEL_ID || process.env.GOOGLE_GEMINI_MODEL || 'gemini-2.5-pro')
   ).trim()
+
+  if (shouldUseFallback) {
+    console.log(`⚡ Gemini quota at ${quotaUsedPct.toFixed(0)}% — auto-downgrading to ${GEMINI_FLASH_MODEL}`)
+  }
   const model = rawModel.startsWith('models/') ? rawModel.slice('models/'.length) : rawModel
 
   const contents: GeminiMessage[] = []
@@ -89,8 +131,19 @@ export async function geminiGenerateText(args: {
     return { res, text }
   }
 
+  // Check cache before making the API call
+  const cacheKey = hashString(body + model)
+  const cached = geminiCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    console.log(`🎯 Gemini cache hit (saved 1 RPD) — key=${cacheKey}`)
+    return cached.response
+  }
+
   // Always use v1beta for JSON mode and newer models as requested.
   let { res, text } = await tryFetch('v1beta')
+
+  // Track usage after successful request (count even on API errors to stay accurate)
+  await incrementGeminiUsage().catch(err => console.warn('[Gemini Usage Tracker] Failed to increment:', err))
 
   if (!res.ok) {
     throw new Error(`Gemini API error (${res.status}): ${text}`)
@@ -139,5 +192,18 @@ export async function geminiGenerateText(args: {
     }
   }
 
+  // Cache successful response
+  geminiCache.set(cacheKey, { response: out, expiresAt: Date.now() + GEMINI_CACHE_TTL })
+
   return out
+}
+
+/**
+ * Get Gemini cache statistics (for monitoring/debugging)
+ */
+export function getGeminiCacheStats(): { size: number; hitRate: string } {
+  return {
+    size: geminiCache.size,
+    hitRate: `${geminiCache.size} entries cached (${GEMINI_CACHE_TTL / 1000}s TTL)`
+  }
 }

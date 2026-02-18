@@ -207,6 +207,7 @@ export function PublicPGSISurvey({ anonymousSessionId, onComplete }: PublicPGSIS
         <h4 className="text-lg font-medium text-white mb-6">{question.text}</h4>
 
         <RadioGroup
+          key={question.id}
           value={responses[question.id]?.toString()}
           onValueChange={(value) => handleResponse(question.id, parseInt(value))}
           className="space-y-3"

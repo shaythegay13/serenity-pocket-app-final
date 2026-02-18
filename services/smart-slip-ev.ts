@@ -50,23 +50,35 @@ export class SmartSlipEvService {
         // 1. Calculate base market probabilities
         const marketImpliedProb = impliedProbFromAmerican(offeredAmericanOdds);
 
-        // Simple logic: if consensus is available, infer fair market prob roughly 
-        // (Actual computeEv does this more precisely, but we might want it for the LLM input too)
-        // For now, we pass undefined to LLM and let it work with implied, or we could duplicate utility logic.
-        // We will let the LLM service handle raw inputs or let the computeEv handle the math.
-        // For the LLM service input 'fairMarketProb', we can compute it if consensus exists.
+        // Compute no-vig fair market probability from consensus odds
+        // This is CRITICAL for the engine to have a proper baseline (without vig)
         let fairMarketProb: number | undefined;
         if (consensusAmericanOdds) {
-            // Reuse the same logic from computeEv? 
-            // For simplicity, we just won't pass it to the LLM yet unless we moved the helper to a shared util.
-            // We'll proceed with just implied.
+            const impliedA = impliedProbFromAmerican(consensusAmericanOdds.sideA);
+            const impliedB = impliedProbFromAmerican(consensusAmericanOdds.sideB);
+            const sumImplied = impliedA + impliedB;
+            if (sumImplied > 0) {
+                const fairA = impliedA / sumImplied;
+                const fairB = impliedB / sumImplied;
+                // Match offered odds to the correct side
+                if (Math.sign(consensusAmericanOdds.sideA) === Math.sign(offeredAmericanOdds)) {
+                    fairMarketProb = fairA;
+                } else if (Math.sign(consensusAmericanOdds.sideB) === Math.sign(offeredAmericanOdds)) {
+                    fairMarketProb = fairB;
+                } else {
+                    // Fallback: use distance heuristic
+                    const distA = Math.abs(consensusAmericanOdds.sideA - offeredAmericanOdds);
+                    const distB = Math.abs(consensusAmericanOdds.sideB - offeredAmericanOdds);
+                    fairMarketProb = distA < distB ? fairA : fairB;
+                }
+            }
         }
 
         // 2. Call LLM Service for True Probability
         const probResult = await this.llmProbService.getTrueProbabilityForMarket({
             gameContext,
             marketImpliedProb,
-            fairMarketProb, // undefined for now
+            fairMarketProb, // no-vig fair probability from consensus
             modelWinProb
         });
 

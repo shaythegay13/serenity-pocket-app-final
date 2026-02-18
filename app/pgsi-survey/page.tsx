@@ -296,6 +296,7 @@ export default function PGSISurveyPage() {
           <h2 className="text-lg font-medium text-foreground mb-6">{question.text}</h2>
 
           <RadioGroup
+            key={question.id}
             value={responses[question.id]?.toString()}
             onValueChange={(value) => handleResponse(question.id, parseInt(value))}
             className="space-y-3"

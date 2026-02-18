@@ -7,7 +7,7 @@ import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { PremiumFeatureWall } from "@/components/premium-feature-wall"
-import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import dynamic from "next/dynamic"
@@ -27,82 +27,43 @@ const AIPicksTab = dynamic(() => import("@/components/tabs/ai-picks-tab").then(m
 
 export function BetLabContent() {
   const router = useRouter()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [authed, setAuthed] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [userDataLoading, setUserDataLoading] = useState(true)
 
   useEffect(() => {
     let isMounted = true
 
-    const checkAuth = async () => {
-      // Safety timeout to prevent permanent loading state (reduced from 5s to 3s)
-      const timeoutId = setTimeout(() => {
-        if (isMounted && loading) {
-          console.warn('BetLab auth check timed out, forcing loading state to false');
-          setLoading(false);
-          setAuthed(false);
-        }
-      }, 3000);
+    const loadUserData = async () => {
+      if (!isAuthenticated) {
+        setUserDataLoading(false)
+        return
+      }
 
       try {
-        // Add timeout to auth check
-        const authTimeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Auth timeout')), 2500)
-        );
-        
-        // Simple auth check with timeout
-        const { data: { session } } = await Promise.race([
-          supabase.auth.getSession(),
-          authTimeoutPromise
-        ]) as any;
-
-        if (!isMounted) {
-          clearTimeout(timeoutId);
-          return;
-        }
-
-        setAuthed(!!session)
-
-        if (session) {
-          // Fetch user data in background with timeout
-          try {
-            const userTimeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('User data timeout')), 2000)
-            );
-            
-            const storedUserData = await Promise.race([
-              storage.getUserData(),
-              userTimeoutPromise
-            ]) as any;
-            
-            if (isMounted && storedUserData) {
-              setUserData(storedUserData)
-            }
-          } catch (error) {
-            console.error('Failed to fetch user data:', error);
-            // Continue without user data
-          }
+        const storedUserData = await storage.getUserData()
+        if (isMounted && storedUserData) {
+          setUserData(storedUserData)
         }
       } catch (error) {
-        console.error('Auth check failed:', error)
-        setAuthed(false)
+        console.error('Failed to fetch user data:', error)
       } finally {
-        clearTimeout(timeoutId);
         if (isMounted) {
-          setLoading(false)
+          setUserDataLoading(false)
         }
       }
     }
 
-    checkAuth()
+    if (!authLoading) {
+      loadUserData()
+    }
 
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [isAuthenticated, authLoading])
 
   const handleNavigateToTab = (tab: string) => {
-    // Handle navigation to other tabs if needed
     if (tab === 'account' || tab === 'pricing') {
       router.push("/pricing")
     } else {
@@ -111,7 +72,7 @@ export function BetLabContent() {
   }
 
   // Show loading state only during initial auth check
-  if (loading) {
+  if (authLoading || userDataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

@@ -34,14 +34,17 @@ export function SignupCTAModal({ open, onOpenChange, featureUsed, resultSummary 
   const message = featureMessages[featureUsed]
 
   const handleCreateAccount = () => {
-    router.push('/login?flow=signup')
+    // Trigger the signup flow which shows terms first, then account creation
+    router.push('/?signup=true')
   }
 
-  const handleDismiss = () => {
+  const handleMaybeLater = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(DISMISSED_KEY, Date.now().toString())
     }
     onOpenChange(false)
+    // Navigate back to home page
+    router.push('/')
   }
 
   return (
@@ -90,10 +93,10 @@ export function SignupCTAModal({ open, onOpenChange, featureUsed, resultSummary 
           </Button>
           <button
             type="button"
-            onClick={handleDismiss}
+            onClick={handleMaybeLater}
             className="w-full text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
           >
-            Not now, maybe later
+            Maybe later
           </button>
         </div>
       </DialogContent>

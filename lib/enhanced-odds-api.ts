@@ -5,6 +5,7 @@
  */
 
 import { getSportById, getSportsWithLiveOdds, SportConfig } from './sports-config';
+import { incrementRapidAPIUsage } from './api-monitoring';
 
 type SportLeague = string; // Dynamic based on sports config
 type AdvantageOpportunity = any; // Placeholder
@@ -277,6 +278,9 @@ async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> 
         'X-RapidAPI-Host': 'odds.p.rapidapi.com'
       }
     });
+
+    // Track RapidAPI usage after each request
+    await incrementRapidAPIUsage().catch(err => console.warn('[RapidAPI Tracker] Failed to increment:', err));
 
     if (!response.ok) {
       throw new Error(`RapidAPI error: ${response.status} ${response.statusText}`);

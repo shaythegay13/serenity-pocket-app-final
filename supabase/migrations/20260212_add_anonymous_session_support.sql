@@ -5,13 +5,19 @@
 --          and PGSI surveys. Data migrates to their account on signup.
 -- ============================================================
 
--- 1. Add anonymous_session_id to emotion_logs
+-- 1. Add anonymous_session_id to emotion_logs and make user_id nullable
 ALTER TABLE emotion_logs
   ADD COLUMN IF NOT EXISTS anonymous_session_id UUID;
 
--- 2. Add anonymous_session_id to survey_responses
+ALTER TABLE emotion_logs
+  ALTER COLUMN user_id DROP NOT NULL;
+
+-- 2. Add anonymous_session_id to survey_responses and make user_id nullable
 ALTER TABLE survey_responses
   ADD COLUMN IF NOT EXISTS anonymous_session_id UUID;
+
+ALTER TABLE survey_responses
+  ALTER COLUMN user_id DROP NOT NULL;
 
 -- 3. Add anonymous_session_id to anonymous_survey_submissions
 ALTER TABLE anonymous_survey_submissions

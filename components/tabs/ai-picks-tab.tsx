@@ -19,7 +19,8 @@ import type { ParlayRecommendation } from "@/lib/types/ai-models"
 import { supabase } from "@/lib/supabase"
 import { AIUsageIndicator } from "@/components/ai-usage-indicator"
 import { PremiumFeatureWall } from "@/components/premium-feature-wall"
-import { getPopularSports, getSportById, isSportInSeason } from "@/lib/sports-config"
+import { getPopularSports, getSportById, getSportsGrouped, isSportInSeason } from "@/lib/sports-config"
+import { SelectGroup, SelectLabel, SelectSeparator } from "@/components/ui/select"
 
 interface MarketplaceProduct {
   id: string
@@ -235,6 +236,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
   // Get available sports dynamically
   const availableSports = getPopularSports()
+  const sportGroups = getSportsGrouped()
 
   const [marketplaceProducts, setMarketplaceProducts] = useState<MarketplaceProduct[]>([])
   const [marketplaceLoading, setMarketplaceLoading] = useState(false)
@@ -498,16 +500,17 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
         setAnchoredRisk(data.anchoredRisk)
       }
 
-      if (!data.shouldBet) {
-        console.log('AI Picks: shouldBet is false, showing warning')
+      // Show emotional warning as toast but ALWAYS process recommendations
+      // so users can see game assessments regardless of emotional state
+      if (!data.shouldBet && data.message) {
+        console.log('AI Picks: shouldBet is false, showing emotional warning banner')
         toast.warning('Emotional Stability Check', {
           description: data.message
         })
-        setPicks([])
-        setPropPicks([])
-        setParlayPicks([])
-      } else {
-        console.log('AI Picks: shouldBet is true, processing recommendations')
+      }
+
+      {
+        console.log('AI Picks: Processing recommendations (shouldBet=' + data.shouldBet + ')')
         const recs = data.recommendations || []
         const probsByGameId = (data.probsByGameId || {}) as Record<
           string,
@@ -897,31 +900,59 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           <Card className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Sport</label>
-                <div className="flex flex-wrap gap-2">
-                  {availableSports.map((sport) => {
-                    const inSeason = isSportInSeason(sport.id);
-                    const isSelected = selectedSport === sport.id;
-                    return (
-                      <Button
-                        key={sport.id}
-                        variant={isSelected ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedSport(sport.id)}
-                        title={`${sport.displayName}${inSeason ? ' (In Season)' : ' (Off Season)'}`}
-                        className={
-                          isSelected
-                            ? ''
-                            : inSeason
-                              ? 'border-green-500/50 text-green-600 hover:bg-green-500/10 hover:text-green-600'
-                              : 'border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-500 opacity-70'
-                        }
-                      >
-                        {sport.icon} {sport.name}
-                      </Button>
-                    );
-                  })}
-                </div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Select Sport / League</label>
+                <Select value={selectedSport} onValueChange={setSelectedSport}>
+                  <SelectTrigger className="w-full h-12 border-2 border-border bg-muted/40 hover:bg-muted/70 transition-colors rounded-lg px-4 text-base">
+                    <SelectValue placeholder="Choose a sport / league...">
+                      {(() => {
+                        const sport = getSportById(selectedSport);
+                        if (!sport) return 'Choose a sport / league...';
+                        const inSeason = isSportInSeason(sport.id);
+                        const groupLabel = sportGroups.find(g => g.sports.some(s => s.id === sport.id))
+                        return (
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{sport.icon}</span>
+                            <span className="font-medium">{sport.displayName}</span>
+                            {groupLabel && (
+                              <span className="text-xs text-muted-foreground">({groupLabel.label})</span>
+                            )}
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${inSeason ? 'bg-green-500' : 'bg-red-500'}`} />
+                          </span>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {sportGroups.map((group, gi) => (
+                      <SelectGroup key={group.label}>
+                        {gi > 0 && <SelectSeparator />}
+                        <SelectLabel className="font-semibold text-xs uppercase tracking-wider py-2">
+                          {group.icon} {group.label} ({group.sports.length})
+                        </SelectLabel>
+                        {group.sports.map((sport) => {
+                          const inSeason = isSportInSeason(sport.id);
+                          return (
+                            <SelectItem
+                              key={sport.id}
+                              value={sport.id}
+                              className={
+                                inSeason
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-500 dark:text-red-400 opacity-70'
+                              }
+                            >
+                              <span className="flex items-center gap-2 w-full">
+                                <span>{sport.icon}</span>
+                                <span className="flex-1">{sport.displayName}</span>
+                                <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${inSeason ? 'bg-green-500' : 'bg-red-500'}`} />
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 rounded-full bg-green-500/50 border border-green-500"></div>
@@ -961,30 +992,35 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             </Card>
           )}
 
-          {/* No Picks State */}
-          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore < 60 && (
-            <Card className="p-8 text-center bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
-              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">Take a Break</h3>
-              <p className="text-muted-foreground mb-4">
-                Your emotional stability score is {emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.
-              </p>
-              <Button variant="outline" onClick={() => onNavigateToTab('behavior')}>
-                Log Your Emotions
-              </Button>
+          {/* Emotional Warning Banner — shows ABOVE picks, doesn't hide them */}
+          {!loading && emotionalScore !== null && emotionalScore < 60 && (
+            <Card className="p-4 bg-linear-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-yellow-500 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Emotional stability: {emotionalScore}/100 — We recommend caution before placing wagers.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Game analysis is shown below for informational purposes.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onNavigateToTab('behavior')}>
+                  Log Emotions
+                </Button>
+              </div>
             </Card>
           )}
-          {/* No Picks State: emotionally OK but no edges */}
-          {!loading && picks.length === 0 && emotionalScore !== null && emotionalScore >= 60 && (
+          {/* True empty state — no games found at all */}
+          {!loading && picks.length === 0 && emotionalScore !== null && (
             <Card className="p-8 text-center bg-linear-to-br from-slate-500/10 to-slate-900/10 border-slate-500/30">
               <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No +EV edges found</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-2">No Games Available</h3>
               <p className="text-muted-foreground mb-4">
-                SmartSlip scanned today&apos;s slate and didn&apos;t find any bets that beat the market and your risk settings.
-                The best move is to pass and protect your bankroll.
+                SmartSlip couldn&apos;t find any upcoming games for this league right now.
               </p>
               <p className="text-xs text-muted-foreground">
-                Try a different sport or risk tolerance, or check back later when lines move.
+                Try a different sport or check back closer to game time.
               </p>
             </Card>
           )}
@@ -993,12 +1029,22 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
           {!loading && picks.length > 0 && (
             <div className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Sparkles className="h-5 w-5 text-amber-500" />
-                  <h3 className="text-lg font-semibold text-foreground">SmartSlip Picks</h3>
-                  <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
-                    {picks.filter(p => p.isRecommended === true || (p.isRecommended === undefined && p.expectedValue > 0)).length} Recommended
+                  <h3 className="text-lg font-semibold text-foreground">SmartSlip Analysis</h3>
+                  <Badge variant="secondary" className="bg-slate-500/10 text-slate-400 border-slate-500/20">
+                    {picks.length} {picks.length === 1 ? 'Game' : 'Games'} Assessed
                   </Badge>
+                  {picks.filter(p => p.isRecommended).length > 0 && (
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20">
+                      {picks.filter(p => p.isRecommended).length} AI Edge{picks.filter(p => p.isRecommended).length !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  {picks.filter(p => p.informational).length > 0 && picks.filter(p => p.isRecommended).length === 0 && (
+                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                      No edges — markets are efficient
+                    </Badge>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {picks.map((pick: any, idx: number) => (
@@ -1006,38 +1052,20 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                     <div className="flex items-center justify-between mb-4">
                       <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
                       <div className="flex items-center gap-2">
-                        {pick.informational ? (
-                          <Badge variant="secondary" className="text-xs bg-gray-800">
-                            {pick.informationalLabel ?? "Market Efficient"}
-                          </Badge>
-                        ) : (pick.isRecommended === true ||
-                          (pick.isRecommended === undefined &&
-                            typeof pick.expectedValue === "number" &&
-                            Number.isFinite(pick.expectedValue) &&
-                            pick.expectedValue > 0)
-                        ) ? (
-                          <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
+                        {pick.isRecommended ? (
+                          <Badge className="bg-green-500/20 text-green-500 border-green-500/30">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Recommended
+                            AI Edge
                           </Badge>
                         ) : (
-                          <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Not Recommended
+                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                            {pick.informationalLabel ?? "Market Efficient"}
                           </Badge>
                         )}
-
-                        <div className="flex items-center gap-2">
-                          {pick.informational && (
-                            <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                              {pick.informationalLabel || 'Market Efficient'}
-                            </Badge>
-                          )}
-                          <Sparkles className="h-4 w-4 text-amber-500" />
-                          <span className="text-sm font-semibold text-amber-500 tabular-nums">
-                            {pick.confidence}% Confidence
-                          </span>
-                        </div>
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-semibold text-amber-500 tabular-nums">
+                          {pick.confidence}%
+                        </span>
                       </div>
                     </div>
 

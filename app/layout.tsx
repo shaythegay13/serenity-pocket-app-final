@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { FlowgladProviderWrapper } from "@/components/flowglad-provider-wrapper"
 import { Footer } from "@/components/footer"
 import { FlowProvider } from "@/contexts/FlowContext"
+import { AuthProvider } from "@/contexts/AuthContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -149,16 +150,18 @@ export default function RootLayout({
       <body className={inter.className}>
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <FlowProvider>
-              <FlowgladProviderWrapper>
+            <AuthProvider>
+              <FlowProvider>
+                <FlowgladProviderWrapper>
                 <div className="min-h-screen flex flex-col">
                   <main className="flex-1">
                     {children}
                   </main>
                   <Footer />
                 </div>
-              </FlowgladProviderWrapper>
-            </FlowProvider>
+                </FlowgladProviderWrapper>
+              </FlowProvider>
+            </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>
         <Analytics />

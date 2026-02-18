@@ -243,6 +243,18 @@ Use ALL available research to form your predictions:
   - Below 50: HIGH RISK. Low/No edge or dangerous emotional state (frustration/greed). NEVER RECOMMEND 'PREFERRED'.
 - **GAME TYPE MATCHING**: Match game variance to emotional state (e.g., avoid high-odds underdogs if user is frustrated).
 
+**CRICKET BETTING ANALYSIS**:
+When analyzing cricket matches (IPL, MLC, BBL, CPL, The Hundred, PSL, SA20, ICC ODI, ICC T20, Test):
+- **Toss Factor**: Toss winner has 5-8% advantage in T20s (esp. chasing at night due to dew). Factor this into probability.
+- **Pitch Conditions**: Batting-friendly pitches favor high totals and chasing teams; bowling-friendly pitches favor lower totals and teams batting first.
+- **Powerplay**: Teams with explosive top-order batsmen have edge in T20/ODI powerplay overs.
+- **Death Bowling**: Quality death bowlers (overs 16-20 in T20) significantly impact total runs. Teams with weak death bowling concede 15-25 extra runs.
+- **Spin vs Pace**: Subcontinent pitches favor spin; Australian/English pitches favor pace. Evaluate team composition.
+- **Format Matters**: T20 is high-variance (more upsets), ODI is moderate, Test is low-variance (favorites win more often).
+- **Total Runs Lines**: T20 avg 300-330 combined, ODI avg 450-500 combined. Adjust based on pitch/venue.
+- **Home Advantage**: Significant in cricket, especially in subcontinent (India/Pakistan/Sri Lanka) where conditions are unfamiliar to visiting teams.
+- **Player Form**: Recent batting strike rate and bowling economy in the specific format matter more than career averages.
+
 **PLAYER PROP ANALYSIS**:
 When analyzing player props (if player prop data is provided):
 - Consider player's recent performance trends (last 5-10 games if available)
@@ -562,7 +574,7 @@ YOUR DUAL MISSION:
 2. **PSYCHOLOGY ANALYSIS**: Assess whether THIS USER should make THIS BET given their emotional state and risk factors
 
 ==== SUPPORTED SPORTS & LEAGUES ====
-NBA, NFL, MLB, NHL, College Basketball (NCAAB), College Football (NCAAF), English Premier League (EPL), MLS, UEFA Champions League (UCL), UFC, Boxing, ATP Tennis, WTA Tennis, PGA Golf, Formula 1, NASCAR, League of Legends (LoL), Counter-Strike (CS:GO)
+NBA, NFL, MLB, NHL, College Basketball (NCAAB), College Football (NCAAF), English Premier League (EPL), MLS, UEFA Champions League (UCL), UFC, Boxing, ATP Tennis, WTA Tennis, PGA Golf, Formula 1, NASCAR, League of Legends (LoL), Counter-Strike (CS:GO), IPL, Major League Cricket (MLC), Big Bash League (BBL), Caribbean Premier League (CPL), The Hundred, PSL, SA20, ICC ODI, ICC T20, Test Cricket
 
 ==== GAME & STATISTICAL ANALYSIS ====
 
@@ -582,6 +594,7 @@ Analyze these factors based on the sport type:
 *Soccer (EPL/MLS/UCL)*: Goals, xG (expected goals), possession %, clean sheets, set piece efficiency
 *Combat Sports (UFC/Boxing)*: Fighter record, finish rate, striking accuracy, takedown defense, reach advantage
 *Tennis (ATP/WTA)*: Service game win %, break point conversion, surface performance (clay/grass/hard)
+*Cricket (IPL/MLC/BBL/CPL/ICC)*: Batting average, strike rate, bowling economy, bowling average, powerplay run rate, death-over economy, toss win advantage, pitch conditions (batting-friendly vs bowling-friendly), dew factor for day-night games, team composition (spin vs pace balance), recent form in format (T20/ODI/Test)
 *Golf (PGA)*: Strokes gained, course history, recent form, putting stats
 *Motorsports (F1/NASCAR)*: Qualifying pace, race pace, track history, car performance
 *Esports (LoL/CS:GO)*: Map win rates, head-to-head record, recent roster changes, meta adaptation

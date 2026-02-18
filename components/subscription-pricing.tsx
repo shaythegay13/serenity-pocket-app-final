@@ -3,10 +3,10 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Sparkles, Zap, Crown } from "lucide-react"
+import { Check, Sparkles, Zap, Crown, Star } from "lucide-react"
 
 interface SubscriptionPricingProps {
-  currentTier?: "free" | "pro" | "elite" | "master"
+  currentTier?: "free" | "premium" | "premium_plus" | "elite"
 }
 
 export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricingProps) {
@@ -18,78 +18,61 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       interval: "forever",
       icon: Sparkles,
       color: "text-gray-500",
-      description: "Get started with essential emotional tracking",
+      description: "Build self-awareness and track your betting behavior to make safer, smarter decisions.",
       features: [
-        "Daily emotion check-ins",
-        "Basic bias recognition",
-        "Betting Emotion Tracker",
-        "Weekly progress reports",
-      ],
-      limitations: [
-        "Basic analytics only",
+        "Emotion Tracking & Check-ins",
+        "Betting History & Performance Tracking",
+        "Emotional Wellness Score",
+        "Cooldown Mode & Safety Controls",
       ],
     },
     {
-      id: "pro",
+      id: "premium",
       name: "Focus",
-      price: 29,
+      price: 19.99,
       interval: "month",
       icon: Zap,
       color: "text-blue-500",
-      description: "Unlock advanced insights and unlimited tracking",
-      badge: "Popular",
+      description: "Real-time sports data, odds comparison, and analytical tools to bet smarter.",
+      badge: "7-Day Free Trial",
       features: [
         "Everything in Foundation",
-        "Advanced bias analytics",
-        "Personalized bias alerts",
-        "Performance correlation analysis",
-        "Unlimited active positions",
-        "Priority support",
+        "Basic Analytics Dashboard",
+        "TiltLab Emotional Analysis (1x/week)",
+        "SmartSlip AI Picks (1x/week)",
       ],
-      trialPeriod: "1 Week Free Trial",
-      comingSoon: true,
     },
     {
-      id: "elite",
+      id: "premium_plus",
       name: "Mastery",
-      price: 79,
+      price: 39.99,
       interval: "month",
       icon: Crown,
       color: "text-purple-500",
-      description: "Premium features with AI-powered coaching",
-      badge: "Best Value",
+      description: "Combine psychology insights with data analytics to reduce risk and improve outcomes.",
+      badge: "Most Popular",
       features: [
         "Everything in Focus",
-        "AI-powered decision assistant",
-        "Real-time emotional pattern alerts",
-        "Custom bias profiles & reports",
-        "1-on-1 monthly coaching session",
-        "Advanced trade psychology modules",
-        "Streak recovery support",
-        "API access for trading platforms",
+        "Emotional Volatility Warnings",
+        "Behavior-to-Performance Correlation",
+        "TiltLab Emotional Analysis (3x/week)",
+        "SmartSlip AI Picks (3x/week)",
       ],
-      comingSoon: true,
     },
     {
-      id: "master",
+      id: "elite",
       name: "Apex",
-      price: 199,
+      price: 79.99,
       interval: "month",
-      icon: Crown,
+      icon: Star,
       color: "text-amber-500",
-      description: "Complete psychological mastery program",
-      badge: "Ultimate",
+      description: "AI-powered picks and analysis tailored to your psychological profile and betting style.",
       features: [
         "Everything in Mastery",
-        "Weekly 1-on-1 coaching sessions",
-        "Custom psychological assessment",
-        "Personalized training program",
-        "Direct access to sports psychology experts",
-        "VIP community & networking",
-        "Early access to new features",
-        "White-glove support",
+        "Priority Support & Early Feature Access",
+        "TiltLab Emotional Analysis (7x/week)",
+        "SmartSlip AI Picks (7x/week)",
       ],
-      comingSoon: true,
     },
   ]
 
@@ -98,7 +81,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       <div className="text-center space-y-3">
         <h2 className="text-3xl font-bold">Choose Your Plan</h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Start free and upgrade as you grow. All paid tiers coming soon.
+          Start free and upgrade as you grow. Combine emotional intelligence with data-driven betting.
         </p>
       </div>
 
@@ -107,12 +90,13 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
           const Icon = tier.icon
           const isCurrentTier = tier.id === currentTier
           const isFree = tier.id === "free"
+          const isMostPopular = tier.badge === "Most Popular"
 
           return (
             <Card
               key={tier.id}
               className={`p-6 relative ${isCurrentTier ? "border-primary border-2 shadow-lg" : ""
-                } ${tier.badge === "Best Value" ? "border-purple-500/50" : ""}`}
+                } ${isMostPopular ? "border-purple-500/50" : ""}`}
             >
               {/* Badge */}
               {tier.badge && (
@@ -148,11 +132,6 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
                   <p className="text-sm text-muted-foreground min-h-[40px]">
                     {tier.description}
                   </p>
-                  {tier.trialPeriod && (
-                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                      {tier.trialPeriod}
-                    </Badge>
-                  )}
                 </div>
 
                 {/* Features */}
@@ -163,11 +142,6 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
                       <span className="text-sm">{feature}</span>
                     </div>
                   ))}
-                  {tier.limitations?.map((limitation, index) => (
-                    <div key={index} className="flex items-start gap-2 opacity-60">
-                      <span className="text-sm">{limitation}</span>
-                    </div>
-                  ))}
                 </div>
 
                 {/* CTA Button */}
@@ -175,10 +149,6 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
                   {isFree ? (
                     <Button variant="outline" className="w-full" disabled={isCurrentTier}>
                       {isCurrentTier ? "Current Plan" : "Get Started"}
-                    </Button>
-                  ) : tier.comingSoon ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      Coming Soon
                     </Button>
                   ) : (
                     <Button className="w-full" disabled={isCurrentTier}>
@@ -191,18 +161,6 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
           )
         })}
       </div>
-
-      {/* Coming Soon Notice */}
-      <Card className="p-6 bg-muted/50">
-        <div className="text-center space-y-2">
-          <h3 className="font-semibold">Premium Tiers Coming Q2 2025</h3>
-          <p className="text-sm text-muted-foreground">
-            We're currently perfecting our advanced features and AI coaching capabilities.
-            Join our free tier today and get early access when we launch!
-            <span className="font-semibold text-primary"> Early adopters will receive special founding member pricing.</span>
-          </p>
-        </div>
-      </Card>
 
       {/* FAQ Section */}
       <div className="max-w-3xl mx-auto space-y-4 pt-8">
@@ -227,8 +185,8 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         <Card className="p-4">
           <h4 className="font-semibold mb-2">Is there a free trial for paid plans?</h4>
           <p className="text-sm text-muted-foreground">
-            Yes! Our "Focus" tier comes with a 1-week free trial so you can experience the advanced
-            features before committing. Other premium plans do not currently offer a trial.
+            Yes! Our Focus tier comes with a 7-day free trial so you can experience the advanced
+            features before committing.
           </p>
         </Card>
 

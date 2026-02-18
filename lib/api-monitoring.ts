@@ -1,10 +1,12 @@
 /**
  * API Threshold Monitoring System
  * 
- * Monitors API usage and triggers alerts when thresholds are exceeded
+ * Monitors API usage and triggers alerts when thresholds are exceeded.
+ * Tracks: TheOddsAPI, RapidAPI, Gemini API, Gmail/Nodemailer
  */
 
 import { sendAPIWarning } from './email-alerts';
+import { supabase } from './supabase';
 
 export interface APIUsageStats {
   theOddsAPI: {
@@ -18,13 +20,34 @@ export interface APIUsageStats {
     total: number;
     lastReset: Date;
   };
+  geminiAPI: {
+    used: number;
+    total: number;
+    lastReset: Date;
+  };
+  gmail: {
+    used: number;
+    total: number;
+    lastReset: Date;
+  };
 }
 
 export interface ThresholdConfig {
-  theOddsWarningPct: number; // Default: 25 (75% used)
-  rapidAPIWarningPct: number; // Default: 75
-  theOddsTotal: number; // Default: 20000 (Starter plan)
-  rapidAPITotal: number; // Default: 150 (Basic plan)
+  theOddsWarningPct: number;
+  rapidAPIWarningPct: number;
+  geminiWarningPct: number;
+  theOddsTotal: number;
+  rapidAPITotal: number;
+  geminiDailyLimit: number;
+  gmailDailyLimit: number;
+}
+
+// In-memory daily counters (reset at midnight via cron)
+const dailyCounters: Map<string, number> = new Map();
+
+function getTodayKey(prefix: string): string {
+  const today = new Date().toISOString().split('T')[0];
+  return `${prefix}:${today}`;
 }
 
 class APIMonitoringService {
@@ -35,8 +58,11 @@ class APIMonitoringService {
     this.config = {
       theOddsWarningPct: parseInt(process.env.THEODDS_WARNING_PCT || '25'),
       rapidAPIWarningPct: parseInt(process.env.RAPIDAPI_WARNING_PCT || '75'),
+      geminiWarningPct: parseInt(process.env.GEMINI_WARNING_PCT || '80'),
       theOddsTotal: parseInt(process.env.THEODDS_TOTAL || '20000'),
-      rapidAPITotal: parseInt(process.env.RAPIDAPI_TOTAL || '150')
+      rapidAPITotal: parseInt(process.env.RAPIDAPI_TOTAL || '150'),
+      geminiDailyLimit: parseInt(process.env.GEMINI_DAILY_LIMIT || '100'),
+      gmailDailyLimit: parseInt(process.env.GMAIL_DAILY_LIMIT || '500'),
     };
   }
 
@@ -55,6 +81,83 @@ class APIMonitoringService {
     this.lastAlertTimes.set(alertKey, now);
     return true;
   }
+
+  // ─── In-memory counter helpers (shared by RapidAPI, Gemini, Gmail) ────
+
+  private getCounter(prefix: string): number {
+    return dailyCounters.get(getTodayKey(prefix)) || 0;
+  }
+
+  private incrementCounter(prefix: string): number {
+    const key = getTodayKey(prefix);
+    const current = dailyCounters.get(key) || 0;
+    const next = current + 1;
+    dailyCounters.set(key, next);
+    return next;
+  }
+
+  // ─── Supabase-backed counter persistence ──────────────────────────────
+
+  /**
+   * Persist daily counters to Supabase for durability across deploys.
+   * Called automatically by the daily cron before reset.
+   */
+  async persistCountersToSupabase(): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    const snapshot = {
+      date: today,
+      rapidapi_used: this.getCounter('rapidapi'),
+      gemini_used: this.getCounter('gemini'),
+      gmail_used: this.getCounter('gmail'),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('api_usage_daily')
+      .upsert(snapshot, { onConflict: 'date' });
+
+    if (error) {
+      console.error('❌ Failed to persist API counters:', error);
+    } else {
+      console.log(`💾 API counters persisted for ${today}`);
+    }
+  }
+
+  /**
+   * Restore counters from Supabase on cold start (e.g. after redeploy)
+   */
+  async restoreCountersFromSupabase(): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('api_usage_daily')
+      .select('*')
+      .eq('date', today)
+      .single();
+
+    if (error || !data) {
+      console.log('📊 No persisted counters for today — starting fresh');
+      return;
+    }
+
+    const todayRapid = getTodayKey('rapidapi');
+    const todayGemini = getTodayKey('gemini');
+    const todayGmail = getTodayKey('gmail');
+
+    // Only restore if in-memory is lower (avoid overwriting live counts)
+    if ((dailyCounters.get(todayRapid) || 0) < data.rapidapi_used) {
+      dailyCounters.set(todayRapid, data.rapidapi_used);
+    }
+    if ((dailyCounters.get(todayGemini) || 0) < data.gemini_used) {
+      dailyCounters.set(todayGemini, data.gemini_used);
+    }
+    if ((dailyCounters.get(todayGmail) || 0) < data.gmail_used) {
+      dailyCounters.set(todayGmail, data.gmail_used);
+    }
+
+    console.log(`♻️ Restored counters: RapidAPI=${data.rapidapi_used}, Gemini=${data.gemini_used}, Gmail=${data.gmail_used}`);
+  }
+
+  // ─── TheOddsAPI (unchanged — reads from response headers) ─────────────
 
   /**
    * Monitor TheOddsAPI response and check thresholds
@@ -98,13 +201,13 @@ class APIMonitoringService {
     }
   }
 
+  // ─── RapidAPI (real counter replaces mock) ────────────────────────────
+
   /**
-   * Monitor RapidAPI usage (tracked via Redis/memory)
+   * Monitor RapidAPI usage
    */
   async monitorRapidAPI(): Promise<void> {
-    // This would typically check Redis or a database
-    // For now, we'll simulate with a counter that could be stored anywhere
-    const used = await this.getRapidAPIUsage();
+    const used = this.getCounter('rapidapi');
     const usedPct = (used / this.config.rapidAPITotal) * 100;
 
     console.log(`📊 RapidAPI Usage: ${used}/${this.config.rapidAPITotal} (${usedPct.toFixed(1)}%)`);
@@ -139,41 +242,126 @@ class APIMonitoringService {
   }
 
   /**
-   * Get RapidAPI usage from storage (Redis, database, or memory)
-   * This is a placeholder - implement based on your storage solution
-   */
-  private async getRapidAPIUsage(): Promise<number> {
-    // In production, this would query Redis or your database
-    // For now, return a mock value that could be tracked elsewhere
-    
-    // Example implementation with Redis:
-    // const redis = getRedisClient();
-    // const today = new Date().toISOString().split('T')[0];
-    // const usage = await redis.get(`rapidapi:usage:${today}`);
-    // return parseInt(usage) || 0;
-    
-    // Mock implementation for testing
-    return Math.floor(Math.random() * 100); // Replace with actual implementation
-  }
-
-  /**
    * Increment RapidAPI usage counter
    * Call this after each RapidAPI request
    */
   async incrementRapidAPIUsage(): Promise<void> {
-    // In production, this would update Redis or your database
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Example with Redis:
-    // const redis = getRedisClient();
-    // await redis.incr(`rapidapi:usage:${today}`);
-    // await redis.expire(`rapidapi:usage:${today}`, 86400); // Expire after 24h
-    
-    console.log(`📈 RapidAPI usage incremented for ${today}`);
-    
-    // Check thresholds after increment
+    const count = this.incrementCounter('rapidapi');
+    console.log(`📈 RapidAPI usage: ${count}/${this.config.rapidAPITotal}`);
     await this.monitorRapidAPI();
   }
+
+  // ─── Gemini API (NEW — 100 RPD free tier) ─────────────────────────────
+
+  /**
+   * Monitor Gemini API daily usage
+   */
+  async monitorGeminiAPI(): Promise<void> {
+    const used = this.getCounter('gemini');
+    const usedPct = (used / this.config.geminiDailyLimit) * 100;
+
+    console.log(`📊 Gemini API Usage: ${used}/${this.config.geminiDailyLimit} RPD (${usedPct.toFixed(1)}%)`);
+
+    if (usedPct >= this.config.geminiWarningPct) {
+      const alertKey = 'gemini-warning';
+
+      if (this.shouldSendAlert(alertKey)) {
+        await sendAPIWarning(
+          'Gemini API (Free Tier)',
+          used,
+          this.config.geminiDailyLimit,
+          42 // Tier 1 estimated monthly cost
+        );
+      }
+    }
+
+    if (usedPct >= 95) {
+      const alertKey = 'gemini-critical';
+
+      if (this.shouldSendAlert(alertKey, 15)) {
+        await sendAPIWarning(
+          'Gemini API - CRITICAL',
+          used,
+          this.config.geminiDailyLimit,
+          42
+        );
+      }
+    }
+  }
+
+  /**
+   * Increment Gemini usage counter
+   * Call this after each Gemini API request
+   */
+  async incrementGeminiUsage(): Promise<void> {
+    const count = this.incrementCounter('gemini');
+    console.log(`📈 Gemini API usage: ${count}/${this.config.geminiDailyLimit} RPD`);
+    await this.monitorGeminiAPI();
+  }
+
+  /**
+   * Check if Gemini quota allows another request
+   */
+  canMakeGeminiRequest(): boolean {
+    return this.getCounter('gemini') < this.config.geminiDailyLimit;
+  }
+
+  // ─── Gmail / Nodemailer (NEW — 500/day limit) ────────────────────────
+
+  /**
+   * Monitor Gmail daily send usage
+   */
+  async monitorGmail(): Promise<void> {
+    const used = this.getCounter('gmail');
+    const usedPct = (used / this.config.gmailDailyLimit) * 100;
+
+    console.log(`📊 Gmail Usage: ${used}/${this.config.gmailDailyLimit} emails/day (${usedPct.toFixed(1)}%)`);
+
+    if (usedPct >= 80) {
+      const alertKey = 'gmail-warning';
+
+      if (this.shouldSendAlert(alertKey)) {
+        await sendAPIWarning(
+          'Gmail/Nodemailer',
+          used,
+          this.config.gmailDailyLimit,
+          20 // Google Workspace or transactional email service
+        );
+      }
+    }
+
+    if (usedPct >= 95) {
+      const alertKey = 'gmail-critical';
+
+      if (this.shouldSendAlert(alertKey, 15)) {
+        await sendAPIWarning(
+          'Gmail/Nodemailer - CRITICAL',
+          used,
+          this.config.gmailDailyLimit,
+          20
+        );
+      }
+    }
+  }
+
+  /**
+   * Increment Gmail send counter
+   * Call this after each email is sent
+   */
+  async incrementGmailUsage(): Promise<void> {
+    const count = this.incrementCounter('gmail');
+    console.log(`📈 Gmail usage: ${count}/${this.config.gmailDailyLimit} emails`);
+    await this.monitorGmail();
+  }
+
+  /**
+   * Check if Gmail quota allows another send
+   */
+  canSendEmail(): boolean {
+    return this.getCounter('gmail') < this.config.gmailDailyLimit;
+  }
+
+  // ─── Aggregate stats & reset ──────────────────────────────────────────
 
   /**
    * Get current API usage statistics
@@ -181,31 +369,42 @@ class APIMonitoringService {
   async getUsageStats(): Promise<APIUsageStats> {
     return {
       theOddsAPI: {
-        used: 0, // Would be calculated from headers
-        remaining: 0, // Would be from last response
+        used: 0, // Calculated from response headers at request time
+        remaining: 0,
         total: this.config.theOddsTotal,
         lastReset: new Date()
       },
       rapidAPI: {
-        used: await this.getRapidAPIUsage(),
+        used: this.getCounter('rapidapi'),
         total: this.config.rapidAPITotal,
+        lastReset: new Date()
+      },
+      geminiAPI: {
+        used: this.getCounter('gemini'),
+        total: this.config.geminiDailyLimit,
+        lastReset: new Date()
+      },
+      gmail: {
+        used: this.getCounter('gmail'),
+        total: this.config.gmailDailyLimit,
         lastReset: new Date()
       }
     };
   }
 
   /**
-   * Reset daily counters (call this at midnight)
+   * Reset daily counters (call this at midnight via cron)
    */
   async resetDailyCounters(): Promise<void> {
-    // Reset RapidAPI daily counter
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Example with Redis:
-    // const redis = getRedisClient();
-    // await redis.del(`rapidapi:usage:${today}`);
-    
-    console.log(`🔄 Daily API counters reset for ${today}`);
+    // Persist before clearing so we have a historical record
+    await this.persistCountersToSupabase();
+
+    // Clear all daily keys
+    for (const key of dailyCounters.keys()) {
+      dailyCounters.delete(key);
+    }
+
+    console.log(`🔄 Daily API counters reset at ${new Date().toISOString()}`);
   }
 }
 
@@ -216,4 +415,9 @@ export const apiMonitoring = new APIMonitoringService();
 export const monitorTheOddsAPI = (response: Response) => apiMonitoring.monitorTheOddsAPI(response);
 export const monitorRapidAPI = () => apiMonitoring.monitorRapidAPI();
 export const incrementRapidAPIUsage = () => apiMonitoring.incrementRapidAPIUsage();
+export const incrementGeminiUsage = () => apiMonitoring.incrementGeminiUsage();
+export const incrementGmailUsage = () => apiMonitoring.incrementGmailUsage();
+export const canMakeGeminiRequest = () => apiMonitoring.canMakeGeminiRequest();
+export const canSendEmail = () => apiMonitoring.canSendEmail();
 export const getAPIUsageStats = () => apiMonitoring.getUsageStats();
+export const restoreCounters = () => apiMonitoring.restoreCountersFromSupabase();

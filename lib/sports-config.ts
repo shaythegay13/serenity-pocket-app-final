@@ -548,20 +548,194 @@ export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
     seasonActive: true,
     icon: '🏓'
   },
-  cricket: {
-    id: 'cricket',
-    name: 'Cricket',
-    displayName: 'International Cricket',
+  // =====================================================================
+  // CRICKET - COMPREHENSIVE (Domestic, International, T20 Leagues)
+  // =====================================================================
+  cricket_ipl: {
+    id: 'cricket_ipl',
+    name: 'IPL',
+    displayName: 'Indian Premier League',
     category: 'team',
     oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_ipl',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 10,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_mlc: {
+    id: 'cricket_mlc',
+    name: 'MLC',
+    displayName: 'Major League Cricket',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_mlc',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 6,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_big_bash: {
+    id: 'cricket_big_bash',
+    name: 'BBL',
+    displayName: 'Big Bash League',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_big_bash',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 8,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_cpl: {
+    id: 'cricket_cpl',
+    name: 'CPL',
+    displayName: 'Caribbean Premier League',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_caribbean_premier_league',
     hasLiveOdds: true,
     hasPlayerProps: true,
     hasSGP: true,
     hasParlays: true,
     popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman'],
     supportedMarkets: ['moneyline', 'total'],
+    teamCount: 6,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_the_hundred: {
+    id: 'cricket_the_hundred',
+    name: 'The Hundred',
+    displayName: 'The Hundred',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_the_hundred',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 8,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_psl: {
+    id: 'cricket_psl',
+    name: 'PSL',
+    displayName: 'Pakistan Super League',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_psl',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 6,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_sa20: {
+    id: 'cricket_sa20',
+    name: 'SA20',
+    displayName: 'SA20 League',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_sa20',
+    hasLiveOdds: true,
+    hasPlayerProps: false,
+    hasSGP: false,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 6,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_icc_odi: {
+    id: 'cricket_icc_odi',
+    name: 'ICC ODI',
+    displayName: 'ICC One Day Internationals',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_odi',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline', 'total'],
     teamCount: 0,
     seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_icc_t20: {
+    id: 'cricket_icc_t20',
+    name: 'ICC T20',
+    displayName: 'ICC T20 World Cup',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_icc_world_t20',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 0,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_test: {
+    id: 'cricket_test',
+    name: 'Test Cricket',
+    displayName: 'International Test Matches',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_test_match',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: false,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Draw No Bet', 'Top Batsman', 'Top Bowler'],
+    supportedMarkets: ['moneyline'],
+    teamCount: 0,
+    seasonActive: true,
+    icon: '🏏'
+  },
+  cricket_icc_world_cup: {
+    id: 'cricket_icc_world_cup',
+    name: 'ICC World Cup',
+    displayName: 'ICC Cricket World Cup',
+    category: 'team',
+    oddsApiSport: 'cricket',
+    oddsApiLeague: 'cricket_icc_world_cup',
+    hasLiveOdds: true,
+    hasPlayerProps: true,
+    hasSGP: true,
+    hasParlays: true,
+    popularMarkets: ['Moneyline', 'Total Runs', 'Top Batsman', 'Outright Winner'],
+    supportedMarkets: ['moneyline', 'total'],
+    teamCount: 0,
+    seasonActive: false,
     icon: '🏏'
   },
   rugby_union: {
@@ -821,6 +995,52 @@ export function getPopularSports(): SportConfig[] {
   return Object.values(SUPPORTED_SPORTS);
 }
 
+export interface SportGroup {
+  label: string
+  icon: string
+  sports: SportConfig[]
+}
+
+/**
+ * Groups all supported sports by their top-level sport category.
+ * Used for the grouped dropdown in the SmartSlip picker UI.
+ */
+export function getSportsGrouped(): SportGroup[] {
+  const groupDefs: { prefix: string; label: string; icon: string }[] = [
+    { prefix: 'basketball', label: 'Basketball', icon: '🏀' },
+    { prefix: 'americanfootball', label: 'Football', icon: '🏈' },
+    { prefix: 'baseball', label: 'Baseball', icon: '⚾' },
+    { prefix: 'icehockey', label: 'Hockey', icon: '🏒' },
+    { prefix: 'soccer', label: 'Soccer', icon: '⚽' },
+    { prefix: 'cricket', label: 'Cricket', icon: '🏏' },
+    { prefix: 'tennis', label: 'Tennis', icon: '🎾' },
+    { prefix: 'golf', label: 'Golf', icon: '⛳' },
+    { prefix: 'motorsports', label: 'Motorsports', icon: '🏎️' },
+    { prefix: 'rugby', label: 'Rugby', icon: '🏉' },
+    { prefix: 'esports', label: 'Esports', icon: '🎮' },
+  ]
+
+  const allSports = Object.values(SUPPORTED_SPORTS)
+  const used = new Set<string>()
+  const groups: SportGroup[] = []
+
+  for (const def of groupDefs) {
+    const matching = allSports.filter(s => s.id.startsWith(def.prefix + '_') || s.id === def.prefix)
+    if (matching.length > 0) {
+      groups.push({ label: def.label, icon: def.icon, sports: matching })
+      matching.forEach(s => used.add(s.id))
+    }
+  }
+
+  // Collect remaining sports into "Other"
+  const remaining = allSports.filter(s => !used.has(s.id))
+  if (remaining.length > 0) {
+    groups.push({ label: 'Other', icon: '🏆', sports: remaining })
+  }
+
+  return groups
+}
+
 export function searchSports(query: string): SportConfig[] {
   const lowerQuery = query.toLowerCase();
   return Object.values(SUPPORTED_SPORTS).filter(sport =>
@@ -902,6 +1122,22 @@ export function isSportInSeason(sportId: string): boolean {
 
     // Rugby League (NRL): March (2) - October (9)
     'rugby_league': { start: 2, end: 9, spansYearEnd: false },
+
+    // Cricket Leagues
+    // IPL: March (2) - May (4)
+    'cricket_ipl': { start: 2, end: 4, spansYearEnd: false },
+    // MLC: July (6) - August (7)
+    'cricket_mlc': { start: 6, end: 7, spansYearEnd: false },
+    // Big Bash League: December (11) - February (1)
+    'cricket_big_bash': { start: 11, end: 1, spansYearEnd: true },
+    // CPL: August (7) - October (9)
+    'cricket_cpl': { start: 7, end: 9, spansYearEnd: false },
+    // The Hundred: July (6) - August (7)
+    'cricket_the_hundred': { start: 6, end: 7, spansYearEnd: false },
+    // PSL: February (1) - March (2)
+    'cricket_psl': { start: 1, end: 2, spansYearEnd: false },
+    // SA20: January (0) - February (1)
+    'cricket_sa20': { start: 0, end: 1, spansYearEnd: false },
   };
 
   const range = seasonRanges[sportId];
@@ -976,7 +1212,27 @@ export const TILTLAB_SPORT_MAPPING: Record<string, string> = {
   'Darts': 'darts_pdc',
   'Table Tennis': 'table_tennis',
   'Ping Pong': 'table_tennis',
-  'Cricket': 'cricket',
+  'Cricket': 'cricket_ipl',
+  'IPL': 'cricket_ipl',
+  'Indian Premier League': 'cricket_ipl',
+  'MLC': 'cricket_mlc',
+  'Major League Cricket': 'cricket_mlc',
+  'BBL': 'cricket_big_bash',
+  'Big Bash': 'cricket_big_bash',
+  'Big Bash League': 'cricket_big_bash',
+  'CPL': 'cricket_cpl',
+  'Caribbean Premier League': 'cricket_cpl',
+  'The Hundred': 'cricket_the_hundred',
+  'PSL': 'cricket_psl',
+  'Pakistan Super League': 'cricket_psl',
+  'SA20': 'cricket_sa20',
+  'ICC ODI': 'cricket_icc_odi',
+  'ODI': 'cricket_icc_odi',
+  'ICC T20': 'cricket_icc_t20',
+  'T20 World Cup': 'cricket_icc_t20',
+  'Test Cricket': 'cricket_test',
+  'Test Match': 'cricket_test',
+  'ICC World Cup': 'cricket_icc_world_cup',
   'Rugby': 'rugby_union',
   'Rugby Union': 'rugby_union',
   'Rugby League': 'rugby_league',

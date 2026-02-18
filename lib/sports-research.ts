@@ -18,6 +18,8 @@ import {
   type RecentForm,
   type LeagueInfo
 } from './thesportsdb';
+import { isCricketLeague, CRICKET_FORMAT_CONFIG } from './cricket-apis';
+import { getCricketMatchContext } from './cricket-fetcher';
 
 export interface SportsResearchInput {
   homeTeam: string;
@@ -235,6 +237,17 @@ async function analyzeWithGemini(data: any): Promise<any> {
     
     Be thorough but concise. Use sports terminology appropriately.`;
 
+    // Build cricket-specific context if applicable
+    const sportKey = data.sport || ''
+    const isCricket = isCricketLeague(sportKey)
+    const cricketFormat = isCricket ? CRICKET_FORMAT_CONFIG[sportKey] : null
+    const cricketContext = isCricket && cricketFormat
+      ? `\n    CRICKET FORMAT: ${cricketFormat.format} (${cricketFormat.oversPerInnings} overs per innings, ${cricketFormat.inningsCount} innings)
+    TYPICAL TOTAL RUNS: ${cricketFormat.totalRunsRange.min}-${cricketFormat.totalRunsRange.max} (avg: ${cricketFormat.totalRunsRange.avg})
+    MATCH DURATION: ${cricketFormat.typicalDuration}
+    CRICKET-SPECIFIC FACTORS: Toss advantage, pitch conditions (batting-friendly vs bowling-friendly), dew factor (night games), powerplay aggression, death-over bowling quality, spin vs pace conditions.`
+      : ''
+
     const userPrompt = `Analyze this sports matchup and provide detailed insights:
     
     HOME TEAM: ${data.homeTeam?.strTeam || 'Unknown'}
@@ -247,7 +260,7 @@ async function analyzeWithGemini(data: any): Promise<any> {
     
     HEAD-TO-HEAD: ${JSON.stringify(data.headToHead)}
     
-    LEAGUE: ${data.leagueInfo?.strLeague || 'Unknown'} (${data.sport})
+    LEAGUE: ${data.leagueInfo?.strLeague || 'Unknown'} (${data.sport})${cricketContext}
     
     Return a JSON analysis with this structure:
     {

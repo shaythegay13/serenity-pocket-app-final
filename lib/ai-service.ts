@@ -208,6 +208,15 @@ STRICT LOGIC RULES:
 - If EV is negative, the enhancedReasoning must explain that the user is paying 'juice' and has no mathematical edge.
 - If risk is HIGH or recommendation is 'PROCEED WITH CAUTION', the enhancedReasoning must start with a bold cautionary warning.
 
+**CRICKET BETTING ANALYSIS**:
+When analyzing cricket bets (IPL, MLC, BBL, CPL, The Hundred, PSL, SA20, ICC ODI/T20, Test):
+- Toss factor: 5-8% advantage in T20s for team chasing (dew in night games). Market often underprices this.
+- Pitch: Batting-friendly pitches → higher totals, bowling-friendly → lower totals. Subcontinent favors spin.
+- T20 is HIGH VARIANCE — upsets are more common. Adjust confidence accordingly.
+- Test matches: favorites win more often, draws are a real outcome. Check weather forecast (rain = draw risk).
+- Home advantage is very significant in cricket, especially in India/Pakistan/Sri Lanka.
+- Key stats: batting strike rate, bowling economy rate, powerplay run rate, death-over economy.
+
 **PLAYER PROP ANALYSIS**:
 When analyzing player prop bets (if player prop context is provided):
 - Evaluate if user is selecting based on player popularity vs statistical merit

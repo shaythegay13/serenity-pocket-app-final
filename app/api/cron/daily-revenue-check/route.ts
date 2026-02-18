@@ -9,17 +9,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { runDailyRevenueCheck } from '@/lib/revenue-triggers';
 import { apiMonitoring } from '@/lib/api-monitoring';
 
-// Verify cron secret for security
+// Verify cron secret for security (supports both query param and Vercel Bearer token)
 function verifyCronSecret(request: NextRequest): boolean {
-  const secret = request.nextUrl.searchParams.get('secret');
   const expectedSecret = process.env.CRON_SECRET;
-  
-  if (!secret || secret !== expectedSecret) {
-    console.error('❌ Invalid cron secret provided');
-    return false;
+
+  // Method 1: Vercel cron sends Authorization: Bearer <CRON_SECRET>
+  const authHeader = request.headers.get('authorization');
+  if (authHeader === `Bearer ${expectedSecret}`) {
+    return true;
   }
-  
-  return true;
+
+  // Method 2: Manual trigger via ?secret= query param
+  const secret = request.nextUrl.searchParams.get('secret');
+  if (secret && secret === expectedSecret) {
+    return true;
+  }
+
+  console.error('❌ Invalid cron secret provided');
+  return false;
 }
 
 export async function POST(request: NextRequest) {
@@ -34,15 +41,23 @@ export async function POST(request: NextRequest) {
 
     console.log('🕐 Starting daily revenue and API check...');
 
-    // 1. Run revenue upgrade triggers
+    // 0. Restore counters from Supabase (handles cold starts after redeploy)
+    console.log('♻️ Restoring API counters from Supabase...');
+    await apiMonitoring.restoreCountersFromSupabase();
+
+    // 1. Get current API usage snapshot before reset
+    const usageStats = await apiMonitoring.getUsageStats();
+    console.log('📊 Current API usage:', JSON.stringify(usageStats, null, 2));
+
+    // 2. Run revenue upgrade triggers
     console.log('💰 Checking revenue upgrade triggers...');
     await runDailyRevenueCheck();
 
-    // 2. Reset daily API counters (if needed)
+    // 3. Reset daily API counters (persists to Supabase, then clears in-memory)
     console.log('🔄 Resetting daily API counters...');
     await apiMonitoring.resetDailyCounters();
 
-    // 3. Log completion
+    // 4. Log completion
     const timestamp = new Date().toISOString();
     console.log(`✅ Daily revenue check completed at ${timestamp}`);
 
@@ -50,7 +65,8 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Daily revenue and API check completed successfully',
       timestamp,
-      checks: ['revenue-triggers', 'api-counters-reset']
+      usageSnapshot: usageStats,
+      checks: ['counter-restore', 'revenue-triggers', 'api-counters-reset']
     });
 
   } catch (error) {

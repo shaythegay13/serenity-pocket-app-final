@@ -345,7 +345,7 @@ export function PublicEmotionCheckIn({ anonymousSessionId, onComplete }: PublicE
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder="50.00"
+                    placeholder="e.g. 50.00"
                     value={betAmount}
                     onChange={(e) => setBetAmount(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-md text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -357,7 +357,7 @@ export function PublicEmotionCheckIn({ anonymousSessionId, onComplete }: PublicE
                   <input
                     id="betOdds"
                     type="text"
-                    placeholder="+110"
+                    placeholder="e.g. +110"
                     value={betOdds}
                     onChange={(e) => setBetOdds(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-md text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50"

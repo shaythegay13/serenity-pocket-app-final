@@ -6,6 +6,9 @@
 
 import nodemailer from 'nodemailer';
 
+// NOTE: api-monitoring imports are done lazily to avoid circular dependency
+// (api-monitoring.ts imports from email-alerts.ts for sendAPIWarning)
+
 export interface AlertEmail {
   subject: string;
   body: string;
@@ -59,6 +62,13 @@ class EmailAlertService {
       return false;
     }
 
+    // Check Gmail daily quota before sending (lazy import to avoid circular dep)
+    const { canSendEmail } = require('./api-monitoring');
+    if (!canSendEmail()) {
+      console.warn('⚠️ Gmail daily send quota exhausted. Email logged but not sent.');
+      return false;
+    }
+
     try {
       await this.transporter.sendMail({
         to: this.config.to,
@@ -86,6 +96,10 @@ class EmailAlertService {
         `
       });
       
+      // Track Gmail usage (lazy import to avoid circular dep)
+      const { incrementGmailUsage } = require('./api-monitoring');
+      await incrementGmailUsage().catch((err: Error) => console.warn('[Gmail Tracker] Failed to increment:', err));
+
       console.log('✅ Alert email sent successfully');
       return true;
     } catch (error) {

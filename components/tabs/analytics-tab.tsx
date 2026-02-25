@@ -194,7 +194,6 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     if (tab && ["correlation", "performance", "mental-health"].includes(tab)) {
       setActiveSubTab(tab)
     }
-  }, [hasAccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load data on mount
   useEffect(() => {

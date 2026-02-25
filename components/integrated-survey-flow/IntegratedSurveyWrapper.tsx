@@ -9,6 +9,9 @@ import SurveyForm from '@/components/SurveyForm';
 import { SurveyAnswer } from '@/types/survey';
 import { SURVEY_QUESTIONS } from '@/types/survey';
 import { computeArchetypeFromSnapshot, ArchetypeDef } from '@/lib/archetypes';
+import { supabase } from '@/lib/supabase';
+import { getAnonymousSessionId } from '@/lib/anonymous-session';
+import { UnifiedSurveyResult } from '@/types/survey.enhanced';
 
 export enum SurveyFlow {
   WELCOME = 'welcome',
@@ -17,7 +20,7 @@ export enum SurveyFlow {
 }
 
 interface IntegratedSurveyWrapperProps {
-  onComplete?: (score: number, level: string, email: string) => void;
+  onComplete?: (score: number, level: string, email: string, fullResults?: UnifiedSurveyResult) => void;
   onSwitchToLogin: () => void;
   onClose?: () => void;
 }
@@ -35,26 +38,53 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
   const handleSurveySubmit = async (responses: SurveyAnswer[]) => {
     setIsSubmitting(true);
     try {
-      // Calculate score from all 12 questions
-      const score = responses.reduce((acc, r) => {
-        const q = SURVEY_QUESTIONS.find((question) => question.id === r.questionId);
-        if (!q) return acc;
-        const idx = q.options.indexOf(r.selectedOption);
-        return acc + (idx >= 0 ? q.weight[idx] : 0);
-      }, 0);
+      // Get current user and anonymous session
+      const { data: { user } } = await supabase.auth.getUser();
+      let anonymousId = !user ? getAnonymousSessionId() : null;
 
-      // Compute archetype
-      const archetype = computeArchetypeFromSnapshot(responses);
+      // If still no anonymous ID (e.g., localStorage empty), generate a fallback
+      if (!user && !anonymousId) {
+        anonymousId = 'anon-' + Math.random().toString(36).substring(2) + Date.now();
+        // Store it for consistency
+        localStorage.setItem('pml_anonymous_session_id', anonymousId);
+      }
 
-      setSurveyResult({ score, archetype });
+      // Call the new hybrid survey API
+      const response = await fetch('/api/survey/submit-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          responses,
+          anonymousSessionId: anonymousId
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to submit survey');
+      }
+
+      const data = await response.json();
+      const results: UnifiedSurveyResult = data.results;
+
+      setSurveyResult({ 
+        score: results.serenityScore, 
+        archetype: results.archetype 
+      });
+      
       setCurrentFlow(SurveyFlow.COMPLETE);
 
-      // Call onComplete callback
       if (onComplete) {
-        onComplete(score, archetype.name, '');
+        onComplete(
+          results.serenityScore,
+          results.archetype.name,
+          user?.email || '',
+          results
+        );
       }
     } catch (error) {
       console.error('Survey submission error:', error);
+      // Optionally show an error message to the user
     } finally {
       setIsSubmitting(false);
     }
@@ -203,4 +233,4 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
 }
 
 export default IntegratedSurveyWrapper;
-// Deployed: 2026-01-20T02:29:00Z - Survey Flow v2.0
+// Deployed: 2026-01-20T02:29:00Z - Survey Flow v2.0 (updated with hybrid API + fallback anonymous ID)

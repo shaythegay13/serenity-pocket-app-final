@@ -194,6 +194,7 @@ export function AnalyticsTab({ userData, onNavigateToTab }: AnalyticsTabProps) {
     if (tab && ["correlation", "performance", "mental-health"].includes(tab)) {
       setActiveSubTab(tab)
     }
+  }, [hasAccess, setActiveSubTab])
 
   // Load data on mount
   useEffect(() => {

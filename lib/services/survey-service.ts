@@ -123,7 +123,9 @@ export class SurveyService {
       archetype: {
         id: archetype.id,
         name: archetype.name,
-        description: archetype.description
+        description: archetype.description,
+        positive: archetype.positive,
+        negative: archetype.negative
       },
       riskLevel: this.getRiskLevel(pgsiTotal),
       pgsiCategory: this.getPGSICategory(pgsiTotal)

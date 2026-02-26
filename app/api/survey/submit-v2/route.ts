@@ -108,7 +108,7 @@ export async function GET(request: Request) {
 
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || null;
-    const anonymousId = cookieStore.get('anonymous_session_id')?.value;
+    const anonymousId = cookieStore.get('anonymous_session_id')?.value ?? null;
 
     const hasTaken = await surveyService.hasTakenSurveyToday(userId, anonymousId);
 

@@ -136,6 +136,8 @@ export interface UnifiedSurveyResult {
     id: string;
     name: string;
     description: string;
+    positive: string;
+    negative: string;
   };
   riskLevel: 'low' | 'moderate' | 'high' | 'problem';
   pgsiCategory: string;

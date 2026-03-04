@@ -11,11 +11,11 @@ export default function SerenityPage() {
       <section className="pt-28 pb-12">
         <div className="container mx-auto px-4 max-w-3xl">
           <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-6">
-            Discover Your Betting Archetype
+            Serenity Survey
           </h1>
           <p className="text-xl text-gray-400 text-center max-w-2xl mx-auto mb-12">
-            Take our free 12-question Serenity Assessment to uncover your unique betting personality.
-            Understand your strengths, blind spots, and how to make more disciplined decisions.
+            Take our free 12-question assessment to discover your betting archetype and understand
+            your risk profile. Get personalized insights to make smarter, safer betting decisions.
           </p>
 
           <div className="space-y-8 text-gray-300 mb-16">
@@ -33,9 +33,9 @@ export default function SerenityPage() {
               <h2 className="text-2xl font-bold text-white mb-3">What You'll Learn</h2>
               <p>
                 Our assessment evaluates patterns in emotional betting, impulse control, budget
-                discipline, and chase behavior. Based on your responses, you'll be assigned one of
-                several archetypes — from the disciplined "Methodical Analyst" to the impulsive
-                "Thrill Seeker" — each with tailored advice for improvement.
+                discipline, and chase behavior. You'll receive your unique archetype, a behavioral
+                score, and a risk assessment — all designed to help you understand your betting
+                habits and make more disciplined decisions.
               </p>
             </div>
 
@@ -43,8 +43,8 @@ export default function SerenityPage() {
               <h2 className="text-2xl font-bold text-white mb-3">Research-Backed Assessment</h2>
               <p>
                 Our questions are grounded in behavioral science research on decision-making under
-                uncertainty. The assessment takes 2-3 minutes and provides instant results including
-                your archetype, a numerical score, and personalized insights into your betting behavior.
+                uncertainty and validated problem gambling screening methodologies. The assessment
+                takes 2-3 minutes and provides instant, confidential results.
               </p>
             </div>
           </div>

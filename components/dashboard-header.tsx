@@ -222,19 +222,6 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   type="button"
                   onClick={() => {
                     setMenuOpen(false)
-                    router.push("/pgsi-survey")
-                  }}
-                >
-                  <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-                  <span>Sports Betting Survey</span>
-                </button>
-
-                <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm sm:text-base text-popover-foreground hover:bg-accent hover:text-accent-foreground"
-                  role="menuitem"
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false)
                     toggleTheme()
                   }}
                 >

@@ -1,5 +1,6 @@
 export const FEATURE_FLAGS = {
-  HYBRID_SURVEY: process.env.NEXT_PUBLIC_FEATURE_HYBRID_SURVEY === 'true',
+  // HYBRID_SURVEY is now the default survey flow (serenity + PGSI combined)
+  HYBRID_SURVEY: process.env.NEXT_PUBLIC_FEATURE_HYBRID_SURVEY !== 'false',
   PGSI_INTEGRATION: process.env.NEXT_PUBLIC_FEATURE_PGSI_INTEGRATION === 'true',
   EMOTIONAL_STABILITY_V2: process.env.NEXT_PUBLIC_FEATURE_ES_V2 === 'true'
 };

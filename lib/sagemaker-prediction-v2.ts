@@ -216,11 +216,9 @@ export async function predictBetOutcome(input: SageMakerPredictionInput): Promis
     // Push probability is small but non-zero to avoid overconfidence.
     const pushProbability = 0.02
 
-    // Emotional risk nudges the effective win probability downward.
-    const emotionPenalty =
-      input.emotionalRisk === 'HIGH' ? 0.08 : input.emotionalRisk === 'MODERATE' ? 0.04 : 0
-
-    const winProbability = clamp(impliedProbability - emotionPenalty, 0.05, 0.95) * (1 - pushProbability)
+    // Statistical engine runs at full capacity — emotional state does NOT alter probability modeling.
+    // Emotional stability modulates risk posture via behavioral-risk-modulator.ts, not raw probabilities.
+    const winProbability = clamp(impliedProbability, 0.05, 0.95) * (1 - pushProbability)
     const lossProbability = (1 - pushProbability) - winProbability
 
     // Determine predicted outcome (highest probability)

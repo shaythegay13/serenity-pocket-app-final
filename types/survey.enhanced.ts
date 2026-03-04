@@ -90,9 +90,9 @@ export const ENHANCED_SURVEY_QUESTIONS: EnhancedSurveyQuestion[] = [
   {
     id: 'c9',
     text: 'Which sports do you usually bet on? (Tap all that apply)',
-    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
-    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    pgsiWeight: [0, 0, 0, 0, 0, 1, 1, 0, 1], // College/combat/esports = higher risk
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'College sports', 'Soccer', 'UFC/MMA', 'Boxing', 'Tennis', 'Golf', 'Cricket', 'Motorsports', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    pgsiWeight: [0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1], // College/combat/esports = higher risk
     multi: true,
     category: 'pgsi',
     section: 'Sport & Market Preferences'
@@ -100,9 +100,9 @@ export const ENHANCED_SURVEY_QUESTIONS: EnhancedSurveyQuestion[] = [
   {
     id: 'c10',
     text: 'Which sports do you feel you understand the most analytically?',
-    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
-    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    pgsiWeight: [0, 0, 0, 0, 0, 1, 1, 0, 1], // Overconfidence in complex sports
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'College sports', 'Soccer', 'UFC/MMA', 'Boxing', 'Tennis', 'Golf', 'Cricket', 'Motorsports', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    pgsiWeight: [0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1], // College/combat/esports = higher risk
     multi: true,
     category: 'pgsi',
     section: 'Sport & Market Preferences'

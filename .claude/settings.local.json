@@ -9,7 +9,9 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nrefactor: simplify Skeleton component to match shadcn/ui pattern\n\nStreamline the Skeleton component by adopting shadcn/ui conventions with cn utility for better type safety and styling composition. Remove CardSkeleton export to reduce component complexity.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(echo gitnexus not found globally:*)",
+      "Bash(claude mcp:*)"
     ],
     "deny": [],
     "ask": []

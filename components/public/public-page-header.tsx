@@ -8,7 +8,6 @@ import { usePathname } from 'next/navigation'
 const navLinks = [
   { href: '/check-in', label: 'Emotional Check-In' },
   { href: '/serenity', label: 'Serenity Survey' },
-  { href: '/pgsi', label: 'PGSI Survey' },
 ]
 
 export function PublicPageHeader() {
@@ -53,7 +52,7 @@ export function PublicPageHeader() {
             asChild
             className="bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-5 py-2 rounded-lg text-sm"
           >
-            <Link href="/login">Log In</Link>
+            <Link href="/login">Create Account / Log In</Link>
           </Button>
         </div>
       </div>

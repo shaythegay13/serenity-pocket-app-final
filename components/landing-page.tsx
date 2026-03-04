@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity, Heart, ClipboardCheck, AlertTriangle } from "lucide-react"
+import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity, Heart, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -188,7 +188,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
               No account required. Experience the power of behavioral betting analytics right now.
             </p>
 
-            <div className="grid md:grid-cols-3 gap-6 pt-8">
+            <div className="grid md:grid-cols-2 gap-6 pt-8 max-w-3xl mx-auto">
               <Link href="/check-in" className="group">
                 <Card className="h-full bg-gray-900/80 border-gray-700 hover:border-blue-500/50 transition-all duration-300 p-6 text-left">
                   <div className="inline-flex p-3 rounded-xl bg-blue-500/10 mb-4">
@@ -207,23 +207,10 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                   <div className="inline-flex p-3 rounded-xl bg-purple-500/10 mb-4">
                     <Brain className="h-6 w-6 text-purple-400" />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-2">Serenity Assessment</h3>
-                  <p className="text-sm text-gray-400 mb-4">Discover your betting archetype with our 12-question behavioral assessment. Learn your strengths and blind spots.</p>
+                  <h3 className="text-lg font-bold text-white mb-2">Serenity Survey</h3>
+                  <p className="text-sm text-gray-400 mb-4">Discover your betting archetype and risk profile with our 12-question assessment. Get personalized insights into your strengths and blind spots.</p>
                   <span className="text-sm font-medium text-purple-400 group-hover:text-purple-300 transition-colors">
-                    Find your archetype &rarr;
-                  </span>
-                </Card>
-              </Link>
-
-              <Link href="/pgsi" className="group">
-                <Card className="h-full bg-gray-900/80 border-gray-700 hover:border-amber-500/50 transition-all duration-300 p-6 text-left">
-                  <div className="inline-flex p-3 rounded-xl bg-amber-500/10 mb-4">
-                    <ClipboardCheck className="h-6 w-6 text-amber-400" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">PGSI Assessment</h3>
-                  <p className="text-sm text-gray-400 mb-4">Take the validated Problem Gambling Severity Index for sports bettors. Understand your risk level confidentially.</p>
-                  <span className="text-sm font-medium text-amber-400 group-hover:text-amber-300 transition-colors">
-                    Assess your risk &rarr;
+                    Take the survey &rarr;
                   </span>
                 </Card>
               </Link>

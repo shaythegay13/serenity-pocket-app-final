@@ -508,7 +508,7 @@ export function HomeContent() {
             console.log('🔧 Signup button clicked - starting signup flow')
             // Use URL parameter to ensure signup flow persists across auth checks
             if (typeof window !== 'undefined') {
-              window.history.pushState(null, '', '/?signup=true')
+              window.history.pushState(null, '', '/home?signup=true')
             }
             // Immediately update states to prevent race conditions
             setShowSignin(false)

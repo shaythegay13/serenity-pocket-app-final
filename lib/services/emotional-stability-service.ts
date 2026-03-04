@@ -67,7 +67,7 @@ class EmotionalStabilityService {
 
     // Calculate fresh score
     const result = await this.calculateFreshScore(userData)
-    
+
     // Update cache
     this.cache.set(userId, {
       ...result,
@@ -84,7 +84,7 @@ class EmotionalStabilityService {
   async forceRecalculate(userData: UserData): Promise<EmotionalStabilityResult> {
     const userId = userData.email || 'anonymous'
     const result = await this.calculateFreshScore(userData)
-    
+
     // Update cache
     this.cache.set(userId, {
       ...result,
@@ -140,7 +140,7 @@ class EmotionalStabilityService {
       )
     } catch (error) {
       console.error('Error calculating emotional stability:', error)
-      
+
       // Return default values on error
       return {
         score: 50,
@@ -159,18 +159,18 @@ class EmotionalStabilityService {
 
   /**
    * Get emotional stability data formatted for API requests
-   * Uses the centralized threshold from emotional-scoring.ts
+   * @deprecated The behavioral risk modulator now handles risk-adjusted recommendations.
+   * This method always allows picks; risk modulation is applied post-analysis.
    */
   async getForAPI(userData: UserData): Promise<{ emotionalScore: number; shouldBet: boolean; message?: string }> {
     const stability = await this.getCurrentEmotionalStability(userData)
-    const shouldBet = shouldReceiveAIPicks(stability.score)
 
     return {
       emotionalScore: stability.score,
-      shouldBet,
-      message: shouldBet
-        ? undefined
-        : `Your emotional stability score is ${stability.score}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`
+      shouldBet: true,
+      message: stability.score < 60
+        ? `Your emotional stability score is ${stability.score}/100. Risk-adjusted recommendations are applied to your picks.`
+        : undefined
     }
   }
 

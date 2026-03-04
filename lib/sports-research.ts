@@ -21,6 +21,76 @@ import {
 import { isCricketLeague, CRICKET_FORMAT_CONFIG } from './cricket-apis';
 import { getCricketMatchContext } from './cricket-fetcher';
 
+/**
+ * Map our sport keys to TheSportsDB sport names
+ * TheSportsDB uses specific sport names that we need to match against
+ */
+const SPORT_KEY_TO_SPORTSDB_SPORT: Record<string, string> = {
+  // Basketball
+  basketball_nba: 'Basketball',
+  basketball_ncaab: 'Basketball',
+  basketball_euroleague: 'Basketball',
+  basketball_nbl: 'Basketball',
+  // American Football
+  americanfootball_nfl: 'American Football',
+  americanfootball_ncaaf: 'American Football',
+  // Baseball
+  baseball_mlb: 'Baseball',
+  baseball_ncaa: 'Baseball',
+  // Ice Hockey
+  icehockey_nhl: 'Ice Hockey',
+  icehockey_sweden_hockey_league: 'Ice Hockey',
+  // Soccer
+  soccer_epl: 'Soccer',
+  soccer_spain_la_liga: 'Soccer',
+  soccer_germany_bundesliga: 'Soccer',
+  soccer_italy_serie_a: 'Soccer',
+  soccer_france_ligue_one: 'Soccer',
+  soccer_usa_mls: 'Soccer',
+  soccer_uefa_champs_league: 'Soccer',
+  soccer_uefa_europa_league: 'Soccer',
+  // Tennis
+  tennis_atp_french_open: 'Tennis',
+  tennis_wta_french_open: 'Tennis',
+  // Golf
+  golf_pga_championship: 'Golf',
+  golf_masters_tournament: 'Golf',
+  // MMA/Boxing
+  mma_mixed_martial_arts: 'Fighting',
+  boxing_boxing: 'Fighting',
+  // Cricket
+  cricket_ipl: 'Cricket',
+  cricket_test_match: 'Cricket',
+  cricket_one_day: 'Cricket',
+  cricket_t20_blast: 'Cricket',
+};
+
+/**
+ * Filter search results to match the correct sport
+ */
+function filterTeamsBySport(teams: TeamInfo[], sportKey: string): TeamInfo[] {
+  const expectedSport = SPORT_KEY_TO_SPORTSDB_SPORT[sportKey];
+
+  if (!expectedSport) {
+    // If we don't have a mapping, return all results
+    return teams;
+  }
+
+  // Filter teams by sport
+  const filtered = teams.filter(team =>
+    team.strSport?.toLowerCase() === expectedSport.toLowerCase()
+  );
+
+  if (filtered.length > 0) {
+    return filtered;
+  }
+
+  // If no exact sport match, log warning and return empty
+  // This prevents Arsenal showing up for NBA games
+  console.warn(`⚠️ No teams found matching sport "${expectedSport}" for key "${sportKey}"`);
+  return [];
+}
+
 export interface SportsResearchInput {
   homeTeam: string;
   awayTeam: string;
@@ -82,16 +152,35 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
 
   try {
     // Step 1: Get team information (parallel)
-    const [homeTeamSearch, awayTeamSearch] = await Promise.all([
+    const [homeTeamSearchRaw, awayTeamSearchRaw] = await Promise.all([
       searchTeams(input.homeTeam),
       searchTeams(input.awayTeam)
     ]);
+
+    // Filter results by sport to prevent cross-sport mismatches (e.g., Arsenal showing up for NBA)
+    const sportKey = input.sport || input.league || '';
+    const homeTeamSearch = filterTeamsBySport(homeTeamSearchRaw, sportKey);
+    const awayTeamSearch = filterTeamsBySport(awayTeamSearchRaw, sportKey);
+
+    // DEEP LOGGING for debugging "Arsenal" hallucination
+    console.log(`[SportsResearch] Search Results for ${input.homeTeam} (${sportKey}):`, {
+      rawCount: homeTeamSearchRaw.length,
+      filteredCount: homeTeamSearch.length,
+      topRaw: homeTeamSearchRaw.slice(0, 2).map(t => `${t.strTeam} (${t.strSport})`),
+      topFiltered: homeTeamSearch.slice(0, 1).map(t => `${t.strTeam} (${t.strSport})`)
+    });
+    console.log(`[SportsResearch] Search Results for ${input.awayTeam} (${sportKey}):`, {
+      rawCount: awayTeamSearchRaw.length,
+      filteredCount: awayTeamSearch.length,
+      topRaw: awayTeamSearchRaw.slice(0, 2).map(t => `${t.strTeam} (${t.strSport})`),
+      topFiltered: awayTeamSearch.slice(0, 1).map(t => `${t.strTeam} (${t.strSport})`)
+    });
 
     const homeTeam = homeTeamSearch.length > 0 ? homeTeamSearch[0] : null;
     const awayTeam = awayTeamSearch.length > 0 ? awayTeamSearch[0] : null;
 
     if (!homeTeam || !awayTeam) {
-      console.warn('⚠️ Teams not found in TheSportsDB, using fallback');
+      console.warn(`⚠️ Teams not found in TheSportsDB for sport "${sportKey}", using fallback. Home found: ${!!homeTeam}, Away found: ${!!awayTeam}`);
       return generateFallbackResearch(input);
     }
 
@@ -103,10 +192,6 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
     ]);
 
     // Step 3: Get form and H2H data (parallel with timeout)
-    // OPTIMIZED: Skip roster and league info calls to reduce API usage
-    // - Roster: Only used for Gemini narrative, not calculations
-    // - League info: Just metadata, not needed for analysis
-    // - RecentForm and H2H share the same getRecentEvents cache (both use limit=20)
     const researchPromises = await Promise.allSettled([
       withTimeout(getTeamRecentForm(homeTeam.idTeam), 3000),
       withTimeout(getTeamRecentForm(awayTeam.idTeam), 3000),
@@ -118,12 +203,20 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
     const awayRecentForm = researchPromises[1].status === 'fulfilled' ? researchPromises[1].value : null;
     const headToHead = researchPromises[2].status === 'fulfilled' ? researchPromises[2].value : null;
 
-    // Skip roster calls - only used for Gemini narrative, adds 2 API calls per game
+    // Metadata placeholders (skipped for performance API reduction)
     const homeKeyPlayers: PlayerInfo[] = [];
     const awayKeyPlayers: PlayerInfo[] = [];
-
-    // Skip league info call - just metadata
     const leagueInfo: LeagueInfo | null = null;
+
+    // DEFENSIVE: Verify that the fetched info matches the expected team (prevention of poisoned ID returns)
+    if (homeTeamInfo && homeTeamInfo.strTeam === 'Arsenal' && !input.homeTeam.toLowerCase().includes('arsenal')) {
+      console.warn(`[SportsResearch] 🚨 Poisoned homeTeamInfo detected for ${input.homeTeam}, using search result name instead`);
+      homeTeamInfo.strTeam = homeTeam.strTeam; // Override with the correct name from search
+    }
+    if (awayTeamInfo && awayTeamInfo.strTeam === 'Arsenal' && !input.awayTeam.toLowerCase().includes('arsenal')) {
+      console.warn(`[SportsResearch] 🚨 Poisoned awayTeamInfo detected for ${input.awayTeam}, using search result name instead`);
+      awayTeamInfo.strTeam = awayTeam.strTeam; // Override with the correct name from search
+    }
 
     // Step 4: Use Gemini AI for deep analysis (with timeout)
     let aiAnalysis;
@@ -134,12 +227,12 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
         homeRecentForm,
         awayRecentForm,
         headToHead,
-        homeKeyPlayers,
-        awayKeyPlayers,
-        leagueInfo,
+        homeKeyPlayers: [],
+        awayKeyPlayers: [],
+        leagueInfo: null,
         sport: input.sport,
         league: input.league
-      }), 5000); // 5 second timeout for AI analysis
+      }), 10000); // Increased to 10 second timeout for AI analysis
     } catch (e) {
       console.warn('AI analysis timeout, using fallback');
       aiAnalysis = generateFallbackAIAnalysis({
@@ -148,9 +241,9 @@ export async function conductSportsResearch(input: SportsResearchInput): Promise
         homeRecentForm,
         awayRecentForm,
         headToHead,
-        homeKeyPlayers,
-        awayKeyPlayers,
-        leagueInfo,
+        homeKeyPlayers: [],
+        awayKeyPlayers: [],
+        leagueInfo: null,
         sport: input.sport,
         league: input.league
       });

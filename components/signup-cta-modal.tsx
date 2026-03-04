@@ -34,8 +34,8 @@ export function SignupCTAModal({ open, onOpenChange, featureUsed, resultSummary 
   const message = featureMessages[featureUsed]
 
   const handleCreateAccount = () => {
-    // Trigger the signup flow which shows terms first, then account creation
-    router.push('/?signup=true')
+    // Go directly to /home with signup flow (skip intermediate landing page)
+    router.push('/home?signup=true')
   }
 
   const handleMaybeLater = () => {
@@ -43,8 +43,6 @@ export function SignupCTAModal({ open, onOpenChange, featureUsed, resultSummary 
       localStorage.setItem(DISMISSED_KEY, Date.now().toString())
     }
     onOpenChange(false)
-    // Navigate back to home page
-    router.push('/')
   }
 
   return (

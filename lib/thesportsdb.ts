@@ -24,8 +24,14 @@ const API_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || '123';
 const FALLBACK_PUBLIC_KEY = '123';
 
 function getCacheKey(endpoint: string, params: string): string {
-  return `${endpoint}:${params}`;
+  // Include API key in cache key to prevent cross-key contamination
+  return `${API_KEY}:${endpoint}:${params}`;
 }
+
+// Clear internal cache on module load to purge any potentially poisoned data 
+// from previous sessions during this debug phase
+cache.clear();
+console.log('🗑️ TheSportsDB local cache cleared for fresh session');
 
 function getFromCache(key: string): any | null {
   const cached = cache.get(key);
@@ -160,7 +166,21 @@ export async function searchTeams(teamName: string): Promise<TeamInfo[]> {
 
   try {
     const response = await fetchWithCache(url, cacheKey, CACHE_TTL.TEAM_SEARCH);
-    return response.teams || [];
+    const teams = response.teams || [];
+
+    // PRE-PRIME CACHE: Populate the lookupteam cache with the search results.
+    // This is a CRITICAL work-around for the free API key '123' which often 
+    // returns poisoned/default data (Arsenal) on the lookupteam.php endpoint.
+    // By pre-populating the cache here, subsequent getTeamInfo calls will hit 
+    // the correct data from the search result.
+    teams.forEach((team: TeamInfo) => {
+      if (team.idTeam) {
+        const lookupKey = getCacheKey('lookupteam', team.idTeam);
+        setCache(lookupKey, { teams: [team] }, CACHE_TTL.TEAM_INFO);
+      }
+    });
+
+    return teams;
   } catch (error) {
     console.error('Error searching teams:', error);
     return [];

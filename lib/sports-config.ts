@@ -1251,6 +1251,23 @@ export const TILTLAB_SPORT_MAPPING: Record<string, string> = {
   'Dota 2': 'esports_dota2',
   'Dota': 'esports_dota2',
   'Valorant': 'esports_valorant',
+
+  // ----------------------------------------------------------------------
+  // API KEY ALIASES (Mappings from TheOddsAPI/SportsDB keys to internal IDs)
+  // ----------------------------------------------------------------------
+  // Cricket
+  'cricket_odi': 'cricket_icc_odi',
+  'cricket_icc_world_t20': 'cricket_icc_t20',
+  'cricket_test_match': 'cricket_test',
+  // Soccer
+  'soccer_usa_mls': 'soccer_mls',
+  'soccer_uefa_champs_league': 'soccer_champions_league',
+  'soccer_spain_la_liga': 'soccer_la_liga',
+  'soccer_italy_serie_a': 'soccer_serie_a',
+  'soccer_germany_bundesliga': 'soccer_bundesliga',
+  'soccer_france_ligue_one': 'soccer_ligue_1',
+  // Combat
+  'mma_mixed_martial_arts': 'mma_ufc',
 };
 
 /**
@@ -1287,9 +1304,15 @@ export function normalizeSportKey(input?: string): string {
   // Already a valid key?
   if (SUPPORTED_SPORTS[input]) return input;
 
-  // Check TiltLab mapping
+  // Check TiltLab mapping (includes API aliases)
   const mapped = TILTLAB_SPORT_MAPPING[input];
   if (mapped) return mapped;
+
+  // NEW: Check by oddsApiLeague
+  const leagueMatch = Object.values(SUPPORTED_SPORTS).find(
+    s => s.oddsApiLeague === input || (s.oddsApiSport && `${s.oddsApiSport}_${s.oddsApiLeague}` === input)
+  );
+  if (leagueMatch) return leagueMatch.id;
 
   // Try case-insensitive mapping
   const lowerInput = input.toLowerCase();
@@ -1336,4 +1359,94 @@ export function getSportDisplayName(sportKey?: string): string {
   }
 
   return sportKey; // Return as-is if no match
+}
+
+// =====================================================================
+// SPORT AVAILABILITY STATUS
+// =====================================================================
+
+export type SportAvailabilityStatus = 'available' | 'in_season_no_data' | 'off_season';
+
+export interface SportAvailabilityInfo {
+  status: SportAvailabilityStatus;
+  inSeason: boolean;
+  hasData: boolean;
+  message: string;
+}
+
+/**
+ * Get the availability status for a sport.
+ * Combines season check with data availability.
+ *
+ * @param sportId - The sport key
+ * @param sportsWithData - Set of sport IDs that have live data available
+ * @param dynamicSportsInSeason - Optional set of sport IDs that are in season (from API/database).
+ *                                If provided and non-empty, uses this instead of hardcoded dates.
+ * @returns SportAvailabilityInfo with status and details
+ */
+export function getSportAvailabilityStatus(
+  sportId: string,
+  sportsWithData: Set<string>,
+  dynamicSportsInSeason?: Set<string>
+): SportAvailabilityInfo {
+  const hasData = sportsWithData.has(sportId);
+
+  // Use dynamic season data if available, otherwise fall back to hardcoded
+  const inSeason = dynamicSportsInSeason && dynamicSportsInSeason.size > 0
+    ? dynamicSportsInSeason.has(sportId)
+    : isSportInSeason(sportId);
+
+  if (hasData) {
+    return {
+      status: 'available',
+      inSeason: true,
+      hasData: true,
+      message: 'Live odds available'
+    };
+  }
+
+  if (inSeason) {
+    return {
+      status: 'in_season_no_data',
+      inSeason: true,
+      hasData: false,
+      message: 'In season - no games scheduled'
+    };
+  }
+
+  return {
+    status: 'off_season',
+    inSeason: false,
+    hasData: false,
+    message: 'Off season'
+  };
+}
+
+/**
+ * Get CSS classes for the availability status dot.
+ * Green = available, Yellow = in season no data, Red = off season
+ */
+export function getAvailabilityDotClasses(status: SportAvailabilityStatus): string {
+  switch (status) {
+    case 'available':
+      return 'bg-green-500';
+    case 'in_season_no_data':
+      return 'bg-yellow-500';
+    case 'off_season':
+      return 'bg-red-500';
+  }
+}
+
+/**
+ * Get CSS classes for the availability status text.
+ */
+export function getAvailabilityTextClasses(status: SportAvailabilityStatus): string {
+  switch (status) {
+    case 'available':
+      return 'text-green-600 dark:text-green-400';
+    case 'in_season_no_data':
+      return 'text-yellow-600 dark:text-yellow-400';
+    case 'off_season':
+      return 'text-red-500 dark:text-red-400 opacity-70';
+  }
 }

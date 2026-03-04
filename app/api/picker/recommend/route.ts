@@ -48,6 +48,8 @@ import {
   type GamblingBehaviorProfile,
   type PgsiSbResponse,
 } from "@/lib/research-anchors"
+// -- BEHAVIORAL RISK MODULATOR (decouples emotional state from statistical engine) --
+import { modulateRisk } from "@/lib/behavioral-risk-modulator"
 
 // -- NEW EV STACK IMPORTS --
 import { computeEv, EvDiagnostics, EvInputs, impliedProbFromAmerican } from "@/lib/ev-calculator"
@@ -713,15 +715,17 @@ export async function POST(request: NextRequest) {
       shouldBlock: shouldBlockBetting(anchoredRisk.overallRisk),
     })
 
-    // Gate based on anchored risk (combines emotional + research factors)
-    // Primary gate: emotional score < 60 OR critical anchored risk
-    if (emotionalScore < 60 || shouldBlockBetting(anchoredRisk.overallRisk)) {
+    // Compute behavioral risk score for the risk-adjusted decision layer (0-100)
+    const behavioralRiskScore = Math.round(anchoredRisk.overallRisk * 100)
+
+    // CRITICAL GATE: Only block if anchored risk engine says betting is dangerous.
+    // Emotional stability alone no longer blocks picks — the risk modulator
+    // handles graduated responses (CAUTION / SKIP / TAKE_BREAK) post-analysis.
+    if (shouldBlockBetting(anchoredRisk.overallRisk)) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
-        message: shouldBlockBetting(anchoredRisk.overallRisk)
-          ? `${anchoredRisk.suggestedIntervention.message} (Risk level: ${riskLevel.label})`
-          : `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`,
+        message: `${anchoredRisk.suggestedIntervention.message} (Risk level: ${riskLevel.label})`,
         recommendations: [],
         emotionalScore,
         anchoredRisk: {
@@ -1260,13 +1264,11 @@ export async function POST(request: NextRequest) {
 
 
           // Use the new Probability Engine for consistent "prediction" data passed to Gemini
-          // We treat the psychMultiplier as a contextual signal (e.g. user momentum/risk state)
-          const psychSignal = ((psychResult as any).params.max_stake_multiplier - 1) * 0.05
-
+          // Emotional stability no longer alters raw probability modeling
           const engineResult = probabilityEngine.compute({
             marketImpliedProb: homeImpliedProb,
             modelWinProb: undefined, // No specific local ML model output here yet
-            contextualSignals: [psychSignal]
+            contextualSignals: []
           })
 
           const pWin = engineResult.trueWinProb
@@ -1447,32 +1449,69 @@ export async function POST(request: NextRequest) {
           consensusAmericanOdds: consensusOdds,
           precomputedTrueWinProb: geminiTrueProb
         })
-        mathEvPct = evResult.evPercent
-        mathEvDollars = evResult.evDollars
+
+        // ----------------------------------------------------------------------
+        // EV SANITY CHECK & CLAMPING
+        // Extreme EV (>20%) is usually a sign of model overconfidence or poor data.
+        // Professional sharp edges are typically 1-5%. We clamp at 15% for display.
+        // ----------------------------------------------------------------------
+        const rawEvPct = evResult.evPercent
+        mathEvPct = Math.min(15, rawEvPct)
+        mathEvDollars = (stake * mathEvPct) / 100
         evSource = 'math'
 
-        console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}% (was ${(r.numericRisk?.evPercentage ?? 0).toFixed(2)}% from Gemini)`)
-      }
-
-      const evPct = mathEvPct
-      if (evPct <= 0) {
-        return {
-          ...r,
-          numericRisk: { ev: mathEvDollars, evPercentage: mathEvPct },
-          informational: true,
-          informationalLabel: evPct > -2 ? "Near Market Efficient" : "Negative EV",
-          isRecommended: false,
-          recommendation: "PASS",
-          evSource
+        if (rawEvPct > 15) {
+          console.warn(`[SmartSlip] ⚠️ Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
+        } else {
+          console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}%`)
         }
       }
+      // ----------------------------------------------------------------------
+      // NEW: BEHAVIORAL RISK MODULATION (Decoupled Layer)
+      // ----------------------------------------------------------------------
+      const riskModulated = modulateRisk(
+        {
+          rawProbability: geminiTrueProb || 0.5,
+          expectedValue: mathEvDollars,
+          evPercent: mathEvPct,
+          baseConfidence: (r.confidence || 50) / 100
+        },
+        {
+          behavioralRiskScore,
+          stabilityScore: emotionalScore
+        }
+      )
+
+      // Use the modulator's recommendation and stake multipliers
+      const finalRecommendationLabel = riskModulated.recommendation === "PROCEED" ? "BET" : (riskModulated.recommendation === "CAUTION" ? "CAUTION" : "SKIP")
+      const finalStakeMultiplier = riskModulated.suggestedBetMultiplier
+      const meetsThreshold = mathEvPct >= riskModulated.minimumEvThreshold
+
       return {
         ...r,
-        numericRisk: { ev: mathEvDollars, evPercentage: mathEvPct },
-        isRecommended: true,
-        recommendation: "BET",
-        informational: false,
-        evSource
+        numericRisk: {
+          ev: mathEvDollars,
+          evPercentage: mathEvPct,
+          evSource
+        },
+        // Updated risk-adjusted fields
+        riskLevel: riskModulated.riskLevel,
+        recommendation: finalRecommendationLabel,
+        suggestedStakeMultiplier: finalStakeMultiplier,
+        suggestedStakeAbsolute: Math.round((r.suggestedStakeAbsolute || 25) * finalStakeMultiplier),
+        confidence: Math.round(riskModulated.adjustedConfidence * 100),
+
+        // Add clinical instrumentation for analytics
+        instrumentation: riskModulated.instrumentationData,
+        meetsBehavioralThreshold: meetsThreshold,
+
+        // Ensure explanation reflects behavioral constraints if any
+        shortExplanation: !meetsThreshold
+          ? `[Filtered] ${r.shortExplanation} (Risk adjusted: EV edge below behavioral threshold)`
+          : r.shortExplanation,
+
+        isRecommended: meetsThreshold && riskModulated.recommendation !== "SKIP" && riskModulated.recommendation !== "TAKE_BREAK",
+        informational: !meetsThreshold || riskModulated.recommendation === "SKIP" || riskModulated.recommendation === "TAKE_BREAK"
       }
     }).sort((a: any, b: any) => {
       if (a.isRecommended && !b.isRecommended) return -1;
@@ -1525,16 +1564,40 @@ export async function POST(request: NextRequest) {
       psych_model: (psychResult as any).model_id,
     })
 
-    // Emotional gate: advises against betting but does NOT hide game analysis
-    const emotionallySafe = emotionalScore >= 60
+    // Risk-adjusted decision layer: apply behavioral risk modulation to all picks.
+    // Statistical output quality is NEVER degraded — only risk posture is adjusted.
+    const riskModulatedPicks = (reasoningOutput.recommendations || []).map((pick: any) => {
+      const riskAdjusted = modulateRisk(
+        {
+          rawProbability: (pick.confidence || 50) / 100,
+          expectedValue: pick.numericRisk?.ev || 0,
+          evPercent: pick.numericRisk?.evPercentage || 0,
+          baseConfidence: (pick.confidence || 50) / 100,
+        },
+        {
+          behavioralRiskScore,
+          stabilityScore: emotionalScore,
+        }
+      )
+      return { ...pick, riskAdjusted }
+    })
+
+    reasoningOutput = {
+      ...reasoningOutput,
+      recommendations: riskModulatedPicks,
+    }
+
     const hasAnyPicks = (reasoningOutput.recommendations?.length || 0) > 0
 
-    // shouldBet = whether we advise the user to actually place wagers
-    // Recommendations are ALWAYS returned so the UI can show game assessments
-    const shouldBet = emotionallySafe && hasAnyPicks
+    // Determine shouldBet from the risk modulator's recommendation
+    // If the modulator says TAKE_BREAK, we advise against betting but still show analysis
+    const topRiskLevel = riskModulatedPicks.length > 0
+      ? riskModulatedPicks[0].riskAdjusted?.riskLevel || 'LOW'
+      : 'LOW'
+    const shouldBet = topRiskLevel !== 'CRITICAL' && hasAnyPicks
 
-    const shouldBetMessage = !emotionallySafe
-      ? `Your emotional stability score is ${emotionalScore}/100. We recommend waiting until you're in a more stable state (60+) before placing bets.`
+    const shouldBetMessage = topRiskLevel === 'CRITICAL'
+      ? `Your behavioral risk score is elevated (${behavioralRiskScore}/100). We recommend taking a break. Picks are shown for informational purposes only.`
       : hasAnyPicks
         ? "SmartSlip found some options for tonight. Focus on long‑term discipline and only wager what you can afford to lose."
         : "No games available or odds data found for this sport right now."

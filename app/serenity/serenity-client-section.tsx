@@ -6,13 +6,21 @@ import { PublicSerenitySurvey } from '@/components/public/public-serenity-survey
 import { SignupCTAModal } from '@/components/signup-cta-modal'
 import type { ArchetypeDef } from '@/lib/archetypes'
 
+interface SurveyResult {
+  score: number
+  archetype: ArchetypeDef
+  riskLevel?: 'low' | 'moderate' | 'high' | 'problem'
+  pgsiScore?: number
+}
+
 export function SerenityClientSection() {
   const { sessionId } = useAnonymousSession()
   const [showCTA, setShowCTA] = useState(false)
   const [resultSummary, setResultSummary] = useState<string | undefined>()
 
-  const handleComplete = (result: { score: number; archetype: ArchetypeDef }) => {
-    setResultSummary(`Your archetype: "${result.archetype.name}" (Score: ${result.score})`)
+  const handleComplete = (result: SurveyResult) => {
+    const riskText = result.riskLevel ? ` | Risk: ${result.riskLevel}` : ''
+    setResultSummary(`Your archetype: "${result.archetype.name}" (Score: ${result.score}${riskText})`)
     setTimeout(() => setShowCTA(true), 30000)
   }
 

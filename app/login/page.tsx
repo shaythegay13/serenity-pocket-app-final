@@ -46,8 +46,8 @@ function LoginContent() {
   return (
     <SignIn
       onSwitchToSignUp={() => {
-        // Redirect to home with signup flow trigger, preserving the flow parameter
-        const signupUrl = flow ? `/?signup=true&flow=${flow}` : "/?signup=true"
+        // Go directly to /home with signup flow trigger (skip intermediate landing page)
+        const signupUrl = flow ? `/home?signup=true&flow=${flow}` : "/home?signup=true"
         router.push(signupUrl)
       }}
       onForgotPassword={() => {

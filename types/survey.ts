@@ -106,16 +106,16 @@ export const SURVEY_QUESTIONS: readonly SurveyQuestion[] = [
   {
     id: 'c9',
     text: 'Which sports do you usually bet on? (Tap all that apply)',
-    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
-    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'College sports', 'Soccer', 'UFC/MMA', 'Boxing', 'Tennis', 'Golf', 'Cricket', 'Motorsports', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     multi: true,
     section: 'Sport & Market Preferences'
   },
   {
     id: 'c10',
     text: 'Which sports do you feel you understand the most analytically?',
-    options: ['NFL', 'NBA', 'MLB', 'NHL', 'Soccer', 'College sports', 'Combat sports', 'Tennis', 'Esports'],
-    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    options: ['NFL', 'NBA', 'MLB', 'NHL', 'College sports', 'Soccer', 'UFC/MMA', 'Boxing', 'Tennis', 'Golf', 'Cricket', 'Motorsports', 'Esports'],
+    weight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     multi: true,
     section: 'Sport & Market Preferences'
   },

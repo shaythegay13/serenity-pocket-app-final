@@ -223,12 +223,12 @@ export function calculateEmotionalStability(
   // 4. Calculate State Stability (fast moving)
   const stateStability = currentLog
     ? calculateStateStability(
-        currentLog.emotion,
-        currentLog.intensity,
-        recentLogs.map(l => ({ emotion: l.emotion, intensity: l.intensity })),
-        lastBetSize,
-        avgBetSize
-      )
+      currentLog.emotion,
+      currentLog.intensity,
+      recentLogs.map(l => ({ emotion: l.emotion, intensity: l.intensity })),
+      lastBetSize,
+      avgBetSize
+    )
     : 50 // Default if no emotion logs
 
   // 5. Calculate emotional variance (consistency over time)
@@ -386,10 +386,13 @@ function getRecommendation(score: number, adaptiveThreshold: number = 60): strin
 
 /**
  * Quick check if user should receive AI picks
- * Uses base threshold of 60 (not adaptive, for consistent gating)
+ * @deprecated Use modulateRisk() from behavioral-risk-modulator.ts instead.
+ * Picks are always generated at full quality; risk modulation handles exposure control.
  */
 export function shouldReceiveAIPicks(emotionalScore: number): boolean {
-  return emotionalScore >= 60
+  // Always return picks — the behavioral risk modulator handles graduated
+  // risk responses (PROCEED / CAUTION / SKIP / TAKE_BREAK) post-analysis.
+  return true
 }
 
 /**

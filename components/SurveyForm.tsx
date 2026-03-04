@@ -45,17 +45,25 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
 
   const handleMultiToggle = useCallback((questionId: string, option: string, checked: boolean) => {
     setAnswers((prev) => {
-      const exists = prev.some((a) => a.questionId === questionId && a.selectedOption === option);
-      if (checked && !exists) {
-        return [
-          ...prev,
-          { questionId, selectedOption: option, timestamp: new Date() },
-        ];
+      const existing = prev.find((a) => a.questionId === questionId);
+      const currentOptions = Array.isArray(existing?.selectedOption)
+        ? [...existing.selectedOption]
+        : existing?.selectedOption ? [existing.selectedOption] : [];
+
+      let nextOptions: string[];
+      if (checked) {
+        nextOptions = Array.from(new Set([...currentOptions, option]));
+      } else {
+        nextOptions = currentOptions.filter((opt) => opt !== option);
       }
-      if (!checked && exists) {
-        return prev.filter((a) => !(a.questionId === questionId && a.selectedOption === option));
-      }
-      return prev;
+
+      const filtered = prev.filter((a) => a.questionId !== questionId);
+      if (nextOptions.length === 0) return filtered;
+
+      return [
+        ...filtered,
+        { questionId, selectedOption: nextOptions, timestamp: new Date() },
+      ];
     });
 
     setValidationErrors((prev) => {
@@ -103,7 +111,7 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
       if (unansweredQuestions.length > 0) {
         console.log('Unanswered questions:', unansweredQuestions.map(q => q.id));
         console.log('Current answers:', answers);
-        
+
         const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
         if (currentUnanswered) {
           setValidationErrors((prev) => ({
@@ -131,12 +139,18 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
     }, 100);
   }, [answers, currentQuestion.id, onSubmit, qs]);
 
-  const isOptionSelected = (questionId: string, option: string) =>
-    answers.some((a) => a.questionId === questionId && a.selectedOption === option);
+  const isOptionSelected = (questionId: string, option: string) => {
+    const answer = answers.find((a) => a.questionId === questionId);
+    if (!answer) return false;
+    return Array.isArray(answer.selectedOption)
+      ? answer.selectedOption.includes(option)
+      : answer.selectedOption === option;
+  };
 
   const getCurrentAnswer = () => {
     const answer = answers.find((a) => a.questionId === currentQuestion.id);
-    return answer?.selectedOption || '';
+    if (!answer) return '';
+    return Array.isArray(answer.selectedOption) ? '' : answer.selectedOption;
   };
 
   return (
@@ -174,7 +188,7 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
                   checked={isOptionSelected(currentQuestion.id, option)}
                   onCheckedChange={(checked) => handleMultiToggle(currentQuestion.id, option, Boolean(checked))}
                 />
-                <Label 
+                <Label
                   htmlFor={`${currentQuestion.id}-${index}`}
                   className="cursor-pointer flex-1 py-2 text-black"
                 >
@@ -191,12 +205,12 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
           >
             {currentQuestion.options.map((option, index) => (
               <div key={index} className="flex items-center space-x-2">
-                <RadioGroupItem 
-                  value={option} 
+                <RadioGroupItem
+                  value={option}
                   id={`${currentQuestion.id}-${index}`}
                   className="text-gray-700 border-gray-400"
                 />
-                <Label 
+                <Label
                   htmlFor={`${currentQuestion.id}-${index}`}
                   className="cursor-pointer flex-1 py-2 text-black"
                 >

@@ -35,6 +35,7 @@ export class SurveyService {
       }))
     };
 
+
     const { error: saveError } = await supabase
       .from('survey_responses')
       .insert({
@@ -73,7 +74,7 @@ export class SurveyService {
     return results;
   }
 
-  private calculateUnifiedScores(responses: SurveyAnswer[]): UnifiedSurveyResult {
+  public calculateUnifiedScores(responses: SurveyAnswer[]): UnifiedSurveyResult {
     let serenityTotal = 0;
     let pgsiTotal = 0;
 
@@ -156,6 +157,8 @@ export class SurveyService {
     if (!userId && !anonymousId) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+
     const { data, error } = await supabase
       .from('survey_responses')
       .select('id')

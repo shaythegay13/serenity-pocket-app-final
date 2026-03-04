@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { SURVEY_QUESTIONS, type SurveyAnswer } from '@/types/survey'
+import { calculateSurveyScore } from '@/lib/surveyValidation'
 import { computeArchetypeFromSnapshot } from '@/lib/archetypes'
 
 const COOKIE_NAME = 'pml_anon_session'
@@ -71,10 +72,19 @@ export async function POST(request: NextRequest) {
     const score = responses.reduce((acc: number, r: SurveyAnswer) => {
       const q = SURVEY_QUESTIONS.find((question) => question.id === r.questionId)
       if (!q) return acc
-      const idx = q.options.indexOf(r.selectedOption)
-      return acc + (idx >= 0 ? q.weight[idx] : 0)
-    }, 0)
 
+      // Normalize to array for multi-select support
+      const selectedOptions = Array.isArray(r.selectedOption)
+        ? r.selectedOption
+        : [r.selectedOption]
+
+      const questionScore = selectedOptions.reduce((sum, opt) => {
+        const idx = q.options.indexOf(opt)
+        return sum + (idx >= 0 ? q.weight[idx] : 0)
+      }, 0)
+
+      return acc + questionScore
+    }, 0)
     // Compute archetype
     const archetype = computeArchetypeFromSnapshot(responses)
 

@@ -9,7 +9,7 @@ import { CheckCircle, ArrowRight } from 'lucide-react'
 function SuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const product = searchParams.get('product')
+  const product = searchParams?.get('product')
 
   useEffect(() => {
     // Confetti or celebration animation could go here

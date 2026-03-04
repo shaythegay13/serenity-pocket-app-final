@@ -34,9 +34,9 @@ function HomeContent() {
         }
 
         // If signup=true is in the URL, forward to /home so the signup flow can start
-        const signup = searchParams.get("signup")
+        const signup = searchParams?.get("signup")
         if (signup === "true") {
-          const flow = searchParams.get("flow")
+          const flow = searchParams?.get("flow")
           const signupUrl = flow ? `/home?signup=true&flow=${flow}` : "/home?signup=true"
           router.replace(signupUrl)
           return

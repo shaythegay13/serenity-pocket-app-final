@@ -11,7 +11,8 @@
       "Bash(git commit:*)",
       "Bash(git restore:*)",
       "Bash(echo gitnexus not found globally:*)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(npx gitnexus:*)"
     ],
     "deny": [],
     "ask": []

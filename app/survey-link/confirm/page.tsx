@@ -9,7 +9,7 @@ import { Suspense } from 'react';
 function SurveyLinkContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = searchParams.get('email') || '';
+  const email = searchParams?.get('email') || '';
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 

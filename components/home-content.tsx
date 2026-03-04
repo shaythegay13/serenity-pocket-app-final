@@ -64,8 +64,8 @@ export function HomeContent() {
 
   // Read tab parameter from URL
   useEffect(() => {
-    const tab = searchParams.get("tab")
-    const section = searchParams.get("section")
+    const tab = searchParams?.get("tab")
+    const section = searchParams?.get("section")
 
     // Redirect old history tab to analytics performance tab
     if (tab === "history") {
@@ -88,8 +88,8 @@ export function HomeContent() {
 
   // Check for signup trigger
   useEffect(() => {
-    const signup = searchParams.get("signup")
-    const flow = searchParams.get("flow")
+    const signup = searchParams?.get("signup")
+    const flow = searchParams?.get("flow")
 
     console.log('🔧 Home-content signup check:', { signup, flow, loading, authed, userData })
 
@@ -283,7 +283,7 @@ export function HomeContent() {
   // Side effect moved to useEffect to avoid rendering errors
   useEffect(() => {
     if (authed === false) {
-      const signup = searchParams.get("signup")
+      const signup = searchParams?.get("signup")
       const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
 
       if (!inSignupFlow) {
@@ -558,7 +558,7 @@ export function HomeContent() {
   // SECURITY: Catch unauthenticated users who are not in a signup flow
   // Show a "Redirecting..." splash while the useEffect handles the router.push("/")
   if (authed === false) {
-    const signup = searchParams.get("signup")
+    const signup = searchParams?.get("signup")
     const inSignupFlow = signup === "true" || showTerms || showSignup || authFlow === 'signup'
 
     if (!inSignupFlow) {

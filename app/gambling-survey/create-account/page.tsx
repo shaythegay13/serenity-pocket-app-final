@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 function CreateAccountContent() {
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') || '';
-  const surveyId = searchParams.get('surveyId') || '';
-  const score = parseInt(searchParams.get('score') || '0', 10);
+  const email = searchParams?.get('email') || '';
+  const surveyId = searchParams?.get('surveyId') || '';
+  const score = parseInt(searchParams?.get('score') || '0', 10);
 
   return (
     <div className="min-h-screen py-8">

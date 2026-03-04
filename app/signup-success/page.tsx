@@ -9,7 +9,7 @@ import { Mail, CheckCircle2 } from 'lucide-react';
 function SignupSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = searchParams.get('email') || '';
+  const email = searchParams?.get('email') || '';
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-white to-green-50">

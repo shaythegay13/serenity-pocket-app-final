@@ -75,24 +75,35 @@ export class SurveyService {
 
   private calculateUnifiedScores(responses: SurveyAnswer[]): UnifiedSurveyResult {
     let serenityTotal = 0;
-    let maxSerenityPossible = 0;
     let pgsiTotal = 0;
 
     responses.forEach(response => {
       const question = ENHANCED_SURVEY_QUESTIONS.find(q => q.id === response.questionId);
       if (!question) return;
-      const answerIndex = question.options.indexOf(response.selectedOption);
-      if (answerIndex === -1) return;
 
-      if (question.category !== 'pgsi') {
-        serenityTotal += question.weight![answerIndex];
-        maxSerenityPossible += Math.max(...question.weight!);
-      }
+      const options = Array.isArray(response.selectedOption)
+        ? response.selectedOption
+        : [response.selectedOption];
 
-      if (question.category !== 'serenity') {
-        pgsiTotal += question.pgsiWeight![answerIndex];
-      }
+      options.forEach(opt => {
+        const answerIndex = question.options.indexOf(opt);
+        if (answerIndex === -1) return;
+
+        if (question.category !== 'pgsi') {
+          serenityTotal += question.weight![answerIndex];
+        }
+
+        if (question.category !== 'serenity') {
+          pgsiTotal += question.pgsiWeight![answerIndex];
+        }
+      });
     });
+
+    const maxSerenityPossible = ENHANCED_SURVEY_QUESTIONS.reduce((acc, q) => {
+      if (q.category === 'pgsi') return acc;
+      if (q.multi) return acc + q.weight!.reduce((s, w) => s + Math.max(0, w), 0);
+      return acc + Math.max(...q.weight!);
+    }, 0);
 
     const serenityScore = maxSerenityPossible > 0 ? Math.min(100, Math.round((serenityTotal / maxSerenityPossible) * 100)) : 0;
     const emotionalStability = this.calculateEmotionalStability(serenityScore, pgsiTotal);

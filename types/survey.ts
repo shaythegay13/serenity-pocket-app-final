@@ -11,8 +11,8 @@ export interface SurveyQuestion {
 
 export interface SurveyAnswer {
   questionId: string;
-  selectedOption: string;
-  timestamp: Date;
+  selectedOption: string | string[];
+  timestamp?: Date;
 }
 
 export interface AnonymousSurveySubmission {
@@ -255,7 +255,7 @@ export function isValidSurveyAnswer(answer: unknown): answer is SurveyAnswer {
     'questionId' in answer &&
     'selectedOption' in answer &&
     typeof (answer as any).questionId === 'string' &&
-    typeof (answer as any).selectedOption === 'string'
+    (typeof (answer as any).selectedOption === 'string' || Array.isArray((answer as any).selectedOption))
   );
 }
 

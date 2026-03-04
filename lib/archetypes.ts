@@ -13,7 +13,9 @@ export function computeArchetypeFromSnapshot(responses: SurveyAnswer[]): Archety
   const getIdx = (id: string) => {
     const opts = SURVEY_QUESTIONS.find(q => q.id === id)?.options || []
     const ans = responses.find(r => r.questionId === id)
-    return ans ? opts.indexOf(ans.selectedOption) : -1
+    if (!ans) return -1
+    const val = Array.isArray(ans.selectedOption) ? ans.selectedOption[0] : ans.selectedOption
+    return opts.indexOf(val)
   }
 
   const c1 = Math.max(0, getIdx('c1')) // longer than planned 0..3
@@ -151,11 +153,14 @@ function getSingleIndex(responses: SurveyAnswer[], id: string): number {
   if (!qOpts) return -1
   const ans = responses.find(r => r.questionId === id)
   if (!ans) return -1
-  return qOpts.indexOf(ans.selectedOption)
+  const val = Array.isArray(ans.selectedOption) ? ans.selectedOption[0] : ans.selectedOption
+  return qOpts.indexOf(val)
 }
 
 function getMultiSelected(responses: SurveyAnswer[], id: string): string[] {
-  return responses.filter(r => r.questionId === id).map(r => r.selectedOption)
+  const ans = responses.find(r => r.questionId === id)
+  if (!ans) return []
+  return Array.isArray(ans.selectedOption) ? ans.selectedOption : [ans.selectedOption]
 }
 
 function countIf(arr: any[], predicate: (x: any) => boolean): number {
@@ -219,34 +224,34 @@ function isQualifiedForArchetype(archetypeId: string, scores: any): boolean {
   switch (archetypeId) {
     case 'analyst':
       return scores.researchScore >= 1 || scores.trackingScore >= 1
-    
+
     case 'thrill_seeker':
       return scores.hasLive || scores.hasParlay || scores.betSizeScore >= 1
-    
+
     case 'emotional_bettor':
       return scores.emotionScore >= 1
-    
+
     case 'risk_controller':
       return scores.budgetExceedScore <= 2
-    
+
     case 'social_bettor':
       return scores.sportsCount >= 1
-    
+
     case 'escape_artist':
       return Math.max(0, scores.c2) >= 1 || scores.timeLateNight === 1
-    
+
     case 'big_spender':
       return scores.betSizeScore >= 2
-    
+
     case 'superfan':
       return scores.sportsCount >= 1
-    
+
     case 'aspiring_pro':
       return scores.researchScore >= 1
-    
+
     case 'casual_dabbler':
       return scores.betSizeScore <= 2
-    
+
     default:
       return true // Fallback
   }
@@ -257,7 +262,7 @@ function selectWithEqualProbability(qualifiedArchetypes: ArchetypeDef[], scores:
   if (qualifiedArchetypes.length === 1) {
     return qualifiedArchetypes[0]
   }
-  
+
   // True equal probability: randomly select from qualified archetypes
   const randomIndex = Math.floor(Math.random() * qualifiedArchetypes.length)
   return qualifiedArchetypes[randomIndex]
@@ -266,18 +271,18 @@ function selectWithEqualProbability(qualifiedArchetypes: ArchetypeDef[], scores:
 // Main function with equal distribution logic
 export function computeArchetype(responses: SurveyAnswer[]): ArchetypeDef {
   const scores = calculateBehavioralScores(responses)
-  
+
   // Find qualified archetypes
-  let qualified = ARCHETYPES.filter(archetype => 
+  let qualified = ARCHETYPES.filter(archetype =>
     isQualifiedForArchetype(archetype.id, scores)
   )
-  
+
   // Ensure minimum qualification (at least 2-3 archetypes)
   if (qualified.length < 2) {
     // Relax criteria: include archetypes with partial qualification
     qualified = ARCHETYPES.filter(archetype => {
       if (isQualifiedForArchetype(archetype.id, scores)) return true
-      
+
       // Relaxed rules for backup qualification
       switch (archetype.id) {
         case 'analyst':
@@ -305,11 +310,11 @@ export function computeArchetype(responses: SurveyAnswer[]): ArchetypeDef {
       }
     })
   }
-  
+
   // Final fallback: ensure at least 3 archetypes
   if (qualified.length < 3) {
     qualified = ARCHETYPES.slice(0, 3) // Default to first 3 archetypes
   }
-  
+
   return selectWithEqualProbability(qualified, scores)
 }

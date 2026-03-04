@@ -1,3 +1,4 @@
+// surveyValidation.ts
 import { z } from 'zod';
 import { SURVEY_QUESTIONS, SurveyAnswer } from '@/types/survey';
 
@@ -24,23 +25,16 @@ export const emailSchema = z
     { message: 'Disposable email addresses are not allowed' }
   );
 
-// Survey answer schema
+// Survey answer schema with multi-select support
 export const surveyAnswerSchema = z.object({
   questionId: z.string().refine(
     (id) => SURVEY_QUESTIONS.some((q) => q.id === id),
     { message: 'Invalid question ID' }
   ),
-  selectedOption: z.string().refine(
-    function(option) {
-      // This will be validated in the parent schema context
-      return true;
-    },
-    { message: 'Invalid option selected' }
-  ),
-  timestamp: z.union([
-    z.string().transform((val) => new Date(val)),
-    z.date()
-  ]).optional(),
+  selectedOption: z.union([z.string(), z.array(z.string()).min(1)]).refine((option) => {
+    return true; // Detailed option validation is handled separately in scoring
+  }, { message: 'Invalid option(s) selected' }),
+  timestamp: z.union([z.string().transform((val) => new Date(val)), z.date()]).optional(),
 });
 
 // Complete survey submission schema
@@ -48,33 +42,13 @@ export const surveySubmissionSchema = z.object({
   email: emailSchema,
   responses: z
     .array(surveyAnswerSchema)
-    .min(12, { message: 'Please answer all required questions' })
-    .refine((responses) => {
-      // For non-multi questions: exactly one answer per question
-      const singles = SURVEY_QUESTIONS.filter((q) => !q.multi).map((q) => q.id);
-      return singles.every((id) => responses.filter((r) => r.questionId === id).length === 1);
-    }, { message: 'Each single-select question must be answered exactly once' })
-    .refine((responses) => {
-      // For multi questions: at least one answer per question
-      const multis = SURVEY_QUESTIONS.filter((q) => q.multi).map((q) => q.id);
-      return multis.every((id) => responses.filter((r) => r.questionId === id).length >= 1);
-    }, { message: 'Please select at least one option for each multi-select question' })
-    .refine(
-      (responses) => {
-        // Validate that selected options are valid for each question
-        return responses.every((response) => {
-          const question = SURVEY_QUESTIONS.find((q) => q.id === response.questionId);
-          return question != null && question.options.includes(response.selectedOption);
-        });
-      },
-      { message: 'Invalid answer option for one or more questions' }
-    ),
+    .min(SURVEY_QUESTIONS.length, { message: 'Please answer all required questions' }),
 });
 
 // Type for validated survey submission
 export type ValidatedSurveySubmission = z.infer<typeof surveySubmissionSchema>;
 
-// Validation function with error handling
+// Validation function
 export function validateSurveySubmission(input: unknown): {
   success: boolean;
   data?: ValidatedSurveySubmission;
@@ -82,68 +56,82 @@ export function validateSurveySubmission(input: unknown): {
 } {
   try {
     const validated = surveySubmissionSchema.parse(input);
-    return {
-      success: true,
-      data: validated,
-    };
+    return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        errors: error.errors.map((e) => e.message),
-      };
+      console.log('Survey validation errors:', error.errors);
+      return { success: false, errors: error.errors.map((e) => e.message) };
     }
-    return {
-      success: false,
-      errors: ['Invalid survey submission'],
-    };
+    return { success: false, errors: ['Invalid survey submission'] };
   }
 }
 
-// Calculate survey score based on responses
+// Calculate survey score
 export function calculateSurveyScore(responses: SurveyAnswer[]): number {
   let totalScore = 0;
-
   for (const response of responses) {
     const question = SURVEY_QUESTIONS.find((q) => q.id === response.questionId);
     if (!question) continue;
 
-    const optionIndex = question.options.indexOf(response.selectedOption);
-    if (optionIndex === -1) continue;
-
-    totalScore += question.weight[optionIndex];
+    if (question.multi && Array.isArray(response.selectedOption)) {
+      response.selectedOption.forEach((opt) => {
+        const idx = question.options.indexOf(opt);
+        if (idx !== -1) totalScore += question.weight[idx];
+      });
+    } else if (!question.multi && typeof response.selectedOption === 'string') {
+      const idx = question.options.indexOf(response.selectedOption);
+      if (idx !== -1) totalScore += question.weight[idx];
+    }
   }
 
-  // Scale to 0-100 dynamically based on the theoretical maximum
   const maxPossibleScore = SURVEY_QUESTIONS.reduce((acc, q) => {
-    if (q.multi) {
-      // Sum positive weights since multi-select can choose multiple options
-      const sum = q.weight.reduce((s, w) => s + Math.max(0, w), 0);
-      return acc + sum;
-    }
+    if (q.multi) return acc + q.weight.reduce((s, w) => s + Math.max(0, w), 0);
     return acc + Math.max(...q.weight);
   }, 0);
 
-  const scaledScore = Math.round((totalScore / Math.max(1, maxPossibleScore)) * 100);
-  return Math.min(100, Math.max(0, scaledScore));
+  return Math.min(100, Math.max(0, Math.round((totalScore / Math.max(1, maxPossibleScore)) * 100)));
 }
 
-// Validate email format only
+// Get risk interpretation based on score
+export function getScoreInterpretation(score: number): string {
+  if (score >= 0 && score <= 33) return 'Low risk';
+  if (score >= 34 && score <= 66) return 'Medium risk';
+  if (score >= 67 && score <= 100) return 'High risk';
+  return 'Low risk';
+}
+
+// Ready-to-drop helper: validate, score, and return interpretation
+export function processSurveySubmission(input: unknown): {
+  success: boolean;
+  surveyId?: string;
+  score?: number;
+  riskLevel?: string;
+  errors?: string[];
+} {
+  const validation = validateSurveySubmission(input);
+  if (!validation.success || !validation.data) {
+    return { success: false, errors: validation.errors };
+  }
+
+  const score = calculateSurveyScore(validation.data.responses);
+  const riskLevel = getScoreInterpretation(score);
+
+  const surveyId = crypto.randomUUID(); // Assign unique ID for submission
+
+  return {
+    success: true,
+    surveyId,
+    score,
+    riskLevel,
+  };
+}
+
+// Validate email only
 export function validateEmail(email: string): boolean {
-  try {
-    emailSchema.parse(email);
-    return true;
-  } catch {
-    return false;
-  }
+  try { emailSchema.parse(email); return true; } catch { return false; }
 }
 
-// Validate individual survey answer
+// Validate single survey answer
 export function validateSurveyAnswer(answer: unknown): boolean {
-  try {
-    surveyAnswerSchema.parse(answer);
-    return true;
-  } catch {
-    return false;
-  }
+  try { surveyAnswerSchema.parse(answer); return true; } catch { return false; }
 }

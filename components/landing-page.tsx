@@ -65,7 +65,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
         // Fetch bet analyses for stats
         const { data: betAnalyses } = await supabase
           .from('bet_analyses')
-          .select('outcome, stake, actual_return, created_at')
+          .select('outcome, stake, actual_return, timestamp')
 
         // Fetch emotion logs for behavioral analysis
         const { data: emotionLogs } = await supabase
@@ -89,8 +89,8 @@ export function LandingPage({ onLogin }: LandingPageProps) {
         if (betAnalyses && betAnalyses.length >= 100) {
           // Sort bets by date
           const sortedBets = betAnalyses
-            .filter(bet => bet.outcome !== 'pending' && bet.created_at)
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .filter(bet => bet.outcome !== 'pending' && bet.timestamp)
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
           if (sortedBets.length >= 50) {
             // Calculate early period win rate (first 25% of bets)

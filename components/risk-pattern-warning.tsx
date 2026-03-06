@@ -124,7 +124,12 @@ export function RiskPatternWarning({
           return
         }
 
-        const response = await fetch(`/api/risk/${user.id}`)
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+
+        const response = await fetch(`/api/risk/${user.id}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
         if (!response.ok) {
           setLoading(false)
           return
@@ -265,13 +270,12 @@ export function RiskPatternWarning({
                     </span>
                     <Badge
                       variant="outline"
-                      className={`text-xs ${
-                        pattern.severity === "high"
+                      className={`text-xs ${pattern.severity === "high"
                           ? "border-red-500 text-red-600"
                           : pattern.severity === "medium"
-                          ? "border-orange-500 text-orange-600"
-                          : "border-yellow-500 text-yellow-600"
-                      }`}
+                            ? "border-orange-500 text-orange-600"
+                            : "border-yellow-500 text-yellow-600"
+                        }`}
                     >
                       {pattern.severity}
                     </Badge>

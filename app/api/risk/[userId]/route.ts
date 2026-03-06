@@ -35,14 +35,25 @@ export async function GET(
 ) {
   try {
     const { userId } = await params
+    // Get auth token from header
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+
     const supabase = supabaseServer
 
-    // Authenticate current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Authenticate user
+    const { data: { user }, error: authError } = token 
+      ? await supabase.auth.getUser(token)
+      : await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.error("[Risk API] Auth error:", authError)
       return NextResponse.json(
-        { error: "Unauthorized", details: authError?.message },
+        { 
+          error: "Unauthorized", 
+          details: "Auth session missing!",
+          ...(process.env.NODE_ENV === 'development' ? { authErrorMessage: authError?.message } : {})
+        },
         { status: 401 }
       )
     }

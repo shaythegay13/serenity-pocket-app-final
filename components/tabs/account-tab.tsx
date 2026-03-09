@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { User, Crown, Lock, Loader2 } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { toast } from "sonner"
+import logger from "@/lib/logger"
 
 interface AccountTabProps {
   userData: UserData
@@ -14,8 +15,6 @@ interface AccountTabProps {
 }
 
 export const AccountTab = memo(function AccountTab({ userData, updateUserData }: AccountTabProps) {
-  console.log('👤 AccountTab rendering with userData:', userData?.name, 'Tier:', userData?.subscriptionTier)
-
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
@@ -48,14 +47,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
     setLocalDailyLimit(localState.dailyLimit)
     setLocalMaxStake(localState.maxStake)
   }, [localState])
-
-  // Log subscription data on mount/update
-  console.log('💳 Current subscription:', {
-    tier: userData.subscriptionTier,
-    status: userData.subscriptionStatus,
-    started: userData.subscriptionStartedAt,
-    ends: userData.subscriptionEndsAt
-  })
 
   const getApiBaseUrl = () => {
     if (typeof window === 'undefined') return ''
@@ -99,11 +90,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           // ignore
         }
 
-        console.error('Subscription sync failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: bodyText,
-        })
+        logger.error(`Subscription sync failed: ${response.status} ${response.statusText}`, 'account-tab')
 
         throw new Error(bodyText || 'Failed to fetch subscription data')
       }
@@ -111,13 +98,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       const { profile } = await response.json()
 
       if (profile) {
-        console.log('📊 Database subscription data:', {
-          tier: profile.subscription_tier,
-          status: profile.subscription_status,
-          started: profile.subscription_started_at,
-          ends: profile.subscription_ends_at,
-        })
-
         // Update local state with fresh data from database
         await updateUserData({
           subscriptionTier: profile.subscription_tier || 'free',
@@ -128,7 +108,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         toast.success('Subscription synced successfully!')
       }
     } catch (error) {
-      console.error('Error syncing subscription:', error)
+      logger.error('Error syncing subscription', 'account-tab', error)
       toast.error('Failed to sync subscription')
     } finally {
       setSyncing(false)
@@ -169,7 +149,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       toast.success("Your account has been deleted")
       window.location.href = "/"
     } catch (error) {
-      console.error("Error deleting account:", error)
+      logger.error('Error deleting account', 'account-tab', error)
       toast.error("Failed to delete account")
     }
   }
@@ -227,14 +207,14 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         throw new Error(error)
       }
 
-      // Redirect to Stripe checkout
+      // Redirect to Flowglad checkout
       if (url) {
         window.location.href = url
       } else {
         throw new Error('No checkout URL returned')
       }
     } catch (error) {
-      console.error('Error starting checkout:', error)
+      logger.error('Error starting checkout', 'account-tab', error)
       toast.error('Failed to start checkout. Please try again.')
       setUpgrading(false)
     }

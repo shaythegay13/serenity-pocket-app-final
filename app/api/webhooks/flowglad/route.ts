@@ -2,20 +2,17 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyWebhook } from '@flowglad/nextjs/server'
 import { FLOWGLAD_CONFIG } from '@/lib/flowglad'
+import logger from '@/lib/logger'
 
 // Disable body parsing for webhooks
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
-  console.log('🎣 FLOWGLAD WEBHOOK ENDPOINT HIT!')
-  
   const body = await req.text()
   const signature = req.headers.get('flowglad-signature') || req.headers.get('x-flowglad-signature')
 
-  console.log('📝 Webhook signature present:', !!signature)
-
   if (!signature) {
-    console.error('❌ No signature in webhook request')
+    logger.warn('No signature in webhook request', 'webhook')
     return NextResponse.json(
       { error: 'No signature' },
       { status: 400 }
@@ -32,9 +29,8 @@ export async function POST(req: Request) {
     }
     
     event = verifyWebhook(body, headers, FLOWGLAD_CONFIG.webhookSecret)
-    console.log('✅ Webhook signature verified')
   } catch (err) {
-    console.error('❌ Webhook signature verification failed:', err)
+    logger.error('Webhook signature verification failed', 'webhook', err)
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
@@ -54,7 +50,7 @@ export async function POST(req: Request) {
   )
 
   try {
-    console.log('🎣 Webhook received:', event.type)
+    logger.info(`Webhook received: ${event.type}`, 'webhook')
 
     switch (event.type) {
       case 'checkout.session.completed':
@@ -64,13 +60,6 @@ export async function POST(req: Request) {
         const tier = data.metadata?.tier
         const customerId = data.customerId || data.customer_id
         const subscriptionId = data.subscriptionId || data.subscription_id || data.id
-
-        console.log('💳 Checkout/Subscription created:', { 
-          userId, 
-          tier, 
-          customerId,
-          subscriptionId 
-        })
 
         if (userId && tier) {
           // Calculate subscription dates
@@ -84,17 +73,6 @@ export async function POST(req: Request) {
           const subscriptionEndsAt = data.current_period_end
             ? new Date(data.current_period_end * 1000).toISOString()
             : oneMonthFromNow.toISOString()
-
-          // Update user's subscription tier in database using admin client
-          console.log('📝 Updating subscription:', {
-            userId,
-            tier,
-            status: 'active',
-            customerId,
-            subscriptionId,
-            startedAt: subscriptionStartedAt,
-            endsAt: subscriptionEndsAt
-          })
 
           const { data: updateData, error } = await supabaseAdmin
             .from('user_profiles')
@@ -110,10 +88,10 @@ export async function POST(req: Request) {
             .select()
 
           if (error) {
-            console.error('❌ Error updating user subscription:', error)
+            logger.error(`Error updating user subscription for ${userId}`, 'webhook', error)
             throw error
           } else {
-            console.log(`✅ User ${userId} upgraded to ${tier}`, updateData)
+            logger.info(`User ${userId} upgraded to ${tier}`, 'webhook')
           }
         }
         break
@@ -123,8 +101,6 @@ export async function POST(req: Request) {
         const data = event.data
         const customerId = data.customerId || data.customer_id
         const status = data.status
-
-        console.log('🔄 Subscription updated:', { customerId, status })
 
         // Get user by Flowglad customer ID using admin client
         const { data: user } = await supabaseAdmin
@@ -152,12 +128,12 @@ export async function POST(req: Request) {
             .eq('id', user.id)
 
           if (error) {
-            console.error('❌ Error updating subscription status:', error)
+            logger.error(`Error updating subscription status for user ${user.id}`, 'webhook', error)
           } else {
-            console.log(`✅ Subscription updated for user ${user.id}: ${subscriptionStatus}`)
+            logger.info(`Subscription updated for user ${user.id}: ${subscriptionStatus}`, 'webhook')
           }
         } else {
-          console.warn('⚠️ User not found for customer:', customerId)
+          logger.warn(`User not found for customer: ${customerId}`, 'webhook')
         }
         break
       }
@@ -166,8 +142,6 @@ export async function POST(req: Request) {
       case 'subscription.deleted': {
         const data = event.data
         const customerId = data.customerId || data.customer_id
-
-        console.log('🗑️ Subscription canceled/deleted:', { customerId })
 
         // Get user by Flowglad customer ID using admin client
         const { data: user } = await supabaseAdmin
@@ -189,12 +163,12 @@ export async function POST(req: Request) {
             .eq('id', user.id)
 
           if (error) {
-            console.error('❌ Error downgrading user:', error)
+            logger.error(`Error downgrading user ${user.id}`, 'webhook', error)
           } else {
-            console.log(`✅ User ${user.id} downgraded to free tier`)
+            logger.info(`User ${user.id} downgraded to free tier`, 'webhook')
           }
         } else {
-          console.warn('⚠️ User not found for customer:', customerId)
+          logger.warn(`User not found for customer: ${customerId}`, 'webhook')
         }
         break
       }
@@ -202,8 +176,6 @@ export async function POST(req: Request) {
       case 'payment.failed': {
         const data = event.data
         const customerId = data.customerId || data.customer_id
-
-        console.log('❌ Payment failed:', { customerId })
 
         // Get user by Flowglad customer ID
         const { data: user } = await supabaseAdmin
@@ -222,9 +194,9 @@ export async function POST(req: Request) {
             .eq('id', user.id)
 
           if (error) {
-            console.error('❌ Error updating payment status:', error)
+            logger.error(`Error updating payment status for user ${user.id}`, 'webhook', error)
           } else {
-            console.log(`✅ User ${user.id} marked as past_due`)
+            logger.info(`User ${user.id} marked as past_due`, 'webhook')
           }
         }
         break
@@ -234,8 +206,6 @@ export async function POST(req: Request) {
         const data = event.data
         const customerId = data.customerId || data.customer_id
         const paymentId = data.id
-
-        console.log('💰 One-time payment succeeded:', { customerId, paymentId })
 
         // Check if this is a marketplace purchase (one-time payment, not subscription)
         // Look for pending purchase with matching user
@@ -278,9 +248,9 @@ export async function POST(req: Request) {
                 .eq('id', purchase.id)
 
               if (updateError) {
-                console.error('❌ Error updating marketplace purchase:', updateError)
+                logger.error(`Error updating marketplace purchase for user ${user.id}`, 'webhook', updateError)
               } else {
-                console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
+                logger.info(`Marketplace purchase completed for user ${user.id}: ${product.display_name}`, 'webhook')
               }
             }
           }
@@ -289,12 +259,12 @@ export async function POST(req: Request) {
       }
 
       default:
-        console.log(`ℹ️  Unhandled event type: ${event.type}`)
+        logger.info(`Unhandled event type: ${event.type}`, 'webhook')
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('❌ Error processing webhook:', error)
+    logger.error('Error processing webhook', 'webhook', error)
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }

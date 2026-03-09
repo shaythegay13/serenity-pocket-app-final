@@ -280,7 +280,7 @@ free < premium < premium_plus < elite
 5. Add performance tracking
 
 ### Phase 4: Payment Integration
-1. Set up Stripe
+1. Set up Flowglad
 2. Create checkout flows in Account tab
 3. Add webhook handlers for subscription events
 4. Implement tier upgrades/downgrades

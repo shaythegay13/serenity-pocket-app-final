@@ -1,4 +1,4 @@
-# Serenity Pocket
+# PlayMind Labs
 
 *Decision Psychology Platform for Sports Bettors & Day Traders*
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Serenity Pocket helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
+PlayMind Labs helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
 
 ### Who Is This For?
 

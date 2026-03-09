@@ -3,16 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { flowglad, getTierPriceId, TIER_PRICES } from '@/lib/flowglad'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers'
+import logger from '@/lib/logger'
 
 export async function POST(req: Request) {
   try {
     const { tier } = await req.json()
-    console.log('🛒 Flowglad checkout request for tier:', tier)
 
     // Get authenticated user from authorization header
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
-      console.error('❌ No authorization header')
+      logger.warn('No authorization header', 'checkout')
       return NextResponse.json(
         { error: 'Unauthorized - No auth token' },
         { status: 401 }
@@ -23,19 +23,17 @@ export async function POST(req: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
 
     if (authError || !user) {
-      console.error('❌ Auth error:', authError)
+      logger.error('Auth error during checkout', 'checkout', authError)
       return NextResponse.json(
         { error: 'Unauthorized - Invalid token' },
         { status: 401 }
       )
     }
 
-    console.log('✅ User authenticated:', user.email)
-
     // Validate tier
     const validTiers = ['premium', 'premium_plus', 'elite']
     if (!validTiers.includes(tier)) {
-      console.error('❌ Invalid tier')
+      logger.warn('Invalid tier requested', 'checkout')
       return NextResponse.json(
         { error: 'Invalid tier' },
         { status: 400 }
@@ -45,7 +43,7 @@ export async function POST(req: Request) {
     // Get the price ID for the tier
     const priceId = getTierPriceId(tier as keyof typeof TIER_PRICES)
     if (!priceId) {
-      console.error('❌ Price ID not configured for tier:', tier)
+      logger.error(`Price ID not configured for tier: ${tier}`, 'checkout')
       return NextResponse.json(
         { error: 'Price not configured' },
         { status: 500 }
@@ -65,7 +63,7 @@ export async function POST(req: Request) {
         )
       }
 
-      console.log('🧪 NO FLOWGLAD CREDENTIALS - Using test mode for:', tier)
+      logger.info('No Flowglad credentials - using test mode', 'checkout')
 
       // Create admin client to bypass RLS
       const supabaseAdmin = createClient(
@@ -102,11 +100,9 @@ export async function POST(req: Request) {
         .eq('id', user.id)
 
       if (updateError) {
-        console.error('❌ Error updating subscription:', updateError)
+        logger.error('Error updating subscription in test mode', 'checkout', updateError)
         throw updateError
       }
-
-      console.log('✅ Test mode: Subscription granted successfully')
 
       return NextResponse.json({
         sessionId: 'test-mode-no-payment',
@@ -134,14 +130,12 @@ export async function POST(req: Request) {
       ...(trialPeriodDays ? { trialPeriodDays } : {}),
     })
 
-    console.log('✅ Flowglad checkout session created')
-
     return NextResponse.json({
       url: checkoutSession.url,
       success: true,
     })
   } catch (error: unknown) {
-    console.error('❌ Error processing subscription:', error)
+    logger.error('Error processing subscription', 'checkout', error)
 
     // Try to surface as much detail as possible from Flowglad/HTTP errors
     let details: string

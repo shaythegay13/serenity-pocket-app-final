@@ -186,46 +186,41 @@ export async function generateAIPicks(userProfile: UserData) {
 ### Phase 4: Payment Integration (Week 7-8)
 **Goal**: Enable subscription purchases
 
-#### A. Stripe Setup
+#### A. Flowglad Setup
 ```bash
-npm install @stripe/stripe-js stripe
+npm install @flowglad/nextjs
 ```
 
-Create `/lib/stripe.ts`:
+Create `/lib/flowglad.ts`:
 ```typescript
-import Stripe from 'stripe'
+import { FlowgladServer } from '@flowglad/nextjs/server'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+export const FLOWGLAD_CONFIG = {
+  secretKey: process.env.FLOWGLAD_SECRET_KEY!,
+  webhookSecret: process.env.FLOWGLAD_WEBHOOK_SECRET!,
+}
 
-export async function createCheckoutSession(userId: string, tierId: string) {
-  const session = await stripe.checkout.sessions.create({
-    customer_email: user.email,
-    line_items: [{
-      price: TIER_PRICE_IDS[tierId],
-      quantity: 1,
-    }],
-    mode: 'subscription',
-    success_url: `${process.env.NEXT_PUBLIC_URL}/account?success=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_URL}/account?canceled=true`,
-  })
-  
-  return session
+export function flowglad(userId: string, customer?: { email?: string; name?: string }) {
+  return new FlowgladServer({ ...FLOWGLAD_CONFIG, userId, customer })
 }
 ```
 
 #### B. Webhook Handler
-Create `/app/api/webhooks/stripe/route.ts`:
+Create `/app/api/webhooks/flowglad/route.ts`:
 ```typescript
+import { verifyWebhook } from '@flowglad/nextjs/server'
+import { FLOWGLAD_CONFIG } from '@/lib/flowglad'
+
 export async function POST(req: Request) {
   const body = await req.text()
-  const sig = req.headers.get('stripe-signature')!
-  
-  const event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
-  
+  const signature = req.headers.get('flowglad-signature')!
+
+  const event = verifyWebhook(body, { 'flowglad-signature': signature }, FLOWGLAD_CONFIG.webhookSecret)
+
   if (event.type === 'checkout.session.completed') {
     // Update user's subscription tier
   }
-  
+
   return new Response(JSON.stringify({ received: true }))
 }
 ```
@@ -257,15 +252,14 @@ ODDS_API_KEY=your_odds_api_key
 # New - OpenAI
 OPENAI_API_KEY=your_openai_key
 
-# New - Stripe
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-STRIPE_WEBHOOK_SECRET=your_webhook_secret
+# New - Flowglad
+FLOWGLAD_SECRET_KEY=your_flowglad_secret_key
+FLOWGLAD_WEBHOOK_SECRET=your_webhook_secret
 
-# Tier Price IDs (from Stripe Dashboard)
-STRIPE_PRICE_PREMIUM=price_xxx
-STRIPE_PRICE_PREMIUM_PLUS=price_xxx
-STRIPE_PRICE_ELITE=price_xxx
+# Tier Price IDs (from Flowglad Dashboard)
+FLOWGLAD_PRICE_PREMIUM=price_xxx
+FLOWGLAD_PRICE_PREMIUM_PLUS=price_xxx
+FLOWGLAD_PRICE_ELITE=price_xxx
 ```
 
 ---

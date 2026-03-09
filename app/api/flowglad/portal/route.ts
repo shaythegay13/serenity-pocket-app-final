@@ -32,10 +32,10 @@ export async function POST(req: Request) {
     }
 
     // Get billing info (includes billingPortalUrl) via Flowglad SDK
+    const userMeta = user.user_metadata as Record<string, unknown>
     const flowgladServer = flowglad(user.id, {
       email: user.email,
-      name: (user.user_metadata as Record<string, unknown>)?.full_name as string ||
-            (user.user_metadata as Record<string, unknown>)?.name as string,
+      name: userMeta?.full_name as string || userMeta?.name as string,
     })
 
     const billing = await flowgladServer.getBilling()

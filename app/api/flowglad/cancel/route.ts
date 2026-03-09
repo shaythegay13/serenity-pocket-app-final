@@ -58,13 +58,6 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!profile.flowglad_subscription_id) {
-      return NextResponse.json(
-        { error: 'No active subscription found' },
-        { status: 400 }
-      )
-    }
-
     if (profile.subscription_status === 'canceled') {
       return NextResponse.json(
         { error: 'Subscription is already canceled' },
@@ -72,11 +65,18 @@ export async function POST(req: Request) {
       )
     }
 
+    if (!profile.flowglad_subscription_id) {
+      return NextResponse.json(
+        { error: 'No active subscription found' },
+        { status: 400 }
+      )
+    }
+
     // Cancel subscription via Flowglad SDK
+    const userMeta = user.user_metadata as Record<string, unknown>
     const flowgladServer = flowglad(user.id, {
       email: user.email,
-      name: (user.user_metadata as Record<string, unknown>)?.full_name as string ||
-            (user.user_metadata as Record<string, unknown>)?.name as string,
+      name: userMeta?.full_name as string || userMeta?.name as string,
     })
 
     await flowgladServer.cancelSubscription({

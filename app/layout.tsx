@@ -22,8 +22,15 @@ export const metadata: Metadata = {
   },
   description: "Your behavioral betting companion for smarter, data-driven play. The seatbelt for responsible betting.",
   manifest: "/manifest.json",
-  generator: 'v0.app',
   keywords: ["sports betting", "betting psychology", "responsible gambling", "odds comparison", "bet analysis", "tilt prevention"],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   openGraph: {
     type: "website",
     siteName: "PlayMind Labs",

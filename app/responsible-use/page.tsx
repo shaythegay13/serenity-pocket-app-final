@@ -1,8 +1,31 @@
-"use client"
-
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { AlertTriangle, Shield, Eye } from "lucide-react"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Responsible Use | PlayMind Labs",
+    description: "Learn about PlayMind Labs' responsible gambling practices. Built-in safeguards including volatility warnings, cooldown mode, and transparent user protections for safer betting.",
+    openGraph: {
+      title: "Responsible Gambling – PlayMind Labs",
+      description: "Harm reduction, clarity, and user protection are built in. Discover the safeguards that keep you in control of your betting.",
+      url: `${BASE_URL}/responsible-use`,
+      siteName: 'PlayMind Labs',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: "Responsible Gambling – PlayMind Labs",
+      description: "Harm reduction, clarity, and user protection are built in. Discover the safeguards that keep you in control of your betting.",
+    },
+    alternates: {
+      canonical: `${BASE_URL}/responsible-use`,
+    },
+  }
+}
 
 export default function ResponsibleUsePage() {
   return (

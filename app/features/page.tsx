@@ -1,9 +1,34 @@
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Check, TrendingUp, Brain, Shield, Target } from "lucide-react"
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Features | PlayMind Labs",
+    description: "Explore PlayMind Labs' powerful features: AI-powered bet analysis, emotion tracking, cognitive bias detection, and personalized SmartSlip picks for responsible betting.",
+    openGraph: {
+      title: "PlayMind Labs Features – AI-Powered Betting Analytics",
+      description: "Discover powerful behavioral tools for smarter, more disciplined betting decisions. From free emotion tracking to Apex AI picks.",
+      url: `${BASE_URL}/features`,
+      siteName: 'PlayMind Labs',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: "PlayMind Labs Features – AI-Powered Betting Analytics",
+      description: "Discover powerful behavioral tools for smarter, more disciplined betting decisions. From free emotion tracking to Apex AI picks.",
+    },
+    alternates: {
+      canonical: `${BASE_URL}/features`,
+    },
+  }
+}
 
 const featuredFeatures = [
   {

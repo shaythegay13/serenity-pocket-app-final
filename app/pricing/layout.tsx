@@ -1,15 +1,24 @@
-import { Metadata } from "next"
+import type { Metadata } from "next"
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
 
 export const metadata: Metadata = {
-  title: "Pricing - Subscription Plans",
-  description: "Choose the right PlayMind Labs plan for you. From free Foundation tier to Apex AI-powered analysis. Start with a 7-day free trial on premium plans.",
-  keywords: ["sports betting subscription", "betting analytics pricing", "responsible gambling subscription", "AI betting tools pricing"],
+  title: "Pricing | PlayMind Labs",
+  description: "Choose the right PlayMind Labs plan for you. From free Foundation tier to Apex AI-powered analysis. Start smarter betting today.",
   openGraph: {
-    title: "PlayMind Labs Pricing - Find Your Perfect Plan",
-    description: "Affordable plans for behavioral betting analysis. Free tier available, premium plans with 7-day trial.",
+    title: "PlayMind Labs Pricing – Find Your Perfect Plan",
+    description: "Affordable plans for behavioral betting analysis. Free tier available, premium plans with AI picks and advanced analytics.",
+    url: `${BASE_URL}/pricing`,
+    siteName: 'PlayMind Labs',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "PlayMind Labs Pricing – Find Your Perfect Plan",
+    description: "Affordable plans for behavioral betting analysis. Free tier available, premium plans with AI picks and advanced analytics.",
   },
   alternates: {
-    canonical: "/pricing",
+    canonical: `${BASE_URL}/pricing`,
   },
 }
 

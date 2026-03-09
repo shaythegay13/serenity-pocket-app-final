@@ -1,14 +1,75 @@
-"use client"
-
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Activity, Target, TrendingUp, Shield } from "lucide-react"
 import Link from "next/link"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "How It Works | PlayMind Labs",
+    description: "Learn how PlayMind Labs helps you make smarter betting decisions with AI-powered analysis, emotion tracking, and behavioral psychology insights. Four simple steps to safer, smarter sports betting.",
+    openGraph: {
+      title: "How PlayMind Labs Works",
+      description: "Discover how AI-powered analysis, emotion tracking, and behavioral psychology help you make smarter, safer betting decisions.",
+      url: `${BASE_URL}/how-it-works`,
+      siteName: 'PlayMind Labs',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: "How PlayMind Labs Works",
+      description: "Discover how AI-powered analysis, emotion tracking, and behavioral psychology help you make smarter, safer betting decisions.",
+    },
+    alternates: {
+      canonical: `${BASE_URL}/how-it-works`,
+    },
+  }
+}
+
+const howToSchema = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How PlayMind Labs Works",
+  description: "Four steps to safer, smarter sports betting with behavioral AI analytics.",
+  step: [
+    {
+      "@type": "HowToStep",
+      position: 1,
+      name: "Instant Profile",
+      text: "Take a 4-question snapshot to get your initial behavioral profile. See your emotional alignment and suggested safeguards instantly.",
+    },
+    {
+      "@type": "HowToStep",
+      position: 2,
+      name: "Ethical Safeguards",
+      text: "We warn during volatility, reduce risky suggestions during tilt, and avoid dark patterns. You stay in control with cooldowns and limits.",
+    },
+    {
+      "@type": "HowToStep",
+      position: 3,
+      name: "Live Odds + Analysis",
+      text: "Compare best lines across books and analyze bets for probability, EV, and trends. Premium tiers unlock deeper analytics.",
+    },
+    {
+      "@type": "HowToStep",
+      position: 4,
+      name: "AI Suggestions (Apex)",
+      text: "Personalized picks using your history, real-time odds, and emotional metrics. Always filtered for safety and clarity.",
+    },
+  ],
+}
+
 export default function HowItWorksPage() {
   return (
-    <FooterPageWrapper>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
+      />
+      <FooterPageWrapper>
       <div className="container mx-auto px-4 py-10 max-w-5xl">
         <div className="text-center space-y-2 mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-foreground">How PlayMind Labs Works</h1>
@@ -78,5 +139,6 @@ export default function HowItWorksPage() {
         </Card>
       </div>
     </FooterPageWrapper>
+    </>
   )
 }

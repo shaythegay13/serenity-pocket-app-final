@@ -1,4 +1,29 @@
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "FAQ | PlayMind Labs",
+    description: "Find answers to common questions about PlayMind Labs' AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
+    openGraph: {
+      title: "FAQ – PlayMind Labs",
+      description: "Find answers to common questions about AI betting analysis, emotion tracking, and responsible gambling tools.",
+      url: `${BASE_URL}/faq`,
+      siteName: 'PlayMind Labs',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: "FAQ – PlayMind Labs",
+      description: "Find answers to common questions about AI betting analysis, emotion tracking, and responsible gambling tools.",
+    },
+    alternates: {
+      canonical: `${BASE_URL}/faq`,
+    },
+  }
+}
 
 const faqs = [
   {

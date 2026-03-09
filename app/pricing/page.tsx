@@ -37,6 +37,56 @@ const flowgladPrices = {
   elite: process.env.FLOWGLAD_PRICE_ELITE || 'price_XD1jjv7lZ9lhkRTGOnr8w'
 }
 
+const pricingSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "PlayMind Labs Subscription Plans",
+  description: "Behavioral sports betting analytics subscription plans",
+  itemListElement: [
+    {
+      "@type": "Offer",
+      position: 1,
+      name: "Foundation",
+      description: "Free tier with core behavioral tools for emotion tracking and responsible betting.",
+      price: "0",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      url: "https://www.playmindlabs.com/pricing",
+    },
+    {
+      "@type": "Offer",
+      position: 2,
+      name: "Focus",
+      description: "Premium tier with analytics dashboard and weekly AI picks.",
+      price: "19.99",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      url: "https://www.playmindlabs.com/pricing",
+    },
+    {
+      "@type": "Offer",
+      position: 3,
+      name: "Mastery",
+      description: "Advanced tier with TiltLab emotional analysis and 3x weekly AI picks.",
+      price: "39.99",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      url: "https://www.playmindlabs.com/pricing",
+    },
+    {
+      "@type": "Offer",
+      position: 4,
+      name: "Apex",
+      description: "Full access with daily AI picks, priority support, and early feature access.",
+      price: "79.99",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      url: "https://www.playmindlabs.com/pricing",
+    },
+  ],
+}
+
+
 const handleSubscribe = async (tierId: string) => {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -305,7 +355,12 @@ export default function PricingPage() {
   // Always render content immediately for SEO crawlability.
   // Header/nav chrome loads in once auth resolves.
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
+      />
+      <div className="min-h-screen bg-background">
       {!loading && authed && userData ? (
         <>
           <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
@@ -332,5 +387,6 @@ export default function PricingPage() {
 
       {!loading && authed && userData && <BottomNav />}
     </div>
+    </>
   )
 }

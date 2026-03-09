@@ -1,15 +1,24 @@
-import { Metadata } from "next"
+import type { Metadata } from "next"
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
 
 export const metadata: Metadata = {
-  title: "About Us",
+  title: "About Us | PlayMind Labs",
   description: "Meet the team behind PlayMind Labs. Learn about our mission to bring behavioral science and AI to responsible sports betting.",
-  keywords: ["PlayMind Labs", "sports betting company", "responsible gambling", "betting analytics team"],
   openGraph: {
+    title: "About PlayMind Labs",
+    description: "Meet the team behind PlayMind Labs and learn about our mission for responsible sports betting.",
+    url: `${BASE_URL}/about`,
+    siteName: 'PlayMind Labs',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
     title: "About PlayMind Labs",
     description: "Meet the team behind PlayMind Labs and learn about our mission for responsible sports betting.",
   },
   alternates: {
-    canonical: "/about",
+    canonical: `${BASE_URL}/about`,
   },
 }
 

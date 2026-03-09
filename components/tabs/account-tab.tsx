@@ -227,7 +227,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         throw new Error(error)
       }
 
-      // Redirect to Stripe checkout
+      // Redirect to Flowglad checkout
       if (url) {
         window.location.href = url
       } else {

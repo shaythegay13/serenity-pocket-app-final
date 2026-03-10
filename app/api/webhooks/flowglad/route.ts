@@ -6,6 +6,31 @@ import { FLOWGLAD_CONFIG } from '@/lib/flowglad'
 // Disable body parsing for webhooks
 export const runtime = 'nodejs'
 
+// ─── Minimal types for Flowglad webhook event payloads ───────────────────────
+
+interface FlowgladCustomerData {
+  customerId?: string
+  customer_id?: string
+  subscriptionId?: string
+  subscription_id?: string
+  id?: string
+  metadata?: {
+    userId?: string
+    tier?: string
+    [key: string]: string | undefined
+  }
+  current_period_start?: number
+  current_period_end?: number
+  status?: string
+}
+
+interface FlowgladWebhookEvent {
+  type: string
+  data: FlowgladCustomerData
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function POST(req: Request) {
   console.log('🎣 FLOWGLAD WEBHOOK ENDPOINT HIT!')
   
@@ -23,15 +48,13 @@ export async function POST(req: Request) {
   }
 
   // Verify webhook signature
-  let event: any
+  let event: FlowgladWebhookEvent
   try {
-    // Create headers object with the signature
-    const headers: Record<string, string> = {}
-    if (signature) {
-      headers['flowglad-signature'] = signature
+    const headers: Record<string, string> = {
+      'flowglad-signature': signature,
     }
     
-    event = verifyWebhook(body, headers, FLOWGLAD_CONFIG.webhookSecret)
+    event = verifyWebhook(body, headers, FLOWGLAD_CONFIG.webhookSecret) as FlowgladWebhookEvent
     console.log('✅ Webhook signature verified')
   } catch (err) {
     console.error('❌ Webhook signature verification failed:', err)
@@ -72,50 +95,57 @@ export async function POST(req: Request) {
           subscriptionId 
         })
 
-        if (userId && tier) {
-          // Calculate subscription dates
-          const now = new Date()
-          const oneMonthFromNow = new Date()
-          oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1)
-
-          const subscriptionStartedAt = data.current_period_start 
-            ? new Date(data.current_period_start * 1000).toISOString()
-            : now.toISOString()
-          const subscriptionEndsAt = data.current_period_end
-            ? new Date(data.current_period_end * 1000).toISOString()
-            : oneMonthFromNow.toISOString()
-
-          // Update user's subscription tier in database using admin client
-          console.log('📝 Updating subscription:', {
-            userId,
-            tier,
-            status: 'active',
-            customerId,
-            subscriptionId,
-            startedAt: subscriptionStartedAt,
-            endsAt: subscriptionEndsAt
-          })
-
-          const { data: updateData, error } = await supabaseAdmin
-            .from('user_profiles')
-            .update({
-              subscription_tier: tier,
-              subscription_status: 'active',
-              flowglad_customer_id: customerId,
-              flowglad_subscription_id: subscriptionId,
-              subscription_started_at: subscriptionStartedAt,
-              subscription_ends_at: subscriptionEndsAt,
-            })
-            .eq('id', userId)
-            .select()
-
-          if (error) {
-            console.error('❌ Error updating user subscription:', error)
-            throw error
-          } else {
-            console.log(`✅ User ${userId} upgraded to ${tier}`, updateData)
-          }
+        if (!userId || !tier) {
+          console.warn('⚠️ Missing userId or tier in webhook metadata — skipping DB update')
+          break
         }
+
+        // Idempotency: check if subscription is already set to the target tier
+        const { data: existing } = await supabaseAdmin
+          .from('user_profiles')
+          .select('subscription_tier, subscription_status')
+          .eq('id', userId)
+          .single()
+
+        if (
+          existing &&
+          existing.subscription_tier === tier &&
+          existing.subscription_status === 'active'
+        ) {
+          console.log(`ℹ️  Idempotent skip: user ${userId} already on ${tier} (active)`)
+          break
+        }
+
+        // Calculate subscription dates
+        const now = new Date()
+        const oneMonthFromNow = new Date()
+        oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1)
+
+        const subscriptionStartedAt = data.current_period_start 
+          ? new Date(data.current_period_start * 1000).toISOString()
+          : now.toISOString()
+        const subscriptionEndsAt = data.current_period_end
+          ? new Date(data.current_period_end * 1000).toISOString()
+          : oneMonthFromNow.toISOString()
+
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .update({
+            subscription_tier: tier,
+            subscription_status: 'active',
+            flowglad_customer_id: customerId ?? null,
+            flowglad_subscription_id: subscriptionId ?? null,
+            subscription_started_at: subscriptionStartedAt,
+            subscription_ends_at: subscriptionEndsAt,
+          })
+          .eq('id', userId)
+
+        if (error) {
+          console.error('❌ Error updating user subscription:', error)
+          throw error
+        }
+
+        console.log(`✅ User ${userId} upgraded to ${tier}`)
         break
       }
 
@@ -124,40 +154,45 @@ export async function POST(req: Request) {
         const customerId = data.customerId || data.customer_id
         const status = data.status
 
+        if (!customerId) {
+          console.warn('⚠️ Missing customerId in subscription.updated — skipping')
+          break
+        }
+
         console.log('🔄 Subscription updated:', { customerId, status })
 
-        // Get user by Flowglad customer ID using admin client
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
           .select('id')
           .eq('flowglad_customer_id', customerId)
           .single()
 
-        if (user) {
-          const subscriptionStatus = status === 'active' ? 'active' : 'inactive'
-          const startedAt = data.current_period_start 
-            ? new Date(data.current_period_start * 1000).toISOString()
-            : new Date().toISOString()
-          const endsAt = data.current_period_end
-            ? new Date(data.current_period_end * 1000).toISOString()
-            : null
-          
-          const { error } = await supabaseAdmin
-            .from('user_profiles')
-            .update({ 
-              subscription_status: subscriptionStatus,
-              subscription_started_at: startedAt,
-              subscription_ends_at: endsAt
-            })
-            .eq('id', user.id)
-
-          if (error) {
-            console.error('❌ Error updating subscription status:', error)
-          } else {
-            console.log(`✅ Subscription updated for user ${user.id}: ${subscriptionStatus}`)
-          }
-        } else {
+        if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          break
+        }
+
+        const subscriptionStatus = status === 'active' ? 'active' : 'inactive'
+        const startedAt = data.current_period_start 
+          ? new Date(data.current_period_start * 1000).toISOString()
+          : new Date().toISOString()
+        const endsAt = data.current_period_end
+          ? new Date(data.current_period_end * 1000).toISOString()
+          : null
+        
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .update({ 
+            subscription_status: subscriptionStatus,
+            subscription_started_at: startedAt,
+            subscription_ends_at: endsAt
+          })
+          .eq('id', user.id)
+
+        if (error) {
+          console.error('❌ Error updating subscription status:', error)
+        } else {
+          console.log(`✅ Subscription updated for user ${user.id}: ${subscriptionStatus}`)
         }
         break
       }
@@ -167,34 +202,38 @@ export async function POST(req: Request) {
         const data = event.data
         const customerId = data.customerId || data.customer_id
 
+        if (!customerId) {
+          console.warn('⚠️ Missing customerId in cancellation event — skipping')
+          break
+        }
+
         console.log('🗑️ Subscription canceled/deleted:', { customerId })
 
-        // Get user by Flowglad customer ID using admin client
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
           .select('id')
           .eq('flowglad_customer_id', customerId)
           .single()
 
-        if (user) {
-          // Downgrade to free tier
-          const { error } = await supabaseAdmin
-            .from('user_profiles')
-            .update({
-              subscription_tier: 'free',
-              subscription_status: 'canceled',
-              subscription_started_at: null,
-              subscription_ends_at: null
-            })
-            .eq('id', user.id)
-
-          if (error) {
-            console.error('❌ Error downgrading user:', error)
-          } else {
-            console.log(`✅ User ${user.id} downgraded to free tier`)
-          }
-        } else {
+        if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          break
+        }
+
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .update({
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+            subscription_started_at: null,
+            subscription_ends_at: null
+          })
+          .eq('id', user.id)
+
+        if (error) {
+          console.error('❌ Error downgrading user:', error)
+        } else {
+          console.log(`✅ User ${user.id} downgraded to free tier`)
         }
         break
       }
@@ -203,29 +242,35 @@ export async function POST(req: Request) {
         const data = event.data
         const customerId = data.customerId || data.customer_id
 
+        if (!customerId) {
+          console.warn('⚠️ Missing customerId in payment.failed — skipping')
+          break
+        }
+
         console.log('❌ Payment failed:', { customerId })
 
-        // Get user by Flowglad customer ID
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
           .select('id')
           .eq('flowglad_customer_id', customerId)
           .single()
 
-        if (user) {
-          // Update status to indicate payment issue
-          const { error } = await supabaseAdmin
-            .from('user_profiles')
-            .update({ 
-              subscription_status: 'past_due'
-            })
-            .eq('id', user.id)
+        if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
+          break
+        }
 
-          if (error) {
-            console.error('❌ Error updating payment status:', error)
-          } else {
-            console.log(`✅ User ${user.id} marked as past_due`)
-          }
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .update({ 
+            subscription_status: 'past_due'
+          })
+          .eq('id', user.id)
+
+        if (error) {
+          console.error('❌ Error updating payment status:', error)
+        } else {
+          console.log(`✅ User ${user.id} marked as past_due`)
         }
         break
       }
@@ -235,55 +280,59 @@ export async function POST(req: Request) {
         const customerId = data.customerId || data.customer_id
         const paymentId = data.id
 
+        if (!customerId) {
+          console.warn('⚠️ Missing customerId in payment.succeeded — skipping')
+          break
+        }
+
         console.log('💰 One-time payment succeeded:', { customerId, paymentId })
 
-        // Check if this is a marketplace purchase (one-time payment, not subscription)
-        // Look for pending purchase with matching user
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
           .select('id')
           .eq('flowglad_customer_id', customerId)
           .single()
 
-        if (user) {
-          // Find pending purchase for this user
-          const { data: pendingPurchases } = await supabaseAdmin
-            .from('ai_usage_purchases')
-            .select('*')
-            .eq('user_id', user.id)
-            .like('flowglad_payment_id', 'pending_%')
-            .order('created_at', { ascending: false })
-            .limit(1)
+        if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
+          break
+        }
 
-          if (pendingPurchases && pendingPurchases.length > 0) {
-            const purchase = pendingPurchases[0]
-            
-            // Get product details to update credits
-            const { data: product } = await supabaseAdmin
-              .from('ai_marketplace_products')
-              .select('*')
-              .eq('product_key', purchase.purchase_type)
-              .single()
+        // Find pending purchase for this user
+        const { data: pendingPurchases } = await supabaseAdmin
+          .from('ai_usage_purchases')
+          .select('*')
+          .eq('user_id', user.id)
+          .like('flowglad_payment_id', 'pending_%')
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-            if (product) {
-              // Update purchase with actual payment ID and credits
-              const { error: updateError } = await supabaseAdmin
-                .from('ai_usage_purchases')
-                .update({
-                  flowglad_payment_id: paymentId,
-                  ai_picker_credits: product.ai_picker_credits,
-                  ai_bet_analyzer_credits: product.ai_bet_analyzer_credits,
-                  price_paid: product.price
-                })
-                .eq('id', purchase.id)
+        if (!pendingPurchases || pendingPurchases.length === 0) break
 
-              if (updateError) {
-                console.error('❌ Error updating marketplace purchase:', updateError)
-              } else {
-                console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
-              }
-            }
-          }
+        const purchase = pendingPurchases[0]
+        
+        const { data: product } = await supabaseAdmin
+          .from('ai_marketplace_products')
+          .select('*')
+          .eq('product_key', purchase.purchase_type)
+          .single()
+
+        if (!product) break
+
+        const { error: updateError } = await supabaseAdmin
+          .from('ai_usage_purchases')
+          .update({
+            flowglad_payment_id: paymentId,
+            ai_picker_credits: product.ai_picker_credits,
+            ai_bet_analyzer_credits: product.ai_bet_analyzer_credits,
+            price_paid: product.price
+          })
+          .eq('id', purchase.id)
+
+        if (updateError) {
+          console.error('❌ Error updating marketplace purchase:', updateError)
+        } else {
+          console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
         }
         break
       }

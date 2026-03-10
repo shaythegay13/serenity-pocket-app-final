@@ -12,6 +12,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Navigation } from "@/components/navigation"
 import { BottomNav } from "@/components/bottom-nav"
 import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
@@ -29,15 +30,7 @@ const tierHighlights = {
   elite: "The apex of AI-powered analysis"
 }
 
-// Flowglad subscription codes
-const flowgladPrices = {
-  free: process.env.FLOWGLAD_PRICE_FREE || 'price_6cXbsVTICmt3urU2qbpYN',
-  premium: process.env.FLOWGLAD_PRICE_PREMIUM || 'price_DQeKeAltQmeHPx33T0c5w',
-  premium_plus: process.env.FLOWGLAD_PRICE_PREMIUM_PLUS || 'price_TG7ZGJ1PJCLWKtZkyL9bH',
-  elite: process.env.FLOWGLAD_PRICE_ELITE || 'price_XD1jjv7lZ9lhkRTGOnr8w'
-}
-
-const handleSubscribe = async (tierId: string) => {
+const handleSubscribe = async (tierId: string, setLoadingTier: (id: string | null) => void) => {
   try {
     const { data: { session } } = await supabase.auth.getSession()
 
@@ -54,6 +47,8 @@ const handleSubscribe = async (tierId: string) => {
       return
     }
 
+    setLoadingTier(tierId)
+
     // For paid plans, create checkout session
     const response = await fetch('/api/flowglad/checkout', {
       method: 'POST',
@@ -68,13 +63,19 @@ const handleSubscribe = async (tierId: string) => {
 
     const data = await response.json()
 
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create checkout session')
+    }
+
     if (data.url) {
       window.location.href = data.url
     } else {
-      console.error('No checkout URL returned')
+      throw new Error('No checkout URL returned')
     }
   } catch (error) {
     console.error('Error creating checkout session:', error)
+    toast.error(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.')
+    setLoadingTier(null)
   }
 }
 
@@ -83,6 +84,7 @@ export default function PricingPage() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingTier, setLoadingTier] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -257,10 +259,10 @@ export default function PricingPage() {
                 <Button
                   className="w-full"
                   variant={isCurrentTier ? 'outline' : (tier.id === 'free' ? 'outline' : isElite ? 'default' : isPopular ? 'default' : 'secondary')}
-                  onClick={() => !isCurrentTier && handleSubscribe(tier.id)}
-                  disabled={isCurrentTier}
+                  onClick={() => !isCurrentTier && handleSubscribe(tier.id, setLoadingTier)}
+                  disabled={isCurrentTier || loadingTier === tier.id}
                 >
-                  {isCurrentTier ? 'Current Plan' : (() => {
+                  {loadingTier === tier.id ? 'Loading…' : isCurrentTier ? 'Current Plan' : (() => {
                     const tierOrder = ["free", "premium", "premium_plus", "elite"];
                     const userTierIndex = tierOrder.indexOf(userData?.subscriptionTier || 'free');
                     const currentTierIndex = tierOrder.indexOf(tier.id);

@@ -16,6 +16,17 @@ export const FLOWGLAD_CONFIG = {
 } as const
 
 /**
+ * Returns true when all required Flowglad server-side credentials are present.
+ * In production, callers should reject requests when this returns false.
+ */
+export function isFlowgladConfigured(): boolean {
+  return Boolean(
+    process.env.FLOWGLAD_SECRET_KEY &&
+    process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
+  )
+}
+
+/**
  * Flowglad Server Factory
  * Creates a FlowgladServer instance for a specific user
  * @param customerExternalId - The user ID from our database (NOT Flowglad's customer ID)

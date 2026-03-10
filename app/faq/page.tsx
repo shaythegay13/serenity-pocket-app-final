@@ -1,4 +1,28 @@
+import type { Metadata } from "next"
+import { BASE_URL } from "@/lib/constants"
 import { Card } from "@/components/ui/card"
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Frequently Asked Questions | PlayMind Labs",
+    description: "Find answers to common questions about PlayMind Labs' AI betting analysis, emotion tracking, subscription plans, and responsible gambling tools.",
+    openGraph: {
+      title: "FAQ - PlayMind Labs",
+      description: "Find answers to common questions about AI betting analysis, emotion tracking, and responsible gambling tools.",
+      url: `${BASE_URL}/faq`,
+      siteName: "PlayMind Labs",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "FAQ - PlayMind Labs",
+      description: "Find answers to common questions about AI betting analysis, emotion tracking, and responsible gambling tools.",
+    },
+    alternates: {
+      canonical: `${BASE_URL}/faq`,
+    },
+  }
+}
 
 const faqs = [
   {

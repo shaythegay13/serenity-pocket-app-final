@@ -10,9 +10,9 @@ import { Footer } from "@/components/footer"
 import { FlowProvider } from "@/contexts/FlowContext"
 import { AuthProvider } from "@/contexts/AuthContext"
 
-const inter = Inter({ subsets: ["latin"] })
+import { BASE_URL } from "@/lib/constants"
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.playmindlabs.com'
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -22,7 +22,14 @@ export const metadata: Metadata = {
   },
   description: "Your behavioral betting companion for smarter, data-driven play. The seatbelt for responsible betting.",
   manifest: "/manifest.json",
-  generator: 'v0.app',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   keywords: ["sports betting", "betting psychology", "responsible gambling", "odds comparison", "bet analysis", "tilt prevention"],
   openGraph: {
     type: "website",

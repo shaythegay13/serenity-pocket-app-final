@@ -14,10 +14,10 @@ interface AccountTabProps {
 }
 
 export const AccountTab = memo(function AccountTab({ userData, updateUserData }: AccountTabProps) {
-  console.log('👤 AccountTab rendering with userData:', userData?.name, 'Tier:', userData?.subscriptionTier)
-
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [cancelingSubscription, setCancelingSubscription] = useState(false)
+  const [managingBilling, setManagingBilling] = useState(false)
 
   // Memoize local state to prevent unnecessary re-renders
   const localState = useMemo(() => ({
@@ -48,14 +48,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
     setLocalDailyLimit(localState.dailyLimit)
     setLocalMaxStake(localState.maxStake)
   }, [localState])
-
-  // Log subscription data on mount/update
-  console.log('💳 Current subscription:', {
-    tier: userData.subscriptionTier,
-    status: userData.subscriptionStatus,
-    started: userData.subscriptionStartedAt,
-    ends: userData.subscriptionEndsAt
-  })
 
   const getApiBaseUrl = () => {
     if (typeof window === 'undefined') return ''
@@ -111,13 +103,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       const { profile } = await response.json()
 
       if (profile) {
-        console.log('📊 Database subscription data:', {
-          tier: profile.subscription_tier,
-          status: profile.subscription_status,
-          started: profile.subscription_started_at,
-          ends: profile.subscription_ends_at,
-        })
-
         // Update local state with fresh data from database
         await updateUserData({
           subscriptionTier: profile.subscription_tier || 'free',
@@ -191,6 +176,87 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       }
     }
   }, [])
+
+  const handleManageBilling = async () => {
+    try {
+      setManagingBilling(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to manage billing')
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/portal`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to open billing portal')
+      }
+
+      const { url } = await response.json()
+
+      if (url) {
+        window.location.href = url
+      } else {
+        throw new Error('No billing portal URL returned')
+      }
+    } catch (error) {
+      console.error('Error opening billing portal:', error)
+      toast.error('Failed to open billing portal. Please try again.')
+      setManagingBilling(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel your subscription? You'll keep access until the end of your current billing period."
+    )
+    if (!confirmed) return
+
+    try {
+      setCancelingSubscription(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to cancel your subscription')
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to cancel subscription')
+      }
+
+      toast.success("Subscription canceled. You'll keep access until your current period ends.")
+      await handleSyncSubscription()
+    } catch (error) {
+      console.error('Error canceling subscription:', error)
+      toast.error('Failed to cancel subscription. Please try again.')
+    } finally {
+      setCancelingSubscription(false)
+    }
+  }
 
   const handleUpgrade = async (tierId: string) => {
     try {
@@ -330,6 +396,40 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
                   <span className="font-medium text-foreground">
                     {new Date(userData.subscriptionEndsAt).toLocaleDateString()}
                   </span>
+                </div>
+              )}
+              {userData.subscriptionStatus === 'active' && (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleManageBilling}
+                    disabled={managingBilling || cancelingSubscription}
+                  >
+                    {managingBilling ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      'Manage Billing'
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleCancelSubscription}
+                    disabled={cancelingSubscription || managingBilling}
+                  >
+                    {cancelingSubscription ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Canceling...
+                      </>
+                    ) : (
+                      'Cancel Subscription'
+                    )}
+                  </Button>
                 </div>
               )}
             </div>

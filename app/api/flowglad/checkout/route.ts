@@ -6,12 +6,10 @@ import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers'
 export async function POST(req: Request) {
   try {
     const { tier } = await req.json()
-    console.log('🛒 Flowglad checkout request for tier:', tier)
 
     // Get authenticated user from authorization header
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
-      console.error('❌ No authorization header')
       return NextResponse.json(
         { error: 'Unauthorized - No auth token' },
         { status: 401 }
@@ -22,19 +20,15 @@ export async function POST(req: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
 
     if (authError || !user) {
-      console.error('❌ Auth error:', authError)
       return NextResponse.json(
         { error: 'Unauthorized - Invalid token' },
         { status: 401 }
       )
     }
 
-    console.log('✅ User authenticated:', user.email)
-
     // Validate tier
     const validTiers = ['premium', 'premium_plus', 'elite']
     if (!validTiers.includes(tier)) {
-      console.error('❌ Invalid tier')
       return NextResponse.json(
         { error: 'Invalid tier' },
         { status: 400 }
@@ -44,7 +38,6 @@ export async function POST(req: Request) {
     // Get the price ID for the tier
     const priceId = getTierPriceId(tier as keyof typeof TIER_PRICES)
     if (!priceId) {
-      console.error('❌ Price ID not configured for tier:', tier)
       return NextResponse.json(
         { error: 'Price not configured', code: 'PRICE_NOT_CONFIGURED' },
         { status: 500 }
@@ -53,7 +46,6 @@ export async function POST(req: Request) {
 
     // Require Flowglad credentials in all environments
     if (!isFlowgladConfigured()) {
-      console.error('❌ FLOWGLAD_SECRET_KEY is not set')
       return NextResponse.json(
         { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
         { status: 503 }
@@ -83,14 +75,12 @@ export async function POST(req: Request) {
       },
     })
 
-    console.log('✅ Flowglad checkout session created')
-
     return NextResponse.json({
       url: checkoutSession.url,
       success: true,
     })
   } catch (error: unknown) {
-    console.error('❌ Error processing subscription:', error)
+    console.error('Checkout error:', error)
 
     // Try to surface as much detail as possible from Flowglad/HTTP errors
     let details: string

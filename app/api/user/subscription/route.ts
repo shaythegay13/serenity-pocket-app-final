@@ -93,7 +93,7 @@ export async function GET(req: Request) {
       .single()
 
     if (error) {
-      console.error('❌ Error fetching subscription:', error)
+      console.error('Error fetching subscription:', error)
       return NextResponse.json(
         {
           error: error.message,

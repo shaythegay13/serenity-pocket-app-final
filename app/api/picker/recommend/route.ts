@@ -1461,7 +1461,7 @@ export async function POST(request: NextRequest) {
         evSource = 'math'
 
         if (rawEvPct > 15) {
-          console.warn(`[SmartSlip] ⚠️ Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
+          console.warn(`[SmartSlip] Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
         } else {
           console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}%`)
         }

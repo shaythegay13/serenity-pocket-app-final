@@ -1,4 +1,4 @@
-# Serenity Pocket
+# PlayMind Labs
 
 *Decision Psychology Platform for Sports Bettors & Day Traders*
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Serenity Pocket helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
+PlayMind Labs helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
 
 ### Who Is This For?
 
@@ -130,7 +130,7 @@ See [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) for detailed instructions.
 ### Stack
 
 - Next.js 16 (app router), React 19, TypeScript, Tailwind v4, Radix UI
-- Supabase (auth, DB), Stripe (subscriptions), Capacitor (mobile)
+- Supabase (auth, DB), Flowglad (subscriptions), Capacitor (mobile)
 
 ### Frontend structure
 

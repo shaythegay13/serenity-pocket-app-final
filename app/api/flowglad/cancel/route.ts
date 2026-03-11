@@ -74,11 +74,9 @@ export async function POST(req: Request) {
       cancellation: { timing: 'at_end_of_current_billing_period' },
     })
 
-    console.log(`✅ Subscription cancellation scheduled for user ${user.id}`)
-
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
-    console.error('❌ Error canceling subscription:', error)
+    console.error('Error canceling subscription:', error)
 
     let details: string
     if (typeof error === 'object' && error !== null) {

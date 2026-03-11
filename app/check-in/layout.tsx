@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { BASE_URL } from '@/lib/constants'
 
 export const metadata: Metadata = {
   title: 'Free Emotional Check-In for Sports Bettors | PlayMind Labs',
@@ -13,8 +14,58 @@ export const metadata: Metadata = {
     'betting mindset',
     'FOMO betting',
   ],
+  openGraph: {
+    title: 'Free Emotional Check-In for Sports Bettors | PlayMind Labs',
+    description: 'Track your emotions before, during, and after betting. Understand how feelings impact your decisions.',
+    url: `${BASE_URL}/check-in`,
+    siteName: 'PlayMind Labs',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Free Emotional Check-In for Sports Bettors',
+    description: 'Track your emotions before, during, and after betting. Understand how feelings impact your decisions.',
+  },
+  alternates: {
+    canonical: `${BASE_URL}/check-in`,
+  },
+}
+
+const checkInSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'PlayMind Labs Emotional Check-In',
+  url: `${BASE_URL}/check-in`,
+  applicationCategory: 'HealthApplication',
+  description: 'Free emotional check-in tool for sports bettors to track feelings before, during, and after betting decisions.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+    description: 'Free - no account required',
+  },
+  featureList: [
+    'Track 6 core emotions with 10 sub-emotions',
+    'Rate emotional intensity',
+    'Log timing (before/during/after betting)',
+    'Build self-awareness patterns',
+    'Prevent tilt and FOMO-driven decisions',
+  ],
+  provider: {
+    '@type': 'Organization',
+    name: 'PlayMind Labs',
+    url: BASE_URL,
+  },
 }
 
 export default function CheckInLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(checkInSchema) }}
+      />
+      {children}
+    </>
+  )
 }

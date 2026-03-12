@@ -2052,10 +2052,10 @@ export const storageHybrid: {
           console.error("Error updating parlay in Supabase:", error)
         }
 
-        // Update individual leg outcomes
-        for (const leg of parlay.legs) {
+        // Update individual leg outcomes in parallel
+        const legUpdates = parlay.legs.map(async (leg) => {
           if (leg.outcome && leg.outcome !== 'pending') {
-            await supabase
+            return supabase
               .from("parlay_legs")
               .update({
                 outcome: leg.outcome,
@@ -2064,7 +2064,10 @@ export const storageHybrid: {
               .eq("parlay_id", parlay.id)
               .eq("pick_id", leg.pickId)
           }
-        }
+          return Promise.resolve()
+        })
+
+        await Promise.all(legUpdates)
       } catch (err) {
         console.error("Exception updating parlay:", err)
       }

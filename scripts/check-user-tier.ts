@@ -15,6 +15,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function main() {
+  console.time('Execution Time')
   console.log('🔍 Checking user profiles and AI usage limits...\n')
 
   // Get all users
@@ -32,17 +33,74 @@ async function main() {
 
   console.log(`Found ${users.users.length} user(s)\n`)
 
-  for (const user of users.users) {
-    const { data: profile, error: profileError } = await supabase
+  const userIds = users.users.map(u => u.id)
+
+  const getWeekStart = () => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    d.setDate(diff)
+    d.setHours(0, 0, 0, 0)
+    return d.toISOString().split('T')[0]
+  }
+  const weekStart = getWeekStart()
+
+  // Batch queries
+  const [
+    { data: profilesData, error: profilesError },
+    { data: allLimits, error: allLimitsError },
+    { data: pickerUsageData, error: pickerError },
+    { data: analyzerUsageData, error: analyzerError }
+  ] = await Promise.all([
+    supabase
       .from('user_profiles')
       .select('id, subscription_tier, email')
-      .eq('id', user.id)
-      .single()
+      .in('id', userIds),
+    supabase
+      .from('ai_usage_limits')
+      .select('*')
+      .order('tier'),
+    supabase
+      .from('ai_service_usage')
+      .select('user_id', { count: 'exact' })
+      .in('user_id', userIds)
+      .eq('service_type', 'ai_picker')
+      .eq('week_start_date', weekStart),
+    supabase
+      .from('ai_service_usage')
+      .select('user_id', { count: 'exact' })
+      .in('user_id', userIds)
+      .eq('service_type', 'ai_bet_analyzer')
+      .eq('week_start_date', weekStart)
+  ])
 
+  // Group data for O(1) lookups
+  const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || [])
+  const limitsMap = new Map(allLimits?.map(l => [l.tier, l]) || [])
+
+  // Since we want exact counts grouped by user_id and Supabase `select` with `count`
+  // without grouped columns returns a total count, we'll manually aggregate the usages
+  // from a separate query to get individual counts per user.
+  const pickerUsageCounts = new Map<string, number>()
+  if (pickerUsageData) {
+    for (const row of pickerUsageData) {
+      pickerUsageCounts.set(row.user_id, (pickerUsageCounts.get(row.user_id) || 0) + 1)
+    }
+  }
+
+  const analyzerUsageCounts = new Map<string, number>()
+  if (analyzerUsageData) {
+    for (const row of analyzerUsageData) {
+      analyzerUsageCounts.set(row.user_id, (analyzerUsageCounts.get(row.user_id) || 0) + 1)
+    }
+  }
+
+  for (const user of users.users) {
+    const profile = profilesMap.get(user.id)
     console.log(`👤 User: ${user.email || user.id}`)
 
-    if (profileError || !profile) {
-      console.log('   ❌ Profile not found or error:', profileError?.message)
+    if (profilesError || !profile) {
+      console.log('   ❌ Profile not found or error:', profilesError?.message)
       continue
     }
 
@@ -50,57 +108,26 @@ async function main() {
     console.log(`   📊 Subscription Tier: ${tier}`)
 
     // Check tier limits
-    const { data: limits, error: limitsError } = await supabase
-      .from('ai_usage_limits')
-      .select('*')
-      .eq('tier', tier)
-      .single()
+    const limits = limitsMap.get(tier)
 
-    if (limitsError || !limits) {
+    if (!limits) {
       console.log('   ❌ No limits found for tier:', tier)
     } else {
       console.log(`   ✅ AI Picker Weekly Limit: ${limits.ai_picker_weekly_limit}`)
       console.log(`   ✅ AI Bet Analyzer Weekly Limit: ${limits.ai_bet_analyzer_weekly_limit}`)
     }
 
-    // Check current week's usage
-    const getWeekStart = () => {
-      const d = new Date()
-      const day = d.getDay()
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-      d.setDate(diff)
-      d.setHours(0, 0, 0, 0)
-      return d.toISOString().split('T')[0]
-    }
-
-    const weekStart = getWeekStart()
-
-    const { count: pickerUsage, error: pickerError } = await supabase
-      .from('ai_service_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('service_type', 'ai_picker')
-      .eq('week_start_date', weekStart)
-
-    const { count: analyzerUsage, error: analyzerError } = await supabase
-      .from('ai_service_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('service_type', 'ai_bet_analyzer')
-      .eq('week_start_date', weekStart)
+    const pickerUsage = pickerUsageCounts.get(user.id) || 0
+    const analyzerUsage = analyzerUsageCounts.get(user.id) || 0
 
     console.log(`   📈 This Week's Usage (starting ${weekStart}):`)
-    console.log(`      AI Picker: ${pickerUsage || 0} uses`)
-    console.log(`      AI Bet Analyzer: ${analyzerUsage || 0} uses`)
+    console.log(`      AI Picker: ${pickerUsage} uses`)
+    console.log(`      AI Bet Analyzer: ${analyzerUsage} uses`)
     console.log('')
   }
 
   // Show all tier limits
   console.log('📋 All Tier Limits:')
-  const { data: allLimits, error: allLimitsError } = await supabase
-    .from('ai_usage_limits')
-    .select('*')
-    .order('tier')
 
   if (allLimitsError || !allLimits) {
     console.log('   ❌ Error fetching limits:', allLimitsError)
@@ -109,6 +136,8 @@ async function main() {
       console.log(`   ${limit.tier.padEnd(15)} -> Picker: ${limit.ai_picker_weekly_limit}, Analyzer: ${limit.ai_bet_analyzer_weekly_limit}`)
     }
   }
+
+  console.timeEnd('Execution Time')
 }
 
 main().catch(error => {

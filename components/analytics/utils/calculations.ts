@@ -3,6 +3,11 @@ import type { UnifiedBet } from "../types"
 /**
  * Calculate the total return for a winning bet based on stake and odds
  */
+export function computeEv(stake: number, odds: number, prob: number) {
+  const profit = calculateWinReturn(stake, odds) - stake;
+  return (prob * profit) - ((1 - prob) * stake);
+}
+
 export function calculateWinReturn(stake: number, odds: number): number {
   if (odds > 0) {
     return stake + (stake * odds / 100)

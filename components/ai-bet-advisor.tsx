@@ -733,7 +733,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
     }
   }
 
-  const updateFormData = (field: keyof BetScenario, value: any) => {
+  const updateFormData = <K extends keyof BetScenario>(field: K, value: BetScenario[K]) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 

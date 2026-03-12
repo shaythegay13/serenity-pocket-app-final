@@ -28,8 +28,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
   const [canceling, setCanceling] = useState(false)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
-  const [cancelingSubscription, setCancelingSubscription] = useState(false)
-  const [managingBilling, setManagingBilling] = useState(false)
 
   // Memoize local state to prevent unnecessary re-renders
   const localState = useMemo(() => ({
@@ -184,87 +182,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       }
     }
   }, [])
-
-  const handleManageBilling = async () => {
-    try {
-      setManagingBilling(true)
-
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        toast.error('Please sign in to manage billing')
-        return
-      }
-
-      const apiBaseUrl = getApiBaseUrl()
-
-      const response = await fetch(`${apiBaseUrl}/api/flowglad/portal`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to open billing portal')
-      }
-
-      const { url } = await response.json()
-
-      if (url) {
-        window.location.href = url
-      } else {
-        throw new Error('No billing portal URL returned')
-      }
-    } catch (error) {
-      console.error('Error opening billing portal:', error)
-      toast.error('Failed to open billing portal. Please try again.')
-      setManagingBilling(false)
-    }
-  }
-
-  const handleCancelSubscription = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel your subscription? You'll keep access until the end of your current billing period."
-    )
-    if (!confirmed) return
-
-    try {
-      setCancelingSubscription(true)
-
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        toast.error('Please sign in to cancel your subscription')
-        return
-      }
-
-      const apiBaseUrl = getApiBaseUrl()
-
-      const response = await fetch(`${apiBaseUrl}/api/flowglad/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to cancel subscription')
-      }
-
-      toast.success("Subscription canceled. You'll keep access until your current period ends.")
-      await handleSyncSubscription()
-    } catch (error) {
-      console.error('Error canceling subscription:', error)
-      toast.error('Failed to cancel subscription. Please try again.')
-    } finally {
-      setCancelingSubscription(false)
-    }
-  }
 
   const handleUpgrade = async (tierId: string) => {
     try {
@@ -528,12 +445,9 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
                   </span>
                 </div>
               )}
-
               {/* Billing action buttons */}
               {userData.subscriptionStatus !== 'canceled' && (
                 <div className="pt-2 flex flex-wrap gap-2">
-              {userData.subscriptionStatus === 'active' && (
-                <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
                     variant="outline"
@@ -555,31 +469,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
                     disabled={canceling}
                   >
                     Cancel Subscription
-                    disabled={managingBilling || cancelingSubscription}
-                  >
-                    {managingBilling ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      'Manage Billing'
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleCancelSubscription}
-                    disabled={cancelingSubscription || managingBilling}
-                  >
-                    {cancelingSubscription ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Canceling...
-                      </>
-                    ) : (
-                      'Cancel Subscription'
-                    )}
                   </Button>
                 </div>
               )}

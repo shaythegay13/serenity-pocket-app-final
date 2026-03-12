@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { flowglad } from '@/lib/flowglad'
-
-export async function POST(req: Request) {
-  try {
-    // Authenticate user from Authorization header
 import { flowglad, isFlowgladConfigured } from '@/lib/flowglad'
 
 export async function POST(req: Request) {
@@ -53,16 +48,6 @@ export async function POST(req: Request) {
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('flowglad_subscription_id, flowglad_customer_id, subscription_status, subscription_ends_at, subscription_tier')
-    // Fetch the user's Flowglad subscription ID
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('flowglad_subscription_id, subscription_tier')
       .eq('id', user.id)
       .single()
 
@@ -73,19 +58,23 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!profile.subscription_tier || profile.subscription_tier === 'free') {
+    if (profile.subscription_status === 'canceled') {
       return NextResponse.json(
-        { error: 'No active paid subscription to cancel' },
-    if (!profile.flowglad_subscription_id) {
-      return NextResponse.json(
-        { error: 'No active subscription found', code: 'NO_SUBSCRIPTION' },
+        { error: 'Subscription is already canceled' },
         { status: 400 }
       )
     }
 
-    if (profile.subscription_status === 'canceled') {
+    if (!profile.subscription_tier || profile.subscription_tier === 'free') {
       return NextResponse.json(
-        { error: 'Subscription is already canceled' },
+        { error: 'No active paid subscription to cancel', code: 'ALREADY_FREE' },
+        { status: 400 }
+      )
+    }
+
+    if (!profile.flowglad_subscription_id) {
+      return NextResponse.json(
+        { error: 'No active subscription found', code: 'NO_SUBSCRIPTION' },
         { status: 400 }
       )
     }
@@ -94,56 +83,31 @@ export async function POST(req: Request) {
       new Date().setMonth(new Date().getMonth() + 1)
     ).toISOString()
 
-    const hasFlowgladConfig = process.env.FLOWGLAD_SECRET_KEY &&
-      process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
-
-    if (!hasFlowgladConfig) {
-      // Dev mode fallback: update DB directly
-      const { error: updateError } = await supabaseAdmin
-        .from('user_profiles')
-        .update({
-          subscription_status: 'canceled',
-        })
-        .eq('id', user.id)
-
-      if (updateError) {
-        throw updateError
-      }
-
-      return NextResponse.json({
-        success: true,
-        cancellationDate,
-        message: 'Subscription canceled (dev mode)',
-      })
-    }
-
-    // Flowglad is configured — cancel via SDK
-    if (!profile.flowglad_subscription_id) {
-      return NextResponse.json(
-        { error: 'No subscription ID found. Please contact support.' },
-    if (profile.subscription_tier === 'free') {
-      return NextResponse.json(
-        { error: 'No paid subscription to cancel', code: 'ALREADY_FREE' },
-        { status: 400 }
-      )
-    }
-
-    const flowgladServer = flowglad(user.id, { email: user.email })
+    // Flowglad is configured — cancel via SDK (at end of current billing period)
+    const userMeta = user.user_metadata as Record<string, unknown>
+    const flowgladServer = flowglad(user.id, { 
+      email: user.email,
+      name: userMeta?.full_name as string || userMeta?.name as string,
+    })
 
     const result = await flowgladServer.cancelSubscription({
       id: profile.flowglad_subscription_id,
-      cancellation: {
-        timing: 'at_end_of_current_billing_period',
-      },
+      cancellation: { timing: 'at_end_of_current_billing_period' },
     })
 
     // Update local DB status to reflect pending cancellation
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('user_profiles')
       .update({
         subscription_status: 'canceled',
       })
       .eq('id', user.id)
+
+    if (updateError) {
+      console.error('Error updating subscription status:', updateError)
+    }
+
+    console.log(`✅ Subscription cancellation scheduled for user ${user.id}`)
 
     const periodEnd = (result as { subscription?: { currentBillingPeriodEnd?: string }; currentBillingPeriodEnd?: string })?.subscription?.currentBillingPeriodEnd
       || (result as { currentBillingPeriodEnd?: string })?.currentBillingPeriodEnd
@@ -155,29 +119,7 @@ export async function POST(req: Request) {
       message: 'Subscription will be canceled at the end of the billing period',
     })
   } catch (error: unknown) {
-    let details: string
-    if (typeof error === 'object' && error !== null) {
-      try {
-        details = JSON.stringify(error)
-      } catch {
-        details = String(error)
-      }
-    // Cancel via Flowglad SDK (at end of current billing period)
-    const flowgladServer = flowglad(user.id, { email: user.email })
-
-    await flowgladServer.cancelSubscription({
-      id: profile.flowglad_subscription_id,
-      cancellation: { timing: 'at_end_of_current_billing_period' },
-    })
-
-    console.log(`✅ Subscription cancellation scheduled for user ${user.id}`)
-
-    return NextResponse.json({ success: true })
-  } catch (error: unknown) {
     console.error('❌ Error canceling subscription:', error)
-    return NextResponse.json({ success: true })
-  } catch (error: unknown) {
-    console.error('Error canceling subscription:', error)
 
     let details: string
     if (typeof error === 'object' && error !== null) {

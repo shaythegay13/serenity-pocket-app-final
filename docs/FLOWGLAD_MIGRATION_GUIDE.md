@@ -15,13 +15,13 @@ This guide documents the migration from Stripe to Flowglad for payment processin
 ### 3. **API Routes**
 - ✅ Created `/app/api/flowglad/[...path]/route.ts` - Main Flowglad API handler (required)
 - ✅ Created `/app/api/flowglad/checkout/route.ts` - Flowglad checkout endpoint
+- ✅ Created `/app/api/flowglad/cancel/route.ts` - Cancel subscription endpoint
+- ✅ Created `/app/api/flowglad/portal/route.ts` - Billing portal URL endpoint
 - ✅ Created `/app/api/webhooks/flowglad/route.ts` - Flowglad webhook handler
-- ⚠️  Old Stripe routes still exist:
-  - `/app/api/stripe/checkout/route.ts` (can be deleted after testing)
-  - `/app/api/webhooks/stripe/route.ts` (can be deleted after testing)
+- ✅ Old Stripe routes deleted
 
 ### 4. **Frontend Components**
-- ✅ Updated `/components/tabs/account-tab.tsx` - Now uses `/api/flowglad/checkout`
+- ✅ Updated `/components/tabs/account-tab.tsx` - Uses Flowglad checkout, cancel, and billing portal endpoints; includes Manage Billing and Cancel Subscription buttons
 - ✅ Updated `/components/subscription-pricing.tsx` - Payment processor text changed to Flowglad
 
 ### 5. **Database**

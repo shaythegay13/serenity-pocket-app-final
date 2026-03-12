@@ -12,6 +12,15 @@ export function calculateWinReturn(stake: number, odds: number): number {
 }
 
 /**
+ * Calculate Expected Value (EV) for a given bet
+ */
+export function computeEv(stake: number, odds: number, prob: number): number {
+  const decimalOdds = odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
+  const profitIfWin = (decimalOdds - 1) * stake;
+  return (prob * profitIfWin) - ((1 - prob) * stake);
+}
+
+/**
  * Calculate betting performance metrics from unified bet data
  */
 export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {
@@ -47,10 +56,22 @@ export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {
 
   // Parlay-specific metrics
   const parlayWinRate = completedParlays.length > 0 ? (parlayWins.length / completedParlays.length) * 100 : 0
-  const parlayROI = completedParlays.reduce((sum, bet) => sum + bet.stake, 0) > 0
-    ? ((completedParlays.reduce((sum, bet) => sum + (bet.actualReturn || 0), 0) -
-      completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) /
-      completedParlays.reduce((sum, bet) => sum + bet.stake, 0)) * 100
+  const parlayStaked = completedParlays.reduce((sum, bet) => sum + bet.stake, 0)
+  const parlayReturns = completedParlays.reduce((sum, bet) => {
+    if (bet.actualReturn !== undefined) {
+      return sum + bet.actualReturn
+    }
+    if (bet.outcome === 'win' && bet.odds && bet.stake) {
+      return sum + calculateWinReturn(bet.stake, bet.odds)
+    } else if (bet.outcome === 'loss') {
+      return sum + 0
+    } else if (bet.outcome === 'push') {
+      return sum + bet.stake
+    }
+    return sum + 0
+  }, 0)
+  const parlayROI = parlayStaked > 0
+    ? ((parlayReturns - parlayStaked) / parlayStaked) * 100
     : 0
 
   const avgEV = unifiedBets.reduce((sum, bet) => sum + (bet.expectedValue || 0), 0) / (unifiedBets.length || 1)

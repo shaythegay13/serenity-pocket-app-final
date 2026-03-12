@@ -53,22 +53,7 @@ export async function GET(req: Request) {
     
     if (authError || !user) {
       return NextResponse.json(
-        {
-          error: 'Unauthorized',
-          ...(process.env.NODE_ENV === 'development'
-            ? {
-                details: {
-                  authError: authError
-                    ? {
-                        message: authError.message,
-                        name: (authError as any).name,
-                        status: (authError as any).status,
-                      }
-                    : null,
-                },
-              }
-            : {}),
-        },
+        { error: 'Unauthorized' },
         { status: 401 }
       )
     }
@@ -95,12 +80,7 @@ export async function GET(req: Request) {
     if (error) {
       console.error('Error fetching subscription:', error)
       return NextResponse.json(
-        {
-          error: error.message,
-          ...(process.env.NODE_ENV === 'development'
-            ? { details: { hint: (error as any)?.hint, code: (error as any)?.code } }
-            : {}),
-        },
+        { error: 'Failed to fetch subscription data' },
         { status: 500 }
       )
     }
@@ -109,17 +89,7 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error('Error fetching subscription:', error)
     return NextResponse.json(
-      {
-        error: 'Failed to fetch subscription data',
-        ...(process.env.NODE_ENV === 'development'
-          ? {
-              details:
-                error instanceof Error
-                  ? { message: error.message, stack: error.stack }
-                  : { message: String(error) },
-            }
-          : {}),
-      },
+      { error: 'Failed to fetch subscription data' },
       { status: 500 }
     )
   }

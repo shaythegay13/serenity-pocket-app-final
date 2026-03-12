@@ -1,9 +1,31 @@
-"use client"
-
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
+import { BASE_URL } from "@/lib/constants"
+
+export const metadata: Metadata = {
+  title: "Terms of Service - PlayMind Labs",
+  description: "Read the terms of service for PlayMind Labs. Understand your rights and responsibilities when using our behavioral sports betting analytics platform.",
+  openGraph: {
+    title: "Terms of Service - PlayMind Labs",
+    description: "Read the terms of service for PlayMind Labs behavioral sports betting analytics platform.",
+    url: `${BASE_URL}/terms`,
+    siteName: "PlayMind Labs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Terms of Service - PlayMind Labs",
+    description: "Read the terms of service for PlayMind Labs behavioral sports betting analytics platform.",
+  },
+  alternates: {
+    canonical: `${BASE_URL}/terms`,
+  },
+}
 
 export default function TermsPage() {
+  const lastUpdated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
   return (
     <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
@@ -16,7 +38,7 @@ export default function TermsPage() {
               Please read these terms carefully before using PlayMind Labs.
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              Last updated: {lastUpdated}
             </p>
           </div>
 

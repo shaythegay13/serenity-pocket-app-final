@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { flowglad } from '@/lib/flowglad'
+import { flowglad, isFlowgladConfigured } from '@/lib/flowglad'
 
+/**
+ * POST /api/flowglad/portal
+ *
+ * Creates a Flowglad "add payment method" checkout session URL so users can
+ * update their payment method and manage billing.
+ *
+ * Returns: { url: string }
+ */
 export async function POST(req: Request) {
   try {
-    // Get authenticated user from authorization header
+    // Require Flowglad credentials
+    if (!isFlowgladConfigured()) {
+      return NextResponse.json(
+        { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
+        { status: 503 }
+      )
+    }
+
+    // Authenticate user
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
       return NextResponse.json(
@@ -23,35 +39,37 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check if Flowglad is configured
-    if (!process.env.FLOWGLAD_SECRET_KEY || process.env.FLOWGLAD_SECRET_KEY.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Flowglad not configured' },
-        { status: 500 }
-      )
-    }
-
-    // Get billing info (includes billingPortalUrl) via Flowglad SDK
     const userMeta = user.user_metadata as Record<string, unknown>
-    const flowgladServer = flowglad(user.id, {
+    const flowgladServer = flowglad(user.id, { 
       email: user.email,
       name: userMeta?.full_name as string || userMeta?.name as string,
     })
 
-    const billing = await flowgladServer.getBilling()
+    // Ensure the customer exists in Flowglad
+    await flowgladServer.findOrCreateCustomer()
 
-    if (!billing.billingPortalUrl) {
-      return NextResponse.json(
-        { error: 'Billing portal not available' },
-        { status: 404 }
-      )
+    const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
+
+    const session = await flowgladServer.createAddPaymentMethodCheckoutSession({
+      successUrl: `${baseUrl}?tab=account&billing=updated`,
+      cancelUrl: `${baseUrl}?tab=account`,
+    })
+
+    console.log(`✅ Billing portal session created for user ${user.id}`)
+
+    return NextResponse.json({ url: session.url, success: true })
+  } catch (error: unknown) {
+    console.error('❌ Error creating billing portal session:', error)
+
+    let details: string
+    if (typeof error === 'object' && error !== null) {
+      try { details = JSON.stringify(error) } catch { details = String(error) }
+    } else {
+      details = String(error)
     }
 
-    return NextResponse.json({ url: billing.billingPortalUrl })
-  } catch (error: unknown) {
-    console.error('Error retrieving billing portal:', error)
     return NextResponse.json(
-      { error: 'Failed to retrieve billing portal' },
+      { error: 'Failed to create billing portal session', details },
       { status: 500 }
     )
   }

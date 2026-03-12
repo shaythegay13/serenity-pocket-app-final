@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { flowglad } from '@/lib/flowglad'
+import { flowglad, isFlowgladConfigured } from '@/lib/flowglad'
 
 export async function POST(req: Request) {
   try {
-    // Get authenticated user from authorization header
+    // Require Flowglad credentials
+    if (!isFlowgladConfigured()) {
+      return NextResponse.json(
+        { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
+        { status: 503 }
+      )
+    }
+
+    // Authenticate user
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
       return NextResponse.json(
@@ -24,14 +32,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check if Flowglad is configured
-    if (!process.env.FLOWGLAD_SECRET_KEY || process.env.FLOWGLAD_SECRET_KEY.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Flowglad not configured' },
-        { status: 500 }
-      )
-    }
-
     // Create admin client to bypass RLS
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,10 +44,10 @@ export async function POST(req: Request) {
       }
     )
 
-    // Get the user's Flowglad subscription ID
+    // Look up user's subscription info
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('flowglad_subscription_id, subscription_status')
+      .select('flowglad_subscription_id, flowglad_customer_id, subscription_status, subscription_ends_at, subscription_tier')
       .eq('id', user.id)
       .single()
 
@@ -65,44 +65,71 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!profile.flowglad_subscription_id) {
+    if (!profile.subscription_tier || profile.subscription_tier === 'free') {
       return NextResponse.json(
-        { error: 'No active subscription found' },
+        { error: 'No active paid subscription to cancel', code: 'ALREADY_FREE' },
         { status: 400 }
       )
     }
 
-    // Cancel subscription via Flowglad SDK
+    if (!profile.flowglad_subscription_id) {
+      return NextResponse.json(
+        { error: 'No active subscription found', code: 'NO_SUBSCRIPTION' },
+        { status: 400 }
+      )
+    }
+
+    const cancellationDate = profile.subscription_ends_at || new Date(
+      new Date().setMonth(new Date().getMonth() + 1)
+    ).toISOString()
+
+    // Flowglad is configured — cancel via SDK (at end of current billing period)
     const userMeta = user.user_metadata as Record<string, unknown>
-    const flowgladServer = flowglad(user.id, {
+    const flowgladServer = flowglad(user.id, { 
       email: user.email,
       name: userMeta?.full_name as string || userMeta?.name as string,
     })
 
-    await flowgladServer.cancelSubscription({
+    const result = await flowgladServer.cancelSubscription({
       id: profile.flowglad_subscription_id,
       cancellation: { timing: 'at_end_of_current_billing_period' },
     })
 
-    // Update subscription status in database
+    // Update local DB status to reflect pending cancellation
     const { error: updateError } = await supabaseAdmin
       .from('user_profiles')
-      .update({ subscription_status: 'canceled' })
+      .update({
+        subscription_status: 'canceled',
+      })
       .eq('id', user.id)
 
     if (updateError) {
       console.error('Error updating subscription status:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update subscription status' },
-        { status: 500 }
-      )
     }
 
-    return NextResponse.json({ success: true })
+    console.log(`✅ Subscription cancellation scheduled for user ${user.id}`)
+
+    const periodEnd = (result as { subscription?: { currentBillingPeriodEnd?: string }; currentBillingPeriodEnd?: string })?.subscription?.currentBillingPeriodEnd
+      || (result as { currentBillingPeriodEnd?: string })?.currentBillingPeriodEnd
+      || cancellationDate
+
+    return NextResponse.json({
+      success: true,
+      cancellationDate: periodEnd,
+      message: 'Subscription will be canceled at the end of the billing period',
+    })
   } catch (error: unknown) {
-    console.error('Error canceling subscription:', error)
+    console.error('❌ Error canceling subscription:', error)
+
+    let details: string
+    if (typeof error === 'object' && error !== null) {
+      try { details = JSON.stringify(error) } catch { details = String(error) }
+    } else {
+      details = String(error)
+    }
+
     return NextResponse.json(
-      { error: 'Failed to cancel subscription' },
+      { error: 'Failed to cancel subscription', details },
       { status: 500 }
     )
   }

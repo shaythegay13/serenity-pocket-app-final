@@ -1,6 +1,6 @@
 # Flowglad Migration Guide
 
-This guide documents the migration from Stripe to Flowglad for payment processing in Serenity Pocket.
+This guide documents the migration from Stripe to Flowglad for payment processing in PlayMind Labs.
 
 ## ✅ Completed Changes
 

@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateSurveySubmission, calculateSurveyScore } from '@/lib/surveyValidation';
+import { calculateSurveyScore } from '@/lib/surveyValidation';
 import { computeArchetype } from '@/lib/archetypes';
 import { supabaseServer } from '@/lib/supabase-server';
 import type { SurveyAnswer } from '@/types/survey';
 
 export async function POST(request: NextRequest) {
-  console.log('=== AUTHENTICATED SURVEY RETAKE API CALLED ===');
-
   try {
     // Parse request body
     let body;
@@ -37,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Create Supabase client to validate token
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    
+
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
@@ -48,23 +46,27 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('Auth error:', authError);
       return NextResponse.json(
         { error: 'Unauthorized - please log in' },
         { status: 401 }
       );
     }
 
-    console.log('User authenticated:', user.id);
-
-    // Validate submission (without email since user is authenticated)
-    const validation = validateSurveySubmission({ email: user.email || '', responses });
-    if (!validation.success) {
+    // Lightweight validation for authenticated retake (skip email validation since user is already authenticated)
+    if (!responses || !Array.isArray(responses) || responses.length === 0) {
       return NextResponse.json(
-        {
-          error: 'Validation failed',
-          errors: validation.errors,
-        },
+        { error: 'Validation failed', errors: ['No survey responses provided'] },
+        { status: 400 }
+      );
+    }
+
+    // Verify each response has required fields
+    const invalidResponses = responses.filter(
+      (r: any) => !r.questionId || (!r.selectedOption && r.selectedOption !== 0)
+    );
+    if (invalidResponses.length > 0) {
+      return NextResponse.json(
+        { error: 'Validation failed', errors: ['Some responses are missing questionId or selectedOption'] },
         { status: 400 }
       );
     }
@@ -74,9 +76,6 @@ export async function POST(request: NextRequest) {
 
     // Compute archetype from survey responses
     const archetype = computeArchetype(responses as SurveyAnswer[]);
-    console.log('Computed archetype:', archetype.name);
-
-    console.log('Inserting survey response for user:', user.id, 'with score:', score);
 
     // Use server client for database operations (has service role key to bypass RLS)
     const supabase = supabaseServer;
@@ -95,7 +94,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Database insert error:', error);
       return NextResponse.json(
         {
           error: 'Failed to submit survey',
@@ -128,13 +126,9 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id);
 
     if (profileError) {
-      console.error('Error updating profile with archetype:', profileError);
-      // Don't fail the request, just log the error
-    } else {
-      console.log('Successfully updated profile with archetype:', archetype.name);
+      // Log but don't fail - survey was successfully submitted
+      console.error('Error updating profile:', profileError);
     }
-
-    console.log('Survey submitted successfully:', data.id);
 
     return NextResponse.json(
       {
@@ -146,11 +140,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error('Survey retake error:', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-    });
+    console.error('Survey retake error:', error?.message);
 
     return NextResponse.json(
       {

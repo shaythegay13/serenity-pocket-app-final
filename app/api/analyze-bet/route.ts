@@ -81,12 +81,12 @@ export async function POST(request: NextRequest) {
         ]);
         
         if (sportsResearch) {
-          console.log(`✅ Fast sports research completed: ${sportsResearch.dataSource}`);
+          console.log(` Fast sports research completed: ${sportsResearch.dataSource}`);
         } else {
-          console.log(`⏱️ Sports research timeout, continuing without it`);
+          console.log(` Sports research timeout, continuing without it`);
         }
       } catch (error) {
-        console.warn('⚠️ Sports research failed, continuing with analysis:', error);
+        console.warn(' Sports research failed, continuing with analysis:', error);
       }
     }
 

@@ -32,62 +32,78 @@ async function main() {
 
   console.log(`Found ${users.users.length} user(s)\n`)
 
+  // Pre-fetch all usage limits to cache them by tier
+  const { data: allLimits, error: allLimitsError } = await supabase
+    .from('ai_usage_limits')
+    .select('*')
+    .order('tier')
+
+  const limitsByTier = new Map(allLimits?.map(limit => [limit.tier, limit]) || [])
+
+  // Pre-fetch all user profiles in a single query
+  const userIds = users.users.map(u => u.id)
+
+  // Batch processing in chunks if there are too many users, though typical usage is under limits
+  const { data: profiles, error: profilesError } = await supabase
+    .from('user_profiles')
+    .select('id, subscription_tier, email')
+    .in('id', userIds)
+
+  const profilesById = new Map(profiles?.map(p => [p.id, p]) || [])
+
+  // Check current week's usage
+  const getWeekStart = () => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    d.setDate(diff)
+    d.setHours(0, 0, 0, 0)
+    return d.toISOString().split('T')[0]
+  }
+
+  const weekStart = getWeekStart()
+
   for (const user of users.users) {
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('id, subscription_tier, email')
-      .eq('id', user.id)
-      .single()
+    const profile = profilesById.get(user.id)
 
     console.log(`👤 User: ${user.email || user.id}`)
 
-    if (profileError || !profile) {
-      console.log('   ❌ Profile not found or error:', profileError?.message)
+    if (profilesError || !profile) {
+      console.log('   ❌ Profile not found or error:', profilesError?.message || 'Profile not found')
       continue
     }
 
     const tier = profile.subscription_tier || 'free'
     console.log(`   📊 Subscription Tier: ${tier}`)
 
-    // Check tier limits
-    const { data: limits, error: limitsError } = await supabase
-      .from('ai_usage_limits')
-      .select('*')
-      .eq('tier', tier)
-      .single()
+    // Use cached limits
+    const limits = limitsByTier.get(tier)
 
-    if (limitsError || !limits) {
+    if (!limits) {
       console.log('   ❌ No limits found for tier:', tier)
     } else {
       console.log(`   ✅ AI Picker Weekly Limit: ${limits.ai_picker_weekly_limit}`)
       console.log(`   ✅ AI Bet Analyzer Weekly Limit: ${limits.ai_bet_analyzer_weekly_limit}`)
     }
 
-    // Check current week's usage
-    const getWeekStart = () => {
-      const d = new Date()
-      const day = d.getDay()
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-      d.setDate(diff)
-      d.setHours(0, 0, 0, 0)
-      return d.toISOString().split('T')[0]
-    }
+    // Fetch usage counts concurrently
+    const [pickerUsageResult, analyzerUsageResult] = await Promise.all([
+      supabase
+        .from('ai_service_usage')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('service_type', 'ai_picker')
+        .eq('week_start_date', weekStart),
+      supabase
+        .from('ai_service_usage')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('service_type', 'ai_bet_analyzer')
+        .eq('week_start_date', weekStart)
+    ])
 
-    const weekStart = getWeekStart()
-
-    const { count: pickerUsage, error: pickerError } = await supabase
-      .from('ai_service_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('service_type', 'ai_picker')
-      .eq('week_start_date', weekStart)
-
-    const { count: analyzerUsage, error: analyzerError } = await supabase
-      .from('ai_service_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('service_type', 'ai_bet_analyzer')
-      .eq('week_start_date', weekStart)
+    const { count: pickerUsage } = pickerUsageResult
+    const { count: analyzerUsage } = analyzerUsageResult
 
     console.log(`   📈 This Week's Usage (starting ${weekStart}):`)
     console.log(`      AI Picker: ${pickerUsage || 0} uses`)
@@ -97,10 +113,6 @@ async function main() {
 
   // Show all tier limits
   console.log('📋 All Tier Limits:')
-  const { data: allLimits, error: allLimitsError } = await supabase
-    .from('ai_usage_limits')
-    .select('*')
-    .order('tier')
 
   if (allLimitsError || !allLimits) {
     console.log('   ❌ Error fetching limits:', allLimitsError)

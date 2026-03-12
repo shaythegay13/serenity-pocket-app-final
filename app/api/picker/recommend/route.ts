@@ -130,9 +130,10 @@ async function callPsychPicker(
   riskTolerance: string,
 ): Promise<any> {
   return new Promise((resolve) => {
-    const { exec } = require("child_process")
-    exec(
-      `python psych_model_picker.py ${emotionalScore} ${riskTolerance}`,
+    const { execFile } = require("child_process")
+    execFile(
+      "python",
+      ["psych_model_picker.py", String(emotionalScore), String(riskTolerance)],
       (error: any, stdout: string) => {
         if (error) {
           console.error("[PsychPicker] Failed:", error)

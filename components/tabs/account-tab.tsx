@@ -15,6 +15,7 @@ import {
 import { User, Crown, Lock, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { toast } from "sonner"
+import logger from "@/lib/logger"
 
 interface AccountTabProps {
   userData: UserData
@@ -102,11 +103,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           // ignore
         }
 
-        console.error('Subscription sync failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: bodyText,
-        })
+        logger.error(`Subscription sync failed: ${response.status} ${response.statusText}`, 'account-tab')
 
         throw new Error(bodyText || 'Failed to fetch subscription data')
       }
@@ -124,7 +121,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         toast.success('Subscription synced successfully!')
       }
     } catch (error) {
-      console.error('Error syncing subscription:', error)
+      logger.error('Error syncing subscription', 'account-tab', error)
       toast.error('Failed to sync subscription')
     } finally {
       setSyncing(false)
@@ -165,7 +162,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       toast.success("Your account has been deleted")
       window.location.href = "/"
     } catch (error) {
-      console.error("Error deleting account:", error)
+      logger.error('Error deleting account', 'account-tab', error)
       toast.error("Failed to delete account")
     }
   }
@@ -311,7 +308,7 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
         throw new Error('No checkout URL returned')
       }
     } catch (error) {
-      console.error('Error starting checkout:', error)
+      logger.error('Error starting checkout', 'account-tab', error)
       toast.error('Failed to start checkout. Please try again.')
       setUpgrading(false)
     }

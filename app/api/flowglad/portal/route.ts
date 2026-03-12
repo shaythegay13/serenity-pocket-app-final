@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+
+export async function GET(req: Request) {
+  try {
+    // Authenticate user from Authorization header
 import { flowglad, isFlowgladConfigured } from '@/lib/flowglad'
 
 /**
@@ -39,6 +43,20 @@ export async function POST(req: Request) {
       )
     }
 
+    // Flowglad does not currently expose a hosted billing portal endpoint via the SDK.
+    // Return null with an informative message so the client can handle gracefully.
+    return NextResponse.json({
+      url: null,
+      message: 'Billing portal not available. Please contact support to manage your billing.',
+    })
+  } catch (error: unknown) {
+    let details: string
+    if (typeof error === 'object' && error !== null) {
+      try {
+        details = JSON.stringify(error)
+      } catch {
+        details = String(error)
+      }
     const flowgladServer = flowglad(user.id, { email: user.email })
 
     // Ensure the customer exists in Flowglad
@@ -63,6 +81,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
+      { error: 'Failed to get billing portal', details },
       { error: 'Failed to create billing portal session', details },
       { status: 500 }
     )

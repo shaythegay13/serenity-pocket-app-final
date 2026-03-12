@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       try {
         psychResult = JSON.parse(stdout.trim())
       } catch (parseError) {
-        console.warn("⚠️ [TiltLab PsychPicker] Invalid JSON response, using defaults")
+        console.warn(" [TiltLab PsychPicker] Invalid JSON response, using defaults")
         throw parseError
       }
 
@@ -122,10 +122,10 @@ export async function POST(request: NextRequest) {
       payload.psychMultiplier = psychResult.params?.max_stake_multiplier || 1.0
 
       if (process.env.NODE_ENV !== "production") {
-        console.log(`🧠 [TiltLab PsychPicker] Selected: ${payload.psychModel} (Multiplier: ${payload.psychMultiplier})`)
+        console.log(` [TiltLab PsychPicker] Selected: ${payload.psychModel} (Multiplier: ${payload.psychMultiplier})`)
       }
     } catch (e) {
-      console.warn("⚠️ [TiltLab PsychPicker] Script failed, falling back to defaults", e)
+      console.warn(" [TiltLab PsychPicker] Script failed, falling back to defaults", e)
       payload.psychModel = "growth_optimizer_v3"
       payload.psychMultiplier = 1.0
     }
@@ -280,13 +280,13 @@ export async function POST(request: NextRequest) {
         try {
           const geminiStartedAt = Date.now()
           if (process.env.NODE_ENV !== "production") {
-            console.log("🧠 [TiltLab Analyze Bet] Gemini: starting")
+            console.log(" [TiltLab Analyze Bet] Gemini: starting")
           }
           reasoning = await analyzeUserBet(baseInput)
           usedGemini = true
 
           if (process.env.NODE_ENV !== "production") {
-            console.log(`🧠 [TiltLab Analyze Bet] Gemini: done in ${Date.now() - geminiStartedAt}ms`)
+            console.log(` [TiltLab Analyze Bet] Gemini: done in ${Date.now() - geminiStartedAt}ms`)
           }
         } catch (e) {
           console.error("[TiltLab Analyze Bet] Gemini reasoning failed; continuing with heuristic-only analysis", e)
@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         if (process.env.NODE_ENV !== "production") {
-          console.log("🧠 [TiltLab Analyze Bet] Gemini: skipped (not configured)")
+          console.log(" [TiltLab Analyze Bet] Gemini: skipped (not configured)")
         }
         reasoning = {
           betSafetyCategory: "CAUTION",
@@ -437,15 +437,9 @@ export async function POST(request: NextRequest) {
           analysis.recommendation.confidence = legacyEnhanced.confidenceScore
           analysis.recommendation.reason = legacyEnhanced.enhancedReasoning
 
-          console.log("✅ Legacy enhanced AI analysis completed")
         } catch (enhancedError) {
-          console.error(
-            "⚠️  Legacy enhanced AI failed, continuing with baseline analysis:",
-            enhancedError,
-          )
+          // Continue with baseline analysis if enhanced AI fails
         }
-      } else {
-        console.log("ℹ️  Enhanced AI not available, using baseline analysis only")
       }
     }
 

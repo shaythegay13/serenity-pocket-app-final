@@ -11,7 +11,7 @@ All service role key usage is properly isolated to server-side API routes:
 
 ### **2. Authentication - GOOD**
 All protected API routes verify authentication:
-- ✅ `/api/stripe/checkout` - Validates Bearer token
+- ✅ `/api/flowglad/checkout` - Validates Bearer token
 - ✅ `/api/test-subscription` - Validates Bearer token
 - ✅ `/api/user/subscription` - Validates Bearer token
 - ✅ `/api/analyze-bet` - No auth (intentional for demo, see recommendations)
@@ -30,7 +30,7 @@ Basic RLS policies are in place:
 ### **1. Remove Test Endpoint Before Production**
 **File:** `/app/api/test-subscription/route.ts`
 
-**Issue:** This endpoint allows manual subscription changes without Stripe payment.
+**Issue:** This endpoint allows manual subscription changes without Flowglad payment.
 
 **Action:**
 ```bash
@@ -205,9 +205,9 @@ export async function POST(req: Request) {
 ```
 
 ### **8. Add Webhook Signature Verification**
-**File:** `/app/api/webhooks/stripe/route.ts`
+**File:** `/app/api/webhooks/flowglad/route.ts`
 
-Ensure Stripe webhook signature is verified (should already be in place).
+Ensure Flowglad webhook signature is verified (should already be in place).
 
 ---
 
@@ -217,7 +217,7 @@ Ensure Stripe webhook signature is verified (should already be in place).
 - [ ] **Add authentication to `/api/analyze-bet`**
 - [ ] **Enable RLS on all user data tables**
 - [ ] **Add rate limiting to API routes**
-- [ ] **Verify Stripe webhook signature verification**
+- [ ] **Verify Flowglad webhook signature verification**
 - [ ] **Set up production environment variables**
 - [ ] **Use different API keys for dev/prod**
 - [ ] **Add input validation with Zod**
@@ -240,13 +240,12 @@ NEXT_PUBLIC_SUPABASE_URL=your_production_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_production_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
 
-# Stripe
-STRIPE_SECRET_KEY=your_production_secret_key
-STRIPE_WEBHOOK_SECRET=your_production_webhook_secret
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_production_publishable_key
-STRIPE_PRICE_ID_PREMIUM=price_xxx
-STRIPE_PRICE_ID_PREMIUM_PLUS=price_xxx
-STRIPE_PRICE_ID_ELITE=price_xxx
+# Flowglad
+FLOWGLAD_SECRET_KEY=your_production_secret_key
+FLOWGLAD_WEBHOOK_SECRET=your_production_webhook_secret
+FLOWGLAD_PRICE_PREMIUM=price_xxx
+FLOWGLAD_PRICE_PREMIUM_PLUS=price_xxx
+FLOWGLAD_PRICE_ELITE=price_xxx
 
 # App
 NEXT_PUBLIC_URL=https://yourdomain.com

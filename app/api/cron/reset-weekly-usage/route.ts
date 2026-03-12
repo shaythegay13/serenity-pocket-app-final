@@ -11,12 +11,8 @@ import { createClient } from '@supabase/supabase-js'
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret to prevent unauthorized access
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
-    
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-      console.error('[Weekly Reset] Unauthorized cron request')
+    const secret = request.headers.get('authorization')
+    if (!process.env.CRON_SECRET || secret !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

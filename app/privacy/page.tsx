@@ -1,9 +1,31 @@
-"use client"
-
+import type { Metadata } from "next"
 import { Card } from "@/components/ui/card"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
+import { BASE_URL } from "@/lib/constants"
+
+export const metadata: Metadata = {
+  title: "Privacy Policy - PlayMind Labs",
+  description: "Learn how PlayMind Labs collects, uses, and protects your personal information. Our commitment to your privacy and data security.",
+  openGraph: {
+    title: "Privacy Policy - PlayMind Labs",
+    description: "Learn how PlayMind Labs collects, uses, and protects your personal information.",
+    url: `${BASE_URL}/privacy`,
+    siteName: "PlayMind Labs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Privacy Policy - PlayMind Labs",
+    description: "Learn how PlayMind Labs collects, uses, and protects your personal information.",
+  },
+  alternates: {
+    canonical: `${BASE_URL}/privacy`,
+  },
+}
 
 export default function PrivacyPage() {
+  const lastUpdated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
   return (
     <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
@@ -16,7 +38,7 @@ export default function PrivacyPage() {
               Your privacy is important to us. This policy explains how we collect, use, and protect your information.
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              Last updated: {lastUpdated}
             </p>
           </div>
 

@@ -108,8 +108,6 @@ export async function POST(request: NextRequest) {
         cancelUrl: `${appUrl}/marketplace`,
       })
 
-      console.log(`✅ [Marketplace Purchase] Checkout session created for user ${user.id}, product ${productKey}`)
-
       return NextResponse.json({ 
         success: true,
         checkoutUrl: checkoutSession.url

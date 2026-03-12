@@ -50,11 +50,12 @@ function log(level: LogLevel, message: string, context?: string, error?: unknown
     }
   }
 
-  // In production, we could send to an error tracking service
-  // e.g., Sentry, LogRocket, etc.
+  // Production error logging: In production, errors are logged to console
+  // which Vercel captures in its logging dashboard. For advanced error
+  // tracking (stack traces, user context, etc.), consider integrating
+  // Sentry or a similar service.
   if (!isDevelopment && level === 'error') {
-    // Future: Send to error tracking service
-    // sentry.captureException(error)
+    console.error(`[${context || 'app'}] ${message}`, error || '')
   }
 }
 

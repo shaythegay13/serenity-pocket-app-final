@@ -67,10 +67,12 @@ NEXT_PUBLIC_ODDS_API_KEY=your_odds_api_key_here
 # FUTURE: OpenAI (for AI analysis - add later)
 # OPENAI_API_KEY=your_openai_key
 
-# FUTURE: Stripe (for payments - add later)
-# STRIPE_SECRET_KEY=your_stripe_secret
-# STRIPE_PUBLISHABLE_KEY=your_stripe_publishable
-# STRIPE_WEBHOOK_SECRET=your_webhook_secret
+# Flowglad (payment processing)
+FLOWGLAD_SECRET_KEY=your_flowglad_secret
+FLOWGLAD_WEBHOOK_SECRET=your_webhook_secret
+FLOWGLAD_PRICE_PREMIUM=price_xxx
+FLOWGLAD_PRICE_PREMIUM_PLUS=price_xxx
+FLOWGLAD_PRICE_ELITE=price_xxx
 ```
 
 **Important:** Restart your dev server after adding environment variables!

@@ -69,6 +69,11 @@ export async function POST(req: Request) {
       cancelUrl: `${baseUrl}?tab=account`,
     })
 
+    console.log(`✅ Billing portal session created for user ${user.id}`)
+
+    return NextResponse.json({ url: session.url, success: true })
+  } catch (error: unknown) {
+    console.error('❌ Error creating billing portal session:', error)
     return NextResponse.json({ url: session.url, success: true })
   } catch (error: unknown) {
     console.error('Error creating billing portal session:', error)

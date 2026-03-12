@@ -55,6 +55,7 @@ export async function POST(req: Request) {
     }
     
     event = verifyWebhook(body, headers, FLOWGLAD_CONFIG.webhookSecret) as FlowgladWebhookEvent
+    console.log('✅ Webhook signature verified')
     console.log(' Webhook signature verified')
   } catch (err) {
     console.error(' Webhook signature verification failed:', err)
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
         })
 
         if (!userId || !tier) {
+          console.warn('⚠️ Missing userId or tier in webhook metadata — skipping DB update')
           console.warn(' Missing userId or tier in webhook metadata — skipping DB update')
           break
         }
@@ -112,6 +114,7 @@ export async function POST(req: Request) {
           existing.subscription_tier === tier &&
           existing.subscription_status === 'active'
         ) {
+          console.log(`ℹ️  Idempotent skip: user ${userId} already on ${tier} (active)`)
           console.log(`  Idempotent skip: user ${userId} already on ${tier} (active)`)
           break
         }
@@ -141,6 +144,11 @@ export async function POST(req: Request) {
           .eq('id', userId)
 
         if (error) {
+          console.error('❌ Error updating user subscription:', error)
+          throw error
+        }
+
+        console.log(`✅ User ${userId} upgraded to ${tier}`)
           console.error(' Error updating user subscription:', error)
           throw error
         }
@@ -155,6 +163,11 @@ export async function POST(req: Request) {
         const status = data.status
 
         if (!customerId) {
+          console.warn('⚠️ Missing customerId in subscription.updated — skipping')
+          break
+        }
+
+        console.log('🔄 Subscription updated:', { customerId, status })
           console.warn(' Missing customerId in subscription.updated — skipping')
           break
         }
@@ -168,6 +181,7 @@ export async function POST(req: Request) {
           .single()
 
         if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
           console.warn(' User not found for customer:', customerId)
           break
         }
@@ -190,6 +204,9 @@ export async function POST(req: Request) {
           .eq('id', user.id)
 
         if (error) {
+          console.error('❌ Error updating subscription status:', error)
+        } else {
+          console.log(`✅ Subscription updated for user ${user.id}: ${subscriptionStatus}`)
           console.error(' Error updating subscription status:', error)
         } else {
           console.log(` Subscription updated for user ${user.id}: ${subscriptionStatus}`)
@@ -203,6 +220,11 @@ export async function POST(req: Request) {
         const customerId = data.customerId || data.customer_id
 
         if (!customerId) {
+          console.warn('⚠️ Missing customerId in cancellation event — skipping')
+          break
+        }
+
+        console.log('🗑️ Subscription canceled/deleted:', { customerId })
           console.warn('Missing customerId in cancellation event')
           break
         }
@@ -214,6 +236,7 @@ export async function POST(req: Request) {
           .single()
 
         if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
           console.warn('User not found for customer:', customerId)
           break
         }
@@ -229,6 +252,9 @@ export async function POST(req: Request) {
           .eq('id', user.id)
 
         if (error) {
+          console.error('❌ Error downgrading user:', error)
+        } else {
+          console.log(`✅ User ${user.id} downgraded to free tier`)
           console.error(' Error downgrading user:', error)
         } else {
           console.log(` User ${user.id} downgraded to free tier`)
@@ -241,6 +267,11 @@ export async function POST(req: Request) {
         const customerId = data.customerId || data.customer_id
 
         if (!customerId) {
+          console.warn('⚠️ Missing customerId in payment.failed — skipping')
+          break
+        }
+
+        console.log('❌ Payment failed:', { customerId })
           console.warn(' Missing customerId in payment.failed — skipping')
           break
         }
@@ -254,6 +285,7 @@ export async function POST(req: Request) {
           .single()
 
         if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
           console.warn(' User not found for customer:', customerId)
           break
         }
@@ -266,6 +298,9 @@ export async function POST(req: Request) {
           .eq('id', user.id)
 
         if (error) {
+          console.error('❌ Error updating payment status:', error)
+        } else {
+          console.log(`✅ User ${user.id} marked as past_due`)
           console.error(' Error updating payment status:', error)
         } else {
           console.log(` User ${user.id} marked as past_due`)
@@ -279,6 +314,11 @@ export async function POST(req: Request) {
         const paymentId = data.id
 
         if (!customerId) {
+          console.warn('⚠️ Missing customerId in payment.succeeded — skipping')
+          break
+        }
+
+        console.log('💰 One-time payment succeeded:', { customerId, paymentId })
           console.warn(' Missing customerId in payment.succeeded — skipping')
           break
         }
@@ -292,6 +332,7 @@ export async function POST(req: Request) {
           .single()
 
         if (!user) {
+          console.warn('⚠️ User not found for customer:', customerId)
           console.warn(' User not found for customer:', customerId)
           break
         }
@@ -328,6 +369,9 @@ export async function POST(req: Request) {
           .eq('id', purchase.id)
 
         if (updateError) {
+          console.error('❌ Error updating marketplace purchase:', updateError)
+        } else {
+          console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
           console.error(' Error updating marketplace purchase:', updateError)
         } else {
           console.log(` Marketplace purchase completed for user ${user.id}: ${product.display_name}`)

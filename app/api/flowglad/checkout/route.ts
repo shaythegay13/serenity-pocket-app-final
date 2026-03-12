@@ -46,6 +46,7 @@ export async function POST(req: Request) {
 
     // Require Flowglad credentials in all environments
     if (!isFlowgladConfigured()) {
+      console.error('❌ FLOWGLAD_SECRET_KEY is not set')
       return NextResponse.json(
         { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
         { status: 503 }

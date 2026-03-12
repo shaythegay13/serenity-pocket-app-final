@@ -187,6 +187,24 @@ export async function generateAIPicks(userProfile: UserData) {
 **Goal**: Enable subscription purchases
 
 #### A. Flowglad Setup
+The app uses Flowglad for payment processing. Key files:
+- `/lib/flowglad.ts` - Configuration and factory functions
+- `/app/api/flowglad/[...path]/route.ts` - Main API handler
+- `/app/api/flowglad/checkout/route.ts` - Checkout session creation
+- `/app/api/flowglad/portal/route.ts` - Billing portal access
+- `/app/api/flowglad/cancel/route.ts` - Subscription cancellation
+- `/app/api/webhooks/flowglad/route.ts` - Webhook handler
+
+#### B. Environment Variables
+```env
+FLOWGLAD_SECRET_KEY=your_flowglad_secret
+FLOWGLAD_WEBHOOK_SECRET=your_webhook_secret
+FLOWGLAD_PRICE_PREMIUM=price_xxx
+FLOWGLAD_PRICE_PREMIUM_PLUS=price_xxx
+FLOWGLAD_PRICE_ELITE=price_xxx
+```
+
+See `/docs/STRIPE_TO_FLOWGLAD_SUMMARY.md` for migration details.
 ```bash
 npm install @flowglad/nextjs
 ```

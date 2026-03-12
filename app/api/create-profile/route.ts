@@ -16,8 +16,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('🔨 Creating profile for user:', user.id, user.email)
-
     // Use service role client to bypass RLS
     const { createClient } = await import('@supabase/supabase-js')
     const supabaseAdmin = createClient(
@@ -63,11 +61,9 @@ export async function POST(req: Request) {
       .select()
 
     if (error) {
-      console.error('❌ Error creating profile:', error)
+      console.error('Error creating profile:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-
-    console.log('✅ Profile created:', data)
 
     return NextResponse.json({ 
       success: true, 

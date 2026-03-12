@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { flowglad, getTierPriceId, TIER_PRICES } from '@/lib/flowglad'
+import { flowglad, getTierPriceId, isFlowgladConfigured, TIER_PRICES } from '@/lib/flowglad'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers'
 import logger from '@/lib/logger'
 
@@ -45,11 +44,18 @@ export async function POST(req: Request) {
     if (!priceId) {
       logger.error(`Price ID not configured for tier: ${tier}`, 'checkout')
       return NextResponse.json(
-        { error: 'Price not configured' },
+        { error: 'Price not configured', code: 'PRICE_NOT_CONFIGURED' },
         { status: 500 }
       )
     }
 
+    // Require Flowglad credentials in all environments
+    if (!isFlowgladConfigured()) {
+      console.error('❌ FLOWGLAD_SECRET_KEY is not set')
+      return NextResponse.json(
+        { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
+        { status: 503 }
+      )
     // Check if Flowglad is configured
     const hasFlowgladConfig = process.env.FLOWGLAD_SECRET_KEY &&
       process.env.FLOWGLAD_SECRET_KEY.trim().length > 0
@@ -128,6 +134,10 @@ export async function POST(req: Request) {
       successUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}?tab=account&success=true`,
       cancelUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}?tab=account&canceled=true`,
       ...(trialPeriodDays ? { trialPeriodDays } : {}),
+      outputMetadata: {
+        userId: user.id,
+        tier,
+      },
     })
 
     return NextResponse.json({
@@ -135,6 +145,7 @@ export async function POST(req: Request) {
       success: true,
     })
   } catch (error: unknown) {
+    console.error('Checkout error:', error)
     logger.error('Error processing subscription', 'checkout', error)
 
     // Try to surface as much detail as possible from Flowglad/HTTP errors

@@ -3,8 +3,6 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { migrateAnonymousSurveyToUser } from '@/lib/surveyService';
 
 export async function POST() {
-  console.log('=== MANUAL SURVEY MIGRATION API CALLED ===');
-
   try {
     const supabase = supabaseServer;
 
@@ -14,7 +12,6 @@ export async function POST() {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in to continue.' },
         { status: 401 }
@@ -27,11 +24,6 @@ export async function POST() {
         { status: 400 }
       );
     }
-
-    console.log('Migrating survey for user:', {
-      id: user.id,
-      email: user.email,
-    });
 
     // Call migration function
     const migratedCount = await migrateAnonymousSurveyToUser(
@@ -48,12 +40,6 @@ export async function POST() {
         { status: 404 }
       );
     }
-
-    console.log('Survey migrated successfully:', {
-      userId: user.id,
-      email: user.email,
-      migratedCount: migratedCount,
-    });
 
     return NextResponse.json(
       {

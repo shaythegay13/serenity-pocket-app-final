@@ -31,8 +31,6 @@ function checkRateLimit(ip: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('=== GAMBLING SURVEY SUBMIT API CALLED ===');
-
   try {
     // Parse request body
     let body;
@@ -91,19 +89,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Submit anonymous survey
-    console.log('Attempting to submit survey for email:', email);
-    console.log('Number of responses:', responses.length);
-    
     const result = await submitAnonymousSurvey(
       email,
       responses,
       clientIp !== 'unknown' ? clientIp : undefined
     );
-
-    console.log('Survey submitted successfully:', {
-      surveyId: result.surveyId,
-      score: result.score,
-    });
 
     return NextResponse.json(
       {
@@ -114,11 +104,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error('Survey submission error:', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-    });
+    console.error('Survey submission error:', error?.message);
 
     // Check for specific error types
     if (error?.code === 'PGRST301' || error?.message?.includes('RLS')) {

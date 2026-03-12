@@ -17,9 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.substring(7);
-    console.log('Debug: Token length:', token.length);
-    console.log('Debug: Token starts with:', token.substring(0, 20) + '...');
-    
+
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error) {

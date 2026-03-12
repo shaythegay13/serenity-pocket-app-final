@@ -130,9 +130,10 @@ async function callPsychPicker(
   riskTolerance: string,
 ): Promise<any> {
   return new Promise((resolve) => {
-    const { exec } = require("child_process")
-    exec(
-      `python psych_model_picker.py ${emotionalScore} ${riskTolerance}`,
+    const { execFile } = require("child_process")
+    execFile(
+      "python",
+      ["psych_model_picker.py", String(emotionalScore), String(riskTolerance)],
       (error: any, stdout: string) => {
         if (error) {
           console.error("[PsychPicker] Failed:", error)
@@ -1461,7 +1462,7 @@ export async function POST(request: NextRequest) {
         evSource = 'math'
 
         if (rawEvPct > 15) {
-          console.warn(`[SmartSlip] ⚠️ Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
+          console.warn(`[SmartSlip] Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
         } else {
           console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}%`)
         }

@@ -1,22 +1,33 @@
 'use client'
 
+import { FlowgladProvider } from '@flowglad/nextjs'
+
 /**
  * Flowglad Provider Wrapper
- * 
- * NOTE: FlowgladProvider is currently disabled to prevent errors.
- * The subscription system works via direct API calls to /api/flowglad/checkout
- * without needing the client-side provider.
- * 
- * If you need client-side billing features (like useBilling() hook),
- * you'll need to configure FlowgladProvider with proper authentication.
+ *
+ * Conditionally enables FlowgladProvider when the public key is configured.
+ * This is required for client-side billing hooks (useBilling()) and the
+ * customer portal to work correctly.
+ *
+ * When the public key is absent (e.g. local dev without .env.local) the
+ * provider is omitted and children are rendered directly so the rest of the
+ * app still functions.
  */
+
+const publicKey = process.env.NEXT_PUBLIC_FLOWGLAD_PUBLIC_KEY
 
 export function FlowgladProviderWrapper({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // For now, just render children without Flowglad provider
-  // The checkout flow works via server-side API calls
-  return <>{children}</>
+  if (!publicKey) {
+    return <>{children}</>
+  }
+
+  return (
+    <FlowgladProvider loadBilling={true}>
+      {children}
+    </FlowgladProvider>
+  )
 }

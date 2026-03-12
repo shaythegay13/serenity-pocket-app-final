@@ -130,7 +130,7 @@ See [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) for detailed instructions.
 ### Stack
 
 - Next.js 16 (app router), React 19, TypeScript, Tailwind v4, Radix UI
-- Supabase (auth, DB), Stripe (subscriptions), Capacitor (mobile)
+- Supabase (auth, DB), Flowglad (subscriptions), Capacitor (mobile)
 
 ### Frontend structure
 

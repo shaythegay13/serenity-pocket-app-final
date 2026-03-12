@@ -4,7 +4,15 @@ import React, { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Crown, Lock, Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { User, Crown, Lock, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import type { UserData } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -14,10 +22,13 @@ interface AccountTabProps {
 }
 
 export const AccountTab = memo(function AccountTab({ userData, updateUserData }: AccountTabProps) {
-  console.log('👤 AccountTab rendering with userData:', userData?.name, 'Tier:', userData?.subscriptionTier)
-
   const [upgrading, setUpgrading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [canceling, setCanceling] = useState(false)
+  const [loadingPortal, setLoadingPortal] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelingSubscription, setCancelingSubscription] = useState(false)
+  const [managingBilling, setManagingBilling] = useState(false)
 
   // Memoize local state to prevent unnecessary re-renders
   const localState = useMemo(() => ({
@@ -48,14 +59,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
     setLocalDailyLimit(localState.dailyLimit)
     setLocalMaxStake(localState.maxStake)
   }, [localState])
-
-  // Log subscription data on mount/update
-  console.log('💳 Current subscription:', {
-    tier: userData.subscriptionTier,
-    status: userData.subscriptionStatus,
-    started: userData.subscriptionStartedAt,
-    ends: userData.subscriptionEndsAt
-  })
 
   const getApiBaseUrl = () => {
     if (typeof window === 'undefined') return ''
@@ -111,13 +114,6 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
       const { profile } = await response.json()
 
       if (profile) {
-        console.log('📊 Database subscription data:', {
-          tier: profile.subscription_tier,
-          status: profile.subscription_status,
-          started: profile.subscription_started_at,
-          ends: profile.subscription_ends_at,
-        })
-
         // Update local state with fresh data from database
         await updateUserData({
           subscriptionTier: profile.subscription_tier || 'free',
@@ -192,6 +188,87 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
     }
   }, [])
 
+  const handleManageBilling = async () => {
+    try {
+      setManagingBilling(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to manage billing')
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/portal`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to open billing portal')
+      }
+
+      const { url } = await response.json()
+
+      if (url) {
+        window.location.href = url
+      } else {
+        throw new Error('No billing portal URL returned')
+      }
+    } catch (error) {
+      console.error('Error opening billing portal:', error)
+      toast.error('Failed to open billing portal. Please try again.')
+      setManagingBilling(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel your subscription? You'll keep access until the end of your current billing period."
+    )
+    if (!confirmed) return
+
+    try {
+      setCancelingSubscription(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to cancel your subscription')
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to cancel subscription')
+      }
+
+      toast.success("Subscription canceled. You'll keep access until your current period ends.")
+      await handleSyncSubscription()
+    } catch (error) {
+      console.error('Error canceling subscription:', error)
+      toast.error('Failed to cancel subscription. Please try again.')
+    } finally {
+      setCancelingSubscription(false)
+    }
+  }
+
   const handleUpgrade = async (tierId: string) => {
     try {
       setUpgrading(true)
@@ -240,6 +317,88 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
     }
   }
 
+  const handleCancelSubscription = async () => {
+    try {
+      setCanceling(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to manage your subscription')
+        setShowCancelDialog(false)
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription')
+      }
+
+      const endsAt = data.cancellationDate
+        ? new Date(data.cancellationDate).toLocaleDateString()
+        : 'the end of your billing period'
+
+      toast.success(`Your subscription will remain active until ${endsAt}`)
+
+      await updateUserData({ subscriptionStatus: 'canceled' })
+      setShowCancelDialog(false)
+    } catch (error) {
+      console.error('Error canceling subscription:', error)
+      toast.error('Failed to cancel subscription. Please try again.')
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  const handleManageBilling = async () => {
+    try {
+      setLoadingPortal(true)
+
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        toast.error('Please sign in to manage your billing')
+        return
+      }
+
+      const apiBaseUrl = getApiBaseUrl()
+      const response = await fetch(`${apiBaseUrl}/api/flowglad/portal`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get billing portal')
+      }
+
+      if (data.url) {
+        window.open(data.url, '_blank')
+      } else {
+        toast.info(data.message || 'Billing portal not available. Please contact support.')
+      }
+    } catch (error) {
+      console.error('Error accessing billing portal:', error)
+      toast.error('Failed to access billing portal. Please try again.')
+    } finally {
+      setLoadingPortal(false)
+    }
+  }
+
   return (
     <div className="space-y-6 fade-in">
       <div className="text-center space-y-2">
@@ -257,13 +416,17 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
             <p className="text-sm text-muted-foreground">
               {userData.subscriptionStatus === 'active'
                 ? 'Your subscription is active'
-                : 'Upgrade to unlock premium features'}
+                : userData.subscriptionStatus === 'canceled' && currentTier !== 'free'
+                  ? 'Your subscription is pending cancellation'
+                  : userData.subscriptionStatus === 'past_due'
+                    ? 'Action required — payment failed'
+                    : 'Upgrade to unlock premium features'}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {currentTier !== 'free' && (
               <Badge variant={userData.subscriptionStatus === 'active' ? 'default' : 'secondary'}>
-                {userData.subscriptionStatus || 'inactive'}
+                {userData.subscriptionStatus === 'canceled' ? 'Canceling' : (userData.subscriptionStatus || 'inactive')}
               </Badge>
             )}
             <Button
@@ -283,6 +446,42 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
             </Button>
           </div>
         </div>
+
+        {/* Past Due Warning Banner */}
+        {userData.subscriptionStatus === 'past_due' && (
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">
+                ⚠️ Your last payment failed. Please update your payment method to keep your subscription active.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleManageBilling}
+              disabled={loadingPortal}
+            >
+              {loadingPortal ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                'Update Payment'
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Pending Cancellation Banner */}
+        {userData.subscriptionStatus === 'canceled' && currentTier !== 'free' && (
+          <div className="mb-4 rounded-lg border border-border bg-muted/50 p-4">
+            <p className="text-sm text-muted-foreground">
+              Your plan will downgrade to <span className="font-medium text-foreground">Foundation (Free)</span>
+              {userData.subscriptionEndsAt
+                ? ` on ${new Date(userData.subscriptionEndsAt).toLocaleDateString()}`
+                : ' at the end of your billing period'}.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -330,6 +529,61 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
                   <span className="font-medium text-foreground">
                     {new Date(userData.subscriptionEndsAt).toLocaleDateString()}
                   </span>
+                </div>
+              )}
+
+              {/* Billing action buttons */}
+              {userData.subscriptionStatus !== 'canceled' && (
+                <div className="pt-2 flex flex-wrap gap-2">
+              {userData.subscriptionStatus === 'active' && (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleManageBilling}
+                    disabled={loadingPortal}
+                  >
+                    {loadingPortal ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                    )}
+                    Manage Billing
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setShowCancelDialog(true)}
+                    disabled={canceling}
+                  >
+                    Cancel Subscription
+                    disabled={managingBilling || cancelingSubscription}
+                  >
+                    {managingBilling ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      'Manage Billing'
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleCancelSubscription}
+                    disabled={cancelingSubscription || managingBilling}
+                  >
+                    {cancelingSubscription ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Canceling...
+                      </>
+                    ) : (
+                      'Cancel Subscription'
+                    )}
+                  </Button>
                 </div>
               )}
             </div>
@@ -702,6 +956,41 @@ export const AccountTab = memo(function AccountTab({ userData, updateUserData }:
           </div>
         </div>
       </Card>
+
+      {/* Cancel Subscription Confirmation Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Subscription</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel your subscription? You will keep access to all premium features until the end of your current billing period.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              disabled={canceling}
+            >
+              Keep Subscription
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelSubscription}
+              disabled={canceling}
+            >
+              {canceling ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Canceling...
+                </>
+              ) : (
+                'Yes, Cancel'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

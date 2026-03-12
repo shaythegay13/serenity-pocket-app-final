@@ -725,7 +725,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
       // Comprehensive bets saved above via BetTrackingService.saveTiltLabBet() is the single source of truth.
       // The BETTING_DATA_SAVED event is already emitted by saveTiltLabBet().
     } catch (err) {
-      const isAbort = (err as any)?.name === 'AbortError'
+      const isAbort = err instanceof Error && err.name === 'AbortError'
       setError(isAbort ? 'TiltLab timed out. Please try again.' : "An unexpected error occurred")
       console.error(err)
     } finally {
@@ -733,7 +733,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
     }
   }
 
-  const updateFormData = (field: keyof BetScenario, value: any) => {
+  const updateFormData = <K extends keyof BetScenario>(field: K, value: BetScenario[K]) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 

@@ -100,43 +100,37 @@ export default function SurveyForm({ onSubmit, isSubmitting, questions }: Survey
   }, [currentQuestionIndex]);
 
   const handleSubmit = useCallback(async () => {
-    // Small delay to ensure state update completes
-    setTimeout(async () => {
-      // Validate all questions are answered
-      const unansweredQuestions = qs.filter((q) => {
-        const count = answers.filter((a) => a.questionId === q.id).length;
-        return q.multi ? count < 1 : count !== 1;
-      });
+    // Validate all questions are answered
+    const unansweredQuestions = qs.filter((q) => {
+      const count = answers.filter((a) => a.questionId === q.id).length;
+      return q.multi ? count < 1 : count !== 1;
+    });
 
-      if (unansweredQuestions.length > 0) {
-        console.log('Unanswered questions:', unansweredQuestions.map(q => q.id));
-        console.log('Current answers:', answers);
-
-        const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
-        if (currentUnanswered) {
+    if (unansweredQuestions.length > 0) {
+      const currentUnanswered = unansweredQuestions.find((q) => q.id === currentQuestion.id);
+      if (currentUnanswered) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          [currentQuestion.id]: 'Please answer this question before submitting',
+        }));
+      } else {
+        // If current question is answered but others aren't, navigate to first unanswered
+        const firstUnanswered = unansweredQuestions[0];
+        const firstUnansweredIndex = qs.findIndex((q) => q.id === firstUnanswered.id);
+        if (firstUnansweredIndex !== -1) {
+          setCurrentQuestionIndex(firstUnansweredIndex);
           setValidationErrors((prev) => ({
             ...prev,
-            [currentQuestion.id]: 'Please answer this question before submitting',
+            [firstUnanswered.id]: 'Please answer this question',
           }));
-        } else {
-          // If current question is answered but others aren't, navigate to first unanswered
-          const firstUnanswered = unansweredQuestions[0];
-          const firstUnansweredIndex = qs.findIndex((q) => q.id === firstUnanswered.id);
-          if (firstUnansweredIndex !== -1) {
-            setCurrentQuestionIndex(firstUnansweredIndex);
-            setValidationErrors((prev) => ({
-              ...prev,
-              [firstUnanswered.id]: 'Please answer this question',
-            }));
-          }
         }
-        return;
       }
+      return;
+    }
 
-      // Clear any validation errors before submitting
-      setValidationErrors({});
-      await onSubmit(answers);
-    }, 100);
+    // Clear any validation errors before submitting
+    setValidationErrors({});
+    await onSubmit(answers);
   }, [answers, currentQuestion.id, onSubmit, qs]);
 
   const isOptionSelected = (questionId: string, option: string) => {

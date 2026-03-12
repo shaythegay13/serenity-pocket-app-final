@@ -37,10 +37,10 @@ export async function POST(req: Request) {
   const body = await req.text()
   const signature = req.headers.get('flowglad-signature') || req.headers.get('x-flowglad-signature')
 
-  console.log('📝 Webhook signature present:', !!signature)
+  console.log(' Webhook signature present:', !!signature)
 
   if (!signature) {
-    console.error('❌ No signature in webhook request')
+    console.error(' No signature in webhook request')
     return NextResponse.json(
       { error: 'No signature' },
       { status: 400 }
@@ -56,8 +56,9 @@ export async function POST(req: Request) {
     
     event = verifyWebhook(body, headers, FLOWGLAD_CONFIG.webhookSecret) as FlowgladWebhookEvent
     console.log('✅ Webhook signature verified')
+    console.log(' Webhook signature verified')
   } catch (err) {
-    console.error('❌ Webhook signature verification failed:', err)
+    console.error(' Webhook signature verification failed:', err)
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
         const customerId = data.customerId || data.customer_id
         const subscriptionId = data.subscriptionId || data.subscription_id || data.id
 
-        console.log('💳 Checkout/Subscription created:', { 
+        console.log(' Checkout/Subscription created:', { 
           userId, 
           tier, 
           customerId,
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
 
         if (!userId || !tier) {
           console.warn('⚠️ Missing userId or tier in webhook metadata — skipping DB update')
+          console.warn(' Missing userId or tier in webhook metadata — skipping DB update')
           break
         }
 
@@ -113,6 +115,7 @@ export async function POST(req: Request) {
           existing.subscription_status === 'active'
         ) {
           console.log(`ℹ️  Idempotent skip: user ${userId} already on ${tier} (active)`)
+          console.log(`  Idempotent skip: user ${userId} already on ${tier} (active)`)
           break
         }
 
@@ -146,6 +149,11 @@ export async function POST(req: Request) {
         }
 
         console.log(`✅ User ${userId} upgraded to ${tier}`)
+          console.error(' Error updating user subscription:', error)
+          throw error
+        }
+
+        console.log(` User ${userId} upgraded to ${tier}`)
         break
       }
 
@@ -160,6 +168,11 @@ export async function POST(req: Request) {
         }
 
         console.log('🔄 Subscription updated:', { customerId, status })
+          console.warn(' Missing customerId in subscription.updated — skipping')
+          break
+        }
+
+        console.log(' Subscription updated:', { customerId, status })
 
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
@@ -169,6 +182,7 @@ export async function POST(req: Request) {
 
         if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          console.warn(' User not found for customer:', customerId)
           break
         }
 
@@ -193,6 +207,9 @@ export async function POST(req: Request) {
           console.error('❌ Error updating subscription status:', error)
         } else {
           console.log(`✅ Subscription updated for user ${user.id}: ${subscriptionStatus}`)
+          console.error(' Error updating subscription status:', error)
+        } else {
+          console.log(` Subscription updated for user ${user.id}: ${subscriptionStatus}`)
         }
         break
       }
@@ -208,6 +225,9 @@ export async function POST(req: Request) {
         }
 
         console.log('🗑️ Subscription canceled/deleted:', { customerId })
+          console.warn('Missing customerId in cancellation event')
+          break
+        }
 
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
@@ -217,6 +237,7 @@ export async function POST(req: Request) {
 
         if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          console.warn('User not found for customer:', customerId)
           break
         }
 
@@ -234,6 +255,9 @@ export async function POST(req: Request) {
           console.error('❌ Error downgrading user:', error)
         } else {
           console.log(`✅ User ${user.id} downgraded to free tier`)
+          console.error(' Error downgrading user:', error)
+        } else {
+          console.log(` User ${user.id} downgraded to free tier`)
         }
         break
       }
@@ -248,6 +272,11 @@ export async function POST(req: Request) {
         }
 
         console.log('❌ Payment failed:', { customerId })
+          console.warn(' Missing customerId in payment.failed — skipping')
+          break
+        }
+
+        console.log(' Payment failed:', { customerId })
 
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
@@ -257,6 +286,7 @@ export async function POST(req: Request) {
 
         if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          console.warn(' User not found for customer:', customerId)
           break
         }
 
@@ -271,6 +301,9 @@ export async function POST(req: Request) {
           console.error('❌ Error updating payment status:', error)
         } else {
           console.log(`✅ User ${user.id} marked as past_due`)
+          console.error(' Error updating payment status:', error)
+        } else {
+          console.log(` User ${user.id} marked as past_due`)
         }
         break
       }
@@ -286,6 +319,11 @@ export async function POST(req: Request) {
         }
 
         console.log('💰 One-time payment succeeded:', { customerId, paymentId })
+          console.warn(' Missing customerId in payment.succeeded — skipping')
+          break
+        }
+
+        console.log(' One-time payment succeeded:', { customerId, paymentId })
 
         const { data: user } = await supabaseAdmin
           .from('user_profiles')
@@ -295,6 +333,7 @@ export async function POST(req: Request) {
 
         if (!user) {
           console.warn('⚠️ User not found for customer:', customerId)
+          console.warn(' User not found for customer:', customerId)
           break
         }
 
@@ -333,17 +372,20 @@ export async function POST(req: Request) {
           console.error('❌ Error updating marketplace purchase:', updateError)
         } else {
           console.log(`✅ Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
+          console.error(' Error updating marketplace purchase:', updateError)
+        } else {
+          console.log(` Marketplace purchase completed for user ${user.id}: ${product.display_name}`)
         }
         break
       }
 
       default:
-        console.log(`ℹ️  Unhandled event type: ${event.type}`)
+        console.log(`  Unhandled event type: ${event.type}`)
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('❌ Error processing webhook:', error)
+    console.error(' Error processing webhook:', error)
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }

@@ -25,7 +25,6 @@ function verifyCronSecret(request: NextRequest): boolean {
     return true;
   }
 
-  console.error('❌ Invalid cron secret provided');
   return false;
 }
 
@@ -39,27 +38,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🕐 Starting daily revenue and API check...');
-
     // 0. Restore counters from Supabase (handles cold starts after redeploy)
-    console.log('♻️ Restoring API counters from Supabase...');
     await apiMonitoring.restoreCountersFromSupabase();
 
     // 1. Get current API usage snapshot before reset
     const usageStats = await apiMonitoring.getUsageStats();
-    console.log('📊 Current API usage:', JSON.stringify(usageStats, null, 2));
 
     // 2. Run revenue upgrade triggers
-    console.log('💰 Checking revenue upgrade triggers...');
     await runDailyRevenueCheck();
 
     // 3. Reset daily API counters (persists to Supabase, then clears in-memory)
-    console.log('🔄 Resetting daily API counters...');
     await apiMonitoring.resetDailyCounters();
 
     // 4. Log completion
     const timestamp = new Date().toISOString();
-    console.log(`✅ Daily revenue check completed at ${timestamp}`);
 
     return NextResponse.json({
       success: true,
@@ -70,7 +62,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Error in daily revenue check:', error);
+    console.error('Error in daily revenue check:', error);
     
     return NextResponse.json(
       { 

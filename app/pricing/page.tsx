@@ -16,6 +16,20 @@ import { toast } from "sonner"
 import type { UserData } from "@/lib/types"
 import { storageHybrid as storage } from "@/lib/storage-hybrid"
 
+const pricingSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "PlayMind Labs Subscription Plans",
+  itemListElement: SUBSCRIPTION_TIERS.map((tier, index) => ({
+    "@type": "Offer",
+    position: index + 1,
+    name: tier.displayName,
+    price: String(tier.price),
+    priceCurrency: "USD",
+    description: tier.description,
+  })),
+}
+
 const tierIcons = {
   free: Users,
   premium: Star,
@@ -307,7 +321,12 @@ export default function PricingPage() {
   // Always render content immediately for SEO crawlability.
   // Header/nav chrome loads in once auth resolves.
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
+      />
+      <div className="min-h-screen bg-background">
       {!loading && authed && userData ? (
         <>
           <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
@@ -334,5 +353,6 @@ export default function PricingPage() {
 
       {!loading && authed && userData && <BottomNav />}
     </div>
+    </>
   )
 }

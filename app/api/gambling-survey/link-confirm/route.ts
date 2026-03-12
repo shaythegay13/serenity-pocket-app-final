@@ -3,8 +3,6 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { migrateAnonymousSurveyToUser } from '@/lib/surveyService';
 
 export async function POST(request: NextRequest) {
-  console.log('=== SURVEY LINK CONFIRM API CALLED ===');
-
   try {
     // Create server-side Supabase client
     const supabase = supabaseServer;
@@ -16,17 +14,11 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in to continue.' },
         { status: 401 }
       );
     }
-
-    console.log('Authenticated user:', {
-      id: user.id,
-      email: user.email,
-    });
 
     // Parse request body
     let body;
@@ -68,12 +60,6 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-
-      console.log('Survey migrated successfully:', {
-        userId: user.id,
-        email: email,
-        migratedCount: migratedCount,
-      });
 
       // Log for audit trail (non-fatal if it fails)
       const { error: auditError } = await supabase
@@ -127,11 +113,7 @@ export async function POST(request: NextRequest) {
       throw migrationError;
     }
   } catch (error: any) {
-    console.error('Survey link confirmation error:', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-    });
+    console.error('Survey link error:', error?.message);
 
     return NextResponse.json(
       {

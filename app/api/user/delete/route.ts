@@ -37,17 +37,19 @@ export async function POST(request: NextRequest) {
         "survey_responses",
       ]
 
-      // Delete from tables that reference user_id
-      for (const table of tablesWithUserId) {
-        const { error } = await supabaseServer
-          .from(table)
-          .delete()
-          .eq("user_id", userId)
+      // Delete from tables that reference user_id concurrently
+      await Promise.all(
+        tablesWithUserId.map(async (table) => {
+          const { error } = await supabaseServer
+            .from(table)
+            .delete()
+            .eq("user_id", userId)
 
-        if (error) {
-          console.warn(`Error deleting user data from ${table}:`, error)
-        }
-      }
+          if (error) {
+            console.warn(`Error deleting user data from ${table}:`, error)
+          }
+        })
+      )
 
       // Delete the primary user profile row (keyed by id)
       const { error: profileDeleteError } = await supabaseServer

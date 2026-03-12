@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const nextMonth = new Date(now)
     nextMonth.setMonth(nextMonth.getMonth() + 1)
 
-    console.log('🧪 Attempting to update subscription for user:', user.id)
+    console.log(' Attempting to update subscription for user:', user.id)
     
     // Use service role client to bypass RLS
     const { createClient } = await import('@supabase/supabase-js')
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
       .eq('id', user.id)
 
     if (fetchError) {
-      console.error('❌ Error fetching user profile:', fetchError)
+      console.error(' Error fetching user profile:', fetchError)
       return NextResponse.json(
         {
           error: 'Database error: ' + fetchError.message,
@@ -181,22 +181,22 @@ export async function POST(req: Request) {
       )
     }
 
-    console.log('✅ Found profiles:', existingProfiles?.length || 0)
+    console.log(' Found profiles:', existingProfiles?.length || 0)
     
     if (!existingProfiles || existingProfiles.length === 0) {
-      console.error('❌ No user profile found for user:', user.id)
+      console.error(' No user profile found for user:', user.id)
       return NextResponse.json({ error: 'User profile does not exist' }, { status: 404 })
     }
 
     const existingProfile = existingProfiles[0]
-    console.log('📋 Current subscription fields:', {
+    console.log(' Current subscription fields:', {
       tier: existingProfile?.subscription_tier,
       status: existingProfile?.subscription_status,
       has_tier_column: 'subscription_tier' in existingProfile,
       has_status_column: 'subscription_status' in existingProfile,
     })
 
-    console.log('🧪 Update data:', {
+    console.log(' Update data:', {
       subscription_tier: tier,
       subscription_status: 'active',
       subscription_started_at: now.toISOString(),
@@ -219,7 +219,7 @@ export async function POST(req: Request) {
       updateData.subscription_ends_at = null
     }
 
-    console.log('🧪 Final update data:', updateData)
+    console.log(' Final update data:', updateData)
 
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -228,7 +228,7 @@ export async function POST(req: Request) {
       .select()
 
     if (error) {
-      console.error('❌ Error updating subscription:', error)
+      console.error(' Error updating subscription:', error)
       const extra =
         process.env.NODE_ENV === 'development'
           ? { details: { message: error.message, code: (error as any).code } }
@@ -237,11 +237,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message, ...extra }, { status: 500 })
     }
 
-    console.log('✅ Subscription updated successfully:', data)
-    console.log('✅ Updated row count:', data?.length || 0)
+    console.log(' Subscription updated successfully:', data)
+    console.log(' Updated row count:', data?.length || 0)
 
     if (!data || data.length === 0) {
-      console.error('⚠️ Update succeeded but no rows returned')
+      console.warn(' Update succeeded but no rows returned')
       return NextResponse.json({ 
         error: 'Update succeeded but no data returned' 
       }, { status: 500 })

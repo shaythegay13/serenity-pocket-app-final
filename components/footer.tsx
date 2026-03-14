@@ -35,7 +35,7 @@ export function Footer() {
         <div className="flex flex-col md:flex-row justify-between gap-8">
           {/* Logo and Description - Full width on all screens */}
           <div className="space-y-4 md:max-w-sm">
-            <Link href={isAuthed ? "/home" : "/"} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="shrink-0">
                 <div className="relative w-32 h-16 overflow-hidden rounded-none">
                   <Image

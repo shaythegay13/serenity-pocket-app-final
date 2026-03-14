@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { BASE_URL } from "@/lib/constants"
 import { Card } from "@/components/ui/card"
+import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -91,7 +92,7 @@ export default function FAQPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <div className="min-h-screen bg-background">
+      <FooterPageWrapper>
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
@@ -134,7 +135,7 @@ export default function FAQPage() {
             </div>
           </div>
         </div>
-      </div>
+      </FooterPageWrapper>
     </>
   )
 }

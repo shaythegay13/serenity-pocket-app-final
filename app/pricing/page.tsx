@@ -1,7 +1,6 @@
 import { Metadata } from "next"
 import { BASE_URL } from "@/lib/constants"
 import { PricingClient } from "@/components/pricing-client"
-import { FooterPageWrapper } from "@/components/footer-page-wrapper"
 
 export const metadata: Metadata = {
   title: "Pricing | PlayMind Labs",
@@ -24,9 +23,5 @@ export const metadata: Metadata = {
 }
 
 export default function PricingPage() {
-  return (
-    <FooterPageWrapper>
-      <PricingClient />
-    </FooterPageWrapper>
-  )
+  return <PricingClient />
 }

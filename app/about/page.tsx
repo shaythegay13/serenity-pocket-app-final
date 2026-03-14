@@ -1,9 +1,18 @@
-"use client"
-
+import { Metadata } from "next"
+import { BASE_URL } from "@/lib/constants"
 import { Card } from "@/components/ui/card"
-import Image from "next/image"
-import { useState } from "react"
+import { FounderCard } from "@/components/founder-card"
 import { FooterPageWrapper } from "@/components/footer-page-wrapper"
+
+export const metadata: Metadata = {
+  title: "About Us | PlayMind Labs",
+  description: "Learn about the founders and mission behind PlayMind Labs, the decision psychology platform for sports bettors.",
+  openGraph: {
+    title: "About Us | PlayMind Labs",
+    description: "Learn about the founders and mission behind PlayMind Labs.",
+    url: `${BASE_URL}/about`,
+  },
+}
 
 const founders = [
   {
@@ -33,26 +42,6 @@ const founders = [
 ] as const
 
 export default function AboutPage() {
-  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
-
-  const handleImageError = (imageName: string) => {
-    setImageErrors(prev => new Set(prev).add(imageName))
-  }
-
-  const getImageSrc = (founder: { name: string; title: string; bio: string; image: string }) => {
-    if (imageErrors.has(founder.image)) {
-      const altImage = founder.image.endsWith('.png')
-        ? founder.image.replace('.png', '.jpg')
-        : founder.image.replace('.jpg', '.png')
-
-      if (imageErrors.has(altImage)) {
-        return "/placeholder-user.jpg"
-      }
-      return altImage
-    }
-    return founder.image
-  }
-
   return (
     <FooterPageWrapper>
       <div className="container mx-auto px-4 py-8">
@@ -116,35 +105,7 @@ export default function AboutPage() {
 
             <div className="space-y-8 max-w-4xl mx-auto">
               {founders.map((founder, index) => (
-                <Card key={index} className="p-8">
-                  <div className="flex flex-col md:flex-row gap-8 items-center">
-                    <div className="shrink-0">
-                      <Image
-                        src={getImageSrc(founder)}
-                        alt={founder.name}
-                        width={120}
-                        height={120}
-                        className="rounded-full object-cover"
-                        unoptimized={true}
-                        onError={() => handleImageError(getImageSrc(founder))}
-                      />
-                    </div>
-
-                    <div className="flex-1 text-center md:text-left">
-                      <h3 className="text-2xl font-bold text-foreground mb-2">
-                        {founder.name}
-                      </h3>
-
-                      <p className="text-primary font-medium text-lg mb-4">
-                        {founder.title}
-                      </p>
-
-                      <p className="text-muted-foreground leading-relaxed">
-                        {founder.bio}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+                <FounderCard key={index} founder={founder} />
               ))}
             </div>
           </div>

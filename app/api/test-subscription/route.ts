@@ -6,6 +6,10 @@ export const runtime = 'nodejs'
 // TEMPORARY TEST ENDPOINT - Remove in production
 export async function POST(req: Request) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
     const { tier } = await req.json()
     
     // Validate tier

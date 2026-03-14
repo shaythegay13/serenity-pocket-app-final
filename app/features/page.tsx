@@ -64,7 +64,7 @@ export default function FeaturesPage() {
           {/* Hero Section */}
           <div className="text-center mb-12 sm:mb-16">
             <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Platform Features
+              Features That Make Smarter Betting Possible
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-2">
               Discover the powerful behavioral and AI tools that make PlayMind Labs the most comprehensive

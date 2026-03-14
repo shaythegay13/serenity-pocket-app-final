@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { invokeAI, isEnhancedAIAvailable, type AIMessage } from "@/lib/ai-service"
+import { supabaseServer } from "@/lib/supabase-server"
 import { conductSportsResearch, type SportsResearchInput, type SportsResearchOutput } from "@/lib/sports-research"
 
 type BiasWarning = {
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest) {
   try {
     if (!isEnhancedAIAvailable()) {
       return NextResponse.json({ error: "Gemini is not configured" }, { status: 503 })
+    }
+
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()

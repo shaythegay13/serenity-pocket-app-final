@@ -31,7 +31,7 @@ export default function ResponsibleUsePage() {
     <FooterPageWrapper>
       <div className="container mx-auto px-4 py-10 max-w-4xl">
       <div className="text-center space-y-2 mb-8">
-        <h1 className="text-4xl font-bold text-foreground">Responsible Use</h1>
+        <h1 className="text-4xl font-bold text-foreground">Responsible Gambling at PlayMind Labs</h1>
         <p className="text-muted-foreground">Harm reduction, clarity, and user protection are built-in.</p>
       </div>
 

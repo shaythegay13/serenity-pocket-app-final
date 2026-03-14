@@ -174,7 +174,7 @@ export async function POST(req: Request) {
     await flowgladServer.adjustSubscription({
       priceId,
       subscriptionId: profile.flowglad_subscription_id,
-      timing: 'at_end_of_period',
+      timing: 'at_end_of_current_billing_period',
     })
 
     const tierConfig = SUBSCRIPTION_TIERS.find(t => t.id === tier)

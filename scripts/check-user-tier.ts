@@ -33,26 +33,6 @@ async function main() {
 
   console.log(`Found ${users.users.length} user(s)\n`)
 
-  // Pre-fetch all usage limits to cache them by tier
-  const { data: allLimits, error: allLimitsError } = await supabase
-    .from('ai_usage_limits')
-    .select('*')
-    .order('tier')
-
-  const limitsByTier = new Map(allLimits?.map(limit => [limit.tier, limit]) || [])
-
-  // Pre-fetch all user profiles in a single query
-  const userIds = users.users.map(u => u.id)
-
-  // Batch processing in chunks if there are too many users, though typical usage is under limits
-  const { data: profiles, error: profilesError } = await supabase
-    .from('user_profiles')
-    .select('id, subscription_tier, email')
-    .in('id', userIds)
-
-  const profilesById = new Map(profiles?.map(p => [p.id, p]) || [])
-
-  // Check current week's usage
   const userIds = users.users.map(u => u.id)
 
   const getWeekStart = () => {
@@ -64,10 +44,6 @@ async function main() {
     return d.toISOString().split('T')[0]
   }
 
-  const weekStart = getWeekStart()
-
-  for (const user of users.users) {
-    const profile = profilesById.get(user.id)
   const weekStart = getWeekStart()
 
   // Batch queries
@@ -103,9 +79,6 @@ async function main() {
   const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || [])
   const limitsMap = new Map(allLimits?.map(l => [l.tier, l]) || [])
 
-  // Since we want exact counts grouped by user_id and Supabase `select` with `count`
-  // without grouped columns returns a total count, we'll manually aggregate the usages
-  // from a separate query to get individual counts per user.
   const pickerUsageCounts = new Map<string, number>()
   if (pickerUsageData) {
     for (const row of pickerUsageData) {
@@ -126,43 +99,21 @@ async function main() {
 
     if (profilesError || !profile) {
       console.log('   ❌ Profile not found or error:', profilesError?.message || 'Profile not found')
-      console.log('   ❌ Profile not found or error:', profilesError?.message)
       continue
     }
 
     const tier = profile.subscription_tier || 'free'
     console.log(`   📊 Subscription Tier: ${tier}`)
 
-    // Use cached limits
-    const limits = limitsByTier.get(tier)
-    // Check tier limits
     const limits = limitsMap.get(tier)
 
     if (!limits) {
       console.log('   ❌ No limits found for tier:', tier)
     } else {
-      console.log(`   ✅ AI Picker Weekly Limit: ${limits.ai_picker_weekly_limit}`)
-      console.log(`   ✅ AI Bet Analyzer Weekly Limit: ${limits.ai_bet_analyzer_weekly_limit}`)
+      console.log(`   ✅ AI Picker Weekly Limit: ${limits?.ai_picker_weekly_limit}`)
+      console.log(`   ✅ AI Bet Analyzer Weekly Limit: ${limits?.ai_bet_analyzer_weekly_limit}`)
     }
 
-    // Fetch usage counts concurrently
-    const [pickerUsageResult, analyzerUsageResult] = await Promise.all([
-      supabase
-        .from('ai_service_usage')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('service_type', 'ai_picker')
-        .eq('week_start_date', weekStart),
-      supabase
-        .from('ai_service_usage')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('service_type', 'ai_bet_analyzer')
-        .eq('week_start_date', weekStart)
-    ])
-
-    const { count: pickerUsage } = pickerUsageResult
-    const { count: analyzerUsage } = analyzerUsageResult
     const pickerUsage = pickerUsageCounts.get(user.id) || 0
     const analyzerUsage = analyzerUsageCounts.get(user.id) || 0
 

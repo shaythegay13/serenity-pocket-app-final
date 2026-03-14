@@ -17,15 +17,6 @@ export function calculateWinReturn(stake: number, odds: number): number {
 }
 
 /**
- * Calculate Expected Value (EV) for a given bet
- */
-export function computeEv(stake: number, odds: number, prob: number): number {
-  const decimalOdds = odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
-  const profitIfWin = (decimalOdds - 1) * stake;
-  return (prob * profitIfWin) - ((1 - prob) * stake);
-}
-
-/**
  * Calculate betting performance metrics from unified bet data
  */
 export function calculateBettingMetrics(unifiedBets: UnifiedBet[]) {

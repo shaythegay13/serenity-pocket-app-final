@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { flowglad, getTierPriceId, isFlowgladConfigured, TIER_PRICES } from '@/lib/flowglad'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers'
@@ -56,6 +57,8 @@ export async function POST(req: Request) {
         { error: 'Payment processor not configured', code: 'FLOWGLAD_NOT_CONFIGURED' },
         { status: 503 }
       )
+    }
+
     // Check if Flowglad is configured
     const hasFlowgladConfig = process.env.FLOWGLAD_SECRET_KEY &&
       process.env.FLOWGLAD_SECRET_KEY.trim().length > 0

@@ -1549,11 +1549,11 @@ export const storageHybrid: {
     }
 
     // Update emotional awareness ring (increment by 25% per emotion check-in, max 100%)
-    const currentEmotionalAwareness = userData.dailyRings.emotionalAwareness || 0
+    const currentEmotionalAwareness = userData.dailyRings?.emotionalAwareness ?? 0
     const newEmotionalAwareness = Math.min(100, currentEmotionalAwareness + 25)
 
     // Update mindfulness ring (using the old mindfulness field for journal completion)
-    const currentMindfulness = userData.dailyRings.mindfulness || 0
+    const currentMindfulness = userData.dailyRings?.mindfulness ?? 0
     const newMindfulness = Math.min(100, currentMindfulness + 25)
 
     await this.setUserData({

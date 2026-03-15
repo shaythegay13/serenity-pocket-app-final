@@ -37,7 +37,20 @@ export async function POST(request: Request) {
       }
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
+    // Try cookie-based auth first
+    let { data: { user } } = await supabase.auth.getUser();
+
+    // Fallback: validate Bearer token from Authorization header
+    // (needed when session is stored in localStorage, not cookies)
+    if (!user) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user: tokenUser } } = await supabase.auth.getUser(token);
+        user = tokenUser;
+      }
+    }
+
     const userId = user?.id || null;
 
     let anonymousId = body.anonymousSessionId;

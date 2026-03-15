@@ -39,7 +39,9 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
     setIsSubmitting(true);
     try {
       // Get current user and anonymous session
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user ?? null;
+      const accessToken = session?.access_token ?? null;
       let anonymousId = !user ? getAnonymousSessionId() : null;
 
       // If still no anonymous ID (e.g., localStorage empty), generate a fallback
@@ -50,9 +52,13 @@ export function IntegratedSurveyWrapper({ onComplete, onSwitchToLogin, onClose }
       }
 
       // Call the new hybrid survey API
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
       const response = await fetch('/api/survey/submit-v2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           responses,
           anonymousSessionId: anonymousId

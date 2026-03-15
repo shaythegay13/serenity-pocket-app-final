@@ -582,10 +582,12 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             return clampPct(impliedProbFromAmericanOdds(odds) * 100)
           })(),
           suggestedStake: (() => {
+            // suggestedStakeAbsolute is already Kelly-sized from the API.
+            // Apply the behavioral risk multiplier exactly once here.
             const stake = Number(rec.suggestedStakeAbsolute)
-            const baseStake = Number.isFinite(stake) && stake > 0 ? stake : 0
+            const baseStake = Number.isFinite(stake) && stake > 0 ? stake : 5
             const multiplier = rec.riskAdjusted?.suggestedBetMultiplier ?? 1.0
-            return Number(baseStake * multiplier)
+            return Math.max(1, Math.round(baseStake * multiplier))
           })(),
           riskLevel: rec.riskAdjusted?.riskLevel || rec.riskLevel || 'MEDIUM',
           // Pass the risk-adjusted metadata to the UI

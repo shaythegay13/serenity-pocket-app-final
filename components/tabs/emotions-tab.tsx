@@ -468,7 +468,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       // Pre-trade: +15 XP, update bias recognition ring
       xpEarned = 15
       const biasCount = selectedBiases.length
-      const newBiasRingProgress = Math.min(userData.dailyRings.biasRecognition + (biasCount * 15), 100)
+      const newBiasRingProgress = Math.min((userData.dailyRings?.biasRecognition ?? 0) + (biasCount * 15), 100)
 
       // V2 Betting Data Logic (New)
       let createdComprehensiveBet = false
@@ -531,7 +531,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       // Create new trade entry (Legacy - Keep for backward compatibility)
       // Skip if we already created a comprehensive bet to avoid duplicates
       if (!createdComprehensiveBet) {
-        const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` â€” ${sport}` : ''}`
+        const defaultTitle = `${format(new Date(), "MMM d, yyyy 'at' h:mm a")}${sport ? ` - ${sport}` : ''}`
         const newTrade: Trade = {
           id: Date.now().toString(),
           timestamp: new Date(),
@@ -565,7 +565,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
       // Post-trade: +20 XP, update mindfulness ring
       xpEarned = 20
       const mindfulTrade = selectedBiases.length > 0
-      const newMindfulnessProgress = Math.min(userData.dailyRings.mindfulness + 20, 100)
+      const newMindfulnessProgress = Math.min((userData.dailyRings?.mindfulness ?? 0) + 20, 100)
 
       // 1. Logic for the new betting data (matches popup dialog)
       if ((stake && odds && gameDescription && outcome) || selectedBet) {
@@ -622,7 +622,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
               intensity[0],
               `Emotional check-in: ${context || "No additional context"}`
             )
-            console.log('âœ… Updated comprehensive bet with outcome and emotional data')
+            console.log('✅ Updated comprehensive bet with outcome and emotional data')
           } catch (error) {
             console.error('Error updating comprehensive bet:', error)
           }
@@ -659,7 +659,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
     } else {
       // During-trade: +5 XP, update emotional awareness ring
       xpEarned = 5
-      const newRingProgress = Math.min(userData.dailyRings.emotionalAwareness + 10, 100)
+      const newRingProgress = Math.min((userData.dailyRings?.emotionalAwareness ?? 0) + 10, 100)
 
       // V2 Betting Data Logic (New)
       if ((betDataMode === "manual" && stake && odds && gameDescription) || selectedBet) {
@@ -824,7 +824,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                         : `${bet.awayTeam} vs ${bet.homeTeam}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {getSportDisplayName(bet.sport)} â€¢ {bet.betType} â€¢ ${bet.stake} â€¢ {bet.emotions.before.emotion || "Pre-bet check-in"}
+                      {getSportDisplayName(bet.sport)} • {bet.betType} • ${bet.stake} • {bet.emotions.before.emotion || "Pre-bet check-in"}
                     </p>
                     {bet.reasoning && (
                       <p className="text-xs text-muted-foreground line-clamp-1">
@@ -1131,15 +1131,15 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                     <RadioGroup value={outcome} onValueChange={(val: string) => setOutcome(val as any)}>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="profit" id="profit" />
-                        <Label htmlFor="profit" className="cursor-pointer flex-1 font-normal">Won ðŸ’°</Label>
+                        <Label htmlFor="profit" className="cursor-pointer flex-1 font-normal">Won</Label>
                       </div>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="loss" id="loss" />
-                        <Label htmlFor="loss" className="cursor-pointer flex-1 font-normal">Lost ðŸ“‰</Label>
+                        <Label htmlFor="loss" className="cursor-pointer flex-1 font-normal">Lost</Label>
                       </div>
                       <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent cursor-pointer">
                         <RadioGroupItem value="breakeven" id="breakeven" />
-                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Pushed âš–ï¸</Label>
+                        <Label htmlFor="breakeven" className="cursor-pointer flex-1 font-normal">Pushed</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -1345,7 +1345,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                         : `${bet.awayTeam} vs ${bet.homeTeam}`}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {bet.betType} â€¢ {getSportDisplayName(bet.sport)} â€¢ ${bet.stake} @ {bet.odds}
+                                      {bet.betType} • {getSportDisplayName(bet.sport)} • ${bet.stake} @ {bet.odds}
                                     </p>
                                     {bet.reasoning && (
                                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
@@ -1358,7 +1358,7 @@ export function EmotionsTab({ userData, updateUserData, refreshKey = 0 }: Emotio
                                   </div>
                                   {selectedBet?.id === bet.id && (
                                     <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                                      <span className="text-primary-foreground text-xs">âœ“</span>
+                                      <span className="text-primary-foreground text-xs">✓</span>
                                     </div>
                                   )}
                                 </div>

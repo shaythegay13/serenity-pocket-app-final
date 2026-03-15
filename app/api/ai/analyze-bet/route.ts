@@ -97,9 +97,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Fetch user's emotional stability score from DB (the same score shown on the front end)
+    let userEmotionalStabilityScore = 50
+    try {
+      const { data: userProfileData } = await supabase
+        .from('user_profiles')
+        .select('emotional_stability')
+        .eq('id', user.id)
+        .single()
+      if (typeof userProfileData?.emotional_stability === 'number') {
+        userEmotionalStabilityScore = userProfileData.emotional_stability
+      }
+    } catch (e) {
+      console.warn('[TiltLab PsychPicker] Could not fetch emotional stability, using default', e)
+    }
+
     // --- Psychology Model Selection (Integrated from SlipAnalyzer Logic) ---
     try {
-      const emotionalScore = payload.confidenceLevel ?? 50
+      const emotionalScore = userEmotionalStabilityScore
       const riskTolerance = inferRiskToleranceFromScenario(payload)
 
       // Sanitize inputs to prevent command injection

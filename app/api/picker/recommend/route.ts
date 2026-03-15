@@ -23,7 +23,7 @@ import {
   type SerenityFeatureInput,
 } from "@/lib/services/serenityFeatureBuilder"
 import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
-import { emotionalStabilityService } from "@/lib/services/emotional-stability-service"
+import { calculateEmotionalStability } from "@/lib/emotional-scoring"
 import { computeEvFromProbAndOdds } from "@/lib/ev-calculator"
 import {
   calculateRiskIndex,
@@ -658,9 +658,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const emotionalStability =
-      await emotionalStabilityService.getCurrentEmotionalStability(userData)
-    const emotionalScore = emotionalStability.score
+    // Compute emotional stability server-side using real data from Supabase,
+    // matching the dynamic score shown to the user on the SmartSlip front end.
+    const [{ data: rawEmotionLogs }, { data: rawTrades }] = await Promise.all([
+      supabase
+        .from('emotion_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: true }),
+      supabase
+        .from('trades')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: true }),
+    ])
+    const emotionLogs = (rawEmotionLogs || []).map((log: any) => ({
+      id: log.id,
+      timestamp: new Date(log.timestamp),
+      emotion: log.emotion,
+      intensity: log.intensity,
+      context: log.notes || '',
+      phase: log.phase,
+      tradeId: undefined as undefined,
+    }))
+    const tradesList = (rawTrades || []).map((t: any) => ({
+      id: t.id,
+      timestamp: new Date(t.timestamp),
+      preTradeEmotion: t.pre_trade_emotion || '',
+      preTradeIntensity: t.pre_trade_intensity || 3,
+      biasesIdentified: t.biases_identified || [],
+      confidenceLevel: t.pre_trade_confidence || 50,
+      reasoning: t.pre_trade_notes || '',
+      outcome: t.outcome,
+      postTradeEmotion: t.post_trade_emotion,
+      postTradeIntensity: t.post_trade_intensity,
+      reflection: t.post_trade_notes,
+      emotionalImpact: t.emotional_impact,
+    }))
+    const pgsiScore = (userData as any).pgsi_score ?? undefined
+    const emotionalStabilityResult = calculateEmotionalStability(emotionLogs, pgsiScore, tradesList)
+    const emotionalScore = emotionalStabilityResult.score
     const riskTolerance = body.riskTolerance || "moderate"
 
     // weeklyBudget is metadata only; stakes are income-agnostic
@@ -1441,6 +1478,7 @@ export async function POST(request: NextRequest) {
       let mathEvPct = r.numericRisk?.evPercentage ?? 0
       let mathEvDollars = r.numericRisk?.ev ?? 0
       let evSource = 'gemini'
+      let mathKellyFraction: number | undefined
 
       if (offeredOdds && geminiTrueProb) {
         const stake = r.suggestedStakeAbsolute || 25
@@ -1448,23 +1486,28 @@ export async function POST(request: NextRequest) {
           stake,
           offeredAmericanOdds: offeredOdds,
           consensusAmericanOdds: consensusOdds,
-          precomputedTrueWinProb: geminiTrueProb
+          // Use modelWinProb (not precomputedTrueWinProb) so the 70/30 market blending
+          // is applied: trueProb = 0.7 * fairMarketProb + 0.3 * geminiProb.
+          // This prevents inflated EV from Gemini overconfidence and produces
+          // varied, realistic edges across different games.
+          modelWinProb: geminiTrueProb
         })
 
         // ----------------------------------------------------------------------
         // EV SANITY CHECK & CLAMPING
-        // Extreme EV (>20%) is usually a sign of model overconfidence or poor data.
-        // Professional sharp edges are typically 1-5%. We clamp at 15% for display.
+        // After blending, professional sharp edges are typically 1-8%.
+        // Cap at 20% to allow for genuinely strong spots while filtering noise.
         // ----------------------------------------------------------------------
         const rawEvPct = evResult.evPercent
-        mathEvPct = Math.min(15, rawEvPct)
+        mathEvPct = Math.min(20, rawEvPct)
         mathEvDollars = (stake * mathEvPct) / 100
+        mathKellyFraction = evResult.kellyFraction
         evSource = 'math'
 
-        if (rawEvPct > 15) {
-          console.warn(`[SmartSlip] Extreme EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 15.00% (Gemini confidence was ${r.confidence}%)`)
+        if (rawEvPct > 20) {
+          console.warn(`[SmartSlip] EV Clamped: ${r.teams} ${r.betType} from ${rawEvPct.toFixed(2)}% to 20.00% (Gemini confidence was ${r.confidence}%, blended trueProb=${(evResult.trueWinProb * 100).toFixed(1)}%)`)
         } else {
-          console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → trueProb=${(geminiTrueProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}%`)
+          console.log(`[SmartSlip EV Re-score] ${r.teams} ${r.betType}: Gemini conf=${r.confidence}% → blended trueProb=${(evResult.trueWinProb * 100).toFixed(1)}%, odds=${offeredOdds}, mathEV=${mathEvPct.toFixed(2)}%, kelly=${(evResult.kellyFraction * 100).toFixed(2)}%`)
         }
       }
       // ----------------------------------------------------------------------
@@ -1499,7 +1542,18 @@ export async function POST(request: NextRequest) {
         riskLevel: riskModulated.riskLevel,
         recommendation: finalRecommendationLabel,
         suggestedStakeMultiplier: finalStakeMultiplier,
-        suggestedStakeAbsolute: Math.round((r.suggestedStakeAbsolute || 25) * finalStakeMultiplier),
+        // Stake = Kelly fraction × weeklyBudget (varies by game edge/odds).
+        // Do NOT multiply by finalStakeMultiplier here — the UI applies
+        // riskAdjusted.suggestedBetMultiplier as the single behavioral scaling step.
+        suggestedStakeAbsolute: (() => {
+          if (mathKellyFraction !== undefined && mathKellyFraction > 0) {
+            const rawKellyStake = mathKellyFraction * weeklyBudget
+            // Cap at 20% of weekly budget to prevent over-concentration
+            return Math.max(5, Math.round(Math.min(rawKellyStake, weeklyBudget * 0.2)))
+          }
+          // Fallback: no positive edge, suggest a small flat minimum
+          return 5
+        })(),
         confidence: Math.round(riskModulated.adjustedConfidence * 100),
 
         // Add clinical instrumentation for analytics

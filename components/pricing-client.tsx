@@ -7,10 +7,6 @@ import { Check, Star, Users, Zap, Crown, Sparkles, ArrowLeft } from "lucide-reac
 import { SUBSCRIPTION_TIERS } from "@/lib/subscription-tiers"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { Navigation } from "@/components/navigation"
-import { BottomNav } from "@/components/bottom-nav"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import type { UserData } from "@/lib/types"
@@ -94,7 +90,6 @@ const handleSubscribe = async (tierId: string, setLoadingTier: (id: string | nul
 }
 
 export function PricingClient() {
-  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -137,10 +132,6 @@ export function PricingClient() {
       isMounted = false
     }
   }, [])
-
-  const handleNavigateToTab = (tab: string) => {
-    router.push(`/${tab === 'odds' ? 'sports-dashboard' : tab}`)
-  }
 
   const showGuarantee = (() => {
     if (!userData) return true
@@ -320,6 +311,8 @@ export function PricingClient() {
 
   // Always render content immediately for SEO crawlability.
   // Header/nav chrome loads in once auth resolves.
+  const backHref = authed ? "/home" : "/"
+
   return (
     <>
       <script
@@ -327,17 +320,9 @@ export function PricingClient() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
       />
       <div className="min-h-screen bg-background">
-      {!loading && authed && userData ? (
-        <>
-          <DashboardHeader userData={userData} onNavigateToTab={handleNavigateToTab} />
-          <div className="hidden md:block">
-            <Navigation />
-          </div>
-        </>
-      ) : !loading ? (
         <div className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 py-3">
-            <Link href="/">
+            <Link href={backHref}>
               <Button variant="ghost" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Main Page
@@ -345,14 +330,11 @@ export function PricingClient() {
             </Link>
           </div>
         </div>
-      ) : null}
 
-      <main className={!loading && authed && userData ? "pb-20 md:pb-0" : ""}>
-        {pricingContent}
-      </main>
-
-      {!loading && authed && userData && <BottomNav />}
-    </div>
+        <main>
+          {pricingContent}
+        </main>
+      </div>
     </>
   )
 }

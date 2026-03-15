@@ -845,6 +845,9 @@ export async function POST(request: NextRequest) {
     const rawGames = oddsResult.data as Array<any>
     console.log(`[SmartSlip] Raw games fetched: ${rawGames.length}`)
 
+    const rawSportKeys = [...new Set(rawGames.map((g) => g.sportKey || g.sport_key || g.sport))]
+    console.log(`[SmartSlip] rawGames sport keys: ${rawSportKeys.join(', ')}`)
+
     const now = Date.now()
     const games = rawGames.filter((g: any) => {
       const gKeyRaw = g.sportKey || g.sport_key || g.sport
@@ -866,10 +869,16 @@ export async function POST(request: NextRequest) {
       `[SmartSlip] Games after sport+date filter: ${games.length} (requested: ${sport})`,
     )
 
+    if (games.length === 0 && rawGames.length > 0) {
+      console.warn(
+        `[SmartSlip] Sport filter removed ALL ${rawGames.length} games. Requested sport="${sport}". All game sport keys: ${rawGames.map((g) => g.sportKey || g.sport_key || g.sport).join(', ')}`,
+      )
+    }
+
     if (games.length === 0) {
       console.warn(
         `[SmartSlip] No games found after filtering for ${sport}. Raw game sports:`,
-        rawGames.slice(0, 3).map((g) => g.sportKey || g.sport_key || g.sport),
+        rawGames.map((g) => g.sportKey || g.sport_key || g.sport),
       )
       return NextResponse.json({
         success: true,

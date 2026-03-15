@@ -113,12 +113,19 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
     sportKey = sport;
   }
 
-  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals,alternate_spreads,alternate_totals,team_totals&oddsFormat=american&apiKey=${apiKey}`;
+  const fullUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals,alternate_spreads,alternate_totals,team_totals&oddsFormat=american&apiKey=${apiKey}`;
+  const basicUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
 
   try {
-    const response = await fetch(url);
+    let response = await fetch(fullUrl);
     if (!response.ok) {
-      throw new Error(`TheOddsAPI error: ${response.status} ${response.statusText}`);
+      // Premium markets (alternate_spreads, alternate_totals, team_totals) may not be
+      // available on all API plans or for all sports. Fall back to basic markets.
+      console.warn(`[TheOddsAPI] Full markets request failed (${response.status}), retrying with basic markets for ${sportKey}`);
+      response = await fetch(basicUrl);
+      if (!response.ok) {
+        throw new Error(`TheOddsAPI error: ${response.status} ${response.statusText}`);
+      }
     }
 
     const data = await response.json();

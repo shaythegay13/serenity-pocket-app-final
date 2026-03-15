@@ -294,13 +294,34 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
 
       const payload = JSON.parse(raw) as {
         sport?: string
+        gameId?: string
         homeTeam?: string
         awayTeam?: string
+        betType?: string
+        odds?: number
+        line?: number
+        selection?: string
         bestHomeOdds?: number
         bestAwayOdds?: number
         defaultStake?: number
+        confidence?: number
         homeRecord?: string
         awayRecord?: string
+        isLiveBet?: boolean
+        // Player prop
+        playerName?: string
+        playerTeam?: string
+        propStat?: string
+        propLine?: number
+        propDirection?: 'over' | 'under'
+        propCategory?: string
+        // Team prop
+        teamPropTeam?: string
+        teamPropStat?: string
+        teamPropDirection?: 'over' | 'under'
+        // Market context
+        variantType?: string
+        marketLevel?: string
       }
 
       const mappedSport = normalizeSportKey(payload.sport || "americanfootball_nfl") as SupportedSportKey
@@ -322,27 +343,65 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         })
       }
 
+      // Determine betType — prefer explicit payload value, fall back to Moneyline
+      const validBetTypes = ['Moneyline', 'Spread', 'Over/Under', 'Player Prop', 'Parlay',
+        'Team Prop', 'Alt Spread', 'Alt Total', 'Teaser', 'Future', 'System'] as const
+      type ValidBetType = typeof validBetTypes[number]
+      const mappedBetType: ValidBetType =
+        validBetTypes.includes(payload.betType as ValidBetType)
+          ? (payload.betType as ValidBetType)
+          : 'Moneyline'
+
       setFormData(prev => {
         const effectiveBetAmount = payload.defaultStake ?? prev.betAmount ?? 0
-        // If user never set a budget, derive a reasonable default from the stake (e.g. 10x) or fallback to 500
         const effectiveBudget = (prev.budget && prev.budget > 0)
           ? prev.budget
           : (effectiveBetAmount > 0 ? effectiveBetAmount * 10 : 500)
+
+        // Derive selection: prefer explicit payload, then odds analysis for moneyline, else keep prev
+        const deriveSelection = (): typeof prev.selection => {
+          if (payload.selection && ['home', 'away', 'over', 'under', 'draw', 'other'].includes(payload.selection)) {
+            return payload.selection as typeof prev.selection
+          }
+          if (oddsAnalysis && (mappedBetType === 'Moneyline' || mappedBetType === 'Spread' || mappedBetType === 'Alt Spread')) {
+            return oddsAnalysis.favoriteTeam === payload.homeTeam ? 'home' : 'away'
+          }
+          return prev.selection
+        }
 
         return {
           ...prev,
           sport: mappedSport,
           homeTeam: payload.homeTeam || prev.homeTeam,
           awayTeam: payload.awayTeam || prev.awayTeam,
-          betType: "Moneyline",
-          selection: oddsAnalysis ? (oddsAnalysis.favoriteTeam === payload.homeTeam ? "home" : "away") : "home",
-          odds: oddsAnalysis ? (oddsAnalysis.favoriteTeam === payload.homeTeam ? homeOdds : awayOdds) : prev.odds,
+          betType: mappedBetType,
+          selection: deriveSelection(),
+          odds: payload.odds ?? (oddsAnalysis
+            ? (oddsAnalysis.favoriteTeam === payload.homeTeam ? homeOdds : awayOdds)
+            : prev.odds),
+          line: payload.line ?? prev.line,
           betAmount: effectiveBetAmount,
           budget: effectiveBudget,
+          isLiveBet: payload.isLiveBet ?? prev.isLiveBet,
           favoriteTeam: oddsAnalysis?.favoriteTeam || prev.favoriteTeam,
           underdogTeam: oddsAnalysis?.underdogTeam || prev.underdogTeam,
           favoriteRecord: oddsAnalysis?.favoriteRecord || prev.favoriteRecord,
           underdogRecord: oddsAnalysis?.underdogRecord || prev.underdogRecord,
+          // Player prop
+          playerName: payload.playerName || prev.playerName,
+          playerTeam: payload.playerTeam || prev.playerTeam,
+          propStat: payload.propStat || prev.propStat,
+          propLine: payload.propLine ?? prev.propLine,
+          propDirection: payload.propDirection ?? prev.propDirection,
+          propCategory: payload.propCategory as any || prev.propCategory,
+          // Team prop
+          teamPropTeam: payload.teamPropTeam || prev.teamPropTeam,
+          teamPropStat: payload.teamPropStat || prev.teamPropStat,
+          teamPropDirection: payload.teamPropDirection ?? prev.teamPropDirection,
+          // Market context
+          gameId: payload.gameId ?? (prev as any).gameId,
+          variantType: payload.variantType as any ?? (prev as any).variantType,
+          marketLevel: payload.marketLevel as any ?? (prev as any).marketLevel,
         }
       })
 
@@ -1035,6 +1094,20 @@ We'll automatically extract the details and populate the form.`}
                             value={formData.betType}
                             onChange={(value) => updateFormData("betType", value)}
                           />
+                          <div className="mt-2">
+                            <SegmentedControl
+                              options={[
+                                { value: "Alt Spread", label: "Alt Spread" },
+                                { value: "Alt Total", label: "Alt Total" },
+                                { value: "Team Prop", label: "Team Prop" },
+                                { value: "Teaser", label: "Teaser" },
+                                { value: "Future", label: "Future" },
+                                { value: "System", label: "System" },
+                              ]}
+                              value={formData.betType}
+                              onChange={(value) => updateFormData("betType", value)}
+                            />
+                          </div>
                         </div>
 
                         {formData.betType === "Spread" && (
@@ -1102,6 +1175,205 @@ We'll automatically extract the details and populate the form.`}
                               value={formData.selection}
                               onChange={(value) => updateFormData("selection", value)}
                             />
+                          </div>
+                        )}
+
+                        {/* Alt Spread — same fields as Spread */}
+                        {formData.betType === "Alt Spread" && (
+                          <>
+                            <div>
+                              <Label htmlFor="altSpreadLine">Alternate Line</Label>
+                              <Input
+                                id="altSpreadLine"
+                                type="number"
+                                step="0.5"
+                                value={formData.line || ""}
+                                onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                placeholder="e.g., -7.5"
+                              />
+                            </div>
+                            <div>
+                              <Label>Selection</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "home", label: formData.homeTeam || "Home" },
+                                  { value: "away", label: formData.awayTeam || "Away" },
+                                ]}
+                                value={formData.selection}
+                                onChange={(value) => updateFormData("selection", value)}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Alt Total — same fields as Over/Under */}
+                        {formData.betType === "Alt Total" && (
+                          <>
+                            <div>
+                              <Label htmlFor="altTotalLine">Alternate Total Line</Label>
+                              <Input
+                                id="altTotalLine"
+                                type="number"
+                                step="0.5"
+                                value={formData.line || ""}
+                                onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                placeholder="e.g., 210.5"
+                              />
+                            </div>
+                            <div>
+                              <Label>Selection</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "over", label: "Over" },
+                                  { value: "under", label: "Under" },
+                                ]}
+                                value={formData.selection}
+                                onChange={(value) => updateFormData("selection", value)}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Team Prop — team total, team stats */}
+                        {formData.betType === "Team Prop" && (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="teamPropTeam">Team</Label>
+                                <Input
+                                  id="teamPropTeam"
+                                  value={(formData as any).teamPropTeam || ""}
+                                  onChange={(e) => updateFormData("teamPropTeam" as any, e.target.value)}
+                                  placeholder="e.g., LAL or Lakers"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="teamPropLine">Team Total Line</Label>
+                                <Input
+                                  id="teamPropLine"
+                                  type="number"
+                                  step="0.5"
+                                  value={formData.line || ""}
+                                  onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                  placeholder="e.g., 112.5"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label>Over / Under</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "over", label: "Over" },
+                                  { value: "under", label: "Under" },
+                                ]}
+                                value={(formData as any).teamPropDirection || formData.selection || "over"}
+                                onChange={(value) => {
+                                  updateFormData("teamPropDirection" as any, value)
+                                  updateFormData("selection", value as any)
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Teaser — point adjustment + teaser size */}
+                        {formData.betType === "Teaser" && (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="teaserSize">Teaser Size (points)</Label>
+                                <Select
+                                  value={String((formData as any).teaserSize || "")}
+                                  onValueChange={(v) => updateFormData("teaserSize" as any, parseFloat(v))}
+                                >
+                                  <SelectTrigger id="teaserSize">
+                                    <SelectValue placeholder="Select teaser size" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(formData.sport?.includes('football') || formData.sport?.includes('nfl'))
+                                      ? [6, 6.5, 7, 10].map(n => (
+                                          <SelectItem key={n} value={String(n)}>{n} pts</SelectItem>
+                                        ))
+                                      : [5, 6].map(n => (
+                                          <SelectItem key={n} value={String(n)}>{n} pts</SelectItem>
+                                        ))
+                                    }
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="teaserLine">Original Line</Label>
+                                <Input
+                                  id="teaserLine"
+                                  type="number"
+                                  step="0.5"
+                                  value={formData.line || ""}
+                                  onChange={(e) => updateFormData("line", parseFloat(e.target.value) || undefined)}
+                                  placeholder="e.g., -7 (before teaser adjustment)"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label>Bet Type Being Teased</Label>
+                              <SegmentedControl
+                                options={[
+                                  { value: "spread", label: "Spread" },
+                                  { value: "total", label: "Total" },
+                                ]}
+                                value={formData.selection === "over" || formData.selection === "under" ? "total" : "spread"}
+                                onChange={(value) => updateFormData("selection", value === "total" ? "over" : "home")}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Future — outright/championship bet */}
+                        {formData.betType === "Future" && (
+                          <>
+                            <div className="md:col-span-2">
+                              <Label htmlFor="futureSelection">Selection (Team or Player)</Label>
+                              <Input
+                                id="futureSelection"
+                                value={(formData as any).futureSelection || formData.homeTeam || ""}
+                                onChange={(e) => updateFormData("futureSelection" as any, e.target.value)}
+                                placeholder="e.g., Boston Celtics or Nikola Jokic"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="futureCategory">Category</Label>
+                              <Select
+                                value={(formData as any).futureCategory || "championship"}
+                                onValueChange={(v) => updateFormData("futureCategory" as any, v)}
+                              >
+                                <SelectTrigger id="futureCategory">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="championship">Championship / Title</SelectItem>
+                                  <SelectItem value="division">Division Winner</SelectItem>
+                                  <SelectItem value="conference">Conference Winner</SelectItem>
+                                  <SelectItem value="award">Player Award (MVP, etc.)</SelectItem>
+                                  <SelectItem value="season_stat">Season Stat Leader</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="futureOdds">Odds (American)</Label>
+                              <Input
+                                id="futureOdds"
+                                type="number"
+                                value={formData.odds || ""}
+                                onChange={(e) => updateFormData("odds", parseInt(e.target.value) || 0)}
+                                placeholder="e.g., +500"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* System / Round-Robin */}
+                        {formData.betType === "System" && (
+                          <div className="md:col-span-2 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+                            System / Round-Robin bets are built in SmartSlip. You can paste your slip details below or describe the system bet in the notes field so TiltLab can analyze the psychological and risk dimensions.
                           </div>
                         )}
 

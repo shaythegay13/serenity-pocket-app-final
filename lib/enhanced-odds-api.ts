@@ -113,7 +113,7 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
     sportKey = sport;
   }
 
-  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals,alternate_spreads,alternate_totals,team_totals&oddsFormat=american&apiKey=${apiKey}`;
 
   try {
     const response = await fetch(url);
@@ -176,6 +176,88 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
           }
         }
 
+        // --- Alt spreads: collect all lines across bookmakers, group by point value ---
+        const altSpreadMap = new Map<string, { homeOdds: number[]; awayOdds: number[]; homeLine: number; awayLine: number }>();
+        const altTotalMap = new Map<number, { overOdds: number[]; underOdds: number[] }>();
+        const teamTotalMap = new Map<string, { overOdds: number[]; underOdds: number[]; team: string; line: number }>();
+
+        for (const book of game.bookmakers || []) {
+          for (const market of book.markets || []) {
+            if (market.key === 'alternate_spreads') {
+              for (const o of market.outcomes || []) {
+                if (o.point === undefined) continue;
+                const key = `${o.name}_${o.point}`;
+                if (!altSpreadMap.has(key)) {
+                  altSpreadMap.set(key, { homeOdds: [], awayOdds: [], homeLine: o.point, awayLine: -o.point });
+                }
+                const entry = altSpreadMap.get(key)!;
+                if (o.name === homeTeam) entry.homeOdds.push(o.price);
+                else if (o.name === awayTeam) entry.awayOdds.push(o.price);
+              }
+            } else if (market.key === 'alternate_totals') {
+              for (const o of market.outcomes || []) {
+                if (o.point === undefined) continue;
+                if (!altTotalMap.has(o.point)) altTotalMap.set(o.point, { overOdds: [], underOdds: [] });
+                const entry = altTotalMap.get(o.point)!;
+                if (o.name === 'Over') entry.overOdds.push(o.price);
+                else if (o.name === 'Under') entry.underOdds.push(o.price);
+              }
+            } else if (market.key === 'team_totals') {
+              for (const o of market.outcomes || []) {
+                if (o.point === undefined || !o.description) continue;
+                const team = o.description;
+                const key = `${team}_${o.point}`;
+                if (!teamTotalMap.has(key)) teamTotalMap.set(key, { overOdds: [], underOdds: [], team, line: o.point });
+                const entry = teamTotalMap.get(key)!;
+                if (o.name === 'Over') entry.overOdds.push(o.price);
+                else if (o.name === 'Under') entry.underOdds.push(o.price);
+              }
+            }
+          }
+        }
+
+        const calcBestArr = (arr: number[]) => arr.length > 0 ? Math.max(...arr) : undefined;
+
+        // Build alt spread lines (only include those where both sides have odds)
+        const altSpreads: any[] = [];
+        const seenAltSpreadLines = new Set<number>();
+        for (const [, entry] of altSpreadMap) {
+          if (entry.homeOdds.length > 0 && entry.awayOdds.length > 0 && !seenAltSpreadLines.has(entry.homeLine)) {
+            seenAltSpreadLines.add(entry.homeLine);
+            altSpreads.push({
+              homeLine: entry.homeLine, awayLine: -entry.homeLine,
+              homeOdds: calcBestArr(entry.homeOdds), awayOdds: calcBestArr(entry.awayOdds),
+              variantType: 'alt_line', marketLevel: 'game'
+            });
+          }
+        }
+        altSpreads.sort((a, b) => a.homeLine - b.homeLine);
+
+        // Build alt total lines
+        const altTotals: any[] = [];
+        for (const [line, entry] of altTotalMap) {
+          if (entry.overOdds.length > 0 && entry.underOdds.length > 0) {
+            altTotals.push({
+              line, overOdds: calcBestArr(entry.overOdds), underOdds: calcBestArr(entry.underOdds),
+              variantType: 'alt_line', marketLevel: 'game'
+            });
+          }
+        }
+        altTotals.sort((a, b) => a.line - b.line);
+
+        // Build team total lines
+        const teamTotals: any[] = [];
+        for (const [, entry] of teamTotalMap) {
+          if (entry.overOdds.length > 0 && entry.underOdds.length > 0) {
+            teamTotals.push({
+              team: entry.team, line: entry.line,
+              overOdds: calcBestArr(entry.overOdds), underOdds: calcBestArr(entry.underOdds),
+              variantType: 'base_line', marketLevel: 'team'
+            });
+          }
+        }
+        teamTotals.sort((a, b) => a.team.localeCompare(b.team) || a.line - b.line);
+
         const homeOdds = h2hMarket?.outcomes?.find((o: any) => o.name === homeTeam)?.price;
         const awayOdds = h2hMarket?.outcomes?.find((o: any) => o.name === awayTeam)?.price;
 
@@ -232,7 +314,11 @@ async function fetchFromTheOddsAPI(sport?: string): Promise<EnhancedOddsResponse
           underLine: underOutcome ? { best: { line: underOutcome.point, odds: calcBest(allUnderOdds) || underOutcome.price }, average: calcAvg(allUnderOdds) } : undefined,
           commenceTime: game.commence_time,
           lastUpdate: new Date(),
-          bookmakerCount: game.bookmakers?.length || 0
+          bookmakerCount: game.bookmakers?.length || 0,
+          // Alternate and team-level markets
+          altSpreads: altSpreads.length > 0 ? altSpreads : undefined,
+          altTotals: altTotals.length > 0 ? altTotals : undefined,
+          teamTotals: teamTotals.length > 0 ? teamTotals : undefined,
         };
       }),
       source: 'theodds',

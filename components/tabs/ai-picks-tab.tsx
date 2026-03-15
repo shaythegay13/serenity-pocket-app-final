@@ -680,18 +680,76 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
   const handleAnalyzePick = (pick: any) => {
     try {
-      const event = String(pick.event || '')
-      const parts = event.split(' @ ')
+      // Support both pick.teams ("Away @ Home") and pick.event formats
+      const matchup = String(pick.teams || pick.event || '')
+      const parts = matchup.split(' @ ')
       const awayTeam = parts[0]?.trim() || ''
       const homeTeam = parts[1]?.trim() || ''
 
+      // Map SmartSlip betType (lowercase) → TiltLab betType (display label)
+      const betTypeMap: Record<string, string> = {
+        moneyline: 'Moneyline',
+        spread: 'Spread',
+        total: 'Over/Under',
+        player_prop: 'Player Prop',
+        prop: 'Player Prop',
+        team_prop: 'Team Prop',
+        alt_spread: 'Alt Spread',
+        alt_total: 'Alt Total',
+        teaser: 'Teaser',
+        future: 'Future',
+        system: 'System',
+        round_robin: 'System',
+        parlay: 'Parlay',
+        sgp: 'Parlay',
+        sgp_plus: 'Parlay',
+      }
+      const rawBetType = String(pick.betType || '').toLowerCase().replace(/[^a-z_]/g, '')
+      const mappedBetType = betTypeMap[rawBetType] || 'Moneyline'
+
+      // Derive selection from betType + pick data
+      const deriveSelection = (): string => {
+        if (pick.selection) return pick.selection
+        const bt = mappedBetType
+        if (bt === 'Over/Under' || bt === 'Alt Total') {
+          const lineStr = String(pick.line || '').toLowerCase()
+          return lineStr.includes('over') ? 'over' : 'under'
+        }
+        if (bt === 'Player Prop' || bt === 'Team Prop') {
+          return pick.propDirection || pick.teamPropDirection || 'over'
+        }
+        return 'home'
+      }
+
+      // Parse numeric line (pick.line may be a string like "-3.5" or "225.5 over")
+      const numericLine = parseFloat(String(pick.line || pick.propLine || '')) || undefined
+
       const payload = {
         sport: String(pick.sport || selectedSport || ''),
+        gameId: pick.gameId,
         homeTeam,
         awayTeam,
-        defaultStake: Number(pick.suggestedStake) || 0,
-        bestHomeOdds: undefined as any,
-        bestAwayOdds: undefined as any,
+        betType: mappedBetType,
+        odds: typeof pick.odds === 'number' ? pick.odds : undefined,
+        line: numericLine,
+        selection: deriveSelection(),
+        defaultStake: Number(pick.suggestedStakeAbsolute || 0) || Number(pick.suggestedStake || 0),
+        confidence: pick.confidence,
+        isLiveBet: false,
+        // Player prop fields
+        playerName: pick.playerName,
+        playerTeam: pick.playerTeam,
+        propStat: pick.propStat,
+        propLine: pick.propLine ?? numericLine,
+        propDirection: pick.propDirection,
+        propCategory: pick.propCategory,
+        // Team prop fields
+        teamPropTeam: pick.teamPropTeam,
+        teamPropStat: pick.teamPropStat,
+        teamPropDirection: pick.teamPropDirection,
+        // Market schema context
+        variantType: rawBetType.includes('alt') ? 'alt_line' : 'base_line',
+        marketLevel: pick.marketLevel,
       }
 
       try {
@@ -701,7 +759,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       }
 
       setActiveSection('advisor')
-      toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
+      toast.info('TiltLab ready', { description: `${mappedBetType} pre-filled. Review and run the AI analysis.` })
     } catch (e) {
       toast.error('Failed to open TiltLab')
     }

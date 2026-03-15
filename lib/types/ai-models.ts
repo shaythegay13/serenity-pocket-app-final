@@ -2,6 +2,24 @@
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH"
 
+// ============================================================================
+// Market Schema Enums
+// ============================================================================
+
+/** Which portion of the game a bet covers */
+export type TimeFrame =
+  | 'full_game'
+  | 'first_half' | 'second_half'
+  | 'first_quarter' | 'second_quarter' | 'third_quarter' | 'fourth_quarter'
+  | 'first_period' | 'second_period' | 'third_period'
+  | 'first_set' | 'second_set' | 'third_set'
+
+/** Whether the line is the primary book line, an alternate, or a milestone */
+export type VariantType = 'base_line' | 'alt_line' | 'milestone'
+
+/** Which level of the game hierarchy the market targets */
+export type MarketLevel = 'game' | 'team' | 'player' | 'future'
+
 export interface UserPsychologySnapshot {
   currentEmotion: string
   currentEmotionIntensity?: number // 0-10
@@ -292,6 +310,16 @@ export interface ParlayLeg {
   propStat?: string           // Specific stat (e.g., "passing_yards", "receptions")
   propLine?: number           // Numeric line (e.g., 250.5)
   propDirection?: 'over' | 'under' // Over/under selection
+
+  // Team prop fields (team totals, team stats)
+  teamPropTeam?: string                  // Which team (e.g., "LAL")
+  teamPropStat?: string                  // Stat key (e.g., "team_total_points")
+  teamPropDirection?: 'over' | 'under'   // Over/under selection
+
+  // Market schema fields
+  timeFrame?: TimeFrame     // Which portion of the game
+  variantType?: VariantType // base_line, alt_line, or milestone
+  marketLevel?: MarketLevel // game, team, player, or future
 }
 
 /**
@@ -304,8 +332,8 @@ export function isPlayerPropLeg(leg: ParlayLeg): boolean {
 // Parlay outcome status
 export type ParlayOutcome = 'pending' | 'won' | 'lost' | 'void' | 'push'
 
-// Parlay type flag - classic multi-game, same game parlay, or SGP+
-export type ParlayType = 'classic' | 'sgp' | 'sgp_plus'
+// Parlay type flag
+export type ParlayType = 'classic' | 'sgp' | 'sgp_plus' | 'teaser' | 'system' | 'round_robin'
 
 /**
  * Full parlay domain model for tracking user-built or recommended parlays.
@@ -339,6 +367,9 @@ export interface Parlay {
   tiltSignals?: string[]
   // Back-reference for emotion check-in linkage
   emotionCheckInId?: string
+  // Cash-out support (stub until sportsbook API integration)
+  supportsCashOut?: boolean
+  cashOutOffer?: import('../cashout-utils').CashOutOffer
 }
 
 /**
@@ -367,4 +398,101 @@ export interface CorrelationWarning {
   severity: 'low' | 'medium' | 'high'
   message: string
   affectedLegs: string[]
+}
+
+// ============================================================================
+// Teaser Types
+// ============================================================================
+
+/** A single leg in a teaser bet (spread or total only) */
+export interface TeaserLeg {
+  pickId: string
+  gameId?: string
+  teams: string
+  betType: 'spread' | 'total'         // Only spread/total eligible for teasers
+  originalLine: number                 // Line before teaser point adjustment
+  adjustedLine: number                 // Line after teaser points applied
+  selection: 'home' | 'away' | 'over' | 'under'
+  odds?: number                        // Not per-leg; derived from payout table
+  sport: string
+  aiWinProbability?: number            // Optional per-leg probability estimate
+}
+
+/** A fully resolved teaser recommendation with payout-table odds and EV */
+export interface TeaserRecommendation {
+  legs: TeaserLeg[]
+  teaserSize: number                   // 6, 6.5, 7, 10 for NFL; 5, 6 for NBA
+  teaserOddsAmerican: number           // From payout table
+  trueProbability: number              // Combined true win probability
+  projectedEV: number                  // Expected value in dollars
+  evPercentage: number                 // EV as % of stake
+  suggestedStake: number
+  sport: string
+  summary: string
+}
+
+// ============================================================================
+// Futures Types
+// ============================================================================
+
+export type FuturesCategory =
+  | 'championship' | 'division' | 'conference' | 'award' | 'season_stat'
+
+export type FuturesSubject = 'team' | 'player'
+
+export interface FutureMarket {
+  id: string
+  sport: string
+  seasonId: string
+  tournamentId?: string
+  category: FuturesCategory
+  subject: FuturesSubject
+  selection: string
+  odds: number
+  impliedProbability: number
+  fairProbability?: number
+  bookmaker: string
+  settlementDate: string
+  isOpen: boolean
+  variantType: 'base_line'
+  marketLevel: 'future'
+}
+
+export interface FuturesRecommendation {
+  market: FutureMarket
+  confidence: number              // 0-100
+  evPercentage: number
+  suggestedStake: number
+  suggestedStakeFraction: number
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'
+  reasoning: string
+  settlementHorizonDays: number
+  subject: FuturesSubject
+}
+
+// ============================================================================
+// System / Round-Robin Types
+// ============================================================================
+
+/** Configuration for a K-of-N system or round-robin bet */
+export interface SystemBetConfig {
+  type: 'system' | 'round_robin'
+  totalLegs: number           // N — total legs in the pool
+  requiredWinners: number     // K — how many must win for a payout
+  combinationCount: number    // C(N, K) — precomputed
+}
+
+/** Full system bet recommendation with all combinations pre-computed */
+export interface SystemBetRecommendation {
+  config: SystemBetConfig
+  legs: ParlayLeg[]
+  combinations: ParlayLeg[][]          // All C(N,K) sub-parlays
+  totalStake: number                   // stakePerCombination × combinationCount
+  stakePerCombination: number
+  minOddsAmerican: number              // Lowest single combination payout
+  maxOddsAmerican: number              // Highest single combination payout
+  expectedReturn: number
+  evPercentage: number
+  correlationWarnings: CorrelationWarning[]
+  summary: string
 }

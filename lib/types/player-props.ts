@@ -52,6 +52,11 @@ export interface PlayerPropLine {
 
   // Metadata
   lastUpdated?: string          // ISO timestamp of last odds update
+
+  // Market schema
+  timeFrame?: import("../types/ai-models").TimeFrame
+  variantType?: import("../types/ai-models").VariantType  // 'base_line' | 'alt_line'
+  marketLevel?: import("../types/ai-models").MarketLevel  // always 'player' for props
 }
 
 // ==================== Player Prop Recommendations ====================
@@ -337,6 +342,30 @@ export function getPropMarketsForSport(sport: string): PlayerPropMarket[] {
     return [
       'player_goals', 'player_assists_hockey', 'player_points_hockey',
       'player_shots_on_goal', 'goalie_saves'
+    ]
+  }
+
+  return []
+}
+
+/**
+ * Get alternate prop markets for a sport (alt lines use same base keys with _alternate suffix).
+ * Only NFL and NBA have meaningful alternate player prop markets on TheOddsAPI.
+ */
+export function getAltPropMarketsForSport(sport: string): string[] {
+  const sportPrefix = sport.toLowerCase()
+
+  if (sportPrefix.includes('football') || sportPrefix.includes('nfl')) {
+    return [
+      'player_pass_yds_alternate', 'player_rush_yds_alternate',
+      'player_reception_yds_alternate', 'player_receptions_alternate'
+    ]
+  }
+
+  if (sportPrefix.includes('basketball') || sportPrefix.includes('nba')) {
+    return [
+      'player_points_alternate', 'player_rebounds_alternate',
+      'player_assists_alternate', 'player_threes_alternate'
     ]
   }
 

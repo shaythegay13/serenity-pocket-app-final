@@ -8,7 +8,7 @@ import type { BetScenario } from './ai-bet-advisor'
 
 export interface SageMakerPredictionInput {
   sport: string
-  betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay' | 'Player Prop'
+  betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay' | 'Player Prop' | 'Team Prop' | 'Alt Spread' | 'Alt Total' | 'Teaser' | 'Future' | 'System'
   betAmount: number
   budget: number
   favoriteWinPct: number

@@ -77,6 +77,15 @@ export interface ComprehensiveBet {
   propStat?: string           // Specific stat
   propLine?: number           // Numeric line
   propDirection?: 'over' | 'under' // Selection
+
+  // Market schema fields
+  timeFrame?: import("../types/ai-models").TimeFrame
+  variantType?: import("../types/ai-models").VariantType
+  marketLevel?: import("../types/ai-models").MarketLevel
+  seasonId?: string
+  tournamentId?: string
+  supportsCashOut?: boolean
+  cashOutOffer?: import("../cashout-utils").CashOutOffer
 }
 
 export interface BetPerformanceMetrics {

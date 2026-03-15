@@ -16,6 +16,7 @@ import {
   getPropCategory,
   getPropDisplayName,
   getPropMarketsForSport,
+  getAltPropMarketsForSport,
   PlayerPropMarket,
 } from '../types/player-props'
 
@@ -132,18 +133,37 @@ export async function getPlayerPropsForGame(
 
     const data: OddsAPIPlayerPropsResponse = await response.json()
 
-    // Transform API response to PlayerPropLine[]
+    // Transform API response to PlayerPropLine[] (base lines)
     const propLines = transformPropsResponse(data, gameId)
+
+    // Also fetch alternate prop markets if available for this sport
+    const altMarkets = getAltPropMarketsForSport(sport)
+    let altPropLines: PlayerPropLine[] = []
+    if (altMarkets.length > 0) {
+      try {
+        const altMarketsQuery = altMarkets.join(',')
+        const altUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${gameId}/odds?apiKey=${apiKey}&regions=us&markets=${altMarketsQuery}&oddsFormat=american`
+        const altResponse = await fetch(altUrl, { headers: { 'Accept': 'application/json' }, next: { revalidate: 300 } })
+        if (altResponse.ok) {
+          const altData: OddsAPIPlayerPropsResponse = await altResponse.json()
+          altPropLines = transformPropsResponse(altData, gameId)
+        }
+      } catch {
+        // Alt markets are best-effort; continue without them
+      }
+    }
+
+    const allPropLines = [...propLines, ...altPropLines]
 
     // Update cache
     propsCache.set(cacheKey, {
-      data: propLines,
+      data: allPropLines,
       timestamp: Date.now()
     })
 
-    console.log(`[PlayerDataService] Found ${propLines.length} player prop lines for game ${gameId}`)
+    console.log(`[PlayerDataService] Found ${propLines.length} base + ${altPropLines.length} alt prop lines for game ${gameId}`)
 
-    return propLines
+    return allPropLines
   } catch (error) {
     console.error('[PlayerDataService] Error fetching player props:', error)
     return []
@@ -281,7 +301,11 @@ function transformPropsResponse(
         overOdds: bestOverOdds,
         underOdds: bestUnderOdds,
         bookmaker: entry.bookmakers[0], // Primary bookmaker
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        // Market schema tags
+        variantType: entry.stat.includes('alternate') ? 'alt_line' : 'base_line',
+        marketLevel: 'player',
+        timeFrame: 'full_game',
       })
     }
   }

@@ -3,6 +3,8 @@ import { supabaseServer } from "@/lib/supabase-server"
 import { analyzeScenario, type BetScenario } from "@/lib/ai-bet-advisor"
 import { isEnhancedAIAvailable, getEnhancedBetAnalysis } from "@/lib/ai-service"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
+import { fetchLiveOddsUpdate, buildLiveContext } from "@/lib/services/live-odds-service"
+import type { LiveOddsUpdate } from "@/lib/services/live-odds-service"
 import { predictGameOutcomes, scoreUserBet } from "@/lib/services/sagemakerSportsModel"
 import { analyzeUserBet } from "@/lib/services/gemini-reasoner"
 import {
@@ -154,6 +156,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const { effectiveOdds, oddsSource } = await getEffectiveOdds(payload)
+      let activeOdds = effectiveOdds
 
       if (effectiveOdds === null || Number.isNaN(effectiveOdds)) {
         return NextResponse.json({
@@ -209,6 +212,33 @@ export async function POST(request: NextRequest) {
         lookbackGames: 10,
         numericFeatures: [impliedFromOdds(effectiveOdds), effectiveOdds],
         categoricalFeatures: [leagueKey, payload.betType],
+      }
+
+      // 1.5) Live betting: refresh odds from TheOddsAPI when isLiveBet is true
+      if (payload.isLiveBet && context) {
+        const gameId = (payload as any).gameId as string | undefined
+        if (gameId) {
+          const liveUpdate: LiveOddsUpdate | null = await fetchLiveOddsUpdate(gameId, leagueKey)
+          if (liveUpdate) {
+            const sel = payload.selection
+            if (sel === 'home') activeOdds = liveUpdate.odds.moneyline.home
+            else if (sel === 'away') activeOdds = liveUpdate.odds.moneyline.away
+            else if (sel === 'over') activeOdds = liveUpdate.odds.totals.over.odds
+            else if (sel === 'under') activeOdds = liveUpdate.odds.totals.under.odds
+            // Refresh context with live market prices
+            context.currentOdds.moneylineHome = liveUpdate.odds.moneyline.home
+            context.currentOdds.moneylineAway = liveUpdate.odds.moneyline.away
+            context.currentOdds.spreadHomeOdds = liveUpdate.odds.spread.home.odds
+            context.currentOdds.spreadAwayOdds = liveUpdate.odds.spread.away.odds
+            context.currentOdds.totalOverOdds = liveUpdate.odds.totals.over.odds
+            context.currentOdds.totalUnderOdds = liveUpdate.odds.totals.under.odds
+            context.narrativeContext = `[${buildLiveContext(liveUpdate)}] ${context.narrativeContext ?? ''}`
+          } else {
+            context.narrativeContext = `[LIVE BET] ${context.narrativeContext ?? ''}`
+          }
+        } else {
+          context.narrativeContext = `[LIVE BET] ${context.narrativeContext ?? ''}`
+        }
       }
 
       // 2) Heuristic numeric prediction and risk scoring
@@ -281,7 +311,7 @@ export async function POST(request: NextRequest) {
         bet: {
           type: payload.betType,
           stake: payload.betAmount,
-          odds: effectiveOdds,
+          odds: activeOdds,
           slipText: payload.bettingSlip,
           selection: payload.selection,
           line: payload.line,

@@ -399,6 +399,18 @@ export interface BetAnalysis {
   isLiveBet?: boolean
   /** Time in seconds between this bet and the previous bet (for sequence analysis) */
   timeSincePreviousBet?: number
+  /** Which portion of the game this bet covers */
+  timeFrame?: import("./types/ai-models").TimeFrame
+  /** Whether this is a base, alternate, or milestone line */
+  variantType?: import("./types/ai-models").VariantType
+  /** Game, team, player, or future */
+  marketLevel?: import("./types/ai-models").MarketLevel
+  /** Season identifier for futures (e.g. "nba_2025_26") */
+  seasonId?: string
+  /** Tournament identifier for futures (e.g. "nba_playoffs_2026") */
+  tournamentId?: string
+  /** Whether the ticket supports cash-out (stub; always false until sportsbook integration) */
+  supportsCashOut?: boolean
 }
 
 export interface TiltAlert {
@@ -473,4 +485,6 @@ export type SupportedSportKey =
 /**
  * Standardized bet market types.
  */
-export type GameBetMarketType = "moneyline" | "spread" | "total" | "parlay" | "prop" | "future" | "live"
+export type GameBetMarketType =
+  | "moneyline" | "spread" | "total" | "parlay" | "prop" | "future" | "live"
+  | "teaser" | "team_prop" | "alt_spread" | "alt_total" | "system" | "round_robin"

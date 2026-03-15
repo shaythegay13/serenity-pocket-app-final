@@ -32,6 +32,9 @@ import {
 } from "@/lib/risk-index"
 import { getSportById, normalizeSportKey } from "@/lib/sports-config"
 import { getPlayerPropsForGames } from "@/lib/services/player-data-service"
+import { fetchLiveOddsUpdate, buildLiveContext } from "@/lib/services/live-odds-service"
+import { fetchFutureMarkets, buildFuturesRecommendation } from "@/lib/futures-utils"
+import type { FuturesRecommendation } from "@/lib/types/ai-models"
 import type { PlayerPropLine } from "@/lib/types/player-props"
 
 // -- ANCHORED RISK IMPORTS --
@@ -181,6 +184,7 @@ interface PickerRequestBody {
   weeklyBudget?: number
   currentEmotion?: string
   currentEmotionIntensity?: number
+  isLiveBet?: boolean
 }
 
 function oddsToImpliedProb(odds: number, sportKey: string = ""): number {
@@ -1127,6 +1131,21 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Live betting: refresh odds from TheOddsAPI for each game when isLiveBet is true
+        if (body.isLiveBet && context && gameId) {
+          const liveUpdate = await fetchLiveOddsUpdate(gameId, league)
+          if (liveUpdate) {
+            context.currentOdds.moneylineHome = liveUpdate.odds.moneyline.home
+            context.currentOdds.moneylineAway = liveUpdate.odds.moneyline.away
+            context.currentOdds.spreadHomeOdds = liveUpdate.odds.spread.home.odds
+            context.currentOdds.spreadAwayOdds = liveUpdate.odds.spread.away.odds
+            context.currentOdds.totalOverOdds = liveUpdate.odds.totals.over.odds
+            context.currentOdds.totalUnderOdds = liveUpdate.odds.totals.under.odds
+            context.narrativeContext = buildLiveContext(liveUpdate)
+            console.log(`[SmartSlip] Live odds refreshed for game ${gameId}`)
+          }
+        }
+
         let serenityProbs: { pLoss: number; pPush: number; pWin: number } = {
           pLoss: 0.33,
           pPush: 0.34,
@@ -1353,6 +1372,7 @@ export async function POST(request: NextRequest) {
           features,
           prediction,
           probs: serenityProbs,
+          teamTotals: (game as any).teamTotals ?? [],
           sportsResearch: sportsResearch
             ? {
               dataSource: sportsResearch.dataSource,
@@ -1718,9 +1738,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Generate Team Prop Recommendations from team_totals data in enrichedGames
+    const teamPropPicks: any[] = []
+    for (const game of enrichedGames) {
+      if (!Array.isArray(game.teamTotals) || game.teamTotals.length === 0) continue
+      const gameContext = game.context as CurrentGameContext
+      if (!gameContext) continue
+
+      for (const tt of game.teamTotals) {
+        if (tt.overOdds == null || tt.underOdds == null) continue
+        const impliedOver = impliedProbFromAmerican(tt.overOdds)
+        const impliedUnder = impliedProbFromAmerican(tt.underOdds)
+        const total = impliedOver + impliedUnder
+        const fairOverProb = total > 0 ? impliedOver / total : 0.5
+        const fairUnderProb = 1 - fairOverProb
+
+        const baseStake = riskTolerance === 'aggressive' ? 30 : riskTolerance === 'conservative' ? 10 : 20
+        const overEv = computeEv({ offeredAmericanOdds: tt.overOdds, precomputedTrueWinProb: fairOverProb, stake: baseStake })
+        const underEv = computeEv({ offeredAmericanOdds: tt.underOdds, precomputedTrueWinProb: fairUnderProb, stake: baseStake })
+        const bestDirection = overEv.evDollars >= underEv.evDollars ? 'over' : 'under'
+        const bestEv = bestDirection === 'over' ? overEv : underEv
+        const bestOdds = bestDirection === 'over' ? tt.overOdds : tt.underOdds
+        const bestProb = bestDirection === 'over' ? fairOverProb : fairUnderProb
+
+        teamPropPicks.push({
+          gameId: game.id,
+          teams: `${gameContext.awayTeam} @ ${gameContext.homeTeam}`,
+          startTime: gameContext.startTime,
+          betType: 'team_prop',
+          marketLevel: 'team',
+          variantType: 'base_line',
+          teamPropTeam: tt.team,
+          teamPropStat: 'team_total_points',
+          teamPropDirection: bestDirection,
+          line: `${tt.team} ${bestDirection === 'over' ? 'Over' : 'Under'} ${tt.line} Team Total`,
+          odds: bestOdds,
+          confidence: Math.round(bestProb * 100),
+          emotionalAlignment: typeof emotionalScore === 'number' ? Math.round(emotionalScore) : 70,
+          numericRisk: { ev: bestEv.evDollars, evPercentage: bestEv.evPercent },
+          propLine: tt.line,
+          propDirection: bestDirection,
+          isRecommended: bestEv.evPercent > 0,
+          riskLevel: riskTolerance === 'aggressive' ? 'HIGH' : riskTolerance === 'conservative' ? 'LOW' : 'MEDIUM',
+          shortExplanation: `${tt.team} ${bestDirection} ${tt.line} team total. EV: ${bestEv.evPercent.toFixed(1)}%.`,
+        })
+      }
+    }
+    if (teamPropPicks.length > 0) {
+      console.log(`[SmartSlip] Generated ${teamPropPicks.length} team prop picks`)
+    }
+
+    // Generate Futures Recommendations
+    const futuresRecommendations: FuturesRecommendation[] = []
+    try {
+      const futureMarkets = await fetchFutureMarkets(sport)
+      const weeklyBudget = body.weeklyBudget ?? userData?.weekly_budget ?? 200
+      for (const market of futureMarkets) {
+        const rec = buildFuturesRecommendation(market, weeklyBudget)
+        if (rec) futuresRecommendations.push(rec)
+      }
+      if (futuresRecommendations.length > 0) {
+        console.log(`[SmartSlip] Generated ${futuresRecommendations.length} futures recommendations`)
+      }
+    } catch (err) {
+      console.warn('[SmartSlip] Futures fetch failed (non-fatal):', err)
+    }
+
     // Generate Parlay Recommendations (new for Phase 2)
-    // Include both game picks and prop picks for parlay combinations
-    const allPicksForParlays = [...filtered, ...propPicks.filter(p => p.isRecommended)]
+    // Include game picks, player prop picks, and team prop picks for parlay combinations
+    const allPicksForParlays = [
+      ...filtered,
+      ...propPicks.filter(p => p.isRecommended),
+      ...teamPropPicks.filter(p => p.isRecommended),
+    ]
     const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(allPicksForParlays, 3, sport)
     console.log(`[SmartSlip] Generated ${parlayRecommendations.length} parlay recommendations`)
 
@@ -1730,7 +1820,9 @@ export async function POST(request: NextRequest) {
       message: shouldBetMessage,
       recommendations: reasoningOutput.recommendations,
       propPicks, // Player prop recommendations
+      teamPropPicks, // Team total / team prop recommendations
       parlayRecommendations,
+      futuresRecommendations, // Outrights / futures recommendations
       // Raw player props for SGP and player-level exploration
       playerProps: playerPropsArray,
       playerPropsSummary: {

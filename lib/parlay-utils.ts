@@ -1,4 +1,4 @@
-import { ParlayLeg, CorrelationWarning, PickerRecommendationItem, ParlayRecommendation, ParlayType, ParlayOutcome, isPlayerPropLeg, PropCategory } from './types/ai-models'
+import { ParlayLeg, CorrelationWarning, PickerRecommendationItem, ParlayRecommendation, ParlayType, ParlayOutcome, isPlayerPropLeg, PropCategory, SystemBetConfig, SystemBetRecommendation } from './types/ai-models'
 import { isParlayEligible, isSGPEligible, getSportById, getParlayEligibleSportIds, getSGPEligibleSportIds } from './sports-config'
 
 /**
@@ -96,6 +96,12 @@ const SGP_CORRELATED_PAIRS: Array<{ marketA: string; marketB: string; extraTax: 
   { marketA: 'player_assists',       marketB: 'player_points',         extraTax: 0.04, label: 'Assists ↔ Points' },
   { marketA: 'moneyline',            marketB: 'spread',                extraTax: 0.12, label: 'Moneyline ↔ Spread (near-duplicate)' },
   { marketA: 'moneyline',            marketB: 'total',                 extraTax: 0.04, label: 'Moneyline ↔ Game total' },
+  // Team prop correlations
+  { marketA: 'team_prop',            marketB: 'moneyline',             extraTax: 0.08, label: 'Team total ↔ Moneyline (same direction)' },
+  { marketA: 'team_prop',            marketB: 'total',                 extraTax: 0.10, label: 'Team total ↔ Game total (same direction)' },
+  { marketA: 'team_prop',            marketB: 'spread',                extraTax: 0.06, label: 'Team total ↔ Spread (same direction)' },
+  { marketA: 'team_prop',            marketB: 'player_points',         extraTax: 0.06, label: 'Team total ↔ Player points (same team)' },
+  { marketA: 'team_prop',            marketB: 'team_prop',             extraTax: 0.05, label: 'Team total ↔ Opposing team total' },
 ]
 
 /**
@@ -348,7 +354,7 @@ export function calculateSGPOdds(
  */
 export function recalculateOddsAfterPush(
   legs: ParlayLeg[],
-  type: 'classic' | 'sgp' | 'sgp_plus',
+  type: ParlayType,
 ): number {
   const activeLeg = legs.filter(l => l.outcome !== 'push' && l.outcome !== 'void')
   if (activeLeg.length === 0) return 1
@@ -871,4 +877,169 @@ function createSGPFromLegs(
     console.error("Error creating SGP recommendation:", e)
     return null
   }
+}
+
+// ============================================================================
+// System / Round-Robin Parlay Foundation
+// ============================================================================
+
+/**
+ * Generates all C(n, k) combinations from an array of items.
+ * e.g. generateCombinations([A,B,C,D], 2) → [[A,B],[A,C],[A,D],[B,C],[B,D],[C,D]]
+ */
+export function generateCombinations<T>(items: T[], k: number): T[][] {
+  if (k <= 0 || k > items.length) return []
+  if (k === items.length) return [items.slice()]
+
+  const result: T[][] = []
+
+  function recurse(start: number, current: T[]): void {
+    if (current.length === k) {
+      result.push(current.slice())
+      return
+    }
+    for (let i = start; i < items.length; i++) {
+      current.push(items[i])
+      recurse(i + 1, current)
+      current.pop()
+    }
+  }
+
+  recurse(0, [])
+  return result
+}
+
+/**
+ * Builds a SystemBetRecommendation from a pool of picks and a K-of-N config.
+ * Each sub-parlay (combination) is processed through the existing correlation tax engine.
+ * Returns null if there are not enough picks to form the required combinations.
+ */
+export function buildSystemBet(
+  picks: PickerRecommendationItem[],
+  requiredWinners: number,
+  sport: string,
+  stakePerCombination: number
+): SystemBetRecommendation | null {
+  if (picks.length < requiredWinners) return null
+
+  const combinations = generateCombinations(picks, requiredWinners)
+  if (combinations.length === 0) return null
+
+  const combinationLegs: ParlayLeg[][] = []
+  const allOdds: number[] = []
+  const allWarnings: CorrelationWarning[] = []
+
+  for (const combo of combinations) {
+    // Convert each pick to a ParlayLeg
+    const legs: ParlayLeg[] = combo.map(pick => ({
+      pickId: pick.gameId ?? crypto.randomUUID(),
+      gameId: pick.gameId,
+      teams: pick.teams,
+      betType: pick.betType,
+      line: pick.line,
+      odds: pick.odds,
+      confidence: pick.confidence,
+      aiWinProbability: pick.numericRisk?.ev !== undefined
+        ? (pick.confidence ?? 50) / 100
+        : undefined,
+    } as ParlayLeg))
+
+    combinationLegs.push(legs)
+
+    // Calculate odds using existing correlation engine
+    const isSGP = legs.some(l => l.gameId && legs.filter(x => x.gameId === l.gameId).length > 1)
+    let comboOddsDecimal: number
+    let warnings: CorrelationWarning[] = []
+
+    if (isSGP) {
+      const sgpResult = calculateSGPOdds(legs) // returns decimal odds + correlation warnings
+      comboOddsDecimal = sgpResult.odds
+      warnings = sgpResult.correlationWarnings
+    } else {
+      comboOddsDecimal = calculateCombinedOdds(legs)
+      warnings = detectCorrelations(legs)
+    }
+
+    allOdds.push(decimalToAmerican(comboOddsDecimal))
+
+    for (const w of warnings) {
+      if (!allWarnings.find(x => x.message === w.message)) {
+        allWarnings.push(w)
+      }
+    }
+  }
+
+  const minOddsAmerican = Math.min(...allOdds)
+  const maxOddsAmerican = Math.max(...allOdds)
+  const totalStake = stakePerCombination * combinations.length
+
+  // EV: sum of payout probabilities across all combinations
+  const { totalEV, evPercentage } = computeSystemBetEV(combinationLegs, stakePerCombination)
+  const expectedReturn = totalStake + totalEV
+
+  // All picks as pool legs
+  const poolLegs: ParlayLeg[] = picks.map(pick => ({
+    pickId: pick.gameId ?? crypto.randomUUID(),
+    gameId: pick.gameId,
+    teams: pick.teams,
+    betType: pick.betType,
+    line: pick.line,
+    odds: pick.odds,
+    confidence: pick.confidence,
+  } as ParlayLeg))
+
+  const config: SystemBetConfig = {
+    type: requiredWinners === picks.length ? 'system' : 'round_robin',
+    totalLegs: picks.length,
+    requiredWinners,
+    combinationCount: combinations.length,
+  }
+
+  const summary =
+    `${requiredWinners}-of-${picks.length} system: ${combinations.length} combos ` +
+    `× $${stakePerCombination} = $${totalStake} total stake. ` +
+    `EV: ${evPercentage >= 0 ? '+' : ''}${evPercentage.toFixed(1)}%.`
+
+  return {
+    config,
+    legs: poolLegs,
+    combinations: combinationLegs,
+    totalStake,
+    stakePerCombination,
+    minOddsAmerican,
+    maxOddsAmerican,
+    expectedReturn,
+    evPercentage,
+    correlationWarnings: allWarnings,
+    summary,
+  }
+}
+
+/**
+ * Computes aggregate EV for a system bet.
+ * Sums EV across all sub-parlay combinations.
+ */
+export function computeSystemBetEV(
+  combinations: ParlayLeg[][],
+  stakePerCombination: number
+): { totalEV: number; evPercentage: number } {
+  if (combinations.length === 0) return { totalEV: 0, evPercentage: 0 }
+
+  let totalEV = 0
+  const totalStake = stakePerCombination * combinations.length
+
+  for (const legs of combinations) {
+    const decimalOdds = calculateCombinedOdds(legs)
+    const trueProbProduct = legs.reduce((p, leg) => {
+      const prob = leg.aiWinProbability ?? (leg.confidence !== undefined ? leg.confidence / 100 : 0.5)
+      return p * prob
+    }, 1)
+
+    const payout = stakePerCombination * decimalOdds - stakePerCombination
+    const ev = trueProbProduct * payout - (1 - trueProbProduct) * stakePerCombination
+    totalEV += ev
+  }
+
+  const evPercentage = totalStake > 0 ? (totalEV / totalStake) * 100 : 0
+  return { totalEV, evPercentage }
 }

@@ -19,7 +19,7 @@ import {
   LineChart,
   Line
 } from "recharts"
-import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw, Users } from "lucide-react"
+import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw, Users, Activity, Sparkles, Zap } from "lucide-react"
 import type { Trade, BetAnalysis } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { Parlay } from "@/lib/types/ai-models"
@@ -560,6 +560,123 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       .slice(0, 10)
   }, [propComprehensiveBets, pendingComprehensiveBets, propParlays])
 
+  // Bet type label mapping
+  const formatBetTypeLabel = (bt: string): string => {
+    const map: Record<string, string> = {
+      moneyline: 'Moneyline', spread: 'Spread', total: 'Total (O/U)',
+      parlay: 'Parlay', prop: 'Player Prop', player_prop: 'Player Prop',
+      team_prop: 'Team Prop', future: 'Future', live: 'Live Bet',
+      teaser: 'Teaser', alt_spread: 'Alt Spread', alt_total: 'Alt Total',
+      system: 'System', round_robin: 'Round Robin', sgp: 'SGP', sgp_plus: 'SGP+',
+      straight: 'Moneyline', other: 'Other',
+    }
+    return map[bt?.toLowerCase?.().replace(/[^a-z_]/g, '') ?? ''] ?? bt ?? 'Other'
+  }
+
+  // Performance by bet type
+  const betTypePerformance = useMemo(() => {
+    const typeMap = new Map<string, { wins: number; losses: number; pushes: number; pending: number; profit: number; staked: number }>()
+    const processedIds = new Set<string>()
+
+    const addEntry = (key: string, win: boolean, loss: boolean, push: boolean, pending: boolean, stake: number, profit: number) => {
+      if (!typeMap.has(key)) typeMap.set(key, { wins: 0, losses: 0, pushes: 0, pending: 0, profit: 0, staked: 0 })
+      const s = typeMap.get(key)!
+      if (win) s.wins++; if (loss) s.losses++; if (push) s.pushes++; if (pending) s.pending++
+      s.staked += stake; s.profit += profit
+    }
+
+    ;[...propComprehensiveBets, ...pendingComprehensiveBets].forEach(bet => {
+      if (processedIds.has(bet.id)) return
+      processedIds.add(bet.id)
+      // Alt lines get their own category
+      let label = formatBetTypeLabel(bet.betType)
+      if (bet.variantType === 'alt_line' && (bet.betType === 'spread' || bet.betType === 'total')) {
+        label = bet.betType === 'spread' ? 'Alt Spread' : 'Alt Total'
+      }
+      const p = bet.actualReturn != null ? bet.actualReturn - bet.stake : 0
+      addEntry(label, bet.outcome === 'win', bet.outcome === 'loss', bet.outcome === 'push', !bet.outcome || bet.outcome === 'pending', bet.stake, p)
+    })
+
+    trades.forEach(trade => {
+      if (processedIds.has(trade.id)) return
+      processedIds.add(trade.id)
+      const label = formatBetTypeLabel((trade as any).betType ?? 'other')
+      const p = trade.actualReturn != null ? (trade.actualReturn - (trade.stake || 0)) : 0
+      addEntry(label, trade.outcome === 'profit', trade.outcome === 'loss', trade.outcome === 'breakeven', !trade.outcome, trade.stake || 0, p)
+    })
+
+    return Array.from(typeMap.entries())
+      .map(([type, s]) => ({
+        type,
+        wins: s.wins, losses: s.losses, pushes: s.pushes, pending: s.pending,
+        totalBets: s.wins + s.losses + s.pushes + s.pending,
+        profit: Math.round(s.profit * 100) / 100,
+        roi: s.staked > 0 ? (s.profit / s.staked) * 100 : 0,
+        winRate: (s.wins + s.losses) > 0 ? (s.wins / (s.wins + s.losses)) * 100 : 0,
+      }))
+      .filter(t => t.totalBets > 0)
+      .sort((a, b) => b.totalBets - a.totalBets)
+  }, [propComprehensiveBets, pendingComprehensiveBets, trades])
+
+  // Live betting stats
+  const liveBetStats = useMemo(() => {
+    const liveBets = [...propComprehensiveBets, ...pendingComprehensiveBets].filter(b => b.isLiveBet)
+    const settled = liveBets.filter(b => b.outcome && b.outcome !== 'pending')
+    const wins = settled.filter(b => b.outcome === 'win').length
+    const losses = settled.filter(b => b.outcome === 'loss').length
+    const staked = settled.reduce((s, b) => s + b.stake, 0)
+    const returned = settled.reduce((s, b) => s + (b.actualReturn ?? 0), 0)
+    return { total: liveBets.length, settled: settled.length, wins, losses, winRate: settled.length > 0 ? (wins / settled.length) * 100 : 0, roi: staked > 0 ? ((returned - staked) / staked) * 100 : 0, profit: returned - staked }
+  }, [propComprehensiveBets, pendingComprehensiveBets])
+
+  // Futures tracker
+  const futuresData = useMemo(() => {
+    return [...propComprehensiveBets, ...pendingComprehensiveBets]
+      .filter(b => b.marketLevel === 'future' || b.betType === 'future')
+      .map(b => ({
+        id: b.id,
+        selection: b.description || [b.awayTeam, b.homeTeam].filter(Boolean).join(' / ') || 'Future Bet',
+        sport: formatSportName(b.sport),
+        odds: b.odds, stake: b.stake,
+        outcome: b.outcome ?? 'pending',
+        profit: b.actualReturn != null ? b.actualReturn - b.stake : 0,
+        seasonId: b.seasonId,
+      }))
+      .sort((a, b) => (a.outcome === 'pending' ? -1 : 1) - (b.outcome === 'pending' ? -1 : 1))
+  }, [propComprehensiveBets, pendingComprehensiveBets])
+
+  // Alt line vs base line comparison
+  const variantTypeStats = useMemo(() => {
+    const allBets = [...propComprehensiveBets, ...pendingComprehensiveBets]
+    const compute = (bets: ComprehensiveBet[]) => {
+      const settled = bets.filter(b => b.outcome && b.outcome !== 'pending')
+      const wins = settled.filter(b => b.outcome === 'win').length
+      const staked = settled.reduce((s, b) => s + b.stake, 0)
+      const returned = settled.reduce((s, b) => s + (b.actualReturn ?? 0), 0)
+      return { total: bets.length, settled: settled.length, wins, winRate: settled.length > 0 ? (wins / settled.length) * 100 : 0, roi: staked > 0 ? ((returned - staked) / staked) * 100 : 0 }
+    }
+    return {
+      base: compute(allBets.filter(b => !b.variantType || b.variantType === 'base_line')),
+      alt: compute(allBets.filter(b => b.variantType === 'alt_line')),
+    }
+  }, [propComprehensiveBets, pendingComprehensiveBets])
+
+  // Teaser & system parlay breakdown
+  const advancedParlayStats = useMemo(() => {
+    const computeParlayStats = (parlays: Parlay[]) => {
+      const settled = parlays.filter(p => p.outcome !== 'pending')
+      const wins = settled.filter(p => p.outcome === 'won').length
+      const losses = settled.filter(p => p.outcome === 'lost').length
+      const staked = settled.reduce((s, p) => s + (p.stake || 0), 0)
+      const returned = settled.reduce((s, p) => s + (p.actualPayout || 0), 0)
+      return { total: parlays.length, wins, losses, winRate: (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0, roi: staked > 0 ? ((returned - staked) / staked) * 100 : 0, profit: returned - staked }
+    }
+    return {
+      teasers: computeParlayStats(propParlays.filter(p => p.type === 'teaser')),
+      systems: computeParlayStats(propParlays.filter(p => p.type === 'system' || p.type === 'round_robin')),
+    }
+  }, [propParlays])
+
   // Cumulative profit over time
   const cumulativeProfit = useMemo(() => {
     const sorted = [...trades]
@@ -902,6 +1019,185 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         )}
       </Card>
 
+      {/* Bet Type Performance */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          <h4 className="font-semibold text-foreground">Performance by Bet Type</h4>
+        </div>
+        {betTypePerformance.length > 0 ? (
+          <div className="space-y-4">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={betTypePerformance}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.2 0.01 250)" />
+                <XAxis dataKey="type" stroke="oklch(0.55 0.01 250)" tick={{ fill: 'oklch(0.55 0.01 250)', fontSize: 11 }} />
+                <YAxis stroke="oklch(0.55 0.01 250)" tick={{ fill: 'oklch(0.55 0.01 250)' }} />
+                <Tooltip contentStyle={{ backgroundColor: 'oklch(0.16 0.01 250)', border: '1px solid oklch(0.18 0.01 250)', borderRadius: '0.5rem', color: 'oklch(0.98 0 0)' }} />
+                <Legend />
+                <Bar dataKey="wins" fill="oklch(0.65 0.18 150)" name="Wins" />
+                <Bar dataKey="losses" fill="oklch(0.55 0.24 25)" name="Losses" />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {betTypePerformance.map(bt => (
+                <Card key={bt.type} className="p-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h5 className="font-semibold text-foreground">{bt.type}</h5>
+                      <Badge variant="outline">{bt.totalBets} bets</Badge>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Win Rate:</span>
+                        <Badge variant={bt.winRate >= 55 ? "default" : "secondary"}>{bt.winRate.toFixed(1)}%</Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Record:</span>
+                        <span className="text-foreground">{bt.wins}-{bt.losses}{bt.pushes > 0 ? `-${bt.pushes}P` : ''}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">ROI:</span>
+                        <span className={bt.roi >= 0 ? "text-success" : "text-destructive"}>{bt.roi.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Profit:</span>
+                        <span className={bt.profit >= 0 ? "text-success" : "text-destructive"}>${bt.profit.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+            No bet type data available yet
+          </div>
+        )}
+      </Card>
+
+      {/* Live Betting Performance */}
+      {liveBetStats.total > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-5 w-5 text-primary" />
+            <h4 className="font-semibold text-foreground">Live Betting Performance</h4>
+            <Badge variant="secondary">{liveBetStats.total} live bets</Badge>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 rounded-lg bg-muted/30">
+              <div className="text-2xl font-bold text-foreground">{liveBetStats.total}</div>
+              <div className="text-xs text-muted-foreground mt-1">Total Live Bets</div>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted/30">
+              <div className={`text-2xl font-bold ${liveBetStats.winRate >= 55 ? 'text-success' : 'text-foreground'}`}>
+                {liveBetStats.winRate.toFixed(1)}%
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">Win Rate</div>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted/30">
+              <div className={`text-2xl font-bold ${liveBetStats.roi >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {liveBetStats.roi.toFixed(1)}%
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">ROI</div>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted/30">
+              <div className={`text-2xl font-bold ${liveBetStats.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
+                ${liveBetStats.profit.toFixed(2)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">Net Profit</div>
+            </div>
+          </div>
+          {liveBetStats.settled > 0 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              {liveBetStats.wins}W / {liveBetStats.losses}L from {liveBetStats.settled} settled live bets
+            </p>
+          )}
+        </Card>
+      )}
+
+      {/* Futures Tracker */}
+      {futuresData.length > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-5 w-5 text-primary" />
+            <h4 className="font-semibold text-foreground">Futures Tracker</h4>
+            <Badge variant="secondary">{futuresData.filter(f => f.outcome === 'pending').length} pending</Badge>
+          </div>
+          <div className="space-y-3">
+            {futuresData.map(future => (
+              <Card
+                key={future.id}
+                className={`p-4 border-l-4 ${future.outcome === 'pending' ? 'border-l-orange-500' : future.outcome === 'win' ? 'border-l-success' : 'border-l-destructive'}`}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-foreground truncate">{future.selection}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {future.sport} • ${future.stake.toFixed(2)} @ {future.odds > 0 ? '+' : ''}{future.odds}
+                      {future.seasonId ? ` • ${future.seasonId}` : ''}
+                    </div>
+                  </div>
+                  <Badge variant={future.outcome === 'pending' ? 'secondary' : future.outcome === 'win' ? 'default' : 'destructive'}>
+                    {future.outcome === 'pending'
+                      ? 'Pending'
+                      : future.outcome === 'win'
+                        ? `+$${future.profit.toFixed(2)}`
+                        : `-$${Math.abs(future.profit).toFixed(2)}`}
+                  </Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Alt Lines vs Base Lines */}
+      {variantTypeStats.alt.total > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <h4 className="font-semibold text-foreground">Alt Lines vs Base Lines</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-4 border-l-4 border-l-blue-500">
+              <h5 className="font-semibold text-foreground mb-3">Base Lines</h5>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Bets:</span>
+                  <span>{variantTypeStats.base.total}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Win Rate:</span>
+                  <Badge variant={variantTypeStats.base.winRate >= 55 ? "default" : "secondary"}>{variantTypeStats.base.winRate.toFixed(1)}%</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ROI:</span>
+                  <span className={variantTypeStats.base.roi >= 0 ? "text-success" : "text-destructive"}>{variantTypeStats.base.roi.toFixed(1)}%</span>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4 border-l-4 border-l-purple-500">
+              <h5 className="font-semibold text-foreground mb-3">Alt Lines</h5>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Bets:</span>
+                  <span>{variantTypeStats.alt.total}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Win Rate:</span>
+                  <Badge variant={variantTypeStats.alt.winRate >= 55 ? "default" : "secondary"}>{variantTypeStats.alt.winRate.toFixed(1)}%</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ROI:</span>
+                  <span className={variantTypeStats.alt.roi >= 0 ? "text-success" : "text-destructive"}>{variantTypeStats.alt.roi.toFixed(1)}%</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </Card>
+      )}
+
       {/* Most Bet Teams */}
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
@@ -1075,6 +1371,60 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
           </div>
         )}
       </Card>
+
+      {/* Advanced Parlay Breakdown */}
+      {(advancedParlayStats.teasers.total > 0 || advancedParlayStats.systems.total > 0) && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h4 className="font-semibold text-foreground">Advanced Parlay Breakdown</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {advancedParlayStats.teasers.total > 0 && (
+              <Card className="p-4 border-l-4 border-l-yellow-500">
+                <h5 className="font-semibold text-foreground mb-3">Teasers</h5>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total:</span><Badge variant="outline">{advancedParlayStats.teasers.total}</Badge></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Record:</span><span>{advancedParlayStats.teasers.wins}-{advancedParlayStats.teasers.losses}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Win Rate:</span>
+                    <Badge variant={advancedParlayStats.teasers.winRate >= 55 ? "default" : "secondary"}>{advancedParlayStats.teasers.winRate.toFixed(1)}%</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ROI:</span>
+                    <span className={advancedParlayStats.teasers.roi >= 0 ? "text-success" : "text-destructive"}>{advancedParlayStats.teasers.roi.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Profit:</span>
+                    <span className={advancedParlayStats.teasers.profit >= 0 ? "text-success" : "text-destructive"}>${advancedParlayStats.teasers.profit.toFixed(2)}</span>
+                  </div>
+                </div>
+              </Card>
+            )}
+            {advancedParlayStats.systems.total > 0 && (
+              <Card className="p-4 border-l-4 border-l-green-500">
+                <h5 className="font-semibold text-foreground mb-3">System / Round Robin</h5>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total:</span><Badge variant="outline">{advancedParlayStats.systems.total}</Badge></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Record:</span><span>{advancedParlayStats.systems.wins}-{advancedParlayStats.systems.losses}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Win Rate:</span>
+                    <Badge variant={advancedParlayStats.systems.winRate >= 55 ? "default" : "secondary"}>{advancedParlayStats.systems.winRate.toFixed(1)}%</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ROI:</span>
+                    <span className={advancedParlayStats.systems.roi >= 0 ? "text-success" : "text-destructive"}>{advancedParlayStats.systems.roi.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Profit:</span>
+                    <span className={advancedParlayStats.systems.profit >= 0 ? "text-success" : "text-destructive"}>${advancedParlayStats.systems.profit.toFixed(2)}</span>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Emotion Check-In Dialog for settling bets */}
       <EmotionCheckInDialog

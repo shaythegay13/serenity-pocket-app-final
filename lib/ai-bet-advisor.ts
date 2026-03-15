@@ -30,6 +30,7 @@ export interface BetScenario {
   awayTeam: string
   gameDate?: Date
   betType: 'Moneyline' | 'Spread' | 'Over/Under' | 'Parlay' | 'Player Prop'
+         | 'Team Prop' | 'Alt Spread' | 'Alt Total' | 'Teaser' | 'Future' | 'System'
   selection: "home" | "away" | "over" | "under" | "draw" | "other"
   line?: number // Spread points, total points, etc.
   odds?: number // American odds
@@ -92,6 +93,24 @@ export interface BetScenario {
     sport?: string
   }>
   parlayType?: 'regular' | 'same_game'
+
+  // Team Prop fields (populated when betType === 'Team Prop')
+  teamPropTeam?: string           // e.g., "LAL"
+  teamPropStat?: string           // e.g., "team_total_points"
+  teamPropDirection?: 'over' | 'under'
+
+  // Teaser fields (populated when betType === 'Teaser')
+  teaserSize?: number             // 6, 6.5, 7, 10 for NFL; 5, 6 for NBA
+
+  // Future fields (populated when betType === 'Future')
+  futureSelection?: string        // e.g., "Boston Celtics"
+  futureCategory?: string         // e.g., "championship"
+  futureSettlementDate?: string   // ISO date when future resolves
+
+  // Market schema context (carries over from SmartSlip)
+  gameId?: string
+  variantType?: 'base_line' | 'alt_line' | 'milestone'
+  marketLevel?: 'game' | 'team' | 'player' | 'future'
 }
 
 export interface HarmSignal {

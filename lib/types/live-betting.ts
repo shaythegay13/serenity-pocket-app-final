@@ -28,6 +28,10 @@ export interface LiveBettingOdds {
       odds: number;
     };
   };
+  // Live game state (populated when game is in progress)
+  scoreSnapshot?: { home: number; away: number; period?: string; clock?: string };
+  isInProgress?: boolean;
+  lastOddsUpdate?: string;  // ISO timestamp of the latest odds refresh
 }
 
 export interface OddsSnapshot {

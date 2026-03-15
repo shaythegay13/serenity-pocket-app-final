@@ -1701,6 +1701,14 @@ export const storageHybrid: {
             source: bet.source,
             sportsbook: bet.sportsbook,
             completed_at: bet.completedAt?.toISOString(),
+            // Market schema fields (betting engine expansion)
+            time_frame: bet.timeFrame ?? null,
+            variant_type: bet.variantType ?? null,
+            market_level: bet.marketLevel ?? null,
+            season_id: bet.seasonId ?? null,
+            tournament_id: bet.tournamentId ?? null,
+            supports_cash_out: bet.supportsCashOut ?? false,
+            cash_out_offer: bet.cashOutOffer ?? null,
           })
 
         if (error) {
@@ -1979,6 +1987,8 @@ export const storageHybrid: {
             emotion_check_in_id: parlay.emotionCheckInId || null,
             created_at: parlay.createdAt,
             settled_at: parlay.settledAt || null,
+            supports_cash_out: parlay.supportsCashOut ?? false,
+            cash_out_offer: parlay.cashOutOffer ?? null,
           })
 
         if (parlayError) {
@@ -2001,6 +2011,10 @@ export const storageHybrid: {
             outcome: leg.outcome || 'pending',
             settled_at: leg.settledAt || null,
             leg_order: index,
+            // Market schema fields
+            time_frame: (leg as any).timeFrame ?? null,
+            variant_type: (leg as any).variantType ?? null,
+            market_level: (leg as any).marketLevel ?? null,
           }))
 
           const { error: legsError } = await supabase

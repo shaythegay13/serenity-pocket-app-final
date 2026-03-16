@@ -417,7 +417,7 @@ export function PublicEmotionCheckIn({ anonymousSessionId, onComplete }: PublicE
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="w-full min-h-[44px] touch-manipulation"
+              className="w-full min-h-[44px] touch-manipulation hover:brightness-90 active:scale-95 transition-all"
               style={{ backgroundColor: selectedCore?.color }}
             >
               {isSubmitting ? 'Saving...' : 'Log Emotion'}

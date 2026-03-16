@@ -965,7 +965,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                   <Button
                     type="button"
                     onClick={handleSubmit}
-                    className="flex-1 min-h-[44px] touch-manipulation"
+                    className="flex-1 min-h-[44px] touch-manipulation hover:brightness-90 active:scale-95 transition-all"
                     style={{ backgroundColor: selectedCore?.color }}
                   >
                     Submit

@@ -754,6 +754,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
+        // Notify TiltLab even if already mounted (soft nav doesn't trigger useEffect re-run)
+        window.dispatchEvent(new Event('loadBetAnalysis'))
       } catch (error) {
         console.warn('[AI Picks] Failed to save pending bet to localStorage:', error)
       }
@@ -805,6 +807,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
       try {
         window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
+        // Notify TiltLab even if already mounted (soft nav doesn't trigger useEffect re-run)
+        window.dispatchEvent(new Event('loadBetAnalysis'))
       } catch (error) {
         console.warn('[AI Picks] Failed to save pending bet to localStorage:', error)
       }

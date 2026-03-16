@@ -281,8 +281,8 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
     return () => window.removeEventListener('loadParlayAnalysis', handler)
   }, [])
 
-  // Prefill from Live Odds "Analyze This Bet (Advanced)" flow
-  useEffect(() => {
+  // Prefill from SmartSlip single-pick "Analyze" flow
+  const loadPendingSingleBet = () => {
     if (typeof window === "undefined") return
 
     // Skip if parlay data was already loaded (prevents overwrite)
@@ -412,11 +412,23 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         setAwayOdds(awayOdds)
       }
 
-      // Clear after use so it doesn't override manual entries later
-      window.localStorage.removeItem("pendingBetAnalysis")
+      // Delay cleanup so data survives a soft navigation remount (same pattern as parlay)
+      setTimeout(() => window.localStorage.removeItem("pendingBetAnalysis"), 1000)
     } catch (err) {
       console.warn("AI Bet Advisor: Failed to prefill from pendingBetAnalysis", err)
     }
+  }
+
+  // Load on mount (handles hard navigation / fresh page load)
+  useEffect(() => {
+    loadPendingSingleBet()
+  }, [])
+
+  // Also listen for custom event from SmartSlip (component may already be mounted due to soft nav)
+  useEffect(() => {
+    const handler = () => loadPendingSingleBet()
+    window.addEventListener('loadBetAnalysis', handler)
+    return () => window.removeEventListener('loadBetAnalysis', handler)
   }, [])
 
   // Function to analyze odds when they change

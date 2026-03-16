@@ -268,6 +268,8 @@ async function buildFallbackRecommendations(args: {
       const awayResult = await smartSlipService.enrichLegWithEv(legAway)
 
       const createPick = (res: typeof homeResult, side: "home" | "away") => {
+        const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
+        const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
         return {
           gameId: g.id,
           teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
@@ -278,10 +280,10 @@ async function buildFallbackRecommendations(args: {
           emotionalAlignment: alignment,
           confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
           suggestedStakeFraction: res.ev.kellyFraction,
-          suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5), // Scale roughly
+          suggestedStakeAbsolute,
           riskLevel,
-          shortExplanation: `SmartSlip (v2): EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%). TrueProb: ${(res.ev.trueWinProb * 100).toFixed(1)}%.`,
-          numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
+          shortExplanation: `SmartSlip (v2): EV $${evAtStake.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%). TrueProb: ${(res.ev.trueWinProb * 100).toFixed(1)}%.`,
+          numericRisk: { ev: evAtStake, evPercentage: res.ev.evPercent },
           kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
         }
       }
@@ -318,22 +320,26 @@ async function buildFallbackRecommendations(args: {
       }
       const awaySpreadResult = await smartSlipService.enrichLegWithEv(legAwaySpread)
 
-      const createSpreadPick = (res: typeof homeSpreadResult, side: "home" | "away", line: number) => ({
-        gameId: g.id,
-        teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
-        startTime: ctx.startTime,
-        betType: "spread",
-        line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ${line > 0 ? '+' : ''}${line}`,
-        odds: res.offeredAmericanOdds,
-        emotionalAlignment: alignment,
-        confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
-        suggestedStakeFraction: res.ev.kellyFraction,
-        suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5),
-        riskLevel,
-        shortExplanation: `SmartSlip (v2): Spread EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
-        numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
-        kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
-      })
+      const createSpreadPick = (res: typeof homeSpreadResult, side: "home" | "away", line: number) => {
+        const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
+        const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
+        return {
+          gameId: g.id,
+          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+          startTime: ctx.startTime,
+          betType: "spread",
+          line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ${line > 0 ? '+' : ''}${line}`,
+          odds: res.offeredAmericanOdds,
+          emotionalAlignment: alignment,
+          confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
+          suggestedStakeFraction: res.ev.kellyFraction,
+          suggestedStakeAbsolute,
+          riskLevel,
+          shortExplanation: `SmartSlip (v2): Spread EV $${evAtStake.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
+          numericRisk: { ev: evAtStake, evPercentage: res.ev.evPercent },
+          kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
+        }
+      }
 
       potentialPicks.push(createSpreadPick(homeSpreadResult, "home", homeSpreadLine))
       potentialPicks.push(createSpreadPick(awaySpreadResult, "away", awaySpreadLine))
@@ -365,7 +371,10 @@ async function buildFallbackRecommendations(args: {
       }
       const underResult = await smartSlipService.enrichLegWithEv(legUnder)
 
-      const createTotalPick = (res: typeof overResult, type: "over" | "under") => ({
+      const createTotalPick = (res: typeof overResult, type: "over" | "under") => {
+        const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
+        const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
+        return {
         gameId: g.id,
         teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
         startTime: ctx.startTime,
@@ -375,12 +384,13 @@ async function buildFallbackRecommendations(args: {
         emotionalAlignment: alignment,
         confidence: Math.round((res.ev.confidenceScore || 0.5) * 100),
         suggestedStakeFraction: res.ev.kellyFraction,
-        suggestedStakeAbsolute: Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5),
+        suggestedStakeAbsolute,
         riskLevel,
-        shortExplanation: `SmartSlip (v2): ${type === "over" ? "Over" : "Under"} EV $${res.ev.evDollars.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
-        numericRisk: { ev: res.ev.evDollars, evPercentage: res.ev.evPercent },
+        shortExplanation: `SmartSlip (v2): ${type === "over" ? "Over" : "Under"} EV $${evAtStake.toFixed(2)} (${res.ev.evPercent.toFixed(1)}%).`,
+        numericRisk: { ev: evAtStake, evPercentage: res.ev.evPercent },
         kellyTier: res.ev.kellyFraction > 0.05 ? "Aggressive" : "Conservative"
-      })
+        }
+      }
 
       potentialPicks.push(createTotalPick(overResult, "over"))
       potentialPicks.push(createTotalPick(underResult, "under"))
@@ -509,8 +519,23 @@ async function buildPlayerPropRecommendations(args: {
     const gamePropPicks: any[] = []
 
     for (const prop of props) {
-      // Use AI probability if available, otherwise use historical hit rate or estimate
-      const aiOverProb = prop.aiOverProbability ?? prop.historicalHitRate ?? 0.5
+      // Use AI probability if available, otherwise use historical hit rate.
+      // Fall back to no-vig market probability (when both sides available) or market-implied
+      // probability (single side). Never default to 0.5 — that inflates EV on high-odds props.
+      let aiOverProb: number
+      if (prop.aiOverProbability !== undefined) {
+        aiOverProb = prop.aiOverProbability
+      } else if (prop.historicalHitRate !== undefined) {
+        aiOverProb = prop.historicalHitRate
+      } else if (typeof prop.underOdds === 'number' && !isNaN(prop.underOdds)) {
+        // Both sides available: remove vig to get fair probability
+        const overImplied = impliedProbFromAmerican(prop.overOdds)
+        const underImplied = impliedProbFromAmerican(prop.underOdds)
+        aiOverProb = overImplied / (overImplied + underImplied)
+      } else {
+        // Only one side (e.g. alternate props): use market-implied probability (includes vig)
+        aiOverProb = impliedProbFromAmerican(prop.overOdds)
+      }
       const aiUnderProb = prop.aiUnderProbability ?? (1 - aiOverProb)
 
       // Calculate EV for both directions
@@ -537,6 +562,8 @@ async function buildPlayerPropRecommendations(args: {
         ? Math.min(0.1, (bestProb * (bestOdds > 0 ? bestOdds / 100 : 100 / Math.abs(bestOdds)) - (1 - bestProb)) / (bestOdds > 0 ? bestOdds / 100 : 100 / Math.abs(bestOdds)))
         : 0
 
+      const propSuggestedStake = Math.round(Math.max(0, kellyFraction) * weeklyBudget * 0.3)
+      const propEvAtStake = parseFloat(((bestEv.evPercent / 100) * propSuggestedStake).toFixed(2))
       const pick = {
         gameId,
         teams: `${gameContext.awayTeam} @ ${gameContext.homeTeam}`,
@@ -547,11 +574,11 @@ async function buildPlayerPropRecommendations(args: {
         emotionalAlignment: alignment,
         confidence: Math.round(bestProb * 100),
         suggestedStakeFraction: Math.max(0, kellyFraction),
-        suggestedStakeAbsolute: Math.round(Math.max(0, kellyFraction) * weeklyBudget * 0.3),
+        suggestedStakeAbsolute: propSuggestedStake,
         riskLevel,
         shortExplanation: `${prop.playerName} ${bestDirection} ${prop.line} ${prop.statDisplayName}. EV: ${bestEv.evPercent.toFixed(1)}%.`,
         numericRisk: {
-          ev: bestEv.evDollars,
+          ev: propEvAtStake,
           evPercentage: bestEv.evPercent
         },
         // Player prop specific fields

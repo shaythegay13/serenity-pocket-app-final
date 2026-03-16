@@ -641,6 +641,16 @@ export function generateParlayRecommendations(
   const topCandidates = candidates.slice(0, 8)
 
   const recommendations: ParlayRecommendation[] = []
+  const seenLegKeys = new Set<string>()
+
+  function addParlay(parlay: ParlayRecommendation | null): void {
+    if (!parlay) return
+    const key = [...parlay.legs].map(l => l.pickId).sort().join('|')
+    if (!seenLegKeys.has(key)) {
+      seenLegKeys.add(key)
+      recommendations.push(parlay)
+    }
+  }
 
   // 2. Generate SGP (Same Game Parlays) - game pick + player prop(s) from same game
   const picksByGame = new Map<string, PickerRecommendationItem[]>()
@@ -662,13 +672,13 @@ export function generateParlayRecommendations(
       const bestPropPick = propPicksForGame[0]
 
       const sgp = createSGPFromLegs([bestGamePick, bestPropPick], sport)
-      if (sgp) recommendations.push(sgp)
+      addParlay(sgp)
 
       // If we have multiple props, create a 3-leg SGP
       if (propPicksForGame.length >= 2) {
         const secondPropPick = propPicksForGame[1]
         const sgp3Leg = createSGPFromLegs([bestGamePick, bestPropPick, secondPropPick], sport)
-        if (sgp3Leg) recommendations.push(sgp3Leg)
+        addParlay(sgp3Leg)
       }
     }
   }
@@ -683,7 +693,7 @@ export function generateParlayRecommendations(
       if (leg1.gameId === leg2.gameId) continue
 
       const parlay = createParlayFromLegs([leg1, leg2], 'core', sport)
-      if (parlay) recommendations.push(parlay)
+      addParlay(parlay)
     }
   }
 
@@ -699,7 +709,7 @@ export function generateParlayRecommendations(
           if (leg1.gameId === leg2.gameId || leg1.gameId === leg3.gameId || leg2.gameId === leg3.gameId) continue
 
           const parlay = createParlayFromLegs([leg1, leg2, leg3], 'lotto', sport)
-          if (parlay) recommendations.push(parlay)
+          addParlay(parlay)
         }
       }
     }

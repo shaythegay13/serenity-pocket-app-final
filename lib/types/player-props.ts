@@ -145,6 +145,50 @@ export type PlayerPropMarket =
   | 'player_shots_on_goal'      // Shots on Goal
   | 'goalie_saves'              // Goalie Saves
   | 'goalie_goals_against'      // Goals Against
+  // Soccer Player Props
+  | 'player_goal_scorer_anytime' // Anytime Goalscorer
+  | 'player_shot_on_target'      // Shots on Target O/U
+  | 'player_total_shots'         // Total Shots O/U
+  // Tennis Player Props
+  | 'player_games_won'           // Games Won O/U
+  | 'player_aces'                // Aces O/U
+  | 'player_double_faults'       // Double Faults O/U
+  // Rugby Player Props
+  | 'player_tries'               // Tries O/U
+  | 'player_tackles'             // Tackles O/U
+  | 'player_points_rugby'        // Points Scored O/U
+  // AFL Player Props
+  | 'player_disposals'           // Disposals O/U
+  | 'player_goals_afl'           // Goals O/U
+  | 'player_marks'               // Marks O/U
+  // Volleyball Player Props
+  | 'player_kills'               // Kills O/U
+  | 'player_aces_volleyball'     // Aces O/U
+  | 'player_digs'                // Digs O/U
+  // Handball Player Props
+  | 'player_goals_handball'      // Goals O/U
+  | 'player_assists_handball'    // Assists O/U
+  // Darts Player Props
+  | 'player_180s'                // 180s O/U
+  | 'player_checkout_pct'        // Checkout % O/U
+  // UFC / Boxing Props
+  | 'player_significant_strikes' // Significant Strikes O/U
+  | 'player_takedowns'           // Takedowns O/U
+  | 'player_total_rounds'        // Total Rounds (fight duration)
+  // Cricket Player Props
+  | 'player_batting_runs'        // Batting Runs O/U
+  | 'player_wickets'             // Wickets O/U
+  | 'player_sixes'               // Sixes O/U
+  // Golf Player Props
+  | 'player_make_cut'            // To Make Cut
+  | 'player_bogey_free'          // Bogey Free Round
+  // Motorsports Props
+  | 'player_laps_led'            // Laps Led O/U
+  | 'player_top_finish'          // Top N Finish
+  // Esports Player Props
+  | 'player_kills_esports'       // Kills O/U
+  | 'player_assists_esports'     // Assists O/U
+  | 'player_deaths_esports'      // Deaths O/U
 
 /**
  * Map prop markets to their categories for correlation detection
@@ -197,6 +241,50 @@ export const PROP_MARKET_CATEGORIES: Record<PlayerPropMarket, PropCategory> = {
   'player_shots_on_goal': 'skating',
   'goalie_saves': 'goaltending',
   'goalie_goals_against': 'goaltending',
+  // Soccer
+  'player_goal_scorer_anytime': 'scoring',
+  'player_shot_on_target': 'performance',
+  'player_total_shots': 'performance',
+  // Tennis
+  'player_games_won': 'performance',
+  'player_aces': 'performance',
+  'player_double_faults': 'performance',
+  // Rugby
+  'player_tries': 'scoring',
+  'player_tackles': 'defense',
+  'player_points_rugby': 'scoring',
+  // AFL
+  'player_disposals': 'performance',
+  'player_goals_afl': 'scoring',
+  'player_marks': 'performance',
+  // Volleyball
+  'player_kills': 'scoring',
+  'player_aces_volleyball': 'performance',
+  'player_digs': 'defense',
+  // Handball
+  'player_goals_handball': 'scoring',
+  'player_assists_handball': 'playmaking',
+  // Darts
+  'player_180s': 'performance',
+  'player_checkout_pct': 'performance',
+  // UFC / Boxing
+  'player_significant_strikes': 'performance',
+  'player_takedowns': 'performance',
+  'player_total_rounds': 'performance',
+  // Cricket
+  'player_batting_runs': 'hitting',
+  'player_wickets': 'performance',
+  'player_sixes': 'hitting',
+  // Golf
+  'player_make_cut': 'performance',
+  'player_bogey_free': 'performance',
+  // Motorsports
+  'player_laps_led': 'performance',
+  'player_top_finish': 'performance',
+  // Esports
+  'player_kills_esports': 'scoring',
+  'player_assists_esports': 'playmaking',
+  'player_deaths_esports': 'performance',
 }
 
 /**
@@ -250,6 +338,50 @@ export const PROP_MARKET_DISPLAY_NAMES: Record<PlayerPropMarket, string> = {
   'player_shots_on_goal': 'Shots on Goal',
   'goalie_saves': 'Saves',
   'goalie_goals_against': 'Goals Against',
+  // Soccer
+  'player_goal_scorer_anytime': 'Anytime Goalscorer',
+  'player_shot_on_target': 'Shots on Target',
+  'player_total_shots': 'Total Shots',
+  // Tennis
+  'player_games_won': 'Games Won',
+  'player_aces': 'Aces',
+  'player_double_faults': 'Double Faults',
+  // Rugby
+  'player_tries': 'Tries',
+  'player_tackles': 'Tackles',
+  'player_points_rugby': 'Points Scored',
+  // AFL
+  'player_disposals': 'Disposals',
+  'player_goals_afl': 'Goals',
+  'player_marks': 'Marks',
+  // Volleyball
+  'player_kills': 'Kills',
+  'player_aces_volleyball': 'Aces',
+  'player_digs': 'Digs',
+  // Handball
+  'player_goals_handball': 'Goals',
+  'player_assists_handball': 'Assists',
+  // Darts
+  'player_180s': '180s',
+  'player_checkout_pct': 'Checkout %',
+  // UFC / Boxing
+  'player_significant_strikes': 'Significant Strikes',
+  'player_takedowns': 'Takedowns',
+  'player_total_rounds': 'Total Rounds',
+  // Cricket
+  'player_batting_runs': 'Batting Runs',
+  'player_wickets': 'Wickets',
+  'player_sixes': 'Sixes',
+  // Golf
+  'player_make_cut': 'Make Cut',
+  'player_bogey_free': 'Bogey Free Round',
+  // Motorsports
+  'player_laps_led': 'Laps Led',
+  'player_top_finish': 'Top Finish',
+  // Esports
+  'player_kills_esports': 'Kills',
+  'player_assists_esports': 'Assists',
+  'player_deaths_esports': 'Deaths',
 }
 
 // ==================== API Response Types ====================
@@ -343,6 +475,55 @@ export function getPropMarketsForSport(sport: string): PlayerPropMarket[] {
       'player_goals', 'player_assists_hockey', 'player_points_hockey',
       'player_shots_on_goal', 'goalie_saves'
     ]
+  }
+
+  if (sportPrefix.includes('soccer')) {
+    return ['player_goal_scorer_anytime', 'player_shot_on_target', 'player_total_shots']
+  }
+
+  if (sportPrefix.includes('tennis')) {
+    return ['player_games_won', 'player_aces', 'player_double_faults']
+  }
+
+  if (sportPrefix.includes('rugby')) {
+    return ['player_tries', 'player_tackles', 'player_points_rugby']
+  }
+
+  if (sportPrefix.includes('aussie') || sportPrefix.includes('afl')) {
+    return ['player_disposals', 'player_goals_afl', 'player_marks']
+  }
+
+  if (sportPrefix.includes('volleyball')) {
+    return ['player_kills', 'player_aces_volleyball', 'player_digs']
+  }
+
+  if (sportPrefix.includes('handball')) {
+    return ['player_goals_handball', 'player_assists_handball']
+  }
+
+  if (sportPrefix.includes('darts')) {
+    return ['player_180s', 'player_checkout_pct']
+  }
+
+  if (sportPrefix.includes('mma') || sportPrefix.includes('boxing')) {
+    return ['player_significant_strikes', 'player_takedowns', 'player_total_rounds']
+  }
+
+  if (sportPrefix.includes('cricket')) {
+    return ['player_batting_runs', 'player_wickets', 'player_sixes']
+  }
+
+  if (sportPrefix.includes('golf')) {
+    return ['player_make_cut', 'player_bogey_free']
+  }
+
+  if (sportPrefix.includes('motorsport') || sportPrefix.includes('nascar')
+      || sportPrefix.includes('f1') || sportPrefix.includes('indycar')) {
+    return ['player_laps_led', 'player_top_finish']
+  }
+
+  if (sportPrefix.includes('esports')) {
+    return ['player_kills_esports', 'player_assists_esports', 'player_deaths_esports']
   }
 
   return []

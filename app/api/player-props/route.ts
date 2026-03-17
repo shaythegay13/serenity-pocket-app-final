@@ -13,6 +13,7 @@ import {
   getCacheStats,
 } from '@/lib/services/player-data-service'
 import { getPropMarketsForSport } from '@/lib/types/player-props'
+import { getSportsWithPlayerProps } from '@/lib/sports-config'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,12 +31,7 @@ export async function GET(request: NextRequest) {
         {
           success: false,
           error: 'Missing required parameter: sport',
-          availableSports: [
-            'americanfootball_nfl',
-            'basketball_nba',
-            'baseball_mlb',
-            'icehockey_nhl'
-          ]
+          availableSports: getSportsWithPlayerProps().map(s => s.id)
         },
         { status: 400 }
       )

@@ -693,12 +693,12 @@ describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
       expect(config?.hasPlayerProps).toBe(false)
     })
 
-    test('Esports correctly identifies restricted player props for Dota/Valorant', () => {
+    test('Esports Dota/Valorant support player props (kills, assists combos)', () => {
       const dota = mapTiltLabSportToConfig('Dota 2')
       const valorant = mapTiltLabSportToConfig('Valorant')
 
-      expect(dota?.hasPlayerProps).toBe(false)
-      expect(valorant?.hasPlayerProps).toBe(false)
+      expect(dota?.hasPlayerProps).toBe(true)
+      expect(valorant?.hasPlayerProps).toBe(true)
     })
   })
 })

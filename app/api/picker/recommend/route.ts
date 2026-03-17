@@ -1456,9 +1456,26 @@ export async function POST(request: NextRequest) {
       recentHistorySummary: "",
     }
 
+    // Fetch player props before the Gemini call so AI can reason about them
+    let playerPropsByGame: Map<string, PlayerPropLine[]> = new Map()
+    const gameIds = enrichedGames.map((g: any) => g.id).filter(Boolean)
+    if (gameIds.length > 0) {
+      try {
+        console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`)
+        playerPropsByGame = await getPlayerPropsForGames(gameIds, sport)
+        const totalProps = Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0)
+        console.log(`[SmartSlip] Found ${totalProps} total player props across ${playerPropsByGame.size} games`)
+      } catch (propsError) {
+        console.warn('[SmartSlip] Failed to fetch player props (continuing without them):', propsError)
+      }
+    }
+
     const reasoningInput: PickerReasoningInput = {
       user: userSnapshot,
-      games: enrichedGames,
+      games: enrichedGames.map((g: any) => ({
+        ...g,
+        playerPropLines: playerPropsByGame.get(g.id),
+      })),
     }
 
     console.log(
@@ -1632,9 +1649,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`[SmartSlip] Re-scored ${filtered.length} picks with math EV. Positive EV (BET): ${filtered.filter((r: any) => r.isRecommended).length}.`)
 
+    // Split re-scored picks: game picks stay in recommendations; prop picks go to propPicks
+    const geminiPropFilteredPicks = filtered.filter((r: any) => r.betType === 'prop')
+    const gameFilteredPicks = filtered.filter((r: any) => r.betType !== 'prop')
+    if (geminiPropFilteredPicks.length > 0) {
+      console.log(`[SmartSlip] Gemini returned ${geminiPropFilteredPicks.length} prop picks (${geminiPropFilteredPicks.filter((r: any) => r.isRecommended).length} recommended)`)
+    }
+
     reasoningOutput = {
       ...reasoningOutput,
-      recommendations: filtered,
+      recommendations: gameFilteredPicks,
     }
 
     console.log(`[SmartSlip] Final Response Summary: ${filtered.length} picks. EV Range: ${Math.min(...filtered.map(r => r.numericRisk?.evPercentage ?? 0)).toFixed(2)}% to ${Math.max(...filtered.map(r => r.numericRisk?.evPercentage ?? 0)).toFixed(2)}%`);
@@ -1733,21 +1757,6 @@ export async function POST(request: NextRequest) {
       } : null
     })
 
-    // Fetch Player Props for each game (new for player-level recommendations)
-    let playerPropsByGame: Map<string, PlayerPropLine[]> = new Map()
-    const gameIds = enrichedGames.map((g: any) => g.id).filter(Boolean)
-
-    if (gameIds.length > 0) {
-      try {
-        console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`)
-        playerPropsByGame = await getPlayerPropsForGames(gameIds, sport)
-        const totalProps = Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0)
-        console.log(`[SmartSlip] Found ${totalProps} total player props across ${playerPropsByGame.size} games`)
-      } catch (propsError) {
-        console.warn('[SmartSlip] Failed to fetch player props (continuing without them):', propsError)
-      }
-    }
-
     // Convert player props map to array format for response
     const playerPropsArray = Array.from(playerPropsByGame.entries()).map(([gameId, props]) => ({
       gameId,
@@ -1768,10 +1777,19 @@ export async function POST(request: NextRequest) {
           maxPropsPerGame: 2,
           maxTotalProps: 6
         })
-        console.log(`[SmartSlip] Generated ${propPicks.length} player prop recommendations`)
+        console.log(`[SmartSlip] Generated ${propPicks.length} math-based player prop recommendations`)
       } catch (propError) {
         console.warn('[SmartSlip] Failed to generate prop recommendations:', propError)
       }
+    }
+
+    // Gemini prop picks (AI probability signal) take priority over math-only props.
+    // Math props fill in for any games where Gemini returned no prop picks.
+    if (geminiPropFilteredPicks.length > 0) {
+      const geminiPropGameIds = new Set(geminiPropFilteredPicks.map((p: any) => p.gameId))
+      const mathPropsForOtherGames = propPicks.filter((p: any) => !geminiPropGameIds.has(p.gameId))
+      propPicks = [...geminiPropFilteredPicks, ...mathPropsForOtherGames]
+      console.log(`[SmartSlip] Final prop picks: ${geminiPropFilteredPicks.length} Gemini + ${mathPropsForOtherGames.length} math fallback`)
     }
 
     // Generate Team Prop Recommendations from team_totals data in enrichedGames

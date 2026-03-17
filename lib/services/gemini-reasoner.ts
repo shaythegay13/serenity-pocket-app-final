@@ -291,7 +291,7 @@ You output STRICT JSON matching the requested schema and keep explanations conci
   const userPrompt = `USER PSYCHOLOGY SNAPSHOT:
 ${JSON.stringify(args.user, null, 2)}
 
-CANDIDATE GAMES (with model predictions, context, and sports research):
+CANDIDATE GAMES (with model predictions, context, sports research, and player props):
 ${JSON.stringify(
     args.games.map((g) => ({
       id: g.id,
@@ -314,7 +314,17 @@ ${JSON.stringify(
         headToHead: g.sportsResearch.headToHead,
         keyFactors: g.sportsResearch.keyFactors,
         expertPrediction: g.sportsResearch.expertPrediction
-      } : null
+      } : null,
+      playerPropLines: g.playerPropLines
+        ? g.playerPropLines.slice(0, 8).map(p => ({
+            playerName: p.playerName,
+            stat: p.stat,
+            statDisplayName: p.statDisplayName,
+            line: p.line,
+            overOdds: p.overOdds,
+            underOdds: p.underOdds
+          }))
+        : undefined
     })),
     null,
     2,
@@ -340,9 +350,10 @@ Available bet types:
 1. **Moneyline** - Betting on which team wins outright
 2. **Spread** - Betting on the point differential
 3. **Total (Over/Under)** - Betting on whether the combined score goes over or under a line
+4. **Player Props** (only when playerPropLines are provided for a game): Analyze the prop lines in the context of the game script (e.g., a large spread implies the favorite will pass more, boosting QB yards props). Return up to 2 high-value prop picks per game as additional items using betType: "prop". Populate ALL prop fields: playerName, playerTeam (derive from game context), playerPosition (infer from stat), propCategory, propStat (use the stat field from playerPropLines), propLine, propDirection, playerId (use playerName as id if unknown).
 
 **CRITICAL REQUIREMENTS**:
-1. Return EXACTLY 4 recommendations - one for each game provided. Your job is to find the BEST value bet for each game.
+1. Return EXACTLY 1 best-value game pick per game provided (4 total), PLUS any prop picks you identify (up to 2 per game when playerPropLines are available). Game picks use betType: moneyline/spread/over/under. Prop picks use betType: "prop" with all prop fields populated.
 2. For each recommendation, the 'teams' field MUST contain the actual team names in "Home Team vs Away Team" format
 3. **PRIORITIZE POSITIVE EV**: For each game, evaluate ALL available markets (moneyline home, moneyline away, spread home, spread away, over, under) and select the ONE with the highest positive EV.
 4. **FINDING VALUE**: Value exists when YOUR probability estimate differs from the market:
@@ -381,8 +392,8 @@ Available bet types:
             startTime: { type: "string" },
             betType: {
               type: "string",
-              enum: ["moneyline", "spread", "total", "over", "under"],
-              description: "Type of bet: moneyline, spread, total (over), or total (under)"
+              enum: ["moneyline", "spread", "total", "over", "under", "prop"],
+              description: "Type of bet: moneyline, spread, over, under, or prop (for player props)"
             },
             line: { type: "string" },
             odds: { type: "number" },

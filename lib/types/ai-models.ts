@@ -1,4 +1,5 @@
 // Shared AI-related types for PlayMind Labs
+import type { PlayerPropLine } from './player-props'
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH"
 
@@ -231,6 +232,7 @@ export interface PickerReasoningInput {
         riskFactors: string[]
       }
     } | null
+    playerPropLines?: PlayerPropLine[]
   }>
 }
 
@@ -253,6 +255,13 @@ export interface BetAnalyzerReasoningInput {
     slipText?: string
     selection?: string // "home", "away", "over", "under"
     line?: number // Spread or total line
+    // Player prop context (populated when betType === 'Player Prop')
+    playerName?: string
+    playerTeam?: string
+    propStat?: string
+    propLine?: number
+    propDirection?: 'over' | 'under'
+    propCategory?: string
   }
 }
 

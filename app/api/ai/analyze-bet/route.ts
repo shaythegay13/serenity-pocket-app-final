@@ -315,6 +315,13 @@ export async function POST(request: NextRequest) {
           slipText: payload.bettingSlip,
           selection: payload.selection,
           line: payload.line,
+          // Player prop context forwarded from SmartSlip so Gemini can analyze the specific prop
+          playerName: payload.playerName,
+          playerTeam: payload.playerTeam,
+          propStat: payload.propStat,
+          propLine: payload.propLine,
+          propDirection: payload.propDirection,
+          propCategory: payload.propCategory,
         },
       }
 

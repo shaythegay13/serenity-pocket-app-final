@@ -28,7 +28,7 @@ import type {
   UserPsychologySnapshot,
   UserPsychProfile,
 } from "@/lib/types/ai-models"
-import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
+import { checkDecisionUsage, recordDecisionUsage, deductDecisionCredit } from "@/lib/ai-usage-tracker"
 import { TILTLAB_SPORT_MAPPING } from "@/lib/sports-config"
 import { exec } from "child_process"
 import { promisify } from "util"
@@ -65,24 +65,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check AI service usage limits (tier-based + purchased credits)
-    const usageCheck = await checkAIServiceUsage(supabase, user.id, 'ai_bet_analyzer')
+    // Check AI-guided decision balance (1 decision = SmartSlip + TiltLab full flow)
+    const usageCheck = await checkDecisionUsage(supabase, user.id)
 
     if (!usageCheck.canUse) {
       return NextResponse.json(
         {
-          error: usageCheck.reason || "TiltLab usage limit reached",
-          upgrade_required: usageCheck.limit === 0,
-          usage_limit_reached: usageCheck.limit > 0,
+          error: usageCheck.reason || "No AI-guided decisions remaining",
+          upgrade_required: usageCheck.weeklyLimit === 0,
+          usage_limit_reached: usageCheck.weeklyLimit > 0,
           current_tier: usageCheck.tier,
           current_usage: {
             used: usageCheck.usedThisWeek,
-            limit: usageCheck.limit,
+            limit: usageCheck.weeklyLimit,
             remaining: usageCheck.remaining,
             purchased_credits: usageCheck.purchasedCredits,
-            total_available: usageCheck.totalAvailable
+            total_available: usageCheck.totalAvailable,
           },
-          marketplace_url: '/marketplace'
+          marketplace_url: '/marketplace',
         },
         { status: 403 }
       )
@@ -509,14 +509,15 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
     })
 
-    // Record AI service usage
-    await recordAIServiceUsage(supabase, user.id, 'ai_bet_analyzer', {
+    // Consume 1 AI-guided decision (full SmartSlip + TiltLab flow complete)
+    await recordDecisionUsage(supabase, user.id, {
       sport: payload.sport,
       betType: payload.betType,
       betAmount: payload.betAmount,
       recommendation: analysis.recommendation.recommendation,
-      usedEnhancedAI
+      usedEnhancedAI,
     })
+    await deductDecisionCredit(supabase, user.id)
 
     // --- Parlay-specific analysis (when structured legs are provided) ---
     let parlayAnalysis: any = null

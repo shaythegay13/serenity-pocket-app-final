@@ -26,8 +26,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
     features: [
       "Everything in the Previous Tier and:",
       "Basic Analytics Dashboard",
-      "TiltLab Emotional Analysis (1x/week)",
-      "SmartSlip AI Picks (1x/week)",
+      "AI-guided betting decisions (3/week)",
     ],
   },
   {
@@ -41,8 +40,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
       "Everything in the Previous Tier and:",
       "Emotional Volatility Warnings",
       "Behavior-to-Performance Correlation",
-      "TiltLab Emotional Analysis (3x/week)",
-      "SmartSlip AI Picks (3x/week)",
+      "AI-guided betting decisions (7/week)",
     ],
   },
   {
@@ -55,8 +53,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
     features: [
       "Everything in the Previous Tier and:",
       "Priority Support & Early Feature Access",
-      "TiltLab Emotional Analysis (7x/week)",
-      "SmartSlip AI Picks (7x/week)",
+      "AI-guided betting decisions (14/week)",
     ],
   },
 ]

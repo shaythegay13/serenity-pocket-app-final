@@ -22,7 +22,7 @@ import {
   buildFeaturesCsv,
   type SerenityFeatureInput,
 } from "@/lib/services/serenityFeatureBuilder"
-import { checkAIServiceUsage, recordAIServiceUsage } from "@/lib/ai-usage-tracker"
+import { checkDecisionUsage } from "@/lib/ai-usage-tracker"
 import { calculateEmotionalStability } from "@/lib/emotional-scoring"
 import { computeEvFromProbAndOdds } from "@/lib/ev-calculator"
 import {
@@ -645,21 +645,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const usageCheck = await checkAIServiceUsage(
-      supabase,
-      user.id,
-      "ai_picker",
-    )
+    const usageCheck = await checkDecisionUsage(supabase, user.id)
 
     if (!usageCheck.canUse) {
       return NextResponse.json(
         {
-          error: usageCheck.reason || "AI Picker usage limit reached",
-          upgrade_required: usageCheck.limit === 0,
-          usage_limit_reached: usageCheck.limit > 0,
+          error: usageCheck.reason || "No AI-guided decisions remaining",
+          upgrade_required: usageCheck.weeklyLimit === 0,
+          usage_limit_reached: usageCheck.weeklyLimit > 0,
           current_usage: {
             used: usageCheck.usedThisWeek,
-            limit: usageCheck.limit,
+            limit: usageCheck.weeklyLimit,
             remaining: usageCheck.remaining,
             purchased_credits: usageCheck.purchasedCredits,
             total_available: usageCheck.totalAvailable,
@@ -1690,14 +1686,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await recordAIServiceUsage(supabase, user.id, "ai_picker", {
-      sport,
-      emotionalScore,
-      riskTolerance,
-      recommendations_count: reasoningOutput.recommendations.length,
-      used_sagemaker: false,
-      psych_model: (psychResult as any).model_id,
-    })
+    // Decision is consumed at TiltLab completion, not here.
+    // SmartSlip only gates on whether a decision is available.
 
     // Risk-adjusted decision layer: apply behavioral risk modulation to all picks.
     // Statistical output quality is NEVER degraded — only risk posture is adjusted.

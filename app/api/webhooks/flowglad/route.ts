@@ -308,13 +308,16 @@ export async function POST(req: Request) {
 
           if (product) {
             // Update purchase with actual payment ID and credits
+            // decision_credits covers new unified decision products;
+            // ai_picker_credits / ai_bet_analyzer_credits kept for legacy products.
             const { error: updateError } = await supabaseAdmin
               .from('ai_usage_purchases')
               .update({
                 flowglad_payment_id: paymentId,
-                ai_picker_credits: product.ai_picker_credits,
-                ai_bet_analyzer_credits: product.ai_bet_analyzer_credits,
-                price_paid: product.price
+                ai_picker_credits: product.ai_picker_credits ?? 0,
+                ai_bet_analyzer_credits: product.ai_bet_analyzer_credits ?? 0,
+                decision_credits: (product as any).decision_credits ?? 0,
+                price_paid: product.price,
               })
               .eq('id', purchase.id)
 

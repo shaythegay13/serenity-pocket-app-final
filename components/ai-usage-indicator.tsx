@@ -4,27 +4,18 @@ import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
-import { ShoppingCart, Zap, TrendingUp } from 'lucide-react'
+import { ShoppingCart, Brain } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import type { DecisionCheckResult } from '@/lib/ai-usage-tracker'
 
-interface UsageCheckResult {
-  canUse: boolean
-  remaining: number
-  limit: number
-  usedThisWeek: number
-  purchasedCredits: number
-  totalAvailable: number
-}
-
-interface UsageStats {
-  aiPicker: UsageCheckResult
-  aiBetAnalyzer: UsageCheckResult
+interface DecisionStats {
+  decisions: DecisionCheckResult
   weekStartDate: string
 }
 
 export function AIUsageIndicator() {
-  const [stats, setStats] = useState<UsageStats | null>(null)
+  const [stats, setStats] = useState<DecisionStats | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -41,19 +32,15 @@ export function AIUsageIndicator() {
       }
 
       const res = await fetch('/api/marketplace/usage-stats', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      
+
       if (!res.ok) {
         let bodyText = ''
-        try {
-          bodyText = await res.text()
-        } catch {
-          // ignore
-        }
-        throw new Error(`Failed to fetch usage stats: ${res.status} ${res.statusText}${bodyText ? ` - ${bodyText}` : ''}`)
+        try { bodyText = await res.text() } catch { /* ignore */ }
+        throw new Error(
+          `Failed to fetch usage stats: ${res.status} ${res.statusText}${bodyText ? ` - ${bodyText}` : ''}`,
+        )
       }
 
       const data = await res.json()
@@ -70,32 +57,27 @@ export function AIUsageIndicator() {
   if (loading) {
     return (
       <Card className="p-4 mb-4 animate-pulse">
-        <div className="h-6 bg-muted rounded mb-4"></div>
-        <div className="h-2 bg-muted rounded mb-4"></div>
-        <div className="h-2 bg-muted rounded"></div>
+        <div className="h-6 bg-muted rounded mb-4" />
+        <div className="h-2 bg-muted rounded mb-2" />
+        <div className="h-4 bg-muted rounded w-1/2" />
       </Card>
     )
   }
 
   if (!stats) return null
 
-  const { aiPicker, aiBetAnalyzer } = stats
-
-  // Calculate percentage for progress bars
-  const pickerPercentage = aiPicker.totalAvailable > 0 
-    ? (aiPicker.usedThisWeek / aiPicker.totalAvailable) * 100 
-    : 0
-
-  const analyzerPercentage = aiBetAnalyzer.totalAvailable > 0
-    ? (aiBetAnalyzer.usedThisWeek / aiBetAnalyzer.totalAvailable) * 100
-    : 0
+  const { decisions } = stats
+  const percentage =
+    decisions.totalAvailable > 0
+      ? (decisions.usedThisWeek / decisions.totalAvailable) * 100
+      : 0
 
   return (
     <Card className="p-4 mb-4 bg-linear-to-br from-purple-500/5 to-blue-500/5 border-purple-500/20">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Zap className="h-5 w-5 text-yellow-500" />
-          AI Service Usage This Week
+          <Brain className="h-5 w-5 text-purple-500" />
+          AI-Guided Decisions This Week
         </h3>
         <Button
           variant="outline"
@@ -108,58 +90,35 @@ export function AIUsageIndicator() {
         </Button>
       </div>
 
-      {/* SmartSlip */}
-      <div className="mb-4">
+      <div className="mb-3">
         <div className="flex justify-between text-sm mb-1">
-          <span className="font-medium flex items-center gap-1">
-            <TrendingUp className="h-3 w-3 text-blue-500" />
-            SmartSlip
-          </span>
           <span className="text-muted-foreground">
-            {aiPicker.usedThisWeek} / {aiPicker.totalAvailable} used
+            Use a decision to analyze your next bet with AI guidance
+          </span>
+          <span className="font-medium tabular-nums">
+            {decisions.usedThisWeek} / {decisions.totalAvailable} used
           </span>
         </div>
-        <Progress 
-          value={pickerPercentage} 
-          className="h-2"
-        />
+        <Progress value={percentage} className="h-2" />
         <div className="flex justify-between text-xs text-muted-foreground mt-1">
-          <span>Tier limit: {aiPicker.limit}</span>
-          {aiPicker.purchasedCredits > 0 && (
+          <span>Weekly allocation: {decisions.weeklyLimit}</span>
+          {decisions.purchasedCredits > 0 && (
             <span className="text-green-600 dark:text-green-400">
-              +{aiPicker.purchasedCredits} purchased
+              +{decisions.purchasedCredits} purchased
             </span>
           )}
         </div>
       </div>
 
-      {/* TiltLab */}
-      <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="font-medium flex items-center gap-1">
-            <Zap className="h-3 w-3 text-purple-500" />
-            TiltLab
-          </span>
-          <span className="text-muted-foreground">
-            {aiBetAnalyzer.usedThisWeek} / {aiBetAnalyzer.totalAvailable} used
-          </span>
-        </div>
-        <Progress 
-          value={analyzerPercentage} 
-          className="h-2"
-        />
-        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-          <span>Tier limit: {aiBetAnalyzer.limit}</span>
-          {aiBetAnalyzer.purchasedCredits > 0 && (
-            <span className="text-green-600 dark:text-green-400">
-              +{aiBetAnalyzer.purchasedCredits} purchased
-            </span>
-          )}
-        </div>
-      </div>
+      {decisions.remaining === 0 && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
+          No decisions remaining — purchase more to continue your AI analysis.
+        </p>
+      )}
 
-      <p className="text-xs text-muted-foreground mt-3 text-center">
-        Resets every Monday • Week started {new Date(stats.weekStartDate).toLocaleDateString()}
+      <p className="text-xs text-muted-foreground mt-2 text-center">
+        Resets every Monday · Week started{' '}
+        {new Date(stats.weekStartDate).toLocaleDateString()}
       </p>
     </Card>
   )

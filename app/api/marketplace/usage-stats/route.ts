@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getUserAIUsageStats } from '@/lib/ai-usage-tracker'
+import { getUserDecisionStats } from '@/lib/ai-usage-tracker'
 
 export const runtime = 'nodejs'
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (cookieUser?.id) {
-      const stats = await getUserAIUsageStats(supabase, cookieUser.id)
+      const stats = await getUserDecisionStats(supabase, cookieUser.id)
 
       return NextResponse.json({
         success: true,
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Note: use a server key client for stats access in token mode.
-    const stats = await getUserAIUsageStats(supabaseServer, user.id)
+    const stats = await getUserDecisionStats(supabaseServer, user.id)
 
     return NextResponse.json({ 
       success: true,

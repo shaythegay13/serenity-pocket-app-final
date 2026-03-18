@@ -20,7 +20,7 @@ import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { EmotionOutcomePoint } from "./types"
 import { EMOTION_SCORE_LOOKUP, EMOTION_CATEGORIES } from "./constants"
 import { getMatchFormat, normalizeSportKey } from "@/lib/sports-config"
-import { EmotionHeatmap } from "./EmotionHeatmap"
+import { EmotionDotPlot } from "./EmotionDotPlot"
 
 interface CorrelationTabProps {
   emotionLogs: EmotionLog[]
@@ -550,7 +550,7 @@ export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiv
       </div>
 
       {/* Emotion vs Performance Heatmap */}
-      <EmotionHeatmap trades={trades} comprehensiveBets={comprehensiveBets} />
+      <EmotionDotPlot trades={trades} comprehensiveBets={comprehensiveBets} />
 
       {emotionMatrixData.length > 0 ? (
         <>

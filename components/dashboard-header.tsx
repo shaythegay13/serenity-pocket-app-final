@@ -196,7 +196,11 @@ export function DashboardHeader({ userData, onNavigateToTab }: DashboardHeaderPr
                   type="button"
                   onClick={() => {
                     setMenuOpen(false)
-                    onNavigateToTab?.("account")
+                    if (onNavigateToTab) {
+                      onNavigateToTab("account")
+                    } else {
+                      router.push("/account")
+                    }
                   }}
                 >
                   <User className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />

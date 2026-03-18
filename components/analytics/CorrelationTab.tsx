@@ -19,6 +19,7 @@ import type { Parlay } from "@/lib/types/ai-models"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { EmotionOutcomePoint } from "./types"
 import { EMOTION_SCORE_LOOKUP, EMOTION_CATEGORIES } from "./constants"
+import { EmotionDotPlot } from "./EmotionDotPlot"
 import { getMatchFormat, normalizeSportKey } from "@/lib/sports-config"
 
 interface CorrelationTabProps {
@@ -547,6 +548,8 @@ export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiv
           How your emotional state affects your betting results
         </p>
       </div>
+
+      <EmotionDotPlot trades={trades} comprehensiveBets={comprehensiveBets} />
 
 {emotionMatrixData.length > 0 ? (
         <>

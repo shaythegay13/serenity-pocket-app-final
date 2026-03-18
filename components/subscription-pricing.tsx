@@ -38,8 +38,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       features: [
         "Everything in Foundation",
         "Basic Analytics Dashboard",
-        "TiltLab Emotional Analysis (1x/week)",
-        "SmartSlip AI Picks (1x/week)",
+        "AI-guided betting decisions (3/week)",
       ],
     },
     {
@@ -55,8 +54,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
         "Everything in Focus",
         "Emotional Volatility Warnings",
         "Behavior-to-Performance Correlation",
-        "TiltLab Emotional Analysis (3x/week)",
-        "SmartSlip AI Picks (3x/week)",
+        "AI-guided betting decisions (7/week)",
       ],
     },
     {
@@ -70,8 +68,7 @@ export function SubscriptionPricing({ currentTier = "free" }: SubscriptionPricin
       features: [
         "Everything in Mastery",
         "Priority Support & Early Feature Access",
-        "TiltLab Emotional Analysis (7x/week)",
-        "SmartSlip AI Picks (7x/week)",
+        "AI-guided betting decisions (14/week)",
       ],
     },
   ]

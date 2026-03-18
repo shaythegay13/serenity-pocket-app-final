@@ -193,18 +193,11 @@ export default function FeaturesPage() {
                       <td className="text-center py-3 px-2"><Check className="h-4 w-4 text-green-500 mx-auto" /></td>
                     </tr>
                     <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">TiltLab Emotional Analysis</td>
+                      <td className="py-3 px-4 font-medium text-foreground">AI-Guided Betting Decisions</td>
                       <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
-                    </tr>
-                    <tr className="border-b border-border bg-muted/50">
-                      <td className="py-3 px-4 font-medium text-foreground">SmartSlip AI Picks</td>
-                      <td className="text-center py-3 px-2">-</td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">1x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3x/week</span></td>
-                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7x/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">3/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">7/week</span></td>
+                      <td className="text-center py-3 px-2"><span className="text-xs text-muted-foreground">14/week</span></td>
                     </tr>
                   </tbody>
                 </table>

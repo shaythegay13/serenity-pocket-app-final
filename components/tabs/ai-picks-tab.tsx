@@ -28,6 +28,7 @@ interface MarketplaceProduct {
   display_name: string
   description: string
   price: number
+  decision_credits: number
   ai_picker_credits: number
   ai_bet_analyzer_credits: number
   is_bundle: boolean
@@ -344,16 +345,9 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   }
 
   const calculateMarketplaceSavings = (product: MarketplaceProduct): string => {
-    if (!product.is_bundle) return '0.00'
-
-    const singlePickerPrice = 30
-    const singleAnalyzerPrice = 30
-
-    const separateTotal =
-      product.ai_picker_credits * singlePickerPrice + product.ai_bet_analyzer_credits * singleAnalyzerPrice
-
-    const savings = separateTotal - product.price
-    return savings.toFixed(2)
+    if (product.decision_credits <= 1) return '0.00'
+    const fullPrice = product.decision_credits * 4 // $4 per single decision
+    return Math.max(0, fullPrice - product.price).toFixed(2)
   }
 
   // Initialize daily bet count to enforce daily limit when logging bets
@@ -1616,25 +1610,11 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                   <p className="text-sm text-muted-foreground mb-4 grow">{product.description}</p>
 
                   <div className="mb-4 space-y-2 text-sm">
-                    {product.ai_picker_credits > 0 && (
+                    {product.decision_credits > 0 && (
                       <div className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-green-500" />
-                        <span>
-                          SmartSlip:{' '}
-                          <span className="font-medium">
-                            +{product.ai_picker_credits} use{product.ai_picker_credits > 1 ? 's' : ''}
-                          </span>
-                        </span>
-                      </div>
-                    )}
-                    {product.ai_bet_analyzer_credits > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-green-500" />
-                        <span>
-                          TiltLab:{' '}
-                          <span className="font-medium">
-                            +{product.ai_bet_analyzer_credits} use{product.ai_bet_analyzer_credits > 1 ? 's' : ''}
-                          </span>
+                        <span className="font-medium">
+                          +{product.decision_credits} AI-guided decision{product.decision_credits > 1 ? 's' : ''}
                         </span>
                       </div>
                     )}

@@ -92,10 +92,11 @@ export async function POST(request: NextRequest) {
         .insert({
           user_id: user.id,
           purchase_type: product.product_key,
-          ai_picker_credits: 0, // Will be updated on payment success
-          ai_bet_analyzer_credits: 0,
+          ai_picker_credits: 0,      // Updated on payment success via webhook
+          ai_bet_analyzer_credits: 0, // Updated on payment success via webhook
+          decision_credits: 0,        // Updated on payment success via webhook
           price_paid: product.price,
-          flowglad_payment_id: `pending_${Date.now()}` // Temporary, will be updated by webhook
+          flowglad_payment_id: `pending_${Date.now()}` // Temporary, updated by webhook
         })
 
       if (intentError) {

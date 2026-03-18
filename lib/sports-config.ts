@@ -3,6 +3,8 @@
  * Centralized sports definitions for all AI systems
  */
 
+import type { FormatType } from './types/ai-models'
+
 export interface SportConfig {
   id: string;
   name: string;
@@ -19,6 +21,13 @@ export interface SportConfig {
   teamCount?: number;
   seasonActive?: boolean;
   icon?: string;
+  /**
+   * Structural format of events for this sport.
+   * Omit to inherit the default (TEAM_VS_TEAM).
+   * Prefer the FORMAT_BY_SPORT lookup for built-in sports;
+   * set this field for custom/extended sport entries.
+   */
+  matchFormat?: FormatType;
 }
 
 export const SUPPORTED_SPORTS: Record<string, SportConfig> = {
@@ -1329,6 +1338,68 @@ export function normalizeSportKey(input?: string): string {
   if (partialMatch) return partialMatch;
 
   return input; // Return as-is if no match
+}
+
+// =====================================================================
+// MATCH FORMAT ROUTING
+// =====================================================================
+
+/**
+ * Canonical FormatType for built-in sports that are NOT TEAM_VS_TEAM.
+ * All unlisted sports default to TEAM_VS_TEAM.
+ */
+const FORMAT_BY_SPORT: Partial<Record<string, FormatType>> = {
+  // 1-on-1 individual matchups
+  mma_ufc:         'PLAYER_VS_PLAYER',
+  boxing:          'PLAYER_VS_PLAYER',
+  tennis_atp:      'PLAYER_VS_PLAYER',
+  tennis_wta:      'PLAYER_VS_PLAYER',
+  tennis_itf:      'PLAYER_VS_PLAYER',
+  darts_pdc:       'PLAYER_VS_PLAYER',
+  table_tennis:    'PLAYER_VS_PLAYER',
+  // Whole-field leaderboard events (golf stroke play, motorsports, cycling)
+  golf_pga:             'FIELD_LEADERBOARD',
+  golf_lpga:            'FIELD_LEADERBOARD',
+  golf_dp_world:        'FIELD_LEADERBOARD',
+  motorsports_f1:       'FIELD_LEADERBOARD',
+  motorsports_nascar:   'FIELD_LEADERBOARD',
+  motorsports_indycar:  'FIELD_LEADERBOARD',
+  cycling:              'FIELD_LEADERBOARD',
+  // Bo3/Bo5 esports map series
+  esports_lol:      'ESPORTS_MAP_SERIES',
+  esports_csgo:     'ESPORTS_MAP_SERIES',
+  esports_dota2:    'ESPORTS_MAP_SERIES',
+  esports_valorant: 'ESPORTS_MAP_SERIES',
+}
+
+/**
+ * Returns the matchup FormatType for a given sport ID.
+ * Checks FORMAT_BY_SPORT first, then the SportConfig.matchFormat override,
+ * and falls back to TEAM_VS_TEAM for any standard team sport.
+ */
+export function getMatchFormat(sportId: string): FormatType {
+  return FORMAT_BY_SPORT[sportId] ?? SUPPORTED_SPORTS[sportId]?.matchFormat ?? 'TEAM_VS_TEAM'
+}
+
+/**
+ * Infer match format from a raw matchup string and an optional sport ID.
+ * Sport config is authoritative; string-pattern heuristic used as fallback.
+ *
+ * @example
+ *   detectMatchFormat('Djokovic vs Nadal', 'tennis_atp') → 'PLAYER_VS_PLAYER'
+ *   detectMatchFormat('', 'golf_pga') → 'FIELD_LEADERBOARD'
+ *   detectMatchFormat('Lakers vs Celtics', 'basketball_nba') → 'TEAM_VS_TEAM'
+ */
+export function detectMatchFormat(matchupStr: string, sportId?: string): FormatType {
+  if (sportId) {
+    const fmt = getMatchFormat(normalizeSportKey(sportId))
+    if (fmt !== 'TEAM_VS_TEAM') return fmt
+  }
+  // String-pattern fallback: no separator → likely a field/solo event
+  if (!matchupStr || (!matchupStr.includes(' @ ') && !/\bvs\.?\b/i.test(matchupStr))) {
+    return 'FIELD_LEADERBOARD'
+  }
+  return 'TEAM_VS_TEAM'
 }
 
 /**

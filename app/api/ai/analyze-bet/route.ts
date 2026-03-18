@@ -23,13 +23,15 @@ import type {
   BetAnalyzerReasoningInput,
   BetAnalyzerReasoningOutput,
   CurrentGameContext,
+  FormatType,
+  MatchParticipant,
   HistoricalFeatureVector,
   ModelPrediction,
   UserPsychologySnapshot,
   UserPsychProfile,
 } from "@/lib/types/ai-models"
 import { checkDecisionUsage, recordDecisionUsage, deductDecisionCredit } from "@/lib/ai-usage-tracker"
-import { TILTLAB_SPORT_MAPPING } from "@/lib/sports-config"
+import { TILTLAB_SPORT_MAPPING, detectMatchFormat, normalizeSportKey } from "@/lib/sports-config"
 import { exec } from "child_process"
 import { promisify } from "util"
 
@@ -203,6 +205,20 @@ export async function POST(request: NextRequest) {
           awayRecent: payload.underdogRecord ? [payload.underdogRecord] : undefined,
         },
         narrativeContext: `Favorite: ${payload.favoriteTeam || 'Unknown'} (${payload.favoriteRecord || 'N/A'}), Underdog: ${payload.underdogTeam || 'Unknown'} (${payload.underdogRecord || 'N/A'}). Bet type: ${payload.betType}. Selection: ${payload.selection}.`,
+        // Match format routing — drives EV model selection and UI rendering
+        formatType: detectMatchFormat(
+          `${homeTeam} vs ${awayTeam}`,
+          normalizeSportKey(leagueKey)
+        ) as FormatType,
+        participants: (() => {
+          const fmt = detectMatchFormat('', normalizeSportKey(leagueKey))
+          if (fmt === 'FIELD_LEADERBOARD') return null
+          const pType: 'team' | 'player' = fmt === 'PLAYER_VS_PLAYER' ? 'player' : 'team'
+          const parts: MatchParticipant[] = []
+          if (homeTeam) parts.push({ type: pType, id: homeTeam, name: homeTeam, home: true })
+          if (awayTeam && awayTeam !== homeTeam) parts.push({ type: pType, id: awayTeam, name: awayTeam, home: false })
+          return parts.length ? parts : null
+        })(),
       }
 
       features = {

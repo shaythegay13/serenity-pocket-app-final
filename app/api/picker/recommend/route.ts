@@ -10,6 +10,7 @@ import {
 } from "@/lib/sports-research"
 import type {
   CurrentGameContext,
+  FormatType,
   HistoricalFeatureVector,
   ModelPrediction,
   PickerReasoningInput,
@@ -30,7 +31,7 @@ import {
   getKellyFraction,
   getSportVariance,
 } from "@/lib/risk-index"
-import { getSportById, normalizeSportKey } from "@/lib/sports-config"
+import { getSportById, normalizeSportKey, getMatchFormat } from "@/lib/sports-config"
 import { getPlayerPropsForGames } from "@/lib/services/player-data-service"
 import { fetchLiveOddsUpdate, buildLiveContext } from "@/lib/services/live-odds-service"
 import { fetchFutureMarkets, buildFuturesRecommendation } from "@/lib/futures-utils"
@@ -222,6 +223,15 @@ async function buildFallbackRecommendations(args: {
     const ctx = g.context
     if (!ctx) continue
 
+    // Derive format and format-aware teams string for this sport
+    const formatType = getMatchFormat(normalizeSportKey(ctx.league || ''))
+    const teamsStr: string =
+      formatType === 'PLAYER_VS_PLAYER'
+        ? `${ctx.awayTeam} vs ${ctx.homeTeam}`
+        : formatType === 'FIELD_LEADERBOARD'
+          ? ctx.homeTeam || ctx.awayTeam || ctx.league || 'Field'
+          : `${ctx.awayTeam} @ ${ctx.homeTeam}`
+
     // Helper to map context - include research notes for better AI probability signals
     const teamFormNotes = ctx.teamForm
       ? `Home form: ${ctx.teamForm.homeRecent?.join(',') || 'unknown'}. Away form: ${ctx.teamForm.awayRecent?.join(',') || 'unknown'}.`
@@ -272,7 +282,8 @@ async function buildFallbackRecommendations(args: {
         const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
         return {
           gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+          teams: teamsStr,
+          formatType,
           startTime: ctx.startTime,
           betType: "moneyline",
           line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ML`,
@@ -325,7 +336,8 @@ async function buildFallbackRecommendations(args: {
         const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
         return {
           gameId: g.id,
-          teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+          teams: teamsStr,
+          formatType,
           startTime: ctx.startTime,
           betType: "spread",
           line: `${side === "home" ? ctx.homeTeam : ctx.awayTeam} ${line > 0 ? '+' : ''}${line}`,
@@ -376,7 +388,8 @@ async function buildFallbackRecommendations(args: {
         const evAtStake = parseFloat(((res.ev.evPercent / 100) * suggestedStakeAbsolute).toFixed(2))
         return {
         gameId: g.id,
-        teams: `${ctx.awayTeam} @ ${ctx.homeTeam}`,
+        teams: teamsStr,
+        formatType,
         startTime: ctx.startTime,
         betType: type,
         line: `${type === "over" ? "Over" : "Under"} ${totalLine}`,

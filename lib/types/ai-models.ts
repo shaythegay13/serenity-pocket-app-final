@@ -21,6 +21,37 @@ export type VariantType = 'base_line' | 'alt_line' | 'milestone'
 /** Which level of the game hierarchy the market targets */
 export type MarketLevel = 'game' | 'team' | 'player' | 'future'
 
+// ============================================================================
+// Match Format Types
+// ============================================================================
+
+/**
+ * Describes the structural format of a matchup/event.
+ * - TEAM_VS_TEAM: Standard home/away game (NFL, NBA, soccer, cricket, etc.) — default
+ * - PLAYER_VS_PLAYER: 1-on-1 individual matchup (tennis, boxing, UFC, darts)
+ * - FIELD_LEADERBOARD: Whole-field event with no direct opponent (golf stroke play, racing)
+ * - TOURNAMENT_BRACKET: Single-elimination or round-robin bracket with props overlay
+ * - HEAD_TO_HEAD_PROP: Player stat comparison market within a team game
+ * - ESPORTS_MAP_SERIES: Bo3/Bo5 map-based series (LoL, CS2, Dota 2, Valorant)
+ */
+export type FormatType =
+  | 'TEAM_VS_TEAM'
+  | 'PLAYER_VS_PLAYER'
+  | 'FIELD_LEADERBOARD'
+  | 'TOURNAMENT_BRACKET'
+  | 'HEAD_TO_HEAD_PROP'
+  | 'ESPORTS_MAP_SERIES'
+
+/** A single competing entity (team or individual player) within a structured matchup. */
+export interface MatchParticipant {
+  type: 'team' | 'player'
+  id: string
+  name: string
+  home?: boolean      // meaningful only in TEAM_VS_TEAM
+  seed?: number       // bracket seeding (TOURNAMENT_BRACKET)
+  country?: string    // motorsports / international events
+}
+
 export interface UserPsychologySnapshot {
   currentEmotion: string
   currentEmotionIntensity?: number // 0-10
@@ -95,6 +126,17 @@ export interface CurrentGameContext {
   pace?: string
   homeAwaySplits?: string
   narrativeContext?: string
+  /** Structural format of this matchup */
+  formatType?: FormatType
+  /**
+   * Ordered participants for non-TEAM_VS_TEAM formats.
+   * null for FIELD_LEADERBOARD (whole field competes, no direct opponent).
+   * For PLAYER_VS_PLAYER: [{type:'player', id, name}, ...]
+   * For ESPORTS_MAP_SERIES: same as TEAM_VS_TEAM (two teams, series context).
+   */
+  participants?: MatchParticipant[] | null
+  /** Number of maps in series for ESPORTS_MAP_SERIES (3 = bo3, 5 = bo5) */
+  seriesMaps?: number
 }
 
 export interface HistoricalFeatureVector {
@@ -194,6 +236,10 @@ export interface PickerRecommendationItem {
   propStat?: string           // Specific stat (e.g., "passing_yards", "receptions")
   propLine?: number           // Numeric line (e.g., 250.5)
   propDirection?: 'over' | 'under' // Over/under selection
+  /** Match structure for this pick (used by UI and EV routing) */
+  formatType?: FormatType
+  /** Total maps in series for ESPORTS_MAP_SERIES picks (3 = bo3, 5 = bo5) */
+  seriesMaps?: number
 }
 
 export interface PickerReasoningInput {

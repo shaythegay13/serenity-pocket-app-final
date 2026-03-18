@@ -282,7 +282,8 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                 <line
                   x1={x} y1={AXIS_TOP - 6}
                   x2={x} y2={svgH - 10}
-                  stroke={isBase ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'}
+                  stroke="hsl(var(--border))"
+                  strokeOpacity={isBase ? 0.6 : 0.25}
                   strokeWidth={isBase ? 1.5 : 1}
                   strokeDasharray={isBase ? undefined : '3,6'}
                 />
@@ -290,7 +291,8 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                   x={x} y={AXIS_TOP - 10}
                   textAnchor="middle" fontSize={10}
                   fontWeight={isBase ? '600' : '400'}
-                  fill={isBase ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.28)'}
+                  fill="hsl(var(--muted-foreground))"
+                  fillOpacity={isBase ? 0.9 : 0.55}
                 >
                   {tick.label}
                 </text>
@@ -314,7 +316,8 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                   <line
                     x1={0} y1={item.y + 1}
                     x2={svgW} y2={item.y + 1}
-                    stroke="rgba(255,255,255,0.07)"
+                    stroke="hsl(var(--border))"
+                    strokeOpacity={0.5}
                   />
                   {/* Colored accent bar on far left */}
                   <rect x={0} y={item.y + 4} width={3} height={CAT_H - 8} rx={1.5} fill={meta.color} />
@@ -362,13 +365,15 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                 <line
                   x1={LABEL_W} y1={cy}
                   x2={svgW - PAD_R} y2={cy}
-                  stroke="rgba(255,255,255,0.035)"
+                  stroke="hsl(var(--border))"
+                  strokeOpacity={0.2}
                 />
                 {/* Emotion name */}
                 <text
                   x={LABEL_W - 10} y={cy}
                   textAnchor="end" fontSize={10.5} dominantBaseline="middle"
-                  fill={hasData ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)'}
+                  fill="hsl(var(--foreground))"
+                  fillOpacity={hasData ? 0.75 : 0.25}
                 >
                   {row.emotion}
                 </text>
@@ -386,7 +391,8 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                       cx={cx} cy={cy} r={r}
                       fill={color}
                       fillOpacity={lowN ? 0.35 : 0.9}
-                      stroke={lowN ? 'rgba(255,255,255,0.35)' : color}
+                      stroke={lowN ? 'hsl(var(--foreground))' : color}
+                      strokeOpacity={lowN ? 0.4 : 1}
                       strokeWidth={lowN ? 1 : 0}
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setTooltip({ emotion: row.emotion, category: row.category, count: row.count, winRate: row.winRate, roi: row.roi, cx, cy })}
@@ -397,7 +403,8 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                       <text
                         x={cx + r + 5} y={cy}
                         fontSize={9} dominantBaseline="middle"
-                        fill="rgba(255,255,255,0.45)"
+                        fill="hsl(var(--muted-foreground))"
+                        fillOpacity={0.7}
                       >
                         {metric === 'winRate'
                           ? `${val.toFixed(0)}%`
@@ -406,7 +413,7 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                     )}
                   </>
                 ) : (
-                  <text x={LABEL_W + 6} y={cy} fontSize={9} dominantBaseline="middle" fill="rgba(255,255,255,0.1)">—</text>
+                  <text x={LABEL_W + 6} y={cy} fontSize={9} dominantBaseline="middle" fill="hsl(var(--muted-foreground))" fillOpacity={0.3}>—</text>
                 )}
               </g>
             )

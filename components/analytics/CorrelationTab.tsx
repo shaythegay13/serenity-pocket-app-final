@@ -18,8 +18,9 @@ import type { EmotionLog, Trade } from "@/lib/types"
 import type { Parlay } from "@/lib/types/ai-models"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { EmotionOutcomePoint } from "./types"
-import { EMOTION_SCORE_LOOKUP } from "./constants"
+import { EMOTION_SCORE_LOOKUP, EMOTION_CATEGORIES } from "./constants"
 import { getMatchFormat, normalizeSportKey } from "@/lib/sports-config"
+import { EmotionHeatmap } from "./EmotionHeatmap"
 
 interface CorrelationTabProps {
   emotionLogs: EmotionLog[]
@@ -31,72 +32,6 @@ interface CorrelationTabProps {
 // Threshold for "high tilt" emotions
 const TILT_THRESHOLD = 45
 
-// Emotion categories for grouping
-const EMOTION_CATEGORIES: Record<string, string> = {
-  // Positive emotions
-  'happy': 'joy',
-  'excited': 'joy',
-  'optimistic': 'joy',
-  'grateful': 'joy',
-  'confident': 'joy',
-  'proud': 'joy',
-  'hopeful': 'joy',
-  'content': 'calm',
-  'cheerful': 'joy',
-  'inspired': 'joy',
-  'peaceful': 'calm',
-  'relaxed': 'calm',
-  'centered': 'calm',
-  'focused': 'calm',
-  'balanced': 'calm',
-  'serene': 'calm',
-  'patient': 'calm',
-  'composed': 'calm',
-  'tranquil': 'calm',
-  'stable': 'calm',
-
-  // Negative emotions
-  'anxious': 'fear',
-  'worried': 'fear',
-  'nervous': 'fear',
-  'scared': 'fear',
-  'uncertain': 'fear',
-  'panicked': 'fear',
-  'hesitant': 'fear',
-  'overwhelmed': 'fear',
-  'tense': 'fear',
-  'uneasy': 'fear',
-  'fomo': 'greed',
-  'euphoric': 'greed',
-  'impulsive': 'greed',
-  'overconfident': 'greed',
-  'eager': 'greed',
-  'craving': 'greed',
-  'obsessed': 'greed',
-  'compulsive': 'greed',
-  'restless': 'greed',
-  'driven': 'greed',
-  'angry': 'frustration',
-  'irritated': 'frustration',
-  'disappointed': 'frustration',
-  'impatient': 'frustration',
-  'stressed': 'frustration',
-  'resentful': 'frustration',
-  'annoyed': 'frustration',
-  'agitated': 'frustration',
-  'bitter': 'frustration',
-  'exhausted': 'frustration',
-  'down': 'sadness',
-  'discouraged': 'sadness',
-  'regretful': 'sadness',
-  'defeated': 'sadness',
-  'helpless': 'sadness',
-  'lonely': 'sadness',
-  'empty': 'sadness',
-  'hopeless': 'sadness',
-  'dejected': 'sadness',
-  'grief': 'sadness'
-}
 
 interface EmotionMatrixData {
   emotion: string
@@ -613,6 +548,9 @@ export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiv
           How your emotional state affects your betting results
         </p>
       </div>
+
+      {/* Emotion vs Performance Heatmap */}
+      <EmotionHeatmap trades={trades} comprehensiveBets={comprehensiveBets} />
 
       {emotionMatrixData.length > 0 ? (
         <>

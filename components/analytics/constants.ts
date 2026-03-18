@@ -72,6 +72,29 @@ export const EMOTION_SCORE_LOOKUP: Record<string, number> = {
   grief: 16,
 }
 
+export const EMOTION_CATEGORIES: Record<string, string> = {
+  // Joy
+  happy: 'joy', excited: 'joy', optimistic: 'joy', grateful: 'joy', confident: 'joy',
+  proud: 'joy', hopeful: 'joy', content: 'joy', cheerful: 'joy', inspired: 'joy',
+  // Calm
+  peaceful: 'calm', relaxed: 'calm', centered: 'calm', focused: 'calm', balanced: 'calm',
+  serene: 'calm', patient: 'calm', composed: 'calm', tranquil: 'calm', stable: 'calm',
+  // Fear
+  anxious: 'fear', worried: 'fear', nervous: 'fear', scared: 'fear', uncertain: 'fear',
+  panicked: 'fear', hesitant: 'fear', overwhelmed: 'fear', tense: 'fear', uneasy: 'fear',
+  // Greed
+  fomo: 'greed', euphoric: 'greed', impulsive: 'greed', overconfident: 'greed', eager: 'greed',
+  craving: 'greed', obsessed: 'greed', compulsive: 'greed', restless: 'greed', driven: 'greed',
+  // Frustration
+  angry: 'frustration', irritated: 'frustration', disappointed: 'frustration', impatient: 'frustration',
+  stressed: 'frustration', resentful: 'frustration', annoyed: 'frustration', agitated: 'frustration',
+  bitter: 'frustration', exhausted: 'frustration',
+  // Sadness
+  down: 'sadness', discouraged: 'sadness', regretful: 'sadness', defeated: 'sadness',
+  helpless: 'sadness', lonely: 'sadness', empty: 'sadness', hopeless: 'sadness',
+  dejected: 'sadness', grief: 'sadness',
+}
+
 export const AVAILABLE_SPORTS = [
   { key: "basketball_nba", label: "NBA" },
   { key: "americanfootball_nfl", label: "NFL" },

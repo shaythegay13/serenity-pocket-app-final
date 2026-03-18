@@ -564,6 +564,8 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
         const mappedPicks = recs.map((rec: any) => ({
           ...(rec.gameId ? { gameId: rec.gameId } : {}),
+          teams: rec.teams || '',
+          betType: rec.betType || '',
           sport: selectedSport,
           event: rec.teams || 'Matchup',
           pick: rec.line ? `${rec.betType} ${rec.line}` : rec.betType,
@@ -674,11 +676,22 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
 
   const handleAnalyzePick = (pick: any) => {
     try {
-      // Support both pick.teams ("Away @ Home") and pick.event formats
+      // Support both "Away @ Home" (pro) and "Team A vs Team B" (college) formats
       const matchup = String(pick.teams || pick.event || '')
-      const parts = matchup.split(' @ ')
-      const awayTeam = parts[0]?.trim() || ''
-      const homeTeam = parts[1]?.trim() || ''
+      let awayTeam = '', homeTeam = ''
+      if (matchup.includes(' @ ')) {
+        const [a, h] = matchup.split(' @ ')
+        awayTeam = a?.trim() || ''
+        homeTeam = h?.trim() || ''
+      } else {
+        const vsMatch = matchup.match(/^(.+?)\s+vs\.?\s+(.+)$/i)
+        if (vsMatch) {
+          awayTeam = vsMatch[1].trim()
+          homeTeam = vsMatch[2].trim()
+        } else {
+          awayTeam = matchup
+        }
+      }
 
       // Map SmartSlip betType (lowercase) → TiltLab betType (display label)
       const betTypeMap: Record<string, string> = {
@@ -785,10 +798,21 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     }
 
     try {
-      const event = String(pick.event || '')
-      const parts = event.split(' @ ')
-      const awayTeam = parts[0]?.trim() || ''
-      const homeTeam = parts[1]?.trim() || ''
+      const matchup = String(pick.teams || pick.event || '')
+      let awayTeam = '', homeTeam = ''
+      if (matchup.includes(' @ ')) {
+        const [a, h] = matchup.split(' @ ')
+        awayTeam = a?.trim() || ''
+        homeTeam = h?.trim() || ''
+      } else {
+        const vsMatch = matchup.match(/^(.+?)\s+vs\.?\s+(.+)$/i)
+        if (vsMatch) {
+          awayTeam = vsMatch[1].trim()
+          homeTeam = vsMatch[2].trim()
+        } else {
+          awayTeam = matchup
+        }
+      }
 
       const payload = {
         sport: String(pick.sport || selectedSport || ''),

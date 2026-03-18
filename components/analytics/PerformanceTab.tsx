@@ -31,7 +31,7 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { EmotionCheckInDialog } from "@/components/emotion-check-in-dialog"
 import { normalizeTeamName, extractAndNormalizeTeams } from "@/lib/team-normalization"
-import { getSportById } from "@/lib/sports-config"
+import { getSportById, getMatchFormat, normalizeSportKey } from "@/lib/sports-config"
 
 interface PerformanceTabProps {
   trades: Trade[]
@@ -388,17 +388,24 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       stats.profit += profit
     }
 
-    // Helper function to process a bet - only attribute to the team that was actually bet on
+    // Helper function to process a bet - only attribute to the team/competitor that was actually bet on
     const processBetTeams = (bet: ComprehensiveBet) => {
       if (processedIds.has(bet.id)) return
       processedIds.add(bet.id)
+
+      // FIELD_LEADERBOARD sports (golf, motorsports, cycling) have no home/away team.
+      // Outright bets on individual players are captured by playerStats via bet.playerName.
+      const fmt = getMatchFormat(normalizeSportKey(bet.sport || ''))
+      if (fmt === 'FIELD_LEADERBOARD') return
 
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
       const isPush = bet.outcome === 'push'
 
-      // Determine which team was actually bet on based on selection
+      // Determine which team/competitor was actually bet on based on selection.
+      // For PLAYER_VS_PLAYER sports (tennis, boxing, UFC, darts), homeTeam/awayTeam
+      // hold competitor names — they are correctly shown in this chart.
       let selectedTeam: string | null = null
 
       if (bet.selection === 'home' && bet.homeTeam && bet.homeTeam !== "Unknown") {
@@ -452,6 +459,9 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
       const homeTeam = (bet as any).homeTeam
       const awayTeam = (bet as any).awayTeam
       const sport = (bet as any).sport
+
+      // Skip FIELD_LEADERBOARD bets — no home/away team to attribute
+      if (getMatchFormat(normalizeSportKey(sport || '')) === 'FIELD_LEADERBOARD') return
       const betProfit = bet.actualReturn != null ? (bet.actualReturn - bet.stake) : 0
       const isWin = bet.outcome === 'win'
       const isLoss = bet.outcome === 'loss'
@@ -1198,11 +1208,11 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
         </Card>
       )}
 
-      {/* Most Bet Teams */}
+      {/* Most Bet Teams / Competitors */}
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-primary" />
-          <h4 className="font-semibold text-foreground">Most Bet Teams</h4>
+          <h4 className="font-semibold text-foreground">Most Bet Teams / Competitors</h4>
         </div>
         {teamStats.length > 0 ? (
           <div className="space-y-4">
@@ -1283,7 +1293,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
           </div>
         ) : (
           <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-            No team data available yet. Log bets with team names to see statistics.
+            No team or competitor data yet. Log bets with team or player names to see statistics.
           </div>
         )}
       </Card>

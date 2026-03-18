@@ -19,6 +19,7 @@ import type { Parlay } from "@/lib/types/ai-models"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { EmotionOutcomePoint } from "./types"
 import { EMOTION_SCORE_LOOKUP } from "./constants"
+import { getMatchFormat, normalizeSportKey } from "@/lib/sports-config"
 
 interface CorrelationTabProps {
   emotionLogs: EmotionLog[]
@@ -312,6 +313,25 @@ export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiv
       }
     })
 
+    // Also process comprehensive bets for PLAYER_VS_PLAYER sports (tennis, boxing, UFC, darts).
+    // For these sports homeTeam/awayTeam hold competitor names, not team names.
+    comprehensiveBets?.forEach(bet => {
+      const fmt = getMatchFormat(normalizeSportKey(bet.sport || ''))
+      if (fmt !== 'PLAYER_VS_PLAYER') return
+      const emotion = bet.emotions?.before?.emotion?.toLowerCase()
+      if (!emotion) return
+
+      // Attribute the bet to the competitor that was actually selected
+      const competitor =
+        bet.playerName ||
+        (bet.selection === 'home' ? bet.homeTeam : bet.selection === 'away' ? bet.awayTeam : null)
+
+      if (!competitor || competitor === 'Unknown') return
+      if (!statsMap.has(competitor)) statsMap.set(competitor, new Map())
+      const emotionMap = statsMap.get(competitor)!
+      emotionMap.set(emotion, (emotionMap.get(emotion) || 0) + 1)
+    })
+
     return Array.from(statsMap.entries()).map(([player, emotions]) => {
       const sortedEmotions = Array.from(emotions.entries())
         .sort((a, b) => b[1] - a[1])
@@ -322,7 +342,7 @@ export function CorrelationTab({ emotionLogs, trades, parlays = [], comprehensiv
         totalBets: Array.from(emotions.values()).reduce((a, b) => a + b, 0)
       }
     }).sort((a, b) => b.totalBets - a.totalBets).slice(0, 5)
-  }, [trades, parlays])
+  }, [trades, parlays, comprehensiveBets])
 
   // Calculate detailed AI insights based on specific sub-emotions
   const aiInsights = useMemo(() => {

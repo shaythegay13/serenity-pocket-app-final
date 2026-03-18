@@ -283,7 +283,7 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                   x1={x} y1={AXIS_TOP - 6}
                   x2={x} y2={svgH - 10}
                   stroke="hsl(var(--border))"
-                  strokeOpacity={isBase ? 0.6 : 0.25}
+                  strokeOpacity={isBase ? 0.85 : 0.45}
                   strokeWidth={isBase ? 1.5 : 1}
                   strokeDasharray={isBase ? undefined : '3,6'}
                 />
@@ -292,7 +292,7 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                   textAnchor="middle" fontSize={10}
                   fontWeight={isBase ? '600' : '400'}
                   fill="hsl(var(--muted-foreground))"
-                  fillOpacity={isBase ? 0.9 : 0.55}
+                  fillOpacity={isBase ? 1 : 0.75}
                 >
                   {tick.label}
                 </text>
@@ -317,7 +317,7 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                     x1={0} y1={item.y + 1}
                     x2={svgW} y2={item.y + 1}
                     stroke="hsl(var(--border))"
-                    strokeOpacity={0.5}
+                    strokeOpacity={0.7}
                   />
                   {/* Colored accent bar on far left */}
                   <rect x={0} y={item.y + 4} width={3} height={CAT_H - 8} rx={1.5} fill={meta.color} />
@@ -366,14 +366,14 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                   x1={LABEL_W} y1={cy}
                   x2={svgW - PAD_R} y2={cy}
                   stroke="hsl(var(--border))"
-                  strokeOpacity={0.2}
+                  strokeOpacity={0.4}
                 />
                 {/* Emotion name */}
                 <text
                   x={LABEL_W - 10} y={cy}
                   textAnchor="end" fontSize={10.5} dominantBaseline="middle"
                   fill="hsl(var(--foreground))"
-                  fillOpacity={hasData ? 0.75 : 0.25}
+                  fillOpacity={hasData ? 0.85 : 0.5}
                 >
                   {row.emotion}
                 </text>
@@ -384,15 +384,15 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                     <line
                       x1={blineX} y1={cy}
                       x2={cx}     y2={cy}
-                      stroke={color} strokeOpacity={lowN ? 0.25 : 0.35} strokeWidth={1.5}
+                      stroke={color} strokeOpacity={lowN ? 0.4 : 0.5} strokeWidth={1.5}
                     />
                     {/* Dot */}
                     <circle
                       cx={cx} cy={cy} r={r}
                       fill={color}
-                      fillOpacity={lowN ? 0.35 : 0.9}
+                      fillOpacity={lowN ? 0.55 : 0.9}
                       stroke={lowN ? 'hsl(var(--foreground))' : color}
-                      strokeOpacity={lowN ? 0.4 : 1}
+                      strokeOpacity={lowN ? 0.6 : 1}
                       strokeWidth={lowN ? 1 : 0}
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setTooltip({ emotion: row.emotion, category: row.category, count: row.count, winRate: row.winRate, roi: row.roi, cx, cy })}
@@ -413,7 +413,7 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
                     )}
                   </>
                 ) : (
-                  <text x={LABEL_W + 6} y={cy} fontSize={9} dominantBaseline="middle" fill="hsl(var(--muted-foreground))" fillOpacity={0.3}>—</text>
+                  <text x={LABEL_W + 6} y={cy} fontSize={9} dominantBaseline="middle" fill="hsl(var(--muted-foreground))" fillOpacity={0.6}>—</text>
                 )}
               </g>
             )
@@ -473,11 +473,11 @@ export function EmotionDotPlot({ trades, comprehensiveBets }: EmotionDotPlotProp
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <svg width="8" height="8"><circle cx="4" cy="4" r="3" fill="rgba(255,255,255,0.35)"/></svg>
+            <svg width="8" height="8"><circle cx="4" cy="4" r="3" fill="hsl(var(--muted-foreground))" fillOpacity="0.5"/></svg>
             Few bets
           </span>
           <span className="flex items-center gap-1.5">
-            <svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="rgba(255,255,255,0.35)"/></svg>
+            <svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="hsl(var(--muted-foreground))" fillOpacity="0.5"/></svg>
             Many bets
           </span>
           <span>Faded = &lt;5 bets (low confidence)</span>

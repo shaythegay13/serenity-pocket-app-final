@@ -133,21 +133,24 @@ export default function AccountCreationFlow({ email, surveyId, onComplete }: Acc
         return;
       }
 
-      // Explicitly create user profile row immediately to ensure email is synced
+      // Create user profile via server-side route (uses service role, bypasses RLS)
+      // This works even when email confirmation is required and there's no session yet
       if (data.user) {
         try {
           console.log('📝 Creating/Syncing user profile for:', data.user.id);
-          const { error: profileError } = await supabase
-            .from('user_profiles')
-            .upsert({
-              id: data.user.id,
-              username: username,
-              email: emailValue, // Explicitly assign email
-              name: username,    // Default name to username
-            }, { onConflict: 'id' });
+          const profileRes = await fetch('/api/auth/init-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: data.user.id,
+              username,
+              email: emailValue,
+            }),
+          });
 
-          if (profileError) {
-            console.error('Error syncing profile on signup:', profileError);
+          if (!profileRes.ok) {
+            const { error } = await profileRes.json();
+            console.error('Error syncing profile on signup:', error);
           } else {
             console.log('✅ Profile synced successfully on signup');
           }

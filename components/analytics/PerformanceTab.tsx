@@ -20,7 +20,7 @@ import {
   Line
 } from "recharts"
 import { TrendingUp, DollarSign, Target, BarChart3, Clock, CheckCircle2, XCircle, RefreshCw, Users, Activity, Sparkles, Zap } from "lucide-react"
-import type { Trade, BetAnalysis } from "@/lib/types"
+import type { Trade, BetAnalysis, BetOutcome } from "@/lib/types"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import type { Parlay } from "@/lib/types/ai-models"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
@@ -117,7 +117,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
   // State for emotion check-in dialog when settling bets
   const [emotionCheckInOpen, setEmotionCheckInOpen] = useState(false)
   const [betBeingSettled, setBetBeingSettled] = useState<ComprehensiveBet | null>(null)
-  const [preSelectedOutcome, setPreSelectedOutcome] = useState<"profit" | "loss" | "breakeven" | undefined>(undefined)
+  const [preSelectedOutcome, setPreSelectedOutcome] = useState<BetOutcome | undefined>(undefined)
 
   // Load pending bets function (reusable for mount and refresh)
   const loadPendingBets = async () => {
@@ -235,7 +235,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
     // Open emotion check-in dialog with this bet
     setBetBeingSettled(comprehensiveBet)
-    setPreSelectedOutcome(outcome === 'win' ? 'profit' : outcome === 'loss' ? 'loss' : 'breakeven')
+    setPreSelectedOutcome(outcome)
     setEmotionCheckInOpen(true)
   }
 
@@ -246,7 +246,7 @@ export function PerformanceTab({ trades, unifiedBets = [], comprehensiveBets: pr
 
     // Open emotion check-in dialog with this bet pre-selected
     setBetBeingSettled(bet)
-    setPreSelectedOutcome(outcome === 'win' ? 'profit' : outcome === 'loss' ? 'loss' : 'breakeven')
+    setPreSelectedOutcome(outcome)
     setEmotionCheckInOpen(true)
   }
 

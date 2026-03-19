@@ -11,7 +11,7 @@ import { storageHybrid as storage } from "@/lib/storage-hybrid"
 import { toast } from "sonner"
 import { extractAndNormalizeTeams, normalizeTeamName } from "@/lib/team-normalization"
 import { getSportById, getSportDisplayName } from "@/lib/sports-config"
-import type { UserData } from "@/lib/types"
+import type { UserData, BetOutcome } from "@/lib/types"
 import { analyticsEvents, ANALYTICS_EVENTS } from "@/lib/events"
 import type { ComprehensiveBet } from "@/lib/types/bet-tracking"
 import { ArrowLeft } from "lucide-react"
@@ -26,7 +26,7 @@ interface EmotionCheckInDialogProps {
   /** Pre-select a bet for settling - automatically sets phase to "after" and selects the bet */
   preSelectedBet?: ComprehensiveBet
   /** Pre-set the outcome when settling a bet */
-  preSelectedOutcome?: "profit" | "loss" | "breakeven"
+  preSelectedOutcome?: BetOutcome
   /** Pre-select a parlay for emotion logging */
   preSelectedParlay?: any
 }
@@ -77,7 +77,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
   const [selectedEmotion, setSelectedEmotion] = useState("")
   const [intensity, setIntensity] = useState([5])
   const [phase, setPhase] = useState<"before" | "during" | "after">("before")
-  const [outcome, setOutcome] = useState<"profit" | "loss" | "breakeven" | "">("")
+  const [outcome, setOutcome] = useState<BetOutcome | "">("")
   const [context, setContext] = useState("")
 
   // Betting data fields for after-game check-ins
@@ -235,7 +235,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
               aiRecommendation: "",
               expectedValue: 0,
               probabilityEstimate: 0.5,
-              outcome: (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+              outcome: outcome as "win" | "loss" | "push",
               actualReturn: returnAmount,
               source: "manual" as const,
               isLiveBet: isLiveBet // Track if this was a live/in-play bet
@@ -277,7 +277,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
           if (phase === "after" && outcome) {
             await BetTrackingService.updateBetOutcome(
               selectedBet.id,
-              (outcome === "breakeven" ? "push" : outcome === "profit" ? "win" : "loss") as "win" | "loss" | "push",
+              outcome as "win" | "loss" | "push",
               selectedEmotion,
               intensity[0],
               `Emotional check-in: ${context || "No additional context"}`
@@ -673,16 +673,16 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                     <Label>What was the outcome?</Label>
                     <RadioGroup value={outcome} onValueChange={(val) => setOutcome(val as any)}>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="profit" id="profit-dialog" />
-                        <Label htmlFor="profit-dialog" className="cursor-pointer">Won 💰</Label>
+                        <RadioGroupItem value="win" id="win-dialog" />
+                        <Label htmlFor="win-dialog" className="cursor-pointer">Won 💰</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="loss" id="loss-dialog" />
                         <Label htmlFor="loss-dialog" className="cursor-pointer">Lost 📉</Label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="breakeven" id="breakeven-dialog" />
-                        <Label htmlFor="breakeven-dialog" className="cursor-pointer">Pushed ⚖️</Label>
+                        <RadioGroupItem value="push" id="push-dialog" />
+                        <Label htmlFor="push-dialog" className="cursor-pointer">Pushed ⚖️</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -932,7 +932,7 @@ export function EmotionCheckInDialog({ open, onOpenChange, onComplete, userData,
                         type="number"
                         step="0.01"
                         min="0"
-                        placeholder={outcome === "profit" ? "e.g. 105.00" : outcome === "loss" ? "e.g. 0.00" : "e.g. 50.00"}
+                        placeholder={outcome === "win" ? "e.g. 105.00" : outcome === "loss" ? "e.g. 0.00" : "e.g. 50.00"}
                         value={actualReturn}
                         onChange={(e) => setActualReturn(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"

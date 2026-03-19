@@ -32,10 +32,10 @@ import type {
 } from "@/lib/types/ai-models"
 import { checkDecisionUsage, recordDecisionUsage, deductDecisionCredit } from "@/lib/ai-usage-tracker"
 import { TILTLAB_SPORT_MAPPING, detectMatchFormat, normalizeSportKey } from "@/lib/sports-config"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export const maxDuration = 60
 
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const validTolerances = ['conservative', 'moderate', 'aggressive']
       const sanitizedTolerance = validTolerances.includes(riskTolerance) ? riskTolerance : 'moderate'
 
-      const { stdout } = await execAsync(`python psych_model_picker.py ${sanitizedScore} ${sanitizedTolerance}`)
+      const { stdout } = await execFileAsync("python", ["psych_model_picker.py", String(sanitizedScore), sanitizedTolerance])
 
       // Validate JSON parsing
       let psychResult

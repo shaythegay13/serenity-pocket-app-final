@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity, Heart, AlertTriangle } from "lucide-react"
+import { Shield, Brain, BarChart3, Zap, TrendingUp, Target, Activity, Heart, Star } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -27,6 +27,7 @@ export function LandingPage({ onLogin }: LandingPageProps) {
     winRateImprovement: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [foundingSpotsLeft, setFoundingSpotsLeft] = useState<number | null>(null)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false)
@@ -72,8 +73,10 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           .from('emotion_logs')
           .select('timestamp, emotion')
 
-        // Calculate real stats
+        // Calculate founding member spots remaining
         const totalUsers = userCount || 0
+        const spotsLeft = Math.max(0, 100 - totalUsers)
+        setFoundingSpotsLeft(spotsLeft)
         const totalBets = betAnalyses?.length || 0
 
         // Calculate average ROI
@@ -170,6 +173,50 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           </div>
         </div>
       </section>
+
+      {/* Founding Member Banner */}
+      {foundingSpotsLeft !== null && foundingSpotsLeft > 0 && (
+        <section className="py-12 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-amber-900/30 via-transparent to-transparent" />
+          <div className="container mx-auto px-4 relative">
+            <div className="max-w-3xl mx-auto">
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-950/30 p-8 text-center space-y-4">
+                <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/20 border border-amber-500/40 px-4 py-1.5">
+                  <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+                  <span className="text-sm font-semibold text-amber-300 uppercase tracking-wider">Founding Member Offer</span>
+                  <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">
+                  Get Apex Access — Free, Forever
+                </h2>
+
+                <p className="text-gray-300 max-w-xl mx-auto leading-relaxed">
+                  We&apos;re giving our first 100 members free lifetime access to our highest tier, <span className="text-amber-300 font-semibold">Apex</span>, in exchange for helping us validate our platform.
+                  No credit card. No expiration. Just full access.
+                </p>
+
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <div className="flex items-center gap-2 rounded-lg bg-black/40 border border-amber-500/30 px-5 py-2.5">
+                    <span className="text-2xl font-bold text-amber-400">{foundingSpotsLeft}</span>
+                    <span className="text-sm text-gray-400">of 100 spots remaining</span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    size="lg"
+                    onClick={() => setShowTermsModal(true)}
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-bold px-8 rounded-xl shadow-lg shadow-amber-500/25"
+                  >
+                    Claim Your Free Spot
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Try Our Free Tools */}
       <section className="py-16 relative overflow-hidden">

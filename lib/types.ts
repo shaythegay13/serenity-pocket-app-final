@@ -428,36 +428,6 @@ export interface TiltAlert {
 
 /** Standard bet outcome types used in BetAnalysis and ComprehensiveBet */
 export type BetOutcome = "win" | "loss" | "push" | "pending"
-
-/** Legacy trade outcome types (deprecated, use BetOutcome instead) */
-export type TradeOutcome = "profit" | "loss" | "breakeven"
-
-/**
- * Convert legacy trade outcome to standard bet outcome
- */
-export function tradeOutcomeToBetOutcome(outcome: TradeOutcome | undefined): BetOutcome | undefined {
-  if (!outcome) return undefined
-  switch (outcome) {
-    case "profit": return "win"
-    case "loss": return "loss"
-    case "breakeven": return "push"
-    default: return undefined
-  }
-}
-
-/**
- * Convert standard bet outcome to legacy trade outcome
- */
-export function betOutcomeToTradeOutcome(outcome: BetOutcome | undefined): TradeOutcome | undefined {
-  if (!outcome) return undefined
-  switch (outcome) {
-    case "win": return "profit"
-    case "loss": return "loss"
-    case "push":
-    case "pending": return "breakeven"
-    default: return undefined
-  }
-}
 /**
  * Supported sport keys used across the application.
  * Values should match the keys in SUPPORTED_SPORTS in lib/sports-config.ts.

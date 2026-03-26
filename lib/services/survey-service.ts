@@ -1,6 +1,9 @@
 // lib/services/survey-service.ts
+// NOTE: This service runs server-side only (called from API routes).
+// It uses supabaseAdmin to bypass RLS — the API routes are responsible
+// for authenticating the caller before invoking these methods.
 
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { SurveyAnswer } from '@/types/survey';
 import { ENHANCED_SURVEY_QUESTIONS, UnifiedSurveyResult } from '@/types/survey.enhanced';
 import { isFeatureEnabled } from '@/lib/features/flags';
@@ -151,6 +154,60 @@ export class SurveyService {
     const answeredIds = new Set(responses.map(r => r.questionId));
     const missing = requiredIds.filter(id => !answeredIds.has(id));
     if (missing.length > 0) throw new Error(`Missing responses for questions: ${missing.join(', ')}`);
+  }
+
+  /**
+   * After anonymous→authenticated migration, sync the latest survey response
+   * scores back to user_profiles. Call this from both migration routes.
+   */
+  async syncProfileFromLatestSurvey(userId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('survey_responses')
+      .select('score, pgsi_score, emotional_stability, risk_level, archetype, responses')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return false;
+
+    // Build update payload from whatever scores are available in the row
+    const profileUpdate: Record<string, unknown> = { survey_completed: true };
+    if (data.score != null)               profileUpdate.serenity_score    = data.score;
+    if (data.pgsi_score != null)          profileUpdate.pgsi_score        = data.pgsi_score;
+    if (data.emotional_stability != null) profileUpdate.emotional_stability = data.emotional_stability;
+    if (data.risk_level != null)          profileUpdate.risk_level        = data.risk_level;
+    if (data.archetype != null)           profileUpdate.archetype         = data.archetype;
+
+    // If the row came from the email-based migration it may only have `score`.
+    // Re-derive the missing fields from the raw responses if present.
+    if ((data.pgsi_score == null || data.archetype == null) && data.responses) {
+      try {
+        const raw = data.responses as { responses?: { questionId: string; selectedOption: string | string[]; timestamp?: string }[] };
+        const answers = raw.responses ?? [];
+        if (answers.length > 0) {
+          const mapped: SurveyAnswer[] = answers.map((r: any) => ({ questionId: r.questionId, selectedOption: r.selectedOption, timestamp: r.timestamp }));
+          const derived = this.calculateUnifiedScores(mapped);
+          if (data.pgsi_score == null)          profileUpdate.pgsi_score         = derived.pgsiScore;
+          if (data.emotional_stability == null) profileUpdate.emotional_stability = derived.emotionalStability;
+          if (data.risk_level == null)          profileUpdate.risk_level         = derived.riskLevel;
+          if (data.archetype == null)           profileUpdate.archetype          = derived.archetype.name;
+        }
+      } catch {
+        // If re-derivation fails, proceed with what we have
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update(profileUpdate)
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('[SurveyService] Failed to sync profile after migration:', updateError);
+      return false;
+    }
+    return true;
   }
 
   async hasTakenSurveyToday(userId: string | null, anonymousId: string | null): Promise<boolean> {

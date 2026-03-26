@@ -29,35 +29,23 @@ export async function POST(req: Request) {
       }
     )
 
-    // Create profile with subscription fields using admin client
+    // Create profile with only columns that currently exist in the DB schema.
+    // NOTE: gamification columns (level, xp, serenity_tokens, daily_rings, etc.)
+    // were removed in migration 20260213_cleanup_user_profiles_columns.sql
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .upsert({
         id: user.id,
         name: user.email?.split('@')[0] || 'User',
         email: user.email,
-        level: 1,
-        xp: 0,
-        xp_to_next_level: 100,
-        emotional_awareness_streak: 0,
-        bias_recognition_score: 0,
-        mindful_decision_percentage: 0,
         total_trades: 0,
         mindful_trades: 0,
-        serenity_tokens: 0,
-        daily_rings: { emotionalAwareness: 0, biasRecognition: 0, mindfulness: 0 },
-        last_ring_reset: new Date().toISOString(),
-        perfect_days: 0,
-        longest_streak: 0,
         total_emotions_logged: 0,
         total_biases_identified: 0,
         total_journals_completed: 0,
-        total_modules_completed: 0,
-        total_breathing_exercises: 0,
-        most_productive_day: 0,
         subscription_tier: 'free',
         subscription_status: 'active',
-      })
+      }, { onConflict: 'id', ignoreDuplicates: false })
       .select()
 
     if (error) {

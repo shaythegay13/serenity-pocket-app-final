@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { migrateAnonymousSurveyToUser } from '@/lib/surveyService';
+import { surveyService } from '@/lib/services/survey-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,6 +78,9 @@ export async function POST(request: NextRequest) {
         // Non-fatal error, just log it
         console.error('Failed to create audit log:', auditError);
       }
+
+      // Sync the migrated survey scores back to user_profiles
+      await surveyService.syncProfileFromLatestSurvey(user.id);
 
       return NextResponse.json(
         {

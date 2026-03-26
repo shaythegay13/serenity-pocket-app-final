@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { surveyService } from '@/lib/services/survey-service'
 
 const COOKIE_NAME = 'pml_anon_session'
 
@@ -65,6 +66,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Sync migrated survey scores to user_profiles
+    await surveyService.syncProfileFromLatestSurvey(user.id)
 
     // Clear the httpOnly cookie
     const response = NextResponse.json({

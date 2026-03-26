@@ -5,10 +5,24 @@ const ANON_SESSION_KEY = 'pml_anonymous_session_id'
  * Uses crypto.randomUUID() (available in all modern browsers and Node 19+).
  */
 function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID()
+  if (typeof crypto !== 'undefined') {
+    if (crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    if (crypto.getRandomValues) {
+      const buffer = new Uint8Array(31)
+      crypto.getRandomValues(buffer)
+      let i = 0
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = buffer[i++] % 16
+        const v = c === 'x' ? r : (r & 0x3) | 0x8
+        return v.toString(16)
+      })
+    }
   }
-  // Fallback for older environments
+
+  // Fallback for older environments without crypto support
+  // Note: Math.random() is not cryptographically secure
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
     const v = c === 'x' ? r : (r & 0x3) | 0x8

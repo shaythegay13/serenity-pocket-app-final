@@ -58,15 +58,29 @@ export class SurveyService {
     if (saveError) throw saveError;
 
     if (userId && isFeatureEnabled('PGSI_INTEGRATION')) {
+      // Fetch existing survey_data to merge rather than overwrite other fields
+      const { data: existing } = await supabase
+        .from('user_profiles')
+        .select('survey_data')
+        .eq('id', userId)
+        .maybeSingle();
+
       const { error: profileError } = await supabase
         .from('user_profiles')
         .update({
-          serenity_score: results.serenityScore,
-          pgsi_score: results.pgsiScore,
+          serenity_score:      results.serenityScore,
+          pgsi_score:          results.pgsiScore,
           emotional_stability: results.emotionalStability,
-          risk_level: results.riskLevel,
-          archetype: results.archetype.name,
-          survey_completed: true,
+          risk_level:          results.riskLevel,
+          archetype:           results.archetype.name,
+          survey_completed:    true,
+          // Keep survey_data.userType in sync — this is what the UI reads
+          survey_data: {
+            ...((existing?.survey_data as object) ?? {}),
+            score:    results.serenityScore,
+            userType: results.archetype.name,
+            level:    results.riskLevel,
+          },
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
@@ -178,6 +192,15 @@ export class SurveyService {
     if (data.emotional_stability != null) profileUpdate.emotional_stability = data.emotional_stability;
     if (data.risk_level != null)          profileUpdate.risk_level        = data.risk_level;
     if (data.archetype != null)           profileUpdate.archetype         = data.archetype;
+
+    // Keep survey_data.userType in sync — the UI reads from this JSON blob
+    if (data.archetype != null || data.score != null) {
+      profileUpdate.survey_data = {
+        ...(data.score != null    ? { score: data.score }        : {}),
+        ...(data.archetype != null ? { userType: data.archetype } : {}),
+        ...(data.risk_level != null ? { level: data.risk_level }  : {}),
+      };
+    }
 
     // If the row came from the email-based migration it may only have `score`.
     // Re-derive the missing fields from the raw responses if present.

@@ -58,12 +58,15 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       }, 5000);
 
       try {
-        // Fetch total users and elite subscriber count in parallel
-        const [{ count: userCount }, { count: eliteCount }] = await Promise.all([
+        // Fetch total users count (for stats thresholds) and founding spots in parallel
+        // Note: founding spots use a server-side API to bypass RLS for accurate elite count
+        const [{ count: userCount }, foundingRes] = await Promise.all([
           supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-          supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('subscription_tier', 'elite'),
+          fetch('/api/stats/founding-spots').then(r => r.ok ? r.json() : { spotsLeft: 100 }),
         ])
         const totalUsers = userCount || 0
+
+        setFoundingSpotsLeft(foundingRes.spotsLeft ?? 100)
 
         // Fetch bet analyses for stats
         const { data: betAnalyses } = await supabase
@@ -75,9 +78,6 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           .from('emotion_logs')
           .select('timestamp, emotion')
 
-        // Calculate founding member spots remaining (based on elite subscribers only)
-        const spotsLeft = Math.max(0, 100 - (eliteCount || 0))
-        setFoundingSpotsLeft(spotsLeft)
         const totalBets = betAnalyses?.length || 0
 
         // Calculate average ROI

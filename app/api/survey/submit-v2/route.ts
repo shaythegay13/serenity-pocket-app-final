@@ -74,12 +74,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const hasTaken = await surveyService.hasTakenSurveyToday(userId, anonymousId);
-    if (hasTaken) {
-      return NextResponse.json(
-        { error: 'You have already completed the survey today' },
-        { status: 429 }
-      );
+    // Only enforce the once-per-day limit for anonymous users.
+    // Authenticated users are allowed to retake the survey freely.
+    if (!userId) {
+      const hasTaken = await surveyService.hasTakenSurveyToday(null, anonymousId);
+      if (hasTaken) {
+        return NextResponse.json(
+          { error: 'You have already completed the survey today' },
+          { status: 429 }
+        );
+      }
     }
 
     const results = await surveyService.submitSurvey(userId, anonymousId, body.responses);

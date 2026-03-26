@@ -58,11 +58,12 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       }, 5000);
 
       try {
-        // Fetch elite subscriber count for founding member countdown
-        const { count: eliteCount } = await supabase
-          .from('user_profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('subscription_tier', 'elite')
+        // Fetch total users and elite subscriber count in parallel
+        const [{ count: userCount }, { count: eliteCount }] = await Promise.all([
+          supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+          supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('subscription_tier', 'elite'),
+        ])
+        const totalUsers = userCount || 0
 
         // Fetch bet analyses for stats
         const { data: betAnalyses } = await supabase

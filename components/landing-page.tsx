@@ -58,10 +58,11 @@ export function LandingPage({ onLogin }: LandingPageProps) {
       }, 5000);
 
       try {
-        // Fetch total users count
-        const { count: userCount } = await supabase
+        // Fetch elite subscriber count for founding member countdown
+        const { count: eliteCount } = await supabase
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
+          .eq('subscription_tier', 'elite')
 
         // Fetch bet analyses for stats
         const { data: betAnalyses } = await supabase
@@ -73,9 +74,8 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           .from('emotion_logs')
           .select('timestamp, emotion')
 
-        // Calculate founding member spots remaining
-        const totalUsers = userCount || 0
-        const spotsLeft = Math.max(0, 100 - totalUsers)
+        // Calculate founding member spots remaining (based on elite subscribers only)
+        const spotsLeft = Math.max(0, 100 - (eliteCount || 0))
         setFoundingSpotsLeft(spotsLeft)
         const totalBets = betAnalyses?.length || 0
 

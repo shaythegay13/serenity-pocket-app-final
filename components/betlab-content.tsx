@@ -28,8 +28,20 @@ const AIPicksTab = dynamic(() => import("@/components/tabs/ai-picks-tab").then(m
 export function BetLabContent() {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [userDataLoading, setUserDataLoading] = useState(true)
+  const [userData, setUserData] = useState<UserData | null>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('serenity_user_data')
+      if (cached) {
+        try {
+          return JSON.parse(cached)
+        } catch (e) {
+          return null
+        }
+      }
+    }
+    return null
+  })
+  const [userDataLoading, setUserDataLoading] = useState(!userData)
 
   useEffect(() => {
     let isMounted = true

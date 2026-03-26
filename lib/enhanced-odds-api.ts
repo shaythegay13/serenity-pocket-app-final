@@ -43,6 +43,9 @@ export async function fetchEnhancedLiveOdds(
 
   // Try real APIs first, fall back to mock if needed
   try {
+    let theOddsError: string | undefined;
+    let rapidError: string | undefined;
+
     // Try TheOddsAPI first (more reliable for live odds)
     if (isTheOddsAPIConfigured()) {
       console.log(`📊 Trying TheOddsAPI for ${sportName}`);
@@ -51,6 +54,8 @@ export async function fetchEnhancedLiveOdds(
         console.log(`✅ TheOddsAPI returned ${theOddsResult.data.length} games`);
         return theOddsResult;
       }
+      theOddsError = theOddsResult.error || (theOddsResult.success ? `0 games returned` : 'unknown error');
+      console.log(`⚠️ TheOddsAPI fallthrough: ${theOddsError}`);
     }
 
     // Try RapidAPI as fallback
@@ -61,15 +66,22 @@ export async function fetchEnhancedLiveOdds(
         console.log(`✅ RapidAPI returned ${rapidResult.data.length} games`);
         return rapidResult;
       }
+      rapidError = rapidResult.error || (rapidResult.success ? `0 games returned` : 'unknown error');
+      console.log(`⚠️ RapidAPI fallthrough: ${rapidError}`);
     }
 
-    console.log(`⚠️ No real API data available for ${sportName}`);
+    const combinedError = [
+      theOddsError ? `TheOddsAPI: ${theOddsError}` : null,
+      rapidError ? `RapidAPI: ${rapidError}` : null,
+    ].filter(Boolean).join(' | ') || 'No real-time odds available for this sport at the moment.';
+
+    console.log(`⚠️ No real API data available for ${sportName}: ${combinedError}`);
     return {
       success: false,
       data: [],
       source: 'combined',
       timestamp: new Date(),
-      error: 'No real-time odds available for this sport at the moment.'
+      error: combinedError,
     };
   } catch (error) {
     console.error(`❌ Error fetching odds:`, error);
@@ -353,13 +365,23 @@ async function fetchFromRapidAPI(sport?: string): Promise<EnhancedOddsResponse> 
 
   const sportConfig = sport ? getSportById(sport) : null;
 
-  // Construct the correct key for RapidAPI
-  let sportKey = 'NBA'; // Default fallback
+  // Construct the correct key for RapidAPI — same format as TheOddsAPI
+  // (e.g. basketball_nba, americanfootball_nfl, soccer_epl)
+  let sportKey = 'basketball_nba'; // Default fallback
 
   if (sportConfig) {
-    sportKey = sportConfig.name.toUpperCase();
+    if (sportConfig.oddsApiSport && sportConfig.oddsApiLeague) {
+      // Prevent double prefixing (e.g. soccer_soccer_epl)
+      if (sportConfig.oddsApiLeague.startsWith(sportConfig.oddsApiSport)) {
+        sportKey = sportConfig.oddsApiLeague;
+      } else {
+        sportKey = `${sportConfig.oddsApiSport}_${sportConfig.oddsApiLeague}`;
+      }
+    } else {
+      sportKey = sportConfig.id;
+    }
   } else if (sport) {
-    sportKey = sport.toUpperCase();
+    sportKey = sport;
   }
 
   const url = `https://odds.p.rapidapi.com/v4/sports/${sportKey}/odds`;

@@ -169,8 +169,8 @@ export async function POST(request: NextRequest) {
       }
 
       const sportKey = mapHumanSportToKey(payload.sport)
-      const homeTeam = payload.favoriteTeam || payload.underdogTeam || "Home"
-      const awayTeam = payload.underdogTeam || payload.favoriteTeam || "Away"
+      const homeTeam = payload.homeTeam || payload.favoriteTeam || "Home"
+      const awayTeam = payload.awayTeam || payload.underdogTeam || "Away"
 
       const leagueKey = sportKey || payload.sport
 
@@ -204,7 +204,24 @@ export async function POST(request: NextRequest) {
           homeRecent: payload.favoriteRecord ? [payload.favoriteRecord] : undefined,
           awayRecent: payload.underdogRecord ? [payload.underdogRecord] : undefined,
         },
-        narrativeContext: `Favorite: ${payload.favoriteTeam || 'Unknown'} (${payload.favoriteRecord || 'N/A'}), Underdog: ${payload.underdogTeam || 'Unknown'} (${payload.underdogRecord || 'N/A'}). Bet type: ${payload.betType}. Selection: ${payload.selection}.`,
+        narrativeContext: (() => {
+          const fav = payload.favoriteTeam || homeTeam
+          const dog = payload.underdogTeam || awayTeam
+          const gameDesc = `${homeTeam} vs ${awayTeam}`
+          if (payload.betType === 'Player Prop' && payload.playerName) {
+            return `Player prop: ${payload.playerName}${payload.playerTeam ? ` (${payload.playerTeam})` : ''} — ${payload.propStat || 'stat'} ${payload.propDirection || ''} ${payload.propLine ?? ''}. Game: ${gameDesc}. Odds: ${payload.odds}.`
+          }
+          if (payload.betType === 'Team Prop' && (payload as any).teamPropTeam) {
+            return `Team prop: ${(payload as any).teamPropTeam} — ${(payload as any).teamPropStat || 'stat'} ${(payload as any).teamPropDirection || ''} ${payload.line ?? ''}. Game: ${gameDesc}. Odds: ${payload.odds}.`
+          }
+          if (payload.betType === 'Over/Under' || payload.betType === 'Alt Total') {
+            return `Total: ${gameDesc} — ${payload.selection} ${payload.line ?? ''}. Odds: ${payload.odds}.`
+          }
+          if (payload.betType === 'Spread' || payload.betType === 'Alt Spread') {
+            return `Spread: ${gameDesc} — ${payload.selection === 'home' ? homeTeam : awayTeam} ${payload.line ?? ''}. Odds: ${payload.odds}.`
+          }
+          return `Favorite: ${fav} (${payload.favoriteRecord || 'N/A'}), Underdog: ${dog} (${payload.underdogRecord || 'N/A'}). Bet type: ${payload.betType}. Selection: ${payload.selection}. Odds: ${payload.odds}.`
+        })(),
         // Match format routing — drives EV model selection and UI rendering
         formatType: detectMatchFormat(
           `${homeTeam} vs ${awayTeam}`,
@@ -548,6 +565,13 @@ export async function POST(request: NextRequest) {
           odds: leg.odds,
           aiWinProbability: leg.aiWinProbability,
           sport: leg.sport,
+          // Preserve player prop context
+          playerName: leg.playerName,
+          playerTeam: leg.playerTeam,
+          propStat: leg.propStat,
+          propLine: leg.propLine,
+          propDirection: leg.propDirection,
+          selection: leg.selection,
         }))
 
         const validation = validateParlayLegs(legs, payload.parlayType)
@@ -691,30 +715,35 @@ async function getEffectiveOdds(payload: BetScenario): Promise<{
   try {
     const apiResult = await fetchEnhancedLiveOdds(sportKey, "auto")
     if (apiResult.success && Array.isArray(apiResult.data) && apiResult.data.length > 0) {
-      const fav = payload.favoriteTeam?.toLowerCase()
-      const dog = payload.underdogTeam?.toLowerCase()
+      // Use homeTeam/awayTeam as primary search terms; fall back to favoriteTeam/underdogTeam
+      const teamA = (payload.homeTeam || payload.favoriteTeam || '').toLowerCase()
+      const teamB = (payload.awayTeam || payload.underdogTeam || '').toLowerCase()
 
       const match = apiResult.data.find((g: any) => {
         const home = (g.homeTeam || g.home_team || "").toLowerCase()
         const away = (g.awayTeam || g.away_team || "").toLowerCase()
-        if (fav && dog) {
+        if (teamA && teamB) {
           return (
-            (home.includes(fav) && away.includes(dog)) ||
-            (home.includes(dog) && away.includes(fav))
+            (home.includes(teamA) && away.includes(teamB)) ||
+            (home.includes(teamB) && away.includes(teamA))
           )
+        }
+        if (teamA) {
+          return home.includes(teamA) || away.includes(teamA)
         }
         return false
       })
 
       if (match) {
-        const homeTeam = (match.homeTeam || match.home_team) as string
-        const awayTeam = (match.awayTeam || match.away_team) as string
-        const isFavHome = fav && homeTeam.toLowerCase().includes(fav)
+        const matchHomeTeam = (match.homeTeam || match.home_team) as string
+        const isFavHome = teamA && matchHomeTeam.toLowerCase().includes(teamA)
 
         const bestHome = match.homeOdds?.best?.odds
         const bestAway = match.awayOdds?.best?.odds
 
-        const chosen = isFavHome ? bestHome ?? bestAway : bestAway ?? bestHome
+        // Prefer odds for the user's selected side; fall back to best available
+        const selectionIsHome = payload.selection === 'home' || isFavHome
+        const chosen = selectionIsHome ? bestHome ?? bestAway : bestAway ?? bestHome
         const apiOdds = typeof chosen === "number" ? chosen : null
 
         if (apiOdds != null && Number.isFinite(apiOdds) && apiOdds !== 0) {

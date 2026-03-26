@@ -179,6 +179,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
   const [picks, setPicks] = useState<any[]>([])
   const [propPicks, setPropPicks] = useState<any[]>([])
   const [parlayPicks, setParlayPicks] = useState<ParlayRecommendation[]>([])
+  const [noGamesMessage, setNoGamesMessage] = useState<string | null>(null)
   const { score: emotionalScore, shouldReceiveAIPicks, color, level, recommendation } = useEmotionalStability(userData)
   const [selectedSport, setSelectedSport] = useState('basketball_nba')
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
@@ -436,6 +437,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     })
     setLoading(true)
     setIsFetchingPicks(true)
+    setNoGamesMessage(null)
     try {
       let accessToken: string | undefined
       try {
@@ -527,10 +529,22 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
       // Show emotional warning as toast but ALWAYS process recommendations
       // so users can see game assessments regardless of emotional state
       if (!data.shouldBet && data.message) {
-        console.log('AI Picks: shouldBet is false, showing emotional warning banner')
-        toast.warning('Emotional Stability Check', {
-          description: data.message
-        })
+        if (data.apiError) {
+          toast.error('Service Temporarily Unavailable', {
+            description: data.message
+          })
+        } else if (data.noGames) {
+          // No events currently listed — not an emotional issue
+          setNoGamesMessage(data.message)
+          toast.info('No Events Available', {
+            description: data.message
+          })
+        } else {
+          console.log('AI Picks: shouldBet is false, showing emotional warning banner')
+          toast.warning('Emotional Stability Check', {
+            description: data.message
+          })
+        }
       }
 
       {
@@ -774,71 +788,6 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     }
   }
 
-  const handleLogBet = async (pick: any) => {
-    if (cooldown) {
-      toast.warning('Safety Guard Active', { description: 'Logging bets is limited while cooldown is enabled.' })
-      return
-    }
-
-    // Only block if pick is explicitly NOT recommended (not just negative EV)
-    // Recommended picks can have negative EV due to sportsbook vig
-    if (pick.isRecommended === false) {
-      toast.warning('Not Recommended', { description: 'The opposite team offers better value. Consider that pick instead.' })
-      return
-    }
-    const limitReached = userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit
-    if (limitReached) {
-      toast.warning('Daily Bet Limit Reached', { description: 'You have reached your daily bet limit.' })
-      return
-    }
-    const suggested = Number(pick.suggestedStake)
-    if (userData.maxStakeLimit != null && !Number.isNaN(suggested) && suggested > (userData.maxStakeLimit as number)) {
-      toast.warning('Stake exceeds your max limit', { description: `Suggested stake $${suggested} exceeds your max $${userData.maxStakeLimit}.` })
-      return
-    }
-
-    try {
-      const matchup = String(pick.teams || pick.event || '')
-      let awayTeam = '', homeTeam = ''
-      if (matchup.includes(' @ ')) {
-        const [a, h] = matchup.split(' @ ')
-        awayTeam = a?.trim() || ''
-        homeTeam = h?.trim() || ''
-      } else {
-        const vsMatch = matchup.match(/^(.+?)\s+vs\.?\s+(.+)$/i)
-        if (vsMatch) {
-          awayTeam = vsMatch[1].trim()
-          homeTeam = vsMatch[2].trim()
-        } else {
-          awayTeam = matchup
-        }
-      }
-
-      const payload = {
-        sport: String(pick.sport || selectedSport || ''),
-        homeTeam,
-        awayTeam,
-        defaultStake: Number(pick.suggestedStake) || 0,
-        bestHomeOdds: undefined as any,
-        bestAwayOdds: undefined as any,
-      }
-
-      try {
-        window.localStorage.setItem('pendingBetAnalysis', JSON.stringify(payload))
-        // Notify TiltLab even if already mounted (soft nav doesn't trigger useEffect re-run)
-        window.dispatchEvent(new Event('loadBetAnalysis'))
-      } catch (error) {
-        console.warn('[AI Picks] Failed to save pending bet to localStorage:', error)
-      }
-
-      setActiveSection('advisor')
-      toast.info('TiltLab ready', { description: 'We pre-filled your bet. Review and run the AI analysis.' })
-    } catch (e) {
-      toast.error('Failed to open TiltLab')
-    }
-  }
-
-
   const handleAnalyzeParlay = (parlay: ParlayRecommendation) => {
     try {
       window.localStorage.setItem('pendingParlayAnalysis', JSON.stringify(parlay))
@@ -851,17 +800,22 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
     }
   }
 
-  const handleBuildParlaySlip = (parlay: ParlayRecommendation) => {
-    // For now, redirect to advisor/slip builder.
-    // In future, this could open a quick-bet slip drawer.
-    handleAnalyzeParlay(parlay)
+  const handleEmotionCheckIn = (pick: any) => {
+    try {
+      window.localStorage.setItem('pendingBetEmotionCheckIn', JSON.stringify(pick))
+      const event = new CustomEvent('openEmotionCheckIn', {
+        detail: { preSelectedPick: pick }
+      })
+      window.dispatchEvent(event)
+      toast.info('Emotion Check-In Ready', { description: 'How are you feeling about this bet?' })
+    } catch (e) {
+      toast.error('Failed to open emotion check-in')
+    }
   }
 
   const handleEmotionCheckInParlay = (parlay: ParlayRecommendation) => {
-    // Save parlay to localStorage and open emotion check-in dialog
     try {
       window.localStorage.setItem('pendingParlayEmotionCheckIn', JSON.stringify(parlay))
-      // Trigger emotion check-in dialog
       const event = new CustomEvent('openEmotionCheckIn', {
         detail: { preSelectedParlay: parlay }
       })
@@ -1133,7 +1087,7 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
                 <Sparkles className="h-12 w-12 text-amber-500 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">No Games Available</h3>
                 <p className="text-muted-foreground mb-4">
-                  SmartSlip couldn&apos;t find any upcoming games for this league right now.
+                  {noGamesMessage || "SmartSlip couldn\u2019t find any upcoming games for this league right now."}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Try a different sport or check back closer to game time.
@@ -1144,431 +1098,485 @@ export function AIPicksTab({ userData, onNavigateToTab }: AIPicksTabProps) {
             {/* SmartSlip Picks - Primary Recommendations */}
             {!loading && picks.length > 0 && (
               <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Sparkles className="h-5 w-5 text-amber-500" />
-                    <h3 className="text-lg font-semibold text-foreground">SmartSlip Analysis</h3>
-                    <Badge variant="secondary" className="bg-slate-500/10 text-slate-400 border-slate-500/20">
-                      {picks.length} {picks.length === 1 ? 'Game' : 'Games'} Assessed
-                    </Badge>
-                    {picks.filter(p => p.isRecommended).length > 0 && (
-                      <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20">
-                        {picks.filter(p => p.isRecommended).length} AI Edge{picks.filter(p => p.isRecommended).length !== 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                    {picks.filter(p => p.informational).length > 0 && picks.filter(p => p.isRecommended).length === 0 && (
-                      <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
-                        No edges — markets are efficient
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {picks.map((pick: any, idx: number) => (
-                      <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex gap-2 items-center flex-wrap">
-                            <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
-                            {pick.riskAdjusted && pick.riskAdjusted.recommendation !== 'PROCEED' && (
-                              <Badge variant="outline" className={`
-                            ${pick.riskAdjusted.recommendation === 'TAKE_BREAK' ? 'border-red-500 text-red-500 bg-red-500/10' :
-                                  pick.riskAdjusted.recommendation === 'SKIP' ? 'border-orange-500 text-orange-500 bg-orange-500/10' :
-                                    'border-yellow-500 text-yellow-500 bg-yellow-500/10'
-                                }
-                          `}>
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                {pick.riskAdjusted.recommendation === 'TAKE_BREAK' ? 'Risk: Take Break' :
-                                  pick.riskAdjusted.recommendation === 'SKIP' ? 'Risk: Skip' :
-                                    'Risk: Caution'}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {pick.isRecommended ? (
-                              <Badge className="bg-green-500/20 text-green-500 border-green-500/30">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                AI Edge
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
-                                {pick.informationalLabel ?? "Market Efficient"}
-                              </Badge>
-                            )}
-                            <Sparkles className="h-4 w-4 text-amber-500" />
-                            <span className="text-sm font-semibold text-amber-500 tabular-nums">
-                              {pick.confidence}%
-                            </span>
-                          </div>
+                
+                <Accordion type="multiple" defaultValue={["player-props", "parlays", "game-lines", "risk-assessment"]} className="space-y-6">
+                  {/* 1. Player Props Section */}
+                  {!loading && picks.length > 0 && propPicks.length === 0 && (
+                    <AccordionItem value="player-props" className="border-none">
+                      <AccordionTrigger className="hover:no-underline py-0 group [&>svg]:hidden">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-5 w-5 text-blue-500" />
+                          <h3 className="text-lg font-semibold text-foreground">Player Props</h3>
+                          <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                          <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
                         </div>
-
-                        <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
-
-                        <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
-                          <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
-                          <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
-                            {pick.odds > 0 ? '+' : ''}{pick.odds}
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <Card className="p-6 text-center border-dashed">
+                          <Target className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm font-medium text-foreground mb-1">No player prop picks available</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(() => {
+                              const sportCfg = getSportById(selectedSport)
+                              if (!sportCfg?.hasPlayerProps) {
+                                return `Player props are not available for ${sportCfg?.displayName || 'this sport'}.`
+                              }
+                              return "No positive-EV player props were found for today's games. Check back later as lines shift."
+                            })()}
                           </p>
-                        </div>
-
-                        <div className="space-y-3 mb-4">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Expected Value:</span>
-                            <div className="text-right">
-                              <span
-                                className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'
-                                  }`}
-                              >
-                                {pick.expectedValue >= 0 ? '+' : ''}
-                                {pick.expectedValue.toFixed(2)}
-                              </span>
-                              {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
-                                <span
-                                  className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'
-                                    }`}
-                                >
-                                  ({pick.evPercentage >= 0 ? '+' : ''}
-                                  {pick.evPercentage.toFixed(1)}%)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
-                          {pick.isRecommended === false && (
-                            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                              <p className="text-sm font-semibold text-red-500">Not Recommended</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                The opposite team offers better relative value. Look for the "Recommended" badge on the other team.
-                              </p>
-                            </div>
-                          )}
-                          {/* Show EV info for recommended picks with negative EV (explains vig situation) */}
-                          {pick.isRecommended === true && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
-                            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                              <p className="text-sm font-semibold text-amber-600">Negative EV Due to Vig</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Both teams show negative EV due to sportsbook vig. This team offers the best relative value.
-                              </p>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Suggested Stake:</span>
-                            <span className="text-lg font-semibold text-foreground tabular-nums">${pick.suggestedStake}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Risk Level:</span>
-                            <Badge
-                              variant="outline"
-                              className={`${pick.riskLevel === 'HIGH' ? 'border-red-500 text-red-500' :
-                                pick.riskLevel === 'MEDIUM' ? 'border-yellow-500 text-yellow-500' :
-                                  'border-green-500 text-green-500'
-                                }`}
-                            >
-                              {pick.riskLevel}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Emotional Alignment:</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-24 bg-muted rounded-full h-2">
-                                <div
-                                  className="bg-purple-500 h-2 rounded-full"
-                                  style={{ width: `${pick.emotionalAlignment}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-semibold tabular-nums">{pick.emotionalAlignment}%</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="p-3 rounded-lg bg-muted mb-4">
-                          <div className="flex items-start gap-2">
-                            <Brain className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                            <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
-                          </div>
-                        </div>
-
-                        {/* Why this pick? Accordion */}
-                        <Accordion type="single" collapsible className="mb-4">
-                          <AccordionItem value="reasons" className="border-none">
-                            <AccordionTrigger className="py-2 hover:no-underline">
-                              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                                <HelpCircle className="h-4 w-4" />
-                                Why this pick?
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="pb-3 pt-2">
-                              <div className="space-y-3">
-                                {getTop3Reasons(pick).map((reason, reasonIdx) => {
-                                  const IconComponent = reason.icon
-                                  return (
-                                    <div key={reasonIdx} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                                      <div className="shrink-0 p-2 rounded-lg bg-primary/10">
-                                        <IconComponent className="h-4 w-4 text-primary" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <h5 className="text-sm font-semibold text-foreground mb-1">{reason.title}</h5>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">{reason.explanation}</p>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-
-                        {(() => {
-                          const raw = pick.commenceTime
-                          if (!raw) return null
-                          const d = new Date(raw)
-                          if (!Number.isFinite(d.getTime())) return null
-                          return (
-                            <p className="text-xs text-muted-foreground mb-4 text-center">
-                              Starts: {d.toLocaleString()}
-                            </p>
-                          )
-                        })()}
-
-                        <div className="flex gap-2">
-                          <Button className="flex-1" variant="outline" onClick={() => handleAnalyzePick(pick)}>
-                            <Target className="h-4 w-4 mr-2" />
-                            Analyze
-                          </Button>
-                          <Button
-                            className="flex-1"
-                            onClick={() => handleLogBet(pick)}
-                            disabled={
-                              cooldown ||
-                              (userData.dailyBetLimit != null && dailyBetCount >= userData.dailyBetLimit) ||
-                              pick.isRecommended === false
-                            }
-                          >
-                            Log Bet
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* Player Props Section */}
+                        </Card>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
                   {!loading && propPicks.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-5 w-5 text-blue-500" />
-                        <h3 className="text-lg font-semibold text-foreground">Player Props</h3>
-                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                          {propPicks.filter(p => p.isRecommended).length} Recommended
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {propPicks.map((prop, idx) => (
-                          <Card key={idx} className={`p-4 border ${prop.isRecommended ? 'border-green-500/30 bg-green-500/5' : 'border-muted'}`}>
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-semibold text-foreground">{prop.playerName}</p>
-                                <p className="text-sm text-muted-foreground">{prop.teams}</p>
+                    <AccordionItem value="player-props" className="border-none">
+                      <AccordionTrigger className="hover:no-underline py-0 group [&>svg]:hidden">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-5 w-5 text-blue-500" />
+                          <h3 className="text-lg font-semibold text-foreground">Player Props</h3>
+                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                            {propPicks.filter(p => p.isRecommended).length} Recommended
+                          </Badge>
+                          <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                          <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {propPicks.map((prop, idx) => (
+                            <Card key={idx} className={`p-4 border ${prop.isRecommended ? 'border-green-500/30 bg-green-500/5' : 'border-muted'}`}>
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <p className="font-semibold text-foreground">{prop.playerName}</p>
+                                  <p className="text-sm text-muted-foreground">{prop.teams}</p>
+                                </div>
+                                <Badge variant={prop.isRecommended ? "default" : "secondary"} className={prop.isRecommended ? "bg-green-500" : ""}>
+                                  {prop.isRecommended ? "BET" : "PASS"}
+                                </Badge>
                               </div>
-                              <Badge variant={prop.isRecommended ? "default" : "secondary"} className={prop.isRecommended ? "bg-green-500" : ""}>
-                                {prop.isRecommended ? "BET" : "PASS"}
-                              </Badge>
-                            </div>
-                            <div className="mb-3">
-                              <p className="text-lg font-bold text-foreground">
-                                {prop.propDirection === 'over' ? 'Over' : 'Under'} {prop.propLine} {prop.line?.split(' ').slice(-1)[0] || ''}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Odds: {prop.odds > 0 ? '+' : ''}{prop.odds}
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div className="bg-background/50 p-2 rounded">
-                                <p className="text-xs text-muted-foreground">EV</p>
-                                <p className={`font-semibold ${(prop.numericRisk?.evPercentage || 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                  {(prop.numericRisk?.evPercentage || 0) > 0 ? '+' : ''}{(prop.numericRisk?.evPercentage || 0).toFixed(1)}%
+                              <div className="mb-3">
+                                <p className="text-lg font-bold text-foreground">
+                                  {prop.propDirection === 'over' ? 'Over' : 'Under'} {prop.propLine} {prop.line?.split(' ').slice(-1)[0] || ''}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Odds: {prop.odds > 0 ? '+' : ''}{prop.odds}
                                 </p>
                               </div>
-                              <div className="bg-background/50 p-2 rounded">
-                                <p className="text-xs text-muted-foreground">Confidence</p>
-                                <p className="font-semibold text-foreground">{prop.confidence}%</p>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="bg-background/50 p-2 rounded">
+                                  <p className="text-xs text-muted-foreground">EV</p>
+                                  <p className={`font-semibold ${(prop.numericRisk?.evPercentage || 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {(prop.numericRisk?.evPercentage || 0) > 0 ? '+' : ''}{(prop.numericRisk?.evPercentage || 0).toFixed(1)}%
+                                  </p>
+                                </div>
+                                <div className="bg-background/50 p-2 rounded">
+                                  <p className="text-xs text-muted-foreground">Confidence</p>
+                                  <p className="font-semibold text-foreground">{prop.confidence}%</p>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => handleAnalyzePick(prop)}
+                                >
+                                  <Brain className="h-4 w-4 mr-1" />
+                                  Analyze this Bet
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => handleEmotionCheckIn(prop)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Emotional Check In
+                                </Button>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* 2. Smart Parlays Section - Additional Options */}
+                  {!loading && parlayPicks.length > 0 && (
+                    <AccordionItem value="parlays" className="border-none">
+                      <AccordionTrigger className="hover:no-underline py-0 group [&>svg]:hidden">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-purple-500" />
+                          <h3 className="text-lg font-semibold text-foreground">Smart Parlays</h3>
+                          <Badge variant="secondary" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                            High Value Combinations
+                          </Badge>
+                          <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                          <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {parlayPicks.map((parlay, idx) => (
+                            <ParlayCard
+                              key={idx}
+                              parlay={parlay}
+                              onAnalyze={handleAnalyzeParlay}
+                              onEmotionCheckIn={handleEmotionCheckInParlay}
+                            />
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* 3. SmartSlip Picks - Primary Recommendations */}
+                  <AccordionItem value="game-lines" className="border-none">
+                    <AccordionTrigger className="hover:no-underline py-0 group [&>svg]:hidden">
+                      <div className="flex items-center gap-2 flex-wrap text-left">
+                        <Sparkles className="h-5 w-5 text-amber-500" />
+                        <h3 className="text-lg font-semibold text-foreground">SmartSlip Analysis (Game Lines)</h3>
+                        <Badge variant="secondary" className="bg-slate-500/10 text-slate-400 border-slate-500/20">
+                          {picks.length} {picks.length === 1 ? 'Game' : 'Games'} Assessed
+                        </Badge>
+                        {picks.filter(p => p.isRecommended).length > 0 && (
+                          <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20">
+                            {picks.filter(p => p.isRecommended).length} AI Edge{picks.filter(p => p.isRecommended).length !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                        {picks.filter(p => p.informational).length > 0 && picks.filter(p => p.isRecommended).length === 0 && (
+                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                            No edges — markets are efficient
+                          </Badge>
+                        )}
+                        <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                        <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {picks.map((pick: any, idx: number) => (
+                          <Card key={idx} className="p-6 hover:shadow-lg transition-shadow">
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="flex gap-2 items-center flex-wrap">
+                                <Badge variant="outline">{pick.sport.split('_')[1]?.toUpperCase() || 'SPORT'}</Badge>
+                                {pick.riskAdjusted && pick.riskAdjusted.recommendation !== 'PROCEED' && (
+                                  <Badge variant="outline" className={`
+                                ${pick.riskAdjusted.recommendation === 'TAKE_BREAK' ? 'border-red-500 text-red-500 bg-red-500/10' :
+                                      pick.riskAdjusted.recommendation === 'SKIP' ? 'border-orange-500 text-orange-500 bg-orange-500/10' :
+                                        'border-yellow-500 text-yellow-500 bg-yellow-500/10'
+                                    }
+                              `}>
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    {pick.riskAdjusted.recommendation === 'TAKE_BREAK' ? 'Risk: Take Break' :
+                                      pick.riskAdjusted.recommendation === 'SKIP' ? 'Risk: Skip' :
+                                        'Risk: Caution'}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {pick.isRecommended ? (
+                                  <Badge className="bg-green-500/20 text-green-500 border-green-500/30">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    AI Edge
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                                    {pick.informationalLabel ?? "Market Efficient"}
+                                  </Badge>
+                                )}
+                                <Sparkles className="h-4 w-4 text-amber-500" />
+                                <span className="text-sm font-semibold text-amber-500 tabular-nums">
+                                  {pick.confidence}%
+                                </span>
                               </div>
                             </div>
-                            <div className="mt-3 flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => handleAnalyzePick(prop)}
-                              >
-                                <Brain className="h-4 w-4 mr-1" />
-                                Analyze
+
+                            <h3 className="text-lg font-semibold text-foreground mb-2">{pick.event}</h3>
+
+                            <div className="p-4 rounded-lg bg-linear-to-br from-primary/20 to-accent/20 border border-primary/30 mb-4">
+                              <p className="text-2xl font-bold text-primary text-center">{pick.pick}</p>
+                              <p className="text-sm text-center text-muted-foreground mt-1 tabular-nums">
+                                {pick.odds > 0 ? '+' : ''}{pick.odds}
+                              </p>
+                            </div>
+
+                            <div className="space-y-3 mb-4">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Expected Value:</span>
+                                <div className="text-right">
+                                  <span
+                                    className={`text-lg font-bold tabular-nums ${pick.expectedValue >= 0 ? 'text-green-500' : 'text-red-500'
+                                      }`}
+                                  >
+                                    {pick.expectedValue >= 0 ? '+' : ''}
+                                    {pick.expectedValue.toFixed(2)}
+                                  </span>
+                                  {typeof pick.evPercentage === 'number' && Number.isFinite(pick.evPercentage) && (
+                                    <span
+                                      className={`text-sm ml-2 tabular-nums ${pick.evPercentage >= 0 ? 'text-green-500' : 'text-red-500'
+                                        }`}
+                                    >
+                                      ({pick.evPercentage >= 0 ? '+' : ''}
+                                      {pick.evPercentage.toFixed(1)}%)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Show warning only for NOT recommended picks (not just negative EV, since recommended picks can have negative EV due to vig) */}
+                              {pick.isRecommended === false && (
+                                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                                  <p className="text-sm font-semibold text-red-500">Not Recommended</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    The opposite team offers better relative value. Look for the "Recommended" badge on the other team.
+                                  </p>
+                                </div>
+                              )}
+                              {/* Show EV info for recommended picks with negative EV (explains vig situation) */}
+                              {pick.isRecommended === true && typeof pick.expectedValue === 'number' && Number.isFinite(pick.expectedValue) && pick.expectedValue < 0 && (
+                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                                  <p className="text-sm font-semibold text-amber-600">Negative EV Due to Vig</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Both teams show negative EV due to sportsbook vig. This team offers the best relative value.
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Suggested Stake:</span>
+                                <span className="text-lg font-semibold text-foreground tabular-nums">${pick.suggestedStake}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Risk Level:</span>
+                                <Badge
+                                  variant="outline"
+                                  className={`${pick.riskLevel === 'HIGH' ? 'border-red-500 text-red-500' :
+                                    pick.riskLevel === 'MEDIUM' ? 'border-yellow-500 text-yellow-500' :
+                                      'border-green-500 text-green-500'
+                                    }`}
+                                >
+                                  {pick.riskLevel}
+                                </Badge>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Emotional Alignment:</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-24 bg-muted rounded-full h-2">
+                                    <div
+                                      className="bg-purple-500 h-2 rounded-full"
+                                      style={{ width: `${pick.emotionalAlignment}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-semibold tabular-nums">{pick.emotionalAlignment}%</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-muted mb-4">
+                              <div className="flex items-start gap-2">
+                                <Brain className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                                <p className="text-xs text-muted-foreground">{pick.reasoning}</p>
+                              </div>
+                            </div>
+
+                            {/* Why this pick? Accordion */}
+                            <Accordion type="single" collapsible className="mb-4">
+                              <AccordionItem value="reasons" className="border-none">
+                                <AccordionTrigger className="py-2 hover:no-underline text-left group [&>svg]:hidden">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                                    <HelpCircle className="h-4 w-4" />
+                                    Why this pick?
+                                    <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                                    <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-3 pt-2">
+                                  <div className="space-y-3">
+                                    {getTop3Reasons(pick).map((reason, reasonIdx) => {
+                                      const IconComponent = reason.icon
+                                      return (
+                                        <div key={reasonIdx} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                                          <div className="shrink-0 p-2 rounded-lg bg-primary/10">
+                                            <IconComponent className="h-4 w-4 text-primary" />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <h5 className="text-sm font-semibold text-foreground mb-1">{reason.title}</h5>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">{reason.explanation}</p>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+
+                            {(() => {
+                              const raw = pick.commenceTime
+                              if (!raw) return null
+                              const d = new Date(raw)
+                              if (!Number.isFinite(d.getTime())) return null
+                              return (
+                                <p className="text-xs text-muted-foreground mb-4 text-center">
+                                  Starts: {d.toLocaleString()}
+                                </p>
+                              )
+                            })()}
+
+                            <div className="flex gap-2">
+                              <Button className="flex-1" variant="outline" onClick={() => handleAnalyzePick(pick)}>
+                                <Target className="h-4 w-4 mr-2" />
+                                Analyze this Bet
                               </Button>
                               <Button
-                                variant="default"
-                                size="sm"
                                 className="flex-1"
-                                onClick={() => handleLogBet(prop)}
-                                disabled={!prop.isRecommended}
+                                onClick={() => handleEmotionCheckIn(pick)}
                               >
-                                <CheckCircle2 className="h-4 w-4 mr-1" />
-                                Log Bet
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Emotional Check In
                               </Button>
                             </div>
                           </Card>
                         ))}
                       </div>
-                    </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* 4. Anchored Risk Assessment Card - shown after picks */}
+                  {anchoredRisk && (
+                    <AccordionItem value="risk-assessment" className="border-none">
+                      <AccordionTrigger className="hover:no-underline py-0 group [&>svg]:hidden">
+                        <div className="flex items-center justify-between w-full pr-4 text-left">
+                          <div className="flex items-center gap-2">
+                            <Activity className={`h-5 w-5 ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                              anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                                anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                                  'text-red-500'
+                              }`} />
+                            <h3 className="text-lg font-semibold text-foreground">Research-Anchored Risk Assessment</h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={`${anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
+                              anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
+                                anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
+                                  'border-red-500 text-red-500'
+                              }`}>
+                              {anchoredRisk.riskLevel} Risk
+                            </Badge>
+                            <span className="group-data-[state=open]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/30">Expand</span>
+                            <span className="group-data-[state=closed]:hidden shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">Collapse</span>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <Card className={`p-6 border-2 ${anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
+                          anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                            anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
+                              'border-red-500/30 bg-red-500/5'
+                          }`}>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="text-center p-4 rounded-lg bg-background/50">
+                              <p className="text-xs text-muted-foreground mb-1">Overall Risk</p>
+                              <p className={`text-3xl font-bold ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
+                                anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
+                                  anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
+                                    'text-red-500'
+                                }`}>
+                                {(anchoredRisk.overallRisk * 100).toFixed(0)}%
+                              </p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg bg-background/50">
+                              <p className="text-xs text-muted-foreground mb-1">Confidence</p>
+                              <p className="text-3xl font-bold text-foreground">
+                                {(anchoredRisk.confidence * 100).toFixed(0)}%
+                              </p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg bg-background/50">
+                              <p className="text-xs text-muted-foreground mb-1">Intervention</p>
+                              <p className={`text-lg font-bold capitalize ${anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
+                                anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
+                                  anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
+                                    'text-red-500'
+                                }`}>
+                                {anchoredRisk.intervention.urgency === 'none' ? 'None Needed' : anchoredRisk.intervention.urgency}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Risk Breakdown */}
+                          {anchoredRisk.breakdown && (
+                            <div className="p-4 rounded-lg bg-background/50 mb-4">
+                              <p className="text-xs font-medium text-muted-foreground mb-3">Risk Breakdown (Research-Weighted)</p>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-muted-foreground">Emotional Tilt (80%)</span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-32 bg-muted rounded-full h-2">
+                                      <div
+                                        className="bg-purple-500 h-2 rounded-full"
+                                        style={{ width: `${Math.min(100, (anchoredRisk.breakdown.emotional ?? 0) * 125)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.emotional ?? 0) * 100).toFixed(1)}%</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-muted-foreground">Behavioral (10%)</span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-32 bg-muted rounded-full h-2">
+                                      <div
+                                        className="bg-blue-500 h-2 rounded-full"
+                                        style={{ width: `${Math.min(100, (anchoredRisk.breakdown.behavioral ?? 0) * 1000)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.behavioral ?? 0) * 100).toFixed(1)}%</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-muted-foreground">Demographic (10%)</span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-32 bg-muted rounded-full h-2">
+                                      <div
+                                        className="bg-amber-500 h-2 rounded-full"
+                                        style={{ width: `${Math.min(100, (anchoredRisk.breakdown.demographic ?? 0) * 1000)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.demographic ?? 0) * 100).toFixed(1)}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Clinical Context */}
+                          <div className="p-3 rounded-lg bg-muted mb-4">
+                            <div className="flex items-start gap-2">
+                              <Shield className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-sm text-foreground font-medium">{anchoredRisk.clinicalContext}</p>
+                                {anchoredRisk.intervention.urgency !== 'none' && (
+                                  <p className="text-xs text-muted-foreground mt-1">{anchoredRisk.intervention.message}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Research Citations */}
+                          <div className="flex flex-wrap gap-2">
+                            <span className="text-xs text-muted-foreground">Backed by:</span>
+                            {anchoredRisk.researchIntegration.map((study, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {study}
+                              </Badge>
+                            ))}
+                          </div>
+                        </Card>
+                      </AccordionContent>
+                    </AccordionItem>
                   )}
-
-                  {/* Smart Parlays Section - Additional Options */}
-                  {!loading && parlayPicks.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-purple-500" />
-                        <h3 className="text-lg font-semibold text-foreground">Smart Parlays</h3>
-                        <Badge variant="secondary" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
-                          High Value Combinations
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {parlayPicks.map((parlay, idx) => (
-                          <ParlayCard
-                            key={idx}
-                            parlay={parlay}
-                            onAnalyze={handleAnalyzeParlay}
-                            onLogBet={handleBuildParlaySlip}
-                            onEmotionCheckIn={handleEmotionCheckInParlay}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  </Accordion>
                 </div>
-              </div>
-            )}
-
-            {/* Anchored Risk Assessment Card - shown after picks */}
-            {anchoredRisk && (
-              <Card className={`p-6 border-2 ${anchoredRisk.riskColor === 'green' ? 'border-green-500/30 bg-green-500/5' :
-                anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500/30 bg-yellow-500/5' :
-                  anchoredRisk.riskColor === 'orange' ? 'border-orange-500/30 bg-orange-500/5' :
-                    'border-red-500/30 bg-red-500/5'
-                }`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Activity className={`h-5 w-5 ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                          'text-red-500'
-                      }`} />
-                    Research-Anchored Risk Assessment
-                  </h3>
-                  <Badge variant="outline" className={`${anchoredRisk.riskColor === 'green' ? 'border-green-500 text-green-500' :
-                    anchoredRisk.riskColor === 'yellow' ? 'border-yellow-500 text-yellow-500' :
-                      anchoredRisk.riskColor === 'orange' ? 'border-orange-500 text-orange-500' :
-                        'border-red-500 text-red-500'
-                    }`}>
-                    {anchoredRisk.riskLevel} Risk
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="text-center p-4 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground mb-1">Overall Risk</p>
-                    <p className={`text-3xl font-bold ${anchoredRisk.riskColor === 'green' ? 'text-green-500' :
-                      anchoredRisk.riskColor === 'yellow' ? 'text-yellow-500' :
-                        anchoredRisk.riskColor === 'orange' ? 'text-orange-500' :
-                          'text-red-500'
-                      }`}>
-                      {(anchoredRisk.overallRisk * 100).toFixed(0)}%
-                    </p>
-                  </div>
-                  <div className="text-center p-4 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground mb-1">Confidence</p>
-                    <p className="text-3xl font-bold text-foreground">
-                      {(anchoredRisk.confidence * 100).toFixed(0)}%
-                    </p>
-                  </div>
-                  <div className="text-center p-4 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground mb-1">Intervention</p>
-                    <p className={`text-lg font-bold capitalize ${anchoredRisk.intervention.urgency === 'none' ? 'text-green-500' :
-                      anchoredRisk.intervention.urgency === 'low' ? 'text-yellow-500' :
-                        anchoredRisk.intervention.urgency === 'medium' ? 'text-orange-500' :
-                          'text-red-500'
-                      }`}>
-                      {anchoredRisk.intervention.urgency === 'none' ? 'None Needed' : anchoredRisk.intervention.urgency}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Risk Breakdown */}
-                {anchoredRisk.breakdown && (
-                  <div className="p-4 rounded-lg bg-background/50 mb-4">
-                    <p className="text-xs font-medium text-muted-foreground mb-3">Risk Breakdown (Research-Weighted)</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Emotional Tilt (80%)</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 bg-muted rounded-full h-2">
-                            <div
-                              className="bg-purple-500 h-2 rounded-full"
-                              style={{ width: `${Math.min(100, (anchoredRisk.breakdown.emotional ?? 0) * 125)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.emotional ?? 0) * 100).toFixed(1)}%</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Behavioral (10%)</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 bg-muted rounded-full h-2">
-                            <div
-                              className="bg-blue-500 h-2 rounded-full"
-                              style={{ width: `${Math.min(100, (anchoredRisk.breakdown.behavioral ?? 0) * 1000)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.behavioral ?? 0) * 100).toFixed(1)}%</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Demographic (10%)</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 bg-muted rounded-full h-2">
-                            <div
-                              className="bg-amber-500 h-2 rounded-full"
-                              style={{ width: `${Math.min(100, (anchoredRisk.breakdown.demographic ?? 0) * 1000)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs tabular-nums w-12 text-right">{((anchoredRisk.breakdown.demographic ?? 0) * 100).toFixed(1)}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Clinical Context */}
-                <div className="p-3 rounded-lg bg-muted mb-4">
-                  <div className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm text-foreground font-medium">{anchoredRisk.clinicalContext}</p>
-                      {anchoredRisk.intervention.urgency !== 'none' && (
-                        <p className="text-xs text-muted-foreground mt-1">{anchoredRisk.intervention.message}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Research Citations */}
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-xs text-muted-foreground">Backed by:</span>
-                  {anchoredRisk.researchIntegration.map((study, idx) => (
-                    <Badge key={idx} variant="secondary" className="text-xs">
-                      {study}
-                    </Badge>
-                  ))}
-                </div>
-              </Card>
-            )}
+              )}
 
             {/* Disclaimer */}
             <Card className="p-4 bg-muted">

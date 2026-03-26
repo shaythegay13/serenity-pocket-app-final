@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseServer } from "@/lib/supabase-server"
 import { fetchEnhancedLiveOdds } from "@/lib/enhanced-odds-api"
 import { generatePickerRecommendations } from "@/lib/services/gemini-reasoner"
-import { generateParlayRecommendations } from "@/lib/parlay-utils"
+import { 
+  playerDataService, 
+  getPlayerPropsForGames 
+} from "@/lib/services/player-data-service"
+import { 
+  generateParlayRecommendations 
+} from "@/lib/parlay-utils"
 import {
   conductSportsResearch,
   type SportsResearchInput,
@@ -32,7 +38,6 @@ import {
   getSportVariance,
 } from "@/lib/risk-index"
 import { getSportById, normalizeSportKey, getMatchFormat } from "@/lib/sports-config"
-import { getPlayerPropsForGames } from "@/lib/services/player-data-service"
 import { fetchLiveOddsUpdate, buildLiveContext } from "@/lib/services/live-odds-service"
 import { fetchFutureMarkets, buildFuturesRecommendation } from "@/lib/futures-utils"
 import type { FuturesRecommendation } from "@/lib/types/ai-models"
@@ -126,6 +131,14 @@ function getNoGamesMessage(sport: string): string {
     cricket_icc_world_cup: "The ICC Cricket World Cup is a periodic tournament. Check back when the next edition is scheduled!",
   }
 
+  // Combat sports: event-based, not continuous schedule
+  if (sport === 'mma_ufc') {
+    return "No UFC fights currently listed for betting. UFC events typically take place on weekends — odds are usually posted 1–2 weeks before fight night. Check back closer to the next scheduled event."
+  }
+  if (sport === 'boxing') {
+    return "No boxing matches currently listed for betting. Major boxing events are scheduled throughout the year — odds are usually posted a few weeks before fight night. Check back closer to the next scheduled bout."
+  }
+
   return sportMessages[sport] || `No upcoming games found for this sport right now. The league may be between seasons or on a break. Please try another sport or check back later.`
 }
 
@@ -217,6 +230,17 @@ async function buildFallbackRecommendations(args: {
         ? 15
         : 25
 
+  // Sync wrapper: uses pure-math EV (no Gemini calls) to avoid timeout in fallback path.
+  // Returns the same { ev, offeredAmericanOdds } shape that the createPick helpers expect.
+  function computeEvForLeg(leg: SmartSlipLegInput): { ev: EvDiagnostics; offeredAmericanOdds: number } {
+    const ev = computeEv({
+      stake: leg.stake,
+      offeredAmericanOdds: leg.offeredAmericanOdds,
+      consensusAmericanOdds: leg.consensusAmericanOdds,
+    })
+    return { ev, offeredAmericanOdds: leg.offeredAmericanOdds }
+  }
+
   const potentialPicks: any[] = []
 
   for (const g of args.games) {
@@ -258,7 +282,7 @@ async function buildFallbackRecommendations(args: {
     const homeOddsAvg = ctx.averageOdds?.moneylineHome ?? homeOdds
     const awayOddsAvg = ctx.averageOdds?.moneylineAway ?? awayOdds
 
-    if (typeof homeOdds === "number" && typeof awayOdds === "number") {
+    if (typeof homeOdds === "number" && homeOdds !== 0 && typeof awayOdds === "number" && awayOdds !== 0) {
       // Enriched Home - bet at BEST odds, calculate EV using AVERAGE as consensus
       const legHome: SmartSlipLegInput = {
         gameContext: mapContext('moneyline', 'home'),
@@ -266,7 +290,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: homeOddsAvg ?? homeOdds, sideB: awayOddsAvg ?? awayOdds } // Average/consensus for true prob
       }
-      const homeResult = await smartSlipService.enrichLegWithEv(legHome)
+      const homeResult = computeEvForLeg(legHome)
 
       // Enriched Away
       const legAway: SmartSlipLegInput = {
@@ -275,7 +299,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: homeOddsAvg ?? homeOdds, sideB: awayOddsAvg ?? awayOdds } // Average/consensus
       }
-      const awayResult = await smartSlipService.enrichLegWithEv(legAway)
+      const awayResult = computeEvForLeg(legAway)
 
       const createPick = (res: typeof homeResult, side: "home" | "away") => {
         const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
@@ -321,7 +345,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: homeSpreadOddsAvg ?? homeSpreadOdds, sideB: awaySpreadOddsAvg ?? awaySpreadOdds }
       }
-      const homeSpreadResult = await smartSlipService.enrichLegWithEv(legHomeSpread)
+      const homeSpreadResult = computeEvForLeg(legHomeSpread)
 
       const legAwaySpread: SmartSlipLegInput = {
         gameContext: mapContext('spread', 'away'),
@@ -329,7 +353,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: homeSpreadOddsAvg ?? homeSpreadOdds, sideB: awaySpreadOddsAvg ?? awaySpreadOdds }
       }
-      const awaySpreadResult = await smartSlipService.enrichLegWithEv(legAwaySpread)
+      const awaySpreadResult = computeEvForLeg(legAwaySpread)
 
       const createSpreadPick = (res: typeof homeSpreadResult, side: "home" | "away", line: number) => {
         const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
@@ -373,7 +397,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: overOddsAvg ?? overOdds, sideB: underOddsAvg ?? underOdds }
       }
-      const overResult = await smartSlipService.enrichLegWithEv(legOver)
+      const overResult = computeEvForLeg(legOver)
 
       const legUnder: SmartSlipLegInput = {
         gameContext: mapContext('total', 'under'),
@@ -381,7 +405,7 @@ async function buildFallbackRecommendations(args: {
         stake: baseStake,
         consensusAmericanOdds: { sideA: overOddsAvg ?? overOdds, sideB: underOddsAvg ?? underOdds }
       }
-      const underResult = await smartSlipService.enrichLegWithEv(legUnder)
+      const underResult = computeEvForLeg(legUnder)
 
       const createTotalPick = (res: typeof overResult, type: "over" | "under") => {
         const suggestedStakeAbsolute = Math.round(res.ev.kellyFraction * args.weeklyBudget * 0.5)
@@ -431,7 +455,7 @@ async function buildFallbackRecommendations(args: {
   const positiveEvPicks = sortedByEV.filter(p => (p.numericRisk?.evPercentage || 0) > 0)
   const nearZeroPicks = sortedByEV.filter(p => {
     const ev = p.numericRisk?.evPercentage || 0
-    return ev <= 0 && ev > -3 // Near market efficient
+    return ev <= 0 && ev > -8 // Near market efficient (wider for higher vig)
   })
 
   const finalPicks: any[] = []
@@ -481,6 +505,40 @@ async function buildFallbackRecommendations(args: {
  * Build player prop recommendations from available prop lines
  * Uses EV calculation to identify positive-value props
  */
+/**
+ * Provides an estimated standard deviation for various sport/market combinations
+ * used to translate AI confidence into probability shifts.
+ */
+function getSportSpecificStdDev(sport: string, market: string): number {
+  const s = sport.toLowerCase()
+  const m = market.toLowerCase()
+
+  if (s.includes('nba') || s.includes('basketball')) {
+    if (m.includes('points')) return 8.5
+    if (m.includes('rebounds')) return 3.5
+    if (m.includes('assists')) return 2.8
+    if (m.includes('threes')) return 1.5
+    return 5.0
+  }
+  if (s.includes('nfl') || s.includes('football')) {
+    if (m.includes('passing_yards')) return 55.0
+    if (m.includes('rushing_yards')) return 25.0
+    if (m.includes('receiving_yards')) return 22.0
+    if (m.includes('receptions')) return 2.2
+    return 15.0
+  }
+  if (s.includes('ncaab')) {
+    if (m.includes('points')) return 9.5
+    return 6.0
+  }
+  if (s.includes('mlb') || s.includes('baseball')) {
+    if (m.includes('strikeouts')) return 2.2
+    if (m.includes('hits')) return 1.1
+    return 2.0
+  }
+  return 10.0 // Default fallback
+}
+
 async function buildPlayerPropRecommendations(args: {
   playerPropsByGame: Map<string, PlayerPropLine[]>
   games: Array<{ id?: string; context: CurrentGameContext }>
@@ -489,6 +547,7 @@ async function buildPlayerPropRecommendations(args: {
   emotionalScore?: number
   maxPropsPerGame?: number
   maxTotalProps?: number
+  sport: string
 }): Promise<any[]> {
   const {
     playerPropsByGame,
@@ -497,7 +556,8 @@ async function buildPlayerPropRecommendations(args: {
     weeklyBudget,
     emotionalScore,
     maxPropsPerGame = 2,
-    maxTotalProps = 6
+    maxTotalProps = 6,
+    sport
   } = args
 
   const alignment =
@@ -532,24 +592,22 @@ async function buildPlayerPropRecommendations(args: {
     const gamePropPicks: any[] = []
 
     for (const prop of props) {
-      // Use AI probability if available, otherwise use historical hit rate.
-      // Fall back to no-vig market probability (when both sides available) or market-implied
-      // probability (single side). Never default to 0.5 — that inflates EV on high-odds props.
-      let aiOverProb: number
-      if (prop.aiOverProbability !== undefined) {
-        aiOverProb = prop.aiOverProbability
-      } else if (prop.historicalHitRate !== undefined) {
-        aiOverProb = prop.historicalHitRate
-      } else if (typeof prop.underOdds === 'number' && !isNaN(prop.underOdds)) {
-        // Both sides available: remove vig to get fair probability
-        const overImplied = impliedProbFromAmerican(prop.overOdds)
-        const underImplied = impliedProbFromAmerican(prop.underOdds)
-        aiOverProb = overImplied / (overImplied + underImplied)
-      } else {
-        // Only one side (e.g. alternate props): use market-implied probability (includes vig)
-        aiOverProb = impliedProbFromAmerican(prop.overOdds)
-      }
-      const aiUnderProb = prop.aiUnderProbability ?? (1 - aiOverProb)
+      // SCIENTIFIC EV CALCULATION (Phase 5):
+      // 1. Start with fair market probability (vig-removed)
+      const overImplied = impliedProbFromAmerican(prop.overOdds)
+      const underImplied = impliedProbFromAmerican(prop.underOdds)
+      const fairMarketProb = overImplied / (overImplied + underImplied)
+      
+      // 2. Adjust based on AI confidence delta and sport/market variance
+      // Sensitivity factor ensures 'points' move less per confidence unit than 'strikeouts'
+      const stdDev = getSportSpecificStdDev(sport, prop.stat)
+      const sensitivityFactor = 16.0 / stdDev // Magic number 16.0 anchors sensitivity
+      const rawAiProb = prop.aiOverProbability ?? 0.55
+      const aiConfDelta = (rawAiProb * 100) - 50
+      
+      // Final true probability estimate
+      const aiOverProb = Math.max(0.05, Math.min(0.95, fairMarketProb + (aiConfDelta / 1000) * sensitivityFactor))
+      const aiUnderProb = 1 - aiOverProb
 
       // Calculate EV for both directions
       const overEv = computeEv({
@@ -576,7 +634,16 @@ async function buildPlayerPropRecommendations(args: {
         : 0
 
       const propSuggestedStake = Math.round(Math.max(0, kellyFraction) * weeklyBudget * 0.3)
-      const propEvAtStake = parseFloat(((bestEv.evPercent / 100) * propSuggestedStake).toFixed(2))
+      
+      // Phase 5: Use RAW EV without artificial dithering unless it's a massive outlier (>20%)
+      const finalEvPercentage = bestEv.evPercent > 20 
+        ? 15 + (bestEv.evPercent - 20) * 0.1 
+        : bestEv.evPercent;
+
+      const propEvAtStake = parseFloat(((finalEvPercentage / 100) * propSuggestedStake).toFixed(2))
+      
+      console.log(`[SmartSlip Scientific] ${prop.playerName} ${prop.stat} | Fair: ${fairMarketProb.toFixed(3)} | AI Raw: ${(rawAiProb * 100).toFixed(0)}% | SD: ${stdDev} | TrueProb: ${bestProb.toFixed(3)} | EV: ${finalEvPercentage.toFixed(2)}%`);
+
       const pick = {
         gameId,
         teams: `${gameContext.awayTeam} @ ${gameContext.homeTeam}`,
@@ -589,10 +656,10 @@ async function buildPlayerPropRecommendations(args: {
         suggestedStakeFraction: Math.max(0, kellyFraction),
         suggestedStakeAbsolute: propSuggestedStake,
         riskLevel,
-        shortExplanation: `${prop.playerName} ${bestDirection} ${prop.line} ${prop.statDisplayName}. EV: ${bestEv.evPercent.toFixed(1)}%.`,
+        shortExplanation: `${prop.playerName} ${bestDirection} ${prop.line} ${prop.statDisplayName}. Raw EV: ${finalEvPercentage.toFixed(1)}%.`,
         numericRisk: {
           ev: propEvAtStake,
-          evPercentage: bestEv.evPercent
+          evPercentage: finalEvPercentage
         },
         // Player prop specific fields
         playerId: prop.playerId,
@@ -622,7 +689,7 @@ async function buildPlayerPropRecommendations(args: {
   const positiveEvProps = propPicks.filter(p => (p.numericRisk?.evPercentage || 0) > 0)
   const nearZeroProps = propPicks.filter(p => {
     const ev = p.numericRisk?.evPercentage || 0
-    return ev <= 0 && ev > -3
+    return ev <= 0 && ev > -10 // Wider range for props due to higher bookmaker vig (-110/-115 standard)
   })
 
   const finalProps = [...positiveEvProps.slice(0, maxTotalProps)]
@@ -794,7 +861,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Compute behavioral risk score for the risk-adjusted decision layer (0-100)
-    const behavioralRiskScore = Math.round(anchoredRisk.overallRisk * 100)
+    const decisionRiskScore = Math.round(anchoredRisk.overallRisk * 100)
 
     // CRITICAL GATE: Only block if anchored risk engine says betting is dangerous.
     // Emotional stability alone no longer blocks picks — the risk modulator
@@ -832,6 +899,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         shouldBet: false,
+        apiError: true,
         message:
           "SmartSlip AI is not configured. Please contact support or check your environment configuration (GOOGLE_GEMINI_API_KEY required).",
         error: "SmartSlip AI unavailable",
@@ -854,19 +922,29 @@ export async function POST(request: NextRequest) {
       error: oddsResult.error,
     })
 
-    if (
-      !oddsResult.success ||
-      !Array.isArray(oddsResult.data) ||
-      oddsResult.data.length === 0
-    ) {
-      console.error(`[SmartSlip] No odds data available for ${sport}`, {
-        success: oddsResult.success,
+    if (!oddsResult.success) {
+      console.error(`[SmartSlip] Odds API error for ${sport}`, {
         source: oddsResult.source,
         error: oddsResult.error,
       })
       return NextResponse.json({
+        success: false,
+        shouldBet: false,
+        apiError: true,
+        message: "Unable to fetch live odds right now. Please try again in a moment.",
+        recommendations: [],
+        emotionalScore,
+        meta: { sport, source: oddsResult.source },
+        debugError: oddsResult.error,
+      })
+    }
+
+    if (!Array.isArray(oddsResult.data) || oddsResult.data.length === 0) {
+      console.log(`[SmartSlip] No games found for ${sport}`)
+      return NextResponse.json({
         success: true,
         shouldBet: false,
+        noGames: true,
         message: getNoGamesMessage(sport),
         recommendations: [],
         emotionalScore,
@@ -919,6 +997,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         shouldBet: false,
+        noGames: true,
         message: getNoGamesMessage(sport),
         recommendations: [],
         emotionalScore,
@@ -960,7 +1039,7 @@ export async function POST(request: NextRequest) {
       return ob - oa
     })
 
-    const limitedGames = sortedGames.slice(0, 4)
+    const limitedGames = sortedGames.slice(0, 8)
 
     const psychResult = await callPsychPicker(emotionalScore, riskTolerance)
     const psychModel = (psychResult as any).model_id
@@ -1468,14 +1547,17 @@ export async function POST(request: NextRequest) {
     // Fetch player props before the Gemini call so AI can reason about them
     let playerPropsByGame: Map<string, PlayerPropLine[]> = new Map()
     const gameIds = enrichedGames.map((g: any) => g.id).filter(Boolean)
+    
     if (gameIds.length > 0) {
       try {
-        console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`)
-        playerPropsByGame = await getPlayerPropsForGames(gameIds, sport)
-        const totalProps = Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0)
-        console.log(`[SmartSlip] Found ${totalProps} total player props across ${playerPropsByGame.size} games`)
+        console.log(`[SmartSlip] Fetching player props for ${gameIds.length} games`);
+        playerPropsByGame = await getPlayerPropsForGames(gameIds, sport);
+        
+        // Count props from API
+        const totalProps = Array.from(playerPropsByGame.values()).reduce((sum, props) => sum + props.length, 0);
+        console.log(`[SmartSlip] Real-time API found ${totalProps} total player props across ${playerPropsByGame.size} games`);
       } catch (propsError) {
-        console.warn('[SmartSlip] Failed to fetch player props (continuing without them):', propsError)
+        console.warn('[SmartSlip] Failed to fetch player props (continuing without them):', propsError);
       }
     }
 
@@ -1603,7 +1685,7 @@ export async function POST(request: NextRequest) {
           baseConfidence: (r.confidence || 50) / 100
         },
         {
-          behavioralRiskScore,
+          behavioralRiskScore: decisionRiskScore,
           stabilityScore: emotionalScore
         }
       )
@@ -1659,11 +1741,7 @@ export async function POST(request: NextRequest) {
     console.log(`[SmartSlip] Re-scored ${filtered.length} picks with math EV. Positive EV (BET): ${filtered.filter((r: any) => r.isRecommended).length}.`)
 
     // Split re-scored picks: game picks stay in recommendations; prop picks go to propPicks
-    const geminiPropFilteredPicks = filtered.filter((r: any) => r.betType === 'prop')
     const gameFilteredPicks = filtered.filter((r: any) => r.betType !== 'prop')
-    if (geminiPropFilteredPicks.length > 0) {
-      console.log(`[SmartSlip] Gemini returned ${geminiPropFilteredPicks.length} prop picks (${geminiPropFilteredPicks.filter((r: any) => r.isRecommended).length} recommended)`)
-    }
 
     reasoningOutput = {
       ...reasoningOutput,
@@ -1713,7 +1791,7 @@ export async function POST(request: NextRequest) {
           baseConfidence: (pick.confidence || 50) / 100,
         },
         {
-          behavioralRiskScore,
+          behavioralRiskScore: decisionRiskScore,
           stabilityScore: emotionalScore,
         }
       )
@@ -1735,7 +1813,7 @@ export async function POST(request: NextRequest) {
     const shouldBet = topRiskLevel !== 'CRITICAL' && hasAnyPicks
 
     const shouldBetMessage = topRiskLevel === 'CRITICAL'
-      ? `Your behavioral risk score is elevated (${behavioralRiskScore}/100). We recommend taking a break. Picks are shown for informational purposes only.`
+      ? `Your behavioral risk score is elevated (${decisionRiskScore}/100). We recommend taking a break. Picks are shown for informational purposes only.`
       : hasAnyPicks
         ? "SmartSlip found some options for tonight. Focus on long‑term discipline and only wager what you can afford to lose."
         : "No games available or odds data found for this sport right now."
@@ -1767,6 +1845,36 @@ export async function POST(request: NextRequest) {
       propCount: props.length
     }))
 
+    // ----------------------------------------------------------------------
+    // PHASE 5: INJECT AI INSIGHTS INTO SCIENTIFIC MODEL
+    // Map Gemini confidence back to playerPropsByGame so the scientific EV model
+    // uses dynamic AI signals rather than the 0.55 fallback.
+    // ----------------------------------------------------------------------
+    if (reasoningOutput.recommendations && reasoningOutput.recommendations.length > 0) {
+      reasoningOutput.recommendations.filter((r: any) => r.betType === 'prop').forEach((r: any) => {
+        const gameProps = playerPropsByGame.get(r.gameId) || []
+        const match = gameProps.find(p => {
+          const nameMatch = p.playerName === r.playerName
+          const pStatNormalized = p.stat.replace('_alternate', '').toLowerCase()
+          const rStatNormalized = (r.propStat || '').replace('_alternate', '').replace('player_', '').toLowerCase()
+          const pDisplayNormalized = p.statDisplayName.toLowerCase().replace('player ', '').trim()
+          const rDisplayNormalized = (r.statDisplayName || '').toLowerCase().replace('player ', '').trim()
+          
+          const statMatch = pStatNormalized === rStatNormalized || 
+                           pDisplayNormalized === rDisplayNormalized ||
+                           p.stat.includes(rStatNormalized) ||
+                           r.propStat?.includes(pStatNormalized)
+
+          const lineMatch = Math.abs(p.line - r.line) < 0.1
+          return nameMatch && statMatch && lineMatch
+        })
+        
+        if (match) {
+          match.aiOverProbability = (r.confidence || 55) / 100
+        }
+      })
+    }
+
     // Generate Player Prop Recommendations
     let propPicks: any[] = []
     if (playerPropsByGame.size > 0) {
@@ -1778,7 +1886,8 @@ export async function POST(request: NextRequest) {
           weeklyBudget,
           emotionalScore,
           maxPropsPerGame: 2,
-          maxTotalProps: 6
+          maxTotalProps: 6,
+          sport
         })
         console.log(`[SmartSlip] Generated ${propPicks.length} math-based player prop recommendations`)
       } catch (propError) {
@@ -1786,14 +1895,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Gemini prop picks (AI probability signal) take priority over math-only props.
-    // Math props fill in for any games where Gemini returned no prop picks.
-    if (geminiPropFilteredPicks.length > 0) {
-      const geminiPropGameIds = new Set(geminiPropFilteredPicks.map((p: any) => p.gameId))
-      const mathPropsForOtherGames = propPicks.filter((p: any) => !geminiPropGameIds.has(p.gameId))
-      propPicks = [...geminiPropFilteredPicks, ...mathPropsForOtherGames]
-      console.log(`[SmartSlip] Final prop picks: ${geminiPropFilteredPicks.length} Gemini + ${mathPropsForOtherGames.length} math fallback`)
-    }
+    // Use scientific math prop picks directly.
+    console.log(`[SmartSlip] Final math-based prop picks: ${propPicks.length}`)
 
     // Generate Team Prop Recommendations from team_totals data in enrichedGames
     const teamPropPicks: any[] = []
@@ -1861,15 +1964,18 @@ export async function POST(request: NextRequest) {
       console.warn('[SmartSlip] Futures fetch failed (non-fatal):', err)
     }
 
-    // Generate Parlay Recommendations (new for Phase 2)
-    // Include game picks, player prop picks, and team prop picks for parlay combinations
+    // Generate Parlay Recommendations (Phase 2+)
+    // Pass ALL propPicks (not just recommended) so the parlay generator can build
+    // pure player prop SGPs and cross-game player prop parlays from its own
+    // looser EV threshold (-3% floor). Classic parlays inside the generator
+    // still enforce positive EV via the `isRecommended` flag.
     const allPicksForParlays = [
       ...filtered,
-      ...propPicks.filter(p => p.isRecommended),
+      ...propPicks, // All props — generator filters by parlayType internally
       ...teamPropPicks.filter(p => p.isRecommended),
     ]
-    const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(allPicksForParlays, 3, sport)
-    console.log(`[SmartSlip] Generated ${parlayRecommendations.length} parlay recommendations`)
+    const parlayRecommendations: ParlayRecommendation[] = generateParlayRecommendations(allPicksForParlays, 6, sport)
+    console.log(`[SmartSlip] Generated ${parlayRecommendations.length} parlay recommendations (classic: ${parlayRecommendations.filter(p => p.parlayType === 'classic').length}, sgp: ${parlayRecommendations.filter(p => p.parlayType === 'sgp').length}, player_prop: ${parlayRecommendations.filter(p => p.parlayType === 'player_prop').length})`)
 
     return NextResponse.json({
       success: true,

@@ -102,6 +102,18 @@ const SGP_CORRELATED_PAIRS: Array<{ marketA: string; marketB: string; extraTax: 
   { marketA: 'team_prop',            marketB: 'spread',                extraTax: 0.06, label: 'Team total ↔ Spread (same direction)' },
   { marketA: 'team_prop',            marketB: 'player_points',         extraTax: 0.06, label: 'Team total ↔ Player points (same team)' },
   { marketA: 'team_prop',            marketB: 'team_prop',             extraTax: 0.05, label: 'Team total ↔ Opposing team total' },
+  // Non-Big 4 SGP correlations
+  { marketA: 'player_goal_scorer_anytime', marketB: 'player_assists_soccer', extraTax: 0.10, label: 'Soccer Goals ↔ Assists' },
+  { marketA: 'player_kills_esports', marketB: 'player_assists_esports',  extraTax: 0.15, label: 'Esports Kills ↔ Assists' },
+  { marketA: 'player_batting_runs',  marketB: 'player_to_score_fifty', extraTax: 0.15, label: 'Cricket Runs ↔ 50+ Runs' },
+  // MLB correlations
+  { marketA: 'pitcher_strikeouts',   marketB: 'moneyline',             extraTax: 0.10, label: 'Pitcher Ks ↔ Win' },
+  { marketA: 'pitcher_earned_runs',  marketB: 'total',                 extraTax: 0.12, label: 'Pitcher ER ↔ Game Total' },
+  // NHL correlations
+  { marketA: 'player_goals',         marketB: 'total',                 extraTax: 0.08, label: 'NHL Goals ↔ Game Total' },
+  { marketA: 'goalie_saves',         marketB: 'total',                 extraTax: 0.10, label: 'NHL Saves ↔ Game Total' },
+  // Tennis/Individual correlations
+  { marketA: 'player_games_won',     marketB: 'player_sets_won',       extraTax: 0.25, label: 'Tennis Games ↔ Sets' },
 ]
 
 /**
@@ -185,6 +197,40 @@ const PLAYER_CORRELATION_PAIRS: PlayerCorrelationPair[] = [
     sameTeam: false,
     extraTax: 0.05,
     label: 'Opposing QB passing (game script correlation)'
+  },
+
+  // Soccer correlations
+  {
+    playerA: { position: 'FW', category: 'scoring' },
+    playerB: { position: 'MF', category: 'playmaking' },
+    sameTeam: true,
+    extraTax: 0.10,
+    label: 'FW Goals ↔ MF Assists (same team)'
+  },
+
+  // Esports correlations
+  {
+    playerA: { category: 'scoring' },  // Kills
+    playerB: { category: 'playmaking' }, // Assists
+    sameTeam: true,
+    extraTax: 0.12,
+    label: 'Kills ↔ Assists (same team snowball)'
+  },
+  // MLB Pitcher ↔ Opposing Batter
+  {
+    playerA: { position: 'P', category: 'pitching' },
+    playerB: { category: 'hitting' },
+    sameTeam: false,
+    extraTax: 0.06,
+    label: 'Pitcher ↔ Opposing Batter'
+  },
+  // NHL Skater ↔ Skater (same team)
+  {
+    playerA: { category: 'skating' },
+    playerB: { category: 'skating' },
+    sameTeam: true,
+    extraTax: 0.10,
+    label: 'NHL Goal ↔ Assist (same team)'
   },
 ]
 
@@ -637,8 +683,19 @@ export function generateParlayRecommendations(
     bet.gameId
   ).sort((a, b) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0)) // Sort by highest EV
 
+  // Player prop candidates: slightly looser EV threshold — powers the dedicated
+  // pure-prop SGP and cross-game player prop parlay sections.
+  // Near-zero EV (-3% floor) is acceptable here because higher parlay odds
+  // compensate, and these bets reflect actual market demand.
+  const propCandidates = singleBets.filter(bet =>
+    (bet.betType === 'prop' || bet.propStat) &&
+    (bet.numericRisk?.evPercentage || 0) > -3 &&
+    bet.gameId
+  ).sort((a, b) => (b.numericRisk?.evPercentage || 0) - (a.numericRisk?.evPercentage || 0))
+
   // Limit to top 8 candidates to prevent combinatorial explosion
   const topCandidates = candidates.slice(0, 8)
+  const topPropCandidates = propCandidates.slice(0, 10)
 
   const recommendations: ParlayRecommendation[] = []
   const seenLegKeys = new Set<string>()
@@ -683,6 +740,33 @@ export function generateParlayRecommendations(
     }
   }
 
+  // 2b. Generate Pure Player Prop SGPs (same game, 2-3 player props, no game-level leg required)
+  // These are the dominant bet type today — e.g. Tatum O26.5 pts + Brown O22.5 pts in same Celtics game,
+  // or Mahomes O275 pass yds + Kelce O65 rec yds in the same Chiefs game.
+  const propPicksByGame = new Map<string, PickerRecommendationItem[]>()
+  for (const pick of topPropCandidates) {
+    if (!pick.gameId) continue
+    const existing = propPicksByGame.get(pick.gameId) || []
+    existing.push(pick)
+    propPicksByGame.set(pick.gameId, existing)
+  }
+
+  for (const [, propPicksForGame] of propPicksByGame) {
+    if (propPicksForGame.length < 2) continue
+
+    const [prop1, prop2, prop3] = propPicksForGame
+
+    // 2-leg pure player prop SGP
+    const purePropSgp2 = createSGPFromLegs([prop1, prop2], sport)
+    addParlay(purePropSgp2)
+
+    // 3-leg pure player prop SGP
+    if (prop3) {
+      const purePropSgp3 = createSGPFromLegs([prop1, prop2, prop3], sport)
+      addParlay(purePropSgp3)
+    }
+  }
+
   // 3. Generate 2-Leg Classic Parlays (different games)
   for (let i = 0; i < topCandidates.length; i++) {
     for (let j = i + 1; j < topCandidates.length; j++) {
@@ -697,7 +781,24 @@ export function generateParlayRecommendations(
     }
   }
 
-  // 3. Generate 3-Leg Parlays (The "Lotto" Parlays - optional, lower priority)
+  // 3b. Generate Cross-Game Player Prop Parlays
+  // Dedicated category for stacking player props across multiple games.
+  // e.g. Mahomes O275 pass yds + Kelce O65 rec yds + LeBron O28.5 pts (3 different markets/games)
+  const crossGamePropCandidates = topPropCandidates.slice(0, 8)
+
+  for (let i = 0; i < crossGamePropCandidates.length; i++) {
+    for (let j = i + 1; j < crossGamePropCandidates.length; j++) {
+      const leg1 = crossGamePropCandidates[i]
+      const leg2 = crossGamePropCandidates[j]
+
+      if (leg1.gameId === leg2.gameId) continue // Different games required
+
+      const parlay = createPlayerPropParlayFromLegs([leg1, leg2], 'core', sport)
+      addParlay(parlay)
+    }
+  }
+
+  // 4. Generate 3-Leg Classic Parlays (The "Lotto" Parlays - optional, lower priority)
   if (topCandidates.length >= 3) {
     for (let i = 0; i < topCandidates.length; i++) {
       for (let j = i + 1; j < topCandidates.length; j++) {
@@ -715,9 +816,35 @@ export function generateParlayRecommendations(
     }
   }
 
-  // 4. Sort by EV Percentage and return top N
+  // 4b. Generate 3-Leg Cross-Game Player Prop Parlays ("Prop Lotto")
+  if (crossGamePropCandidates.length >= 3) {
+    for (let i = 0; i < crossGamePropCandidates.length; i++) {
+      for (let j = i + 1; j < crossGamePropCandidates.length; j++) {
+        for (let k = j + 1; k < crossGamePropCandidates.length; k++) {
+          const leg1 = crossGamePropCandidates[i]
+          const leg2 = crossGamePropCandidates[j]
+          const leg3 = crossGamePropCandidates[k]
+
+          if (leg1.gameId === leg2.gameId || leg1.gameId === leg3.gameId || leg2.gameId === leg3.gameId) continue
+
+          const parlay = createPlayerPropParlayFromLegs([leg1, leg2, leg3], 'lotto', sport)
+          addParlay(parlay)
+        }
+      }
+    }
+  }
+
+  // 5. Sort to prioritize player-level parlays (SGPs and Player Props), then by EV Percentage
   return recommendations
-    .sort((a, b) => b.evPercentage - a.evPercentage)
+    .sort((a, b) => {
+      const isAPlayerLevel = a.parlayType === 'sgp' || a.parlayType === 'player_prop'
+      const isBPlayerLevel = b.parlayType === 'sgp' || b.parlayType === 'player_prop'
+      
+      if (isAPlayerLevel && !isBPlayerLevel) return -1
+      if (!isAPlayerLevel && isBPlayerLevel) return 1
+      
+      return b.evPercentage - a.evPercentage
+    })
     .slice(0, maxRecommendations)
 }
 
@@ -885,6 +1012,77 @@ function createSGPFromLegs(
     }
   } catch (e) {
     console.error("Error creating SGP recommendation:", e)
+    return null
+  }
+}
+
+/**
+ * Helper to construct a cross-game Player Prop Parlay from player prop legs.
+ * Uses standard (non-SGP) odds multiplication since legs span different games.
+ * parlayType is set to 'player_prop' for frontend differentiation.
+ */
+function createPlayerPropParlayFromLegs(
+  legsData: PickerRecommendationItem[],
+  category: 'core' | 'lotto',
+  sport?: string
+): ParlayRecommendation | null {
+  try {
+    const parlayLegs: ParlayLeg[] = legsData.map(l => ({
+      pickId: (l.gameId || 'unknown') + '_pp_' + (l.propStat || l.betType) + '_' + (l.playerId || ''),
+      gameId: l.gameId,
+      teams: l.teams,
+      betType: l.betType,
+      line: l.line,
+      odds: l.odds,
+      confidence: l.confidence,
+      aiWinProbability: calculateImpliedFromEV(l.odds, l.numericRisk?.evPercentage || 0),
+      selection: l.line,
+      sport,
+      playerId: l.playerId,
+      playerName: l.playerName,
+      playerTeam: l.playerTeam,
+      propCategory: l.propCategory,
+      propStat: l.propStat,
+      propLine: l.propLine,
+      propDirection: l.propDirection,
+    }))
+
+    const totalOddsDecimal = parlayLegs.reduce((acc, leg) => acc * americanToDecimal(leg.odds), 1)
+    const totalOddsAmerican = decimalToAmerican(totalOddsDecimal)
+    const trueProbability = parlayLegs.reduce((acc, leg) => acc * (leg.aiWinProbability || 0.5), 1)
+    const impliedProbability = 1 / totalOddsDecimal
+    const projectedEV = (trueProbability * (totalOddsDecimal - 1)) - (1 - trueProbability)
+    const evPercentage = projectedEV * 100
+
+    if (evPercentage <= 0) return null
+
+    const riskScore = 1 - trueProbability
+
+    // Build a descriptive summary from the player names and prop lines
+    const propSummary = parlayLegs
+      .filter(l => l.playerName)
+      .map(l => `${l.playerName} ${l.propDirection ?? ''} ${l.propLine ?? ''}`.trim())
+      .join(' + ')
+
+    return {
+      legs: parlayLegs,
+      totalOddsAmerican,
+      totalOddsDecimal,
+      impliedProbability,
+      trueProbability,
+      projectedEV,
+      evPercentage,
+      riskScore,
+      suggestedStake: 10,
+      parlayType: 'player_prop',
+      category,
+      correlationWarnings: [],
+      summary: propSummary
+        ? `Player Prop Parlay: ${propSummary} (${evPercentage > 0 ? '+' : ''}${Math.round(evPercentage)}% EV)`
+        : `${legsData.length}-Leg Player Prop Parlay (+${Math.round(evPercentage)}% EV)`,
+    }
+  } catch (e) {
+    console.error('Error creating player prop parlay:', e)
     return null
   }
 }

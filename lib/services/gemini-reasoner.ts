@@ -251,25 +251,14 @@ When analyzing cricket matches (IPL, MLC, BBL, CPL, The Hundred, PSL, SA20, ICC 
 - **Death Bowling**: Quality death bowlers (overs 16-20 in T20) significantly impact total runs. Teams with weak death bowling concede 15-25 extra runs.
 - **Spin vs Pace**: Subcontinent pitches favor spin; Australian/English pitches favor pace. Evaluate team composition.
 - **Format Matters**: T20 is high-variance (more upsets), ODI is moderate, Test is low-variance (favorites win more often).
-- **Total Runs Lines**: T20 avg 300-330 combined, ODI avg 450-500 combined. Adjust based on pitch/venue.
-- **Home Advantage**: Significant in cricket, especially in subcontinent (India/Pakistan/Sri Lanka) where conditions are unfamiliar to visiting teams.
-- **Player Form**: Recent batting strike rate and bowling economy in the specific format matter more than career averages.
 
-**PLAYER PROP ANALYSIS**:
-When analyzing player props (if player prop data is provided):
-- Consider player's recent performance trends (last 5-10 games if available)
-- Factor in matchup quality (opponent's defensive rankings vs position)
-- Account for game script expectations (spread/total implications)
-- Evaluate correlation with team performance
-- Check for injury/rest factors affecting player usage
-- Higher variance than game bets - adjust confidence accordingly
-
-**PROP-SPECIFIC VALUE SIGNALS**:
-- Over props: Look for high-usage players in favorable game scripts (big favorites often rest stars late)
-- Under props: Consider players on short rest, tough defensive matchups, or foul trouble risk
-- Combined stats (PTS+REB+AST): Evaluate floor vs ceiling - combined props hit more consistently
-- Touchdown props: Consider red zone usage, target share near goal line
-- Receptions/Targets: Factor in pace of play and expected game script
+**PLAYER PROP ANALYSIS (NBA, NCAAB, NFL, etc.)**:
+- **NCAAB/NCAAF PROPS**: These are HIGHLY VOLATILE. If data is sparse, DO NOT guess high EVs. A realistic EV for a college prop is 0% to +3%. If you find a +10% edge, double-check your logic.
+- **Granular Confidence**: Use precise confidence levels (e.g. 52, 57, 63) rather than multiples of 5 or 10. Small differences in confidence create significant differences in EV.
+- **Confidence Anchoring**: Anchor your confidence to the line difficulty. High-line props (e.g. NBA 30.5 pts, NFL 280+ yards) are harder to predict and should generally have lower confidence/edge than base-line props.
+- **Selectivity**: You do NOT need to find a +EV pick for every single prop line. Only recommend the ones with genuine evidence-based edges. It is OK to say "Market Efficient" or "No Clear Edge".
+- **Usage Rate**: Factor in injury/rest factors affecting player usage.
+- **Matchup Quality**: Factor in defender specific defensive rankings against the player's position.
 
 **PLAYER PROP OUTPUT FIELDS**:
 When recommending a player prop, include these additional fields:

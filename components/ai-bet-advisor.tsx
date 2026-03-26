@@ -31,7 +31,9 @@ import {
 import { Home as HomeIcon, RefreshCcw, CheckCircle2 } from "lucide-react"
 import { normalizeSportKey, getPopularSports } from "@/lib/sports-config"
 import { getPropMarketsForSport, PROP_MARKET_DISPLAY_NAMES, type PlayerPropMarket } from "@/lib/types/player-props"
-import type { PropCategory } from "@/lib/types/ai-models"
+import type { PropCategory, ParlayLeg } from "@/lib/types/ai-models"
+import { TiltLabParlayBuilder } from "@/features/tiltLab/TiltLabParlayBuilder"
+import { calculateCombinedOdds, decimalToAmerican } from "@/lib/parlay-utils"
 
 
 
@@ -170,6 +172,12 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
     sportsbook: "DraftKings",
   })
 
+  const [parlayLegs, setParlayLegs] = useState<ParlayLeg[]>([])
+  // betType "SGP" is stored in this local state; formData.betType is always "Parlay" for the API
+  const [isSGP, setIsSGP] = useState(false)
+  // SmartSlip import banner: holds the source label when data was just loaded
+  const [smartSlipImportSource, setSmartSlipImportSource] = useState<string | null>(null)
+
   // Track whether parlay data was loaded so single-bet handler doesn't overwrite
   const parlayLoadedRef = useRef(false)
 
@@ -219,7 +227,25 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         const firstLegSport = parlay.legs?.[0]?.sport
         const allSameSport = parlay.legs?.every((l: any) => l.sport === firstLegSport)
         const parlayGameIds = parlay.legs?.map((l: any) => l.gameId).filter(Boolean)
-        const isSGP = parlayGameIds?.length > 0 && new Set(parlayGameIds).size === 1
+        const detectedSGP = parlayGameIds?.length > 0 && new Set(parlayGameIds).size === 1
+
+        // Build structured legs for the legs builder
+        const importedLegs: ParlayLeg[] = (parlay.legs ?? []).map((leg: any, i: number) => ({
+          pickId: leg.pickId || `leg-${i}`,
+          gameId: leg.gameId,
+          teams: leg.teams || '',
+          betType: leg.betType || 'moneyline',
+          line: leg.line ?? '',
+          odds: leg.odds ?? -110,
+          aiWinProbability: leg.aiWinProbability,
+          sport: leg.sport,
+          playerName: leg.playerName,
+          playerTeam: leg.playerTeam,
+          propStat: leg.propStat,
+          propLine: leg.propLine,
+          propDirection: leg.propDirection,
+          selection: leg.selection,
+        }))
 
         setFormData(prev => ({
           ...prev,
@@ -236,19 +262,13 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
           favoriteTeam: firstLeg?.line || firstLeg?.selection || '',
           underdogTeam: '',
           selection: "other",
-          // Pass structured parlay data for SGP/correlation analysis
-          parlayLegs: parlay.legs?.map((leg: any, i: number) => ({
-            pickId: leg.pickId || `leg-${i}`,
-            gameId: leg.gameId,
-            teams: leg.teams,
-            betType: leg.betType,
-            line: leg.line,
-            odds: leg.odds,
-            aiWinProbability: leg.aiWinProbability,
-            sport: leg.sport,
-          })),
-          parlayType: isSGP ? 'same_game' : 'regular',
+          parlayType: detectedSGP ? 'same_game' : 'regular',
         }))
+
+        // Populate the legs builder and SGP flag
+        setParlayLegs(importedLegs)
+        setIsSGP(detectedSGP)
+        setSmartSlipImportSource(`SmartSlip ${detectedSGP ? 'SGP' : 'Parlay'} (${parlay.legs?.length ?? 0} legs)`)
 
         setBetSlipText(slipText)
         setBetInputTab("paste")
@@ -258,9 +278,6 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
 
         // Clear stale single-bet data that would overwrite us
         window.localStorage.removeItem("pendingBetAnalysis")
-
-        // Delay parlay cleanup so data survives a remount from router.push()
-        setTimeout(() => window.localStorage.removeItem("pendingParlayAnalysis"), 1000)
         return true
       }
     } catch (err) {
@@ -412,8 +429,8 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         setAwayOdds(awayOdds)
       }
 
-      // Delay cleanup so data survives a soft navigation remount (same pattern as parlay)
-      setTimeout(() => window.localStorage.removeItem("pendingBetAnalysis"), 1000)
+      // Show SmartSlip import banner
+      setSmartSlipImportSource(`SmartSlip pick (${payload.homeTeam || ''} ${payload.awayTeam ? '@ ' + payload.awayTeam : ''})`.trim())
     } catch (err) {
       console.warn("AI Bet Advisor: Failed to prefill from pendingBetAnalysis", err)
     }
@@ -715,7 +732,28 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         console.warn("AI Bet Advisor: Failed to get Supabase session for JWT auth", err)
       }
 
-      console.log('AI Bet Advisor: Sending form data:', formData)
+      // Build the API payload — enrich parlays/SGPs with structured leg data
+      let apiPayload: any = { ...formData }
+      if (formData.betType === "Parlay" && parlayLegs.length > 0) {
+        const combinedDecimal = calculateCombinedOdds(parlayLegs)
+        const combinedAmerican = decimalToAmerican(combinedDecimal)
+        const slipText = parlayLegs.map((leg, i) => {
+          const oddsStr = leg.odds > 0 ? `+${leg.odds}` : `${leg.odds}`
+          if (leg.betType === 'player_prop' && leg.playerName) {
+            return `Leg ${i + 1}: ${leg.playerName} ${leg.propStat || ''} ${leg.propDirection || ''} ${leg.propLine ?? ''} (${oddsStr})`
+          }
+          return `Leg ${i + 1}: ${leg.teams} — ${leg.betType} ${leg.line || ''} (${oddsStr})`
+        }).join('\n')
+        apiPayload = {
+          ...apiPayload,
+          parlayLegs,
+          parlayType: isSGP ? 'same_game' : 'regular',
+          odds: combinedAmerican,
+          bettingSlip: slipText || formData.bettingSlip,
+        }
+      }
+
+      console.log('AI Bet Advisor: Sending form data:', apiPayload)
       console.log('AI Bet Advisor: Access token exists:', !!accessToken)
 
       const controller = new AbortController()
@@ -726,7 +764,7 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiPayload),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -994,6 +1032,32 @@ function AIBetAdvisorComponent({ onNavigateToTab }: AIBetAdvisorProps) {
         <CardContent>
           <ProgressIndicator />
 
+          {/* SmartSlip import banner */}
+          {smartSlipImportSource && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>
+                  <strong>Imported from SmartSlip:</strong>{" "}
+                  <span className="text-muted-foreground">{smartSlipImportSource}</span>
+                </span>
+              </span>
+              <button
+                type="button"
+                className="ml-4 text-muted-foreground hover:text-foreground text-xs underline"
+                onClick={() => {
+                  setSmartSlipImportSource(null)
+                  if (typeof window !== "undefined") {
+                    window.localStorage.removeItem("pendingBetAnalysis")
+                    window.localStorage.removeItem("pendingParlayAnalysis")
+                  }
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* STEP 1: BET DETAILS */}
             {step === "details" && (
@@ -1069,7 +1133,7 @@ We'll automatically extract the details and populate the form.`}
                           </Select>
                         </div>
 
-                        {formData.betType !== "Player Prop" && (
+                        {formData.betType !== "Player Prop" && formData.betType !== "Parlay" && (
                           <>
                             <div>
                               <Label htmlFor="homeTeam">Home Team</Label>
@@ -1102,9 +1166,18 @@ We'll automatically extract the details and populate the form.`}
                               { value: "Over/Under", label: "Total" },
                               { value: "Player Prop", label: "Prop" },
                               { value: "Parlay", label: "Parlay" },
+                              { value: "SGP", label: "SGP" },
                             ]}
-                            value={formData.betType}
-                            onChange={(value) => updateFormData("betType", value)}
+                            value={isSGP && formData.betType === "Parlay" ? "SGP" : formData.betType}
+                            onChange={(value) => {
+                              if (value === "SGP") {
+                                updateFormData("betType", "Parlay")
+                                setIsSGP(true)
+                              } else {
+                                updateFormData("betType", value)
+                                setIsSGP(false)
+                              }
+                            }}
                           />
                           <div className="mt-2">
                             <SegmentedControl
@@ -1117,7 +1190,10 @@ We'll automatically extract the details and populate the form.`}
                                 { value: "System", label: "System" },
                               ]}
                               value={formData.betType}
-                              onChange={(value) => updateFormData("betType", value)}
+                              onChange={(value) => {
+                                updateFormData("betType", value)
+                                setIsSGP(false)
+                              }}
                             />
                           </div>
                         </div>
@@ -1389,6 +1465,18 @@ We'll automatically extract the details and populate the form.`}
                           </div>
                         )}
 
+                        {/* Parlay / SGP legs builder */}
+                        {formData.betType === "Parlay" && (
+                          <div className="md:col-span-2">
+                            <TiltLabParlayBuilder
+                              legs={parlayLegs}
+                              onChange={setParlayLegs}
+                              sport={formData.sport}
+                              isSGP={isSGP}
+                            />
+                          </div>
+                        )}
+
                         {formData.betType === "Player Prop" && (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1468,7 +1556,7 @@ We'll automatically extract the details and populate the form.`}
                           </>
                         )}
 
-                        {formData.betType !== "Player Prop" && (
+                        {formData.betType !== "Player Prop" && formData.betType !== "Parlay" && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <Label htmlFor="homeOdds">Home Team Odds (American)</Label>

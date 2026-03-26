@@ -1,17 +1,16 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Sparkles, TrendingUp, AlertTriangle, ArrowRight, Wallet, Target, Heart } from "lucide-react"
+import { Sparkles, TrendingUp, AlertTriangle, ArrowRight, Target, Heart } from "lucide-react"
 import type { ParlayRecommendation } from "@/lib/types/ai-models"
 
 interface ParlayCardProps {
     parlay: ParlayRecommendation
     onAnalyze: (parlay: ParlayRecommendation) => void
-    onLogBet: (parlay: ParlayRecommendation) => void
-    onEmotionCheckIn?: (parlay: ParlayRecommendation) => void
+    onEmotionCheckIn: (parlay: ParlayRecommendation) => void
 }
 
-export function ParlayCard({ parlay, onAnalyze, onLogBet, onEmotionCheckIn }: ParlayCardProps) {
+export function ParlayCard({ parlay, onAnalyze, onEmotionCheckIn }: ParlayCardProps) {
     const isHighValue = parlay.evPercentage > 10
     const isSGP = parlay.parlayType === 'sgp'
     const hasCorrelations = parlay.correlationWarnings && parlay.correlationWarnings.length > 0
@@ -107,27 +106,16 @@ export function ParlayCard({ parlay, onAnalyze, onLogBet, onEmotionCheckIn }: Pa
                     onClick={() => onAnalyze(parlay)}
                 >
                     <Target className="h-4 w-4 mr-2" />
-                    Analyze
+                    Analyze this Bet
                 </Button>
-                {onEmotionCheckIn && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => onEmotionCheckIn(parlay)}
-                    >
-                        <Heart className="h-4 w-4 mr-2" />
-                        Emotion
-                    </Button>
-                )}
                 <Button
                     variant="default"
                     size="sm"
-                    className="flex-1 bg-purple-600 hover:bg-purple-700"
-                    onClick={() => onLogBet(parlay)}
+                    className="flex-1"
+                    onClick={() => onEmotionCheckIn(parlay)}
                 >
-                    <Wallet className="h-4 w-4 mr-2" />
-                    Build Slip
+                    <Heart className="h-4 w-4 mr-2" />
+                    Emotional Check In
                 </Button>
             </div>
         </Card>

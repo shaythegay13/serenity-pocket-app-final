@@ -45,6 +45,7 @@ export class PropBetAnalytics {
    */
   static getStandardLines(sport: string, position?: string): PropBetLine[] {
     const lines: Record<string, Record<string, PropBetLine[]>> = {
+      // ── Major US Sports (Big 4) ──
       'americanfootball_nfl': {
         'QB': [
           { stat: 'passingYards', line: 250.5 },
@@ -71,7 +72,10 @@ export class PropBetAnalytics {
         'default': [
           { stat: 'pointsPerGame', line: 20.5 },
           { stat: 'reboundsPerGame', line: 8.5 },
-          { stat: 'assistsPerGame', line: 6.5 }
+          { stat: 'assistsPerGame', line: 6.5 },
+          { stat: 'threePointers', line: 2.5 },
+          { stat: 'steals', line: 1.5 },
+          { stat: 'blocks', line: 1.5 }
         ]
       },
       'baseball_mlb': {
@@ -83,7 +87,9 @@ export class PropBetAnalytics {
         'default': [
           { stat: 'hits', line: 1.5 },
           { stat: 'homeRuns', line: 0.5 },
-          { stat: 'rbis', line: 2.5 }
+          { stat: 'rbis', line: 2.5 },
+          { stat: 'totalBases', line: 1.5 },
+          { stat: 'stolenBases', line: 0.5 }
         ]
       },
       'icehockey_nhl': {
@@ -95,12 +101,317 @@ export class PropBetAnalytics {
         'default': [
           { stat: 'goals', line: 0.5 },
           { stat: 'assists', line: 0.5 },
-          { stat: 'shots', line: 3.5 }
+          { stat: 'shots', line: 3.5 },
+          { stat: 'hitsHockey', line: 2.5 },
+          { stat: 'blockedShots', line: 1.5 }
         ]
-      }
+      },
+
+      // ── College Sports ──
+      // NCAAB: functionally same as NBA-style props
+      'basketball_ncaab': {
+        'default': [
+          { stat: 'pointsPerGame', line: 16.5 },
+          { stat: 'reboundsPerGame', line: 6.5 },
+          { stat: 'assistsPerGame', line: 4.5 },
+          { stat: 'threePointers', line: 2.5 },
+          { stat: 'steals', line: 1.5 }
+        ]
+      },
+      // NCAAF: same structure as NFL props
+      'americanfootball_ncaaf': {
+        'QB': [
+          { stat: 'passingYards', line: 225.5 },
+          { stat: 'passingTDs', line: 1.5 },
+          { stat: 'rushingYards', line: 30.5 }
+        ],
+        'RB': [
+          { stat: 'rushingYards', line: 75.5 },
+          { stat: 'receptions', line: 2.5 },
+          { stat: 'receivingYards', line: 25.5 }
+        ],
+        'WR': [
+          { stat: 'receptions', line: 4.5 },
+          { stat: 'receivingYards', line: 65.5 }
+        ],
+        'default': [
+          { stat: 'tackles', line: 5.5 },
+          { stat: 'sacks', line: 0.5 }
+        ]
+      },
+
+      // ── Additional US Sports ──
+      // WNBA: similar structure to NBA, lower volume lines
+      'basketball_wnba': {
+        'default': [
+          { stat: 'pointsPerGame', line: 15.5 },
+          { stat: 'reboundsPerGame', line: 6.5 },
+          { stat: 'assistsPerGame', line: 4.5 },
+          { stat: 'threePointers', line: 1.5 },
+          { stat: 'steals', line: 1.5 }
+        ]
+      },
+      // CFL: NFL-style props with slightly different norms
+      'americanfootball_cfl': {
+        'QB': [
+          { stat: 'passingYards', line: 275.5 },
+          { stat: 'passingTDs', line: 1.5 },
+          { stat: 'rushingYards', line: 20.5 }
+        ],
+        'default': [
+          { stat: 'rushingYards', line: 55.5 },
+          { stat: 'receptions', line: 4.5 },
+          { stat: 'receivingYards', line: 65.5 }
+        ]
+      },
+      // XFL/UFL: NFL-style props
+      'americanfootball_xfl': {
+        'QB': [
+          { stat: 'passingYards', line: 200.5 },
+          { stat: 'passingTDs', line: 1.5 }
+        ],
+        'default': [
+          { stat: 'rushingYards', line: 50.5 },
+          { stat: 'receivingYards', line: 55.5 },
+          { stat: 'receptions', line: 3.5 }
+        ]
+      },
+
+      // ── Soccer (all leagues share same prop structure) ──
+      'soccer_epl': {
+        'FW': [
+          { stat: 'goalsScored', line: 0.5 },
+          { stat: 'shotsOnTarget', line: 1.5 },
+          { stat: 'totalShots', line: 2.5 }
+        ],
+        'MF': [
+          { stat: 'assistsSoccer', line: 0.5 },
+          { stat: 'shotsOnTarget', line: 0.5 },
+          { stat: 'totalShots', line: 1.5 }
+        ],
+        'default': [
+          { stat: 'goalsScored', line: 0.5 },
+          { stat: 'assistsSoccer', line: 0.5 },
+          { stat: 'shotsOnTarget', line: 1.5 },
+          { stat: 'cards', line: 0.5 }
+        ]
+      },
+
+      // ── Combat Sports ──
+      // UFC/MMA: method of victory and fight-level props
+      'mma_ufc': {
+        'default': [
+          { stat: 'significantStrikes', line: 45.5 },
+          { stat: 'takedowns', line: 1.5 },
+          { stat: 'totalRounds', line: 2.5 }
+        ]
+      },
+      // Boxing: round-based and KO props
+      'boxing': {
+        'default': [
+          { stat: 'totalRounds', line: 8.5 },
+          { stat: 'knockdowns', line: 0.5 },
+          { stat: 'significantStrikes', line: 100.5 }
+        ]
+      },
+
+      // ── Tennis ──
+      'tennis_atp': {
+        'default': [
+          { stat: 'gamesWon', line: 10.5 },
+          { stat: 'aces', line: 5.5 },
+          { stat: 'doubleFaults', line: 2.5 },
+          { stat: 'setsWon', line: 1.5 }
+        ]
+      },
+      'tennis_wta': {
+        'default': [
+          { stat: 'gamesWon', line: 10.5 },
+          { stat: 'aces', line: 2.5 },
+          { stat: 'doubleFaults', line: 3.5 },
+          { stat: 'setsWon', line: 1.5 }
+        ]
+      },
+
+      // ── Golf ──
+      'golf_pga': {
+        'default': [
+          { stat: 'roundScore', line: 70.5 },
+          { stat: 'bogeyFreeRound', line: 0.5 },
+          { stat: 'topFinish', line: 10.5 }
+        ]
+      },
+
+      // ── Motorsports ──
+      'motorsports_f1': {
+        'default': [
+          { stat: 'topFinish', line: 5.5 },
+          { stat: 'podiumFinish', line: 0.5 },
+          { stat: 'fastestLap', line: 0.5 },
+          { stat: 'lapsLed', line: 5.5 }
+        ]
+      },
+      'motorsports_nascar': {
+        'default': [
+          { stat: 'topFinish', line: 10.5 },
+          { stat: 'lapsLed', line: 10.5 },
+          { stat: 'stageWins', line: 0.5 },
+          { stat: 'podiumFinish', line: 0.5 }
+        ]
+      },
+      'cycling': {
+        'default': [
+          { stat: 'stageWin', line: 0.5 },
+          { stat: 'topFinish', line: 3.5 },
+          { stat: 'podiumFinish', line: 0.5 }
+        ]
+      },
+      'table_tennis': {
+        'default': [
+          { stat: 'totalPoints', line: 75.5 },
+          { stat: 'setsWon', line: 2.5 }
+        ]
+      },
+
+      // ── Cricket (all leagues share same structure) ──
+      'cricket_ipl': {
+        'BAT': [
+          { stat: 'battingRuns', line: 25.5 },
+          { stat: 'sixes', line: 1.5 },
+          { stat: 'fours', line: 3.5 },
+          { stat: 'toScoreFifty', line: 0.5 }
+        ],
+        'BOWL': [
+          { stat: 'wickets', line: 1.5 },
+          { stat: 'bowlerWicket', line: 0.5 }
+        ],
+        'default': [
+          { stat: 'battingRuns', line: 20.5 },
+          { stat: 'wickets', line: 0.5 },
+          { stat: 'sixes', line: 1.5 }
+        ]
+      },
+
+      // ── Rugby ──
+      'rugby_union': {
+        'default': [
+          { stat: 'tries', line: 0.5 },
+          { stat: 'pointsRugby', line: 5.5 },
+          { stat: 'tacklesRugby', line: 8.5 }
+        ]
+      },
+      'rugby_league': {
+        'default': [
+          { stat: 'tries', line: 0.5 },
+          { stat: 'pointsRugby', line: 5.5 },
+          { stat: 'tacklesRugby', line: 10.5 }
+        ]
+      },
+
+      // ── AFL (Australian Rules Football) ──
+      'aussie_rules': {
+        'default': [
+          { stat: 'disposals', line: 18.5 },
+          { stat: 'goalsAFL', line: 1.5 },
+          { stat: 'marks', line: 4.5 },
+          { stat: 'handballs', line: 8.5 }
+        ]
+      },
+
+      // ── Volleyball ──
+      'volleyball': {
+        'default': [
+          { stat: 'killsVolleyball', line: 10.5 },
+          { stat: 'acesVolleyball', line: 1.5 },
+          { stat: 'digs', line: 8.5 }
+        ]
+      },
+
+      // ── Handball ──
+      'handball': {
+        'default': [
+          { stat: 'goalsHandball', line: 4.5 },
+          { stat: 'assistsHandball', line: 2.5 }
+        ]
+      },
+
+      // ── Darts ──
+      'darts_pdc': {
+        'default': [
+          { stat: 'oneEighties', line: 3.5 },
+          { stat: 'checkoutPct', line: 35.5 }
+        ]
+      },
+
+      // ── Esports ──
+      // MOBA: LoL, Dota 2 — kills/assists/deaths + objectives
+      'esports_lol': {
+        'default': [
+          { stat: 'killsEsports', line: 3.5 },
+          { stat: 'assistsEsports', line: 8.5 },
+          { stat: 'deathsEsports', line: 2.5 },
+          { stat: 'objectivesEsports', line: 1.5 }
+        ]
+      },
+      'esports_dota2': {
+        'default': [
+          { stat: 'killsEsports', line: 5.5 },
+          { stat: 'assistsEsports', line: 12.5 },
+          { stat: 'deathsEsports', line: 4.5 },
+          { stat: 'objectivesEsports', line: 2.5 }
+        ]
+      },
+      // FPS: CS:GO/CS2, Valorant — kills/assists/deaths + rounds won
+      'esports_csgo': {
+        'default': [
+          { stat: 'killsEsports', line: 18.5 },
+          { stat: 'assistsEsports', line: 4.5 },
+          { stat: 'deathsEsports', line: 16.5 },
+          { stat: 'roundsWonEsports', line: 12.5 }
+        ]
+      },
+      'esports_valorant': {
+        'default': [
+          { stat: 'killsEsports', line: 16.5 },
+          { stat: 'assistsEsports', line: 5.5 },
+          { stat: 'deathsEsports', line: 14.5 },
+          { stat: 'roundsWonEsports', line: 12.5 }
+        ]
+      },
     };
 
-    const sportLines = lines[sport] || lines['americanfootball_nfl'];
+    // Soccer leagues all share the same prop structure
+    const soccerAliases = [
+      'soccer_mls', 'soccer_champions_league', 'soccer_la_liga',
+      'soccer_serie_a', 'soccer_bundesliga', 'soccer_ligue_1'
+    ];
+    for (const alias of soccerAliases) {
+      lines[alias] = lines['soccer_epl'];
+    }
+
+    // Cricket leagues all share the same prop structure
+    const cricketAliases = [
+      'cricket_mlc', 'cricket_big_bash', 'cricket_cpl', 'cricket_the_hundred',
+      'cricket_psl', 'cricket_icc_odi', 'cricket_icc_t20', 'cricket_test',
+      'cricket_icc_world_cup'
+    ];
+    for (const alias of cricketAliases) {
+      lines[alias] = lines['cricket_ipl'];
+    }
+
+    // Tennis ITF uses WTA-like lines
+    lines['tennis_itf'] = lines['tennis_wta'];
+
+    // Golf aliases
+    const golfAliases = ['golf_lpga', 'golf_dp_world'];
+    for (const alias of golfAliases) {
+      lines[alias] = lines['golf_pga'];
+    }
+
+    // Motorsports aliases
+    lines['motorsports_indycar'] = lines['motorsports_f1'];
+
+    const sportLines = lines[sport] || lines['basketball_nba'];
     return sportLines[position || 'default'] || sportLines['default'] || [];
   }
 
@@ -230,25 +541,105 @@ export class PropBetAnalytics {
    */
   private static generateStatLabel(stat: string): string {
     const labels: Record<string, string> = {
+      // Football (NFL/NCAAF/CFL/XFL)
       'passingYards': 'Pass Yards Over',
       'passingTDs': 'Pass TDs Over',
       'rushingYards': 'Rush Yards Over',
+      'rushYards': 'Rush Yards Over',
       'receptions': 'Receptions Over',
       'receivingYards': 'Rec Yards Over',
       'tackles': 'Tackles Over',
       'sacks': 'Sacks Over',
       'interceptions': 'Interceptions Over',
+      // Basketball (NBA/NCAAB/WNBA)
       'pointsPerGame': 'Points Over',
       'reboundsPerGame': 'Rebounds Over',
       'assistsPerGame': 'Assists Over',
+      'threePointers': '3-Pointers Over',
+      'steals': 'Steals Over',
+      'blocks': 'Blocks Over',
+      // Baseball (MLB)
       'hits': 'Hits Over',
       'homeRuns': 'Home Runs Over',
       'rbis': 'RBIs Over',
       'strikeouts': 'Strikeouts Over',
+      'totalBases': 'Total Bases Over',
+      'stolenBases': 'Stolen Bases Over',
+      'wins': 'Wins Over',
+      'era': 'ERA Under',
+      // Hockey (NHL)
       'goals': 'Goals Over',
       'assists': 'Assists Over',
       'shots': 'Shots Over',
-      'saves': 'Saves Over'
+      'saves': 'Saves Over',
+      'goalsAgainst': 'Goals Against Under',
+      'savePct': 'Save % Over',
+      'hitsHockey': 'Hits Over',
+      'blockedShots': 'Blocked Shots Over',
+      // Soccer
+      'goalsScored': 'Goals Over',
+      'assistsSoccer': 'Assists Over',
+      'shotsOnTarget': 'Shots on Target Over',
+      'totalShots': 'Total Shots Over',
+      'cards': 'Cards Over',
+      // Combat Sports (UFC/Boxing)
+      'significantStrikes': 'Sig. Strikes Over',
+      'takedowns': 'Takedowns Over',
+      'totalRounds': 'Total Rounds Over',
+      'knockdowns': 'Knockdowns Over',
+      // Tennis
+      'gamesWon': 'Games Won Over',
+      'aces': 'Aces Over',
+      'doubleFaults': 'Double Faults Over',
+      'setsWon': 'Sets Won Over',
+      // Golf
+      'roundScore': 'Round Score Under',
+      'bogeyFreeRound': 'Bogey Free Round',
+      'stageWin': 'Stage Win',
+      // Motorsports
+      'podiumFinish': 'Podium Finish',
+      'fastestLap': 'Fastest Lap',
+      'lapsLed': 'Laps Led Over',
+      'stageWins': 'Stage Wins Over',
+      // Cricket
+      'battingRuns': 'Batting Runs Over',
+      'wickets': 'Wickets Over',
+      'sixes': 'Sixes Over',
+      'fours': 'Fours Over',
+      'toScoreFifty': 'To Score 50+',
+      'bowlerWicket': 'Bowler to Take Wicket',
+      // Rugby
+      'tries': 'Tries Over',
+      'pointsRugby': 'Points Over',
+      'tacklesRugby': 'Tackles Over',
+      // AFL
+      'disposals': 'Disposals Over',
+      'goalsAFL': 'Goals Over',
+      'marks': 'Marks Over',
+      'handballs': 'Handballs Over',
+      // Volleyball
+      'killsVolleyball': 'Kills Over',
+      'acesVolleyball': 'Aces Over',
+      'digs': 'Digs Over',
+      // Handball
+      'goalsHandball': 'Goals Over',
+      'assistsHandball': 'Assists Over',
+      // Darts
+      'oneEighties': '180s Over',
+      'checkoutPct': 'Checkout % Over',
+      // Esports
+      'killsEsports': 'Kills Over',
+      'player_kills_esports': 'Kills Over',
+      'assistsEsports': 'Assists Over',
+      'player_assists_esports': 'Assists Over',
+      'deathsEsports': 'Deaths Under',
+      'player_deaths_esports': 'Deaths Under',
+      'objectivesEsports': 'Objectives Over',
+      'player_objectives_esports': 'Objectives Over',
+      'roundsWonEsports': 'Rounds Won Over',
+      'player_rounds_won_esports': 'Rounds Won Over',
+      'firstBloodEsports': 'First Blood',
+      'player_first_blood_esports': 'First Blood',
     };
 
     return labels[stat] || `${stat} Over`;

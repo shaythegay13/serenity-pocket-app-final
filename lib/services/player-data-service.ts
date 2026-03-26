@@ -19,6 +19,8 @@ import {
   getAltPropMarketsForSport,
   PlayerPropMarket,
 } from '../types/player-props'
+import { impliedProbFromAmerican } from '../ev-calculator'
+import { incrementRapidAPIUsage } from '../api-monitoring'
 
 // ==================== Cache Configuration ====================
 
@@ -61,6 +63,55 @@ function buildSportKey(sport: string): string {
   }
 
   return sport
+}
+
+/**
+ * Helper to fetch from The Odds API with seamless RapidAPI fallback
+ */
+async function fetchOddsApiWithFallback(url: string, apiKey: string): Promise<Response> {
+  const fetchOptions: any = {
+    headers: { 'Accept': 'application/json' },
+    next: { revalidate: 300 }
+  };
+
+  let response = await fetch(url, fetchOptions)
+
+  // Fall back to RapidAPI if The Odds API request fails due to quotas/errors (but not 404 Not Found)
+  if (!response.ok && response.status !== 404) {
+    console.warn(`[PlayerDataService] TheOddsAPI request failed (${response.status}), falling back to RapidAPI...`)
+    const rapidApiKey = process.env.NEXT_PUBLIC_RAPIDAPI_SPORTSBOOK_KEY
+    if (rapidApiKey) {
+      try {
+        const urlObj = new URL(url)
+        urlObj.host = 'odds.p.rapidapi.com'
+        urlObj.searchParams.delete('apiKey')
+        
+        const rapidFetchOptions: any = {
+          headers: {
+            'Accept': 'application/json',
+            'X-RapidAPI-Key': rapidApiKey,
+            'X-RapidAPI-Host': 'odds.p.rapidapi.com'
+          },
+          next: { revalidate: 300 }
+        };
+
+        const rapidResponse = await fetch(urlObj.toString(), rapidFetchOptions)
+        
+        if (rapidResponse.status === 403) {
+          console.error('[PlayerDataService] RapidAPI 403 Forbidden: Key is not subscribed to the Odds API on RapidAPI.')
+        } else if (rapidResponse.ok) {
+          await incrementRapidAPIUsage().catch(() => {})
+          return rapidResponse
+        } else {
+          console.error(`[PlayerDataService] RapidAPI Fallback failed with status ${rapidResponse.status}`)
+        }
+      } catch (err) {
+        console.error('[PlayerDataService] RapidAPI Fallback failed:', err)
+      }
+    }
+  }
+
+  return response
 }
 
 // ==================== Player Props Fetching ====================
@@ -108,16 +159,10 @@ export async function getPlayerPropsForGame(
   // TheOddsAPI player props endpoint
   const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${gameId}/odds?apiKey=${apiKey}&regions=us&markets=${marketsQuery}&oddsFormat=american`
 
-  console.log(`[PlayerDataService] Fetching player props for game ${gameId}`)
+  console.log(`[PlayerDataService] Fetching player props for game ${gameId} with markets: ${marketsToFetch.join(', ')}`)
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
-      // Cache-Control for Next.js
-      next: { revalidate: 300 } // Revalidate every 5 minutes
-    })
+    const response = await fetchOddsApiWithFallback(url, apiKey)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -128,7 +173,7 @@ export async function getPlayerPropsForGame(
         return []
       }
 
-      throw new Error(`TheOddsAPI error: ${response.status}`)
+      throw new Error(`TheOddsAPI/RapidAPI error: ${response.status}`)
     }
 
     const data: OddsAPIPlayerPropsResponse = await response.json()
@@ -143,7 +188,7 @@ export async function getPlayerPropsForGame(
       try {
         const altMarketsQuery = altMarkets.join(',')
         const altUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${gameId}/odds?apiKey=${apiKey}&regions=us&markets=${altMarketsQuery}&oddsFormat=american`
-        const altResponse = await fetch(altUrl, { headers: { 'Accept': 'application/json' }, next: { revalidate: 300 } })
+        const altResponse = await fetchOddsApiWithFallback(altUrl, apiKey)
         if (altResponse.ok) {
           const altData: OddsAPIPlayerPropsResponse = await altResponse.json()
           altPropLines = transformPropsResponse(altData, gameId)
@@ -236,9 +281,8 @@ function transformPropsResponse(
     playerName: string
     stat: string
     line: number
-    overOdds: number[]
-    underOdds: number[]
-    bookmakers: string[]
+    overOdds: Array<{ price: number, bookmaker: string }>
+    underOdds: Array<{ price: number, bookmaker: string }>
   }>()
 
   for (const bookmaker of response.bookmakers) {
@@ -262,21 +306,21 @@ function transformPropsResponse(
             stat,
             line,
             overOdds: [],
-            underOdds: [],
-            bookmakers: []
+            underOdds: []
           })
         }
 
         const entry = playerStatMap.get(key)!
-
-        if (outcome.name === 'Over') {
-          entry.overOdds.push(outcome.price)
-        } else if (outcome.name === 'Under') {
-          entry.underOdds.push(outcome.price)
+        const price = normalizeToAmerican(outcome.price)
+        const outcomeEntry = {
+          price,
+          bookmaker: bookmaker.key
         }
 
-        if (!entry.bookmakers.includes(bookmaker.key)) {
-          entry.bookmakers.push(bookmaker.key)
+        if (outcome.name === 'Over') {
+          entry.overOdds.push(outcomeEntry)
+        } else if (outcome.name === 'Under') {
+          entry.underOdds.push(outcomeEntry)
         }
       }
     }
@@ -284,11 +328,66 @@ function transformPropsResponse(
 
   // Convert map entries to PlayerPropLine objects
   for (const [_, entry] of playerStatMap) {
-    // Only include if we have both over and under odds
+    // Determine the best consistent representation
+    // Instead of merging best odds from different books (which creates fake EV),
+    // we find the bookmaker that offers the best "net" value or just the first available one
+    // that has both sides if possible.
+    
+    let bestOver = -110
+    let bestUnder = -110
+    let selectedBookmaker = 'unknown'
+
     if (entry.overOdds.length > 0 && entry.underOdds.length > 0) {
-      // Use best odds for the bettor (highest for over, highest for under)
-      const bestOverOdds = Math.max(...entry.overOdds)
-      const bestUnderOdds = Math.max(...entry.underOdds)
+      // Find pairs from the same bookmaker first
+      const bookmakerPairs: Record<string, { over?: number, under?: number }> = {}
+      entry.overOdds.forEach(o => {
+        if (!bookmakerPairs[o.bookmaker]) bookmakerPairs[o.bookmaker] = {}
+        bookmakerPairs[o.bookmaker].over = o.price
+      })
+      entry.underOdds.forEach(u => {
+        if (!bookmakerPairs[u.bookmaker]) bookmakerPairs[u.bookmaker] = {}
+        bookmakerPairs[u.bookmaker].under = u.price
+      })
+
+      // Pick the best pair (highest total odds / lowest vig)
+      let bestVig = 2.0
+      for (const [bk, pair] of Object.entries(bookmakerPairs)) {
+        if (pair.over !== undefined && pair.under !== undefined) {
+          const totalImplied = impliedProbFromAmerican(pair.over) + impliedProbFromAmerican(pair.under)
+          if (totalImplied < bestVig) {
+            bestVig = totalImplied
+            bestOver = pair.over
+            bestUnder = pair.under
+            selectedBookmaker = bk
+          }
+        }
+      }
+
+      // If no bookmaker had both sides, fallback to best of each (with extreme caution)
+      if (selectedBookmaker === 'unknown') {
+        bestOver = Math.max(...entry.overOdds.map(o => o.price))
+        bestUnder = Math.max(...entry.underOdds.map(u => u.price))
+        selectedBookmaker = entry.overOdds[0].bookmaker
+      }
+    } else if (entry.overOdds.length > 0) {
+      bestOver = Math.max(...entry.overOdds.map(o => o.price))
+      selectedBookmaker = entry.overOdds[0].bookmaker
+    } else if (entry.underOdds.length > 0) {
+      bestUnder = Math.max(...entry.underOdds.map(u => u.price))
+      selectedBookmaker = entry.underOdds[0].bookmaker
+    }
+
+    // Relaxed filter: Include if we have at least one side
+    if (entry.overOdds.length > 0 || entry.underOdds.length > 0) {
+      // Sanity check: If the combined implied probability is too low (< 90%), 
+      // the odds are likely broken or in different formats. Skip to prevent wildly high EV.
+      const totalImplied = (entry.overOdds.length > 0 ? impliedProbFromAmerican(bestOver) : 0.5) + 
+                           (entry.underOdds.length > 0 ? impliedProbFromAmerican(bestUnder) : 0.5)
+      
+      if (totalImplied < 0.90) {
+        console.warn(`[PlayerDataService] Skipping suspicious prop ${entry.playerName} ${entry.stat} due to low implied prob: ${(totalImplied * 100).toFixed(1)}%`)
+        continue
+      }
 
       propLines.push({
         playerId: entry.playerId,
@@ -298,9 +397,9 @@ function transformPropsResponse(
         statDisplayName: getPropDisplayName(entry.stat),
         category: getPropCategory(entry.stat),
         line: entry.line,
-        overOdds: bestOverOdds,
-        underOdds: bestUnderOdds,
-        bookmaker: entry.bookmakers[0], // Primary bookmaker
+        overOdds: bestOver,
+        underOdds: bestUnder,
+        bookmaker: selectedBookmaker,
         lastUpdated: new Date().toISOString(),
         // Market schema tags
         variantType: entry.stat.includes('alternate') ? 'alt_line' : 'base_line',
@@ -396,6 +495,28 @@ export function updatePlayerInfoFromProp(playerId: string, team: string, positio
 }
 
 // ==================== Historical Stats (Placeholder) ====================
+
+/**
+ * Normalize odds to American format, detecting and converting from decimal if necessary.
+ * This is defensive against API variations in certain sports (e.g. NCAAB).
+ */
+function normalizeToAmerican(odds: any): number {
+  if (typeof odds !== 'number' || isNaN(odds)) return -110;
+  
+  // High absolute values are already American (e.g. -110, +150)
+  if (Math.abs(odds) >= 100) return Math.round(odds);
+  
+  // Values between 1.01 and 20.0 are almost certainly Decimal (e.g. 1.95)
+  if (odds > 1 && odds < 20) {
+    if (odds >= 2.0) {
+      return Math.round((odds - 1) * 100);
+    } else {
+      return Math.round(-100 / (odds - 1));
+    }
+  }
+  
+  return Math.round(odds);
+}
 
 /**
  * Get player historical stats for a specific stat type

@@ -388,7 +388,7 @@ export function isPlayerPropLeg(leg: ParlayLeg): boolean {
 export type ParlayOutcome = 'pending' | 'won' | 'lost' | 'void' | 'push'
 
 // Parlay type flag
-export type ParlayType = 'classic' | 'sgp' | 'sgp_plus' | 'teaser' | 'system' | 'round_robin'
+export type ParlayType = 'classic' | 'sgp' | 'sgp_plus' | 'player_prop' | 'teaser' | 'system' | 'round_robin'
 
 /**
  * Full parlay domain model for tracking user-built or recommended parlays.

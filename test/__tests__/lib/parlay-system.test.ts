@@ -592,6 +592,107 @@ describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
       const result = validateParlayLegs(tennisLegs, 'regular')
       expect(result.isValid).toBe(true)
     })
+
+    test('validates soccer SGP with correlations', () => {
+      const soccerSgpLegs: ParlayLeg[] = [
+        {
+          pickId: 'soccer-1',
+          gameId: 'game-arsenal-chelsea',
+          teams: 'Arsenal vs Chelsea',
+          betType: 'player_goal_scorer_anytime',
+          line: 'Saka Goal',
+          odds: +150,
+          sport: 'soccer_epl',
+          playerPosition: 'FW',
+          playerId: 'saka-1',
+          propCategory: 'scoring',
+          propStat: 'player_goal_scorer_anytime',
+          playerTeam: 'Arsenal'
+        },
+        {
+          pickId: 'soccer-2',
+          gameId: 'game-arsenal-chelsea',
+          teams: 'Arsenal vs Chelsea',
+          betType: 'player_assists_soccer',
+          line: 'Odegaard Assist',
+          odds: +200,
+          sport: 'soccer_epl',
+          playerPosition: 'MF',
+          playerId: 'odegaard-1',
+          propCategory: 'playmaking',
+          propStat: 'player_assists_soccer',
+          playerTeam: 'Arsenal'
+        },
+      ]
+      const result = validateParlayLegs(soccerSgpLegs, 'same_game')
+      expect(result.isValid).toBe(true)
+      expect(result.detectedType).toBe('sgp')
+      expect(result.warnings.some(w => w.includes('Soccer Goals ↔ Assists'))).toBe(true)
+      expect(result.warnings.some(w => w.includes('FW Goals ↔ MF Assists'))).toBe(true)
+    })
+
+    test('validates esports SGP with correlations', () => {
+      const esportsSgpLegs: ParlayLeg[] = [
+        {
+          pickId: 'esports-1',
+          gameId: 'game-t1-geng',
+          teams: 'T1 vs GenG',
+          betType: 'player_kills_esports',
+          line: 'Faker O3.5 Kills',
+          odds: -110,
+          sport: 'esports_lol',
+          playerTeam: 'T1',
+          playerId: 'faker-1',
+          propCategory: 'scoring',
+          propStat: 'player_kills_esports'
+        },
+        {
+          pickId: 'esports-2',
+          gameId: 'game-t1-geng',
+          teams: 'T1 vs GenG',
+          betType: 'player_assists_esports',
+          line: 'Oner O8.5 Assists',
+          odds: -120,
+          sport: 'esports_lol',
+          playerTeam: 'T1',
+          playerId: 'oner-1',
+          propCategory: 'playmaking',
+          propStat: 'player_assists_esports'
+        },
+      ]
+      const result = validateParlayLegs(esportsSgpLegs, 'same_game')
+      expect(result.isValid).toBe(true)
+      expect(result.detectedType).toBe('sgp')
+      expect(result.warnings.some(w => w.includes('Esports Kills ↔ Assists'))).toBe(true)
+      expect(result.warnings.some(w => w.includes('Kills ↔ Assists (same team snowball)'))).toBe(true)
+    })
+
+    test('validates cricket SGP with correlations', () => {
+      const cricketSgpLegs: ParlayLeg[] = [
+        {
+          pickId: 'cricket-1',
+          gameId: 'game-mi-csk',
+          teams: 'MI vs CSK',
+          betType: 'player_batting_runs',
+          line: 'Rohit O25.5 Runs',
+          odds: -110,
+          sport: 'cricket_ipl',
+        },
+        {
+          pickId: 'cricket-2',
+          gameId: 'game-mi-csk',
+          teams: 'MI vs CSK',
+          betType: 'player_to_score_fifty',
+          line: 'Rohit 50+ Runs',
+          odds: +250,
+          sport: 'cricket_ipl',
+        },
+      ]
+      const result = validateParlayLegs(cricketSgpLegs, 'same_game')
+      expect(result.isValid).toBe(true)
+      expect(result.detectedType).toBe('sgp')
+      expect(result.warnings.some(w => w.includes('Cricket Runs ↔ 50+ Runs'))).toBe(true)
+    })
   })
 
   // ── Canonical Config Change Propagation ──
@@ -678,19 +779,19 @@ describe('Test Case 3: Non-Big 4 Sports Parlay Eligibility', () => {
     })
   })
 
-  // ── Jurisdictional/Prop Restrictions ──
-  describe('Jurisdictional & Prop Restrictions', () => {
-    test('NCAAB correctly identifies restricted player props', () => {
+  // ── Player Prop Support ──
+  describe('Player Prop Support', () => {
+    test('NCAAB supports player props (same structure as NBA)', () => {
       const ncaab = normalizeSportKey('NCAAB')
       const config = mapTiltLabSportToConfig('NCAAB')
 
       expect(ncaab).toBe('basketball_ncaab')
-      expect(config?.hasPlayerProps).toBe(false) // Most states restrict college props
+      expect(config?.hasPlayerProps).toBe(true) // Points, rebounds, assists, threes, combos
     })
 
-    test('CFL correctly identifies restricted player props', () => {
+    test('CFL supports player props (NFL-style)', () => {
       const config = mapTiltLabSportToConfig('CFL')
-      expect(config?.hasPlayerProps).toBe(false)
+      expect(config?.hasPlayerProps).toBe(true) // Pass/rush/rec yards, TDs, tackles, sacks
     })
 
     test('Esports Dota/Valorant support player props (kills, assists combos)', () => {

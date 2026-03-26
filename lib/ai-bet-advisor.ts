@@ -91,6 +91,12 @@ export interface BetScenario {
     odds: number
     aiWinProbability?: number
     sport?: string
+    playerName?: string
+    playerTeam?: string
+    propStat?: string
+    propLine?: number
+    propDirection?: 'over' | 'under'
+    selection?: string
   }>
   parlayType?: 'regular' | 'same_game'
 

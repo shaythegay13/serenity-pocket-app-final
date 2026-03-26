@@ -30,11 +30,107 @@ export interface EnhancedOddsResponse {
 // Mock data functions removed to ensure only real data is used
 
 /**
+ * TheSportsDB league IDs for major sports and cricket leagues
+ */
+const THESPORTSDB_LEAGUE_IDS: Record<string, string> = {
+  basketball_nba: '4387',
+  americanfootball_nfl: '4391',
+  icehockey_nhl: '4380',
+  baseball_mlb: '4424',
+  basketball_ncaab: '4479',
+  americanfootball_ncaaf: '4516',
+  mma_ufc: '4443',
+  boxing: '4503',
+  cricket_ipl: '4707',
+  cricket_mlc: '5401',
+  cricket_big_bash: '4920',
+  cricket_cpl: '4937',
+  cricket_the_hundred: '5090',
+  cricket_psl: '4817',
+  cricket_sa20: '5380',
+  cricket_icc_odi: '4729',
+  cricket_icc_t20: '4730',
+  cricket_test: '4728',
+  cricket_icc_world_cup: '4729',
+};
+
+/**
+ * Fetch from TheSportsDB (fixture data only — no real odds)
+ * Used as last-resort fallback when all odds APIs are unavailable.
+ * Games are returned with neutral placeholder odds (-110/-110) and
+ * oddsUnavailable: true so downstream callers can show a disclaimer.
+ */
+async function fetchFromTheSportsDB(sport?: string): Promise<EnhancedOddsResponse> {
+  const API_BASE = (process.env.NEXT_PUBLIC_THESPORTSDB_BASE_URL || 'https://www.thesportsdb.com/api/v1/json').replace(/\/+$/, '');
+  const API_KEY = process.env.NEXT_PUBLIC_THESPORTSDB_API_KEY || '123';
+
+  const sportConfig = sport ? getSportById(sport) : null;
+  let sportKey = sport || 'basketball_nba';
+  if (sportConfig?.oddsApiSport && sportConfig?.oddsApiLeague) {
+    sportKey = sportConfig.oddsApiLeague.startsWith(sportConfig.oddsApiSport)
+      ? sportConfig.oddsApiLeague
+      : `${sportConfig.oddsApiSport}_${sportConfig.oddsApiLeague}`;
+  }
+
+  const leagueId = THESPORTSDB_LEAGUE_IDS[sportKey];
+  if (!leagueId) {
+    return { success: false, data: [], source: 'sportsdb', timestamp: new Date(), error: `No TheSportsDB league ID for sport: ${sportKey}` };
+  }
+
+  try {
+    const url = `${API_BASE}/${API_KEY}/eventsnextleague.php?id=${leagueId}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`TheSportsDB error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const events: any[] = data.events || [];
+
+    if (events.length === 0) {
+      return { success: false, data: [], source: 'sportsdb', timestamp: new Date(), error: 'No upcoming events found' };
+    }
+
+    const mappedGames = events.map((event: any) => {
+      const commenceTime = event.dateEvent && event.strTime
+        ? new Date(`${event.dateEvent}T${event.strTime}Z`).toISOString()
+        : event.dateEvent;
+
+      return {
+        id: event.idEvent,
+        sport: sportKey,
+        sportName: sport,
+        league: event.strLeague,
+        homeTeam: event.strHomeTeam,
+        awayTeam: event.strAwayTeam,
+        commenceTime,
+        // Neutral placeholder odds — no real odds available from TheSportsDB
+        homeOdds: { best: { odds: -110 }, average: -110, allBooks: [] },
+        awayOdds: { best: { odds: -110 }, average: -110, allBooks: [] },
+        oddsUnavailable: true,
+        lastUpdate: new Date(),
+        bookmakerCount: 0,
+      };
+    });
+
+    return { success: true, data: mappedGames, source: 'sportsdb', timestamp: new Date() };
+  } catch (error) {
+    return {
+      success: false,
+      data: [],
+      source: 'sportsdb',
+      timestamp: new Date(),
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * Fetch enhanced odds data with multiple sources
  */
 export async function fetchEnhancedLiveOdds(
   sport?: string,
-  strategy: OddsStrategy = 'auto'
+  _strategy: OddsStrategy = 'auto'
 ): Promise<EnhancedOddsResponse> {
   const sportConfig = sport ? getSportById(sport) : null;
   const sportName = sportConfig?.displayName || sport || 'all sports';
@@ -58,21 +154,56 @@ export async function fetchEnhancedLiveOdds(
       console.log(`⚠️ TheOddsAPI fallthrough: ${theOddsError}`);
     }
 
-    // Try RapidAPI as fallback
-    if (isRapidAPIConfigured()) {
-      console.log(`📊 Trying RapidAPI for ${sportName}`);
-      const rapidResult = await fetchFromRapidAPI(sport);
-      if (rapidResult.success && rapidResult.data.length > 0) {
-        console.log(`✅ RapidAPI returned ${rapidResult.data.length} games`);
-        return rapidResult;
-      }
-      rapidError = rapidResult.error || (rapidResult.success ? `0 games returned` : 'unknown error');
-      console.log(`⚠️ RapidAPI fallthrough: ${rapidError}`);
+    // RapidAPI + TheSportsDB run in parallel as a combined fallback:
+    // RapidAPI covers real betting odds; TheSportsDB covers fixture/schedule gaps.
+    // Merge: keep RapidAPI games (real odds) and add any TheSportsDB fixtures
+    // not already matched by team name (returned with placeholder odds).
+    console.log(`📊 Trying RapidAPI + TheSportsDB in parallel for ${sportName}`);
+    const [rapidResult, sportsDbResult] = await Promise.all([
+      isRapidAPIConfigured() ? fetchFromRapidAPI(sport) : Promise.resolve<EnhancedOddsResponse>({ success: false, data: [], source: 'rapidapi', timestamp: new Date(), error: 'Not configured' }),
+      fetchFromTheSportsDB(sport),
+    ]);
+
+    rapidError = rapidResult.success && rapidResult.data.length > 0 ? undefined : (rapidResult.error || (rapidResult.success ? '0 games returned' : 'unknown error'));
+    const sportsDbError = sportsDbResult.success && sportsDbResult.data.length > 0 ? undefined : (sportsDbResult.error || (sportsDbResult.success ? '0 events returned' : 'unknown error'));
+
+    if (rapidError) console.log(`⚠️ RapidAPI fallthrough: ${rapidError}`);
+    if (sportsDbError) console.log(`⚠️ TheSportsDB fallthrough: ${sportsDbError}`);
+
+    const rapidGames: any[] = rapidResult.success ? rapidResult.data : [];
+    const sportsDbGames: any[] = sportsDbResult.success ? sportsDbResult.data : [];
+
+    // Normalise a team name for loose matching (lowercase, strip punctuation)
+    const normalise = (name: string) => name.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+
+    // Build a set of team-pair keys already covered by RapidAPI
+    const coveredPairs = new Set(
+      rapidGames.map((g: any) => `${normalise(g.homeTeam ?? '')}|${normalise(g.awayTeam ?? '')}`)
+    );
+
+    // Add TheSportsDB fixtures whose matchup isn't already in RapidAPI
+    const extraFixtures = sportsDbGames.filter((g: any) => {
+      const key = `${normalise(g.homeTeam ?? '')}|${normalise(g.awayTeam ?? '')}`;
+      return !coveredPairs.has(key);
+    });
+
+    const mergedGames = [...rapidGames, ...extraFixtures];
+
+    if (mergedGames.length > 0) {
+      const hasRealOdds = rapidGames.length > 0;
+      console.log(`✅ Combined fallback: ${rapidGames.length} games with real odds + ${extraFixtures.length} schedule-only fixtures`);
+      return {
+        success: true,
+        data: mergedGames,
+        source: hasRealOdds ? 'combined' : 'sportsdb',
+        timestamp: new Date(),
+      };
     }
 
     const combinedError = [
       theOddsError ? `TheOddsAPI: ${theOddsError}` : null,
       rapidError ? `RapidAPI: ${rapidError}` : null,
+      sportsDbError ? `TheSportsDB: ${sportsDbError}` : null,
     ].filter(Boolean).join(' | ') || 'No real-time odds available for this sport at the moment.';
 
     console.log(`⚠️ No real API data available for ${sportName}: ${combinedError}`);

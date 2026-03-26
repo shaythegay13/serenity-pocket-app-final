@@ -2016,6 +2016,7 @@ export async function POST(request: NextRequest) {
       meta: {
         sport,
         oddsSource: oddsResult.source,
+        oddsUnavailable: oddsResult.source === 'sportsdb',
         usedSageMaker: false,
         psychModel: (psychResult as any).model_id,
         usedGemini: true,

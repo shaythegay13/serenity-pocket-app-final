@@ -33,12 +33,6 @@ const founders = [
     bio: "Diamond Mc Pherson is the Chief Marketing Officer of PlayMind Labs, leading the company's global brand strategy, digital engagement, and community growth across the evolving landscape of sports betting innovation. With nearly two decades of IT leadership and digital transformation experience, Diamond brings a unique, data-driven perspective to marketing—bridging technology, analytics, and creativity to amplify PlayMind's presence and purpose. Holding a Bachelor's degree in Computer/Information Technology Administration from the University of Hertfordshire, an Associate's degree in Operating Systems Management from COSTAATT, and a Postgraduate Certificate in Cloud Computing from the University of Texas at Austin, he leverages his AWS Certified Solutions Architect expertise to design scalable, insights-powered campaigns. Before joining PlayMind Labs, Diamond served as Regional Hyper Support Coordinator at the International Rescue Committee, where he led global initiatives that increased engagement and digital adoption across LATAM, Africa, and Europe. His deep understanding of user experience, systems thinking, and digital communication drives PlayMind Labs' mission to connect data, emotion, and decision-making at the intersection of AI and sports intelligence.",
     image: "/diamond.png"
   },
-  {
-    name: "Juan D. Petter",
-    title: "Chief Technology Officer",
-    bio: "Juan D. Petter is the CTO of PlayMind Labs, overseeing all technical strategy and driving the design and implementation of AI-driven platforms that fuse behavioral science with advanced analytics. His work empowers users to understand emotional patterns, optimize betting decisions, and gain actionable insights from complex data. With a focus on safe, reliable, and transparent AI systems, Juan ensures that PlayMind Labs' technology aligns with its mission of helping users win responsibly, leveraging data, discipline, and predictive modeling.",
-    image: "/juan.petter.png"
-  }
 ] as const
 
 export default function AboutPage() {

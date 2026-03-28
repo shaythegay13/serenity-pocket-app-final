@@ -35,3 +35,4 @@ ios/
 server.log
 *.csv
 user_profiles_rows.csv
+.gstack/

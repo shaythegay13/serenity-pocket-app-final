@@ -1,189 +1,150 @@
-# PlayMind Labs
+# Serenity Pocket
 
-*Decision Psychology Platform for Sports Bettors & Day Traders*
+Final public snapshot of **Serenity Pocket**, Shay Bouchles’s behavioral sports-betting web app. This is the last iteration kept in this repository before the product continued as **PlayMind Labs**.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/saved-by-the-plates-projects/v0-serenity-pocket-app)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/BiWkTzA027R)
-[![Mobile Ready](https://img.shields.io/badge/Mobile-iOS%20%26%20Android-blue?style=for-the-badge&logo=apple)](./MOBILE_DEPLOYMENT.md)
+**Serenity Pocket is not live.** Nothing in this repository is a running production service. You can install and build the app locally. Sign-in, saved data, live odds, Gemini analysis, and paid subscriptions need the external accounts described under [Setup](#setup).
 
-## Overview
+The interface in this tree already uses the PlayMind Labs name. `package.json` is named `playmind-labs`. The About page, metadata, and pricing copy say PlayMind Labs. Local storage keys and several SQL comments still say Serenity.
 
-PlayMind Labs helps sports bettors and day traders make smarter decisions by managing the psychological risks and emotional costs of their financial pursuits. Our platform combines emotional tracking, cognitive bias identification, and mindfulness techniques to build discipline and reduce emotionally-driven losses.
+## Place in the history
 
-### Who Is This For?
+| When | What the repository records |
+| --- | --- |
+| October 25, 2025 | Repository initialized as “Serenity Pocket app”. The first commit is from v0. |
+| October 2025 – February 2026 | Supabase auth and storage, surveys, emotion check-ins, bet analysis, and subscription work land on this codebase. |
+| February 8, 2026 | Commit `e644059` renames the product in the site from Serenity Pocket to PlayMind Labs. |
+| March 28, 2026 | Last commit in this snapshot. |
 
-- **Sports Bettors**: Manage tilt, avoid revenge betting, and make disciplined wagers
-- **Day Traders**: Control FOMO, reduce impulsive trades, and build consistent strategies
-- **Both**: Anyone making fast-paced financial decisions under pressure
+PlayMind Labs is the name the product carried out of this repository. This tree is the archive of that handoff, kept as a portfolio record of the Serenity Pocket work. Later PlayMind Labs development is not in this repo.
 
-### Key Features
+## What this snapshot does
 
-- **Serenity Survey**: Personalized onboarding to understand your goals and challenges
-- **Daily Emotion Check-Ins**: Track emotional states before making decisions
-- **Cognitive Bias Detection**: Identify patterns like confirmation bias, loss aversion, and overconfidence
-- **Decision Journal**: Pre and post-decision reflection tools
-- **Mindfulness Exercises**: Breathing techniques and meditation timers
-- **Progress Analytics**: Visualize emotional patterns and their correlation with outcomes
-- **Gamification**: Level up, earn achievements, and build streaks for consistent practice
+The signed-in product is a sports-betting companion. It tracks how the bettor feels, compares that with bets they log, and offers odds-based analysis. It is aimed at sports bettors. Early types and the database notes still use the word “trade”; the screens in this snapshot are betting screens.
 
-### Platform Support
+Verified from the code in this tree:
 
-- **Web App**: Deployed on Vercel and synced with [v0.app](https://v0.app)
-- **iOS**: Native app for iPhone and iPad (App Store ready)
-- **Android**: Native app for phones and tablets (Google Play ready)
-- **Cross-Platform**: Single codebase powered by Capacitor
+- **Public site.** `/` renders the landing page. Marketing and policy pages include `/about`, `/features`, `/how-it-works`, `/pricing`, `/faq`, `/contact`, `/privacy`, `/terms`, and `/responsible-use`.
+- **Serenity Survey.** `/serenity` is a 12-question assessment that returns a betting archetype and a risk profile. `/pgsi` redirects there. The PGSI page states that hybrid scoring can infer a PGSI risk level inside the Serenity Survey. `/gambling-survey` redirects to `/survey`.
+- **Public emotion check-in.** `/check-in` and `POST /api/public/emotion-checkin` accept a check-in without an account.
+- **Accounts.** Email and password sign-up and sign-in go through Supabase Auth (`/login`, `/auth/callback`, `/auth/reset-password`). Authenticated data is stored with the hybrid storage layer. The same layer keeps a `localStorage` cache under `serenity_*` keys.
+- **Home.** `/home` is the signed-in shell. Navigation is Home, My Mind (`/behavior`), BetLab, Analytics, and Account. The first visit to Home in a browser session opens an emotion check-in.
+- **My Mind.** The behavior route renders the emotions tab: core emotions, sub-emotions, intensity, and notes, saved as emotion logs.
+- **BetLab.** `/betlab`, `/betlab/smartslip`, and `/betlab/tiltlab` load the AI picks experience. Free-tier accounts see a premium wall. Paid tiers get SmartSlip suggestions and TiltLab-style analysis of the bettor’s own bets, including parlays. Odds are assembled in `lib/enhanced-odds-api.ts` from The Odds API, a RapidAPI sportsbook source, and TheSportsDB. Sport keys in `lib/sports-config.ts` cover major US leagues plus soccer, tennis, golf, combat sports, motorsport, and cricket.
+- **Analysis APIs.** `POST /api/ai/analyze-bet` always runs a built-in analysis and calls Gemini when `GOOGLE_GEMINI_API_KEY` is set. `POST /api/analyze-bet` returns HTTP 503 when Gemini is not configured. Both bet-analysis and picker routes call `psych_model_picker.py` with `execFile`. If that process fails, the picker route substitutes a default model payload.
+- **Marketplace.** `/marketplace` and `/betlab/marketplace` list products that grant AI picker and bet-analyzer credits. Purchase goes through `/api/marketplace/purchase` and Flowglad when Flowglad is configured.
+- **Analytics.** `/analytics/performance`, `/analytics/correlation`, and `/analytics/mentalhealth` show performance, emotion-to-outcome correlation, and mental-health views. Access requires the Focus tier or higher (`canAccessFeature` in `lib/subscription-tiers.ts`).
+- **Subscriptions.** Tiers in code are Foundation (`free`, $0), Focus (`premium`, $19.99/month, 7-day trial), Mastery (`premium_plus`, $39.99/month), and Apex (`elite`, $79.99/month). Flowglad handles checkout, the billing portal, cancel, downgrade, and webhooks. The landing page offers 100 founding Apex spots; `GET /api/stats/founding-spots` counts `user_profiles` rows with `subscription_tier = elite` against that cap.
+- **Safety controls present in the UI.** Account settings include a cooldown switch. SmartSlip reads `cooldownEnabled` before generating picks. `/responsible-use` is a public page. `DELETE` support for a user’s data lives at `/api/user/delete`.
+- **Scheduled routes.** `vercel.json` registers three cron paths: weekly usage reset, a daily revenue check, and a weekly sport-season update. They run only on a host that honors that file.
 
-## Deployment
+A `BiasesTab` component and bias-profile storage exist. The signed-in navigation does not mount that tab.
 
-Your project is live at:
+`/demo` is a placeholder page. It does not launch a product tour.
 
-**[https://vercel.com/saved-by-the-plates-projects/v0-serenity-pocket-app](https://vercel.com/saved-by-the-plates-projects/v0-serenity-pocket-app)**
+`capacitor.config.ts` names an iOS/Android app id and `next.config.mjs` can emit a static export when `BUILD_MODE=mobile`. This `package.json` has no Capacitor sync scripts, and the `android/` and `ios/` projects are not in the tree.
 
-## Build your app
+## Stack
 
-Continue building your app on:
+Verified from `package.json` and the imports those libraries actually have:
 
-**[https://v0.app/chat/projects/BiWkTzA027R](https://v0.app/chat/projects/BiWkTzA027R)**
+- **App:** Next.js 16.1 (App Router), React 19, TypeScript
+- **UI:** Tailwind CSS 4, Radix UI, shadcn/ui (`components.json`, style `new-york`), Lucide icons, Recharts
+- **Auth and data:** Supabase (`@supabase/supabase-js`, `@supabase/ssr`)
+- **Billing:** Flowglad (`@flowglad/nextjs`)
+- **AI:** Google Gemini from `lib/gemini.ts` and `lib/ai-service.ts`
+- **Email alerts:** Nodemailer
+- **Analytics beacon:** Vercel Web Analytics in the root layout
+- **Tests:** Jest and Testing Library
+- **Python helper:** `psych_model_picker.py` at the repo root, invoked by the Node API routes above
 
-## User Flow
+`@capacitor/cli` is a dev dependency. `better-auth`, `socket.io-client`, and `zustand` are listed in `package.json` and are not imported by the application source.
 
-1. **Serenity Survey**: Complete a brief questionnaire about your betting/trading habits and emotional challenges
-2. **Account Creation**: Set up your secure account with email and password
-3. **Terms Agreement**: Review and accept platform terms and privacy policy
-4. **Dashboard Access**: Start using the free tier immediately with all essential features
-5. **Upgrade Later**: Access premium tiers when they launch (Q2 2025)
+## Architecture
 
-## How It Works
-
-### Web Development
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
-
-### Mobile Development
-
-Build native iOS and Android apps from this codebase:
-
-**Quick Start:**
-```bash
-# Install dependencies
-npm install --legacy-peer-deps
-
-# Build for mobile
-npm run build:mobile
-
-# Add platforms
-npm run cap:add:ios      # macOS with Xcode required
-npm run cap:add:android  # Android Studio required
-
-# Open in native IDE
-npm run cap:open:ios
-npm run cap:open:android
+```text
+app/                  App Router pages and route handlers
+  api/                Odds-backed picks, surveys, Flowglad, cron, account deletion
+  home, behavior,     Signed-in surfaces
+  betlab, analytics
+components/           Landing page, dashboard chrome, tabs, auth, charts
+contexts/             Supabase session (AuthContext) and flow state
+features/             Serenity survey, TiltLab, and flow-state controllers
+lib/                  Supabase clients, hybrid storage, odds, tiers, Gemini
+services/             Expected-value and probability helpers
+supabase/migrations/  SQL migrations, including supabase-schema.sql
+migrations/           Later SQL for subscriptions, parlays, marketplace, usage
+psych_model_picker.py Model-selection helper called from the API
+vercel.json           Cron schedules for the three routes under app/api/cron
 ```
 
-**Documentation:**
-- 📱 [Quick Start Guide](./MOBILE_QUICK_START.md) - Get started in 5 minutes
-- 📚 [Complete Deployment Guide](./MOBILE_DEPLOYMENT.md) - Full App Store submission guide
-- 🎨 [App Resources Guide](./resources/README.md) - Icons and splash screens
+```text
+Browser
+  │
+  ├─ Public pages and /serenity, /check-in
+  │
+  └─ Supabase Auth session
+        │
+        ▼
+     /home shell
+        ├─ emotions  → storageHybrid → Supabase, with serenity_* localStorage
+        ├─ BetLab    → /api/picker/recommend and /api/ai/analyze-bet
+        │                 ├─ enhanced odds (The Odds API, RapidAPI, TheSportsDB)
+        │                 ├─ Gemini when GOOGLE_GEMINI_API_KEY is set
+        │                 └─ python psych_model_picker.py
+        ├─ Analytics → emotion logs, bet analyses, parlays
+        └─ Account   → tier, cooldown, Flowglad portal
+```
 
-## Getting Started
+Row Level Security is declared in the SQL migrations. Server routes that must bypass it use `SUPABASE_SERVICE_ROLE_KEY` (`lib/supabaseAdmin.ts` and the routes that import it).
 
-### Web App Development
+## Setup
+
+Verified with Node.js 22 and npm 10: `npm ci` completes, `npm run build` completes, and `npm test` passes (154 tests).
 
 ```bash
-# Install dependencies
-npm install
-
-# Run development server
+npm ci
+cp .env.example .env.local
 npm run dev
-
-# Build for production
-npm run build
 ```
 
-### Mobile App Development
+The dev server is Next.js (`next dev`). Production build and serve:
 
-See [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) for detailed instructions.
+```bash
+npm run build
+npm start
+```
 
-## Environment Setup
+Tests:
 
-1. Copy the environment template:
-   ```bash
-   cp ENV_TEMPLATE.txt .env.local
-   ```
+```bash
+npm test
+```
 
-2. Configure your Supabase credentials in `.env.local`
+Create a Supabase project and put its URL and anon key in `.env.local`. Add the service-role key before using server routes that write profiles, count founding spots, or send Flowglad webhooks. SQL for the tables lives in two places:
 
-3. See [DATABASE_SETUP.md](./DATABASE_SETUP.md) for database configuration
+- `supabase/migrations/` — base schema and later survey, profile, and season migrations. The schema file referenced by the older database guide is `supabase/migrations/supabase-schema.sql`.
+- `migrations/` — subscriptions, bet analyses, parlays, marketplace, and AI usage.
 
-## Documentation
+Apply the SQL in the Supabase SQL editor. `docs/DATABASE_SETUP.md` and `docs/AUTH_SETUP.md` still describe the earlier Serenity Pocket setup and mention table names from that pass. Prefer the SQL files over those guides when they disagree.
 
-- [DATABASE_SETUP.md](./DATABASE_SETUP.md) - Supabase database setup
-- [AUTH_SETUP.md](./AUTH_SETUP.md) - Authentication configuration
-- [MOBILE_DEPLOYMENT.md](./MOBILE_DEPLOYMENT.md) - Mobile app deployment
-- [MOBILE_QUICK_START.md](./MOBILE_QUICK_START.md) - Quick mobile setup
+Leave Gemini, odds, Flowglad, weather, and email blank if you only need the UI to boot. Those features stay inactive or return the errors described above until the matching variables are set. Variable names are listed in `.env.example`.
 
-## Architecture & Extension
+## Contributors
 
-### Stack
+From this repository’s git history:
 
-- Next.js 16 (app router), React 19, TypeScript, Tailwind v4, Radix UI
-- Supabase (auth, DB), Flowglad (subscriptions), Capacitor (mobile)
+- **Shay Bouchles** — product and engineering. Commits are also recorded as `shaybouchles`, `shaythegay13`, and `boks`.
+- **petter2025us** — allowed anonymous survey responses to store a null email, and removed an unused ESLint directive.
+- **GitHub Copilot** (`Copilot`, `copilot-swe-agent`) — Flowglad billing, account subscription controls, and SEO pull requests.
+- **v0** — initialized the repository and an early mobile-layout commit.
+- **Vercel** — added Vercel Web Analytics.
 
-### Frontend structure
+The About page also names Sergio Monterroso and Diamond Mc Pherson as founders. They do not have commits in this history.
 
-- App routes: dashboard and marketing pages under `app/`
-- Core tabs in `components/tabs/*`: home, live-odds, analyze-bet, behavior, ai-picks, history, account
-- Onboarding: `components/onboarding/*` (Instant Profile, Profile Preview, Soft Gate)
-- Survey flow with A/B: `components/integrated-survey-flow/*` and `lib/abTesting`
+## Archive notes
 
-### Tiering & Feature Gates
-
-- Tier model and helpers: `lib/subscription-tiers.ts` (`canAccessFeature`, `getUpgradeMessage`)
-- UI gate overlay: `components/feature-gate.tsx`
-- Tiers: `free`, `premium`, `premium_plus`, `elite`
-
-### Behavioral Safeguards
-
-- User settings (e.g., `cooldownEnabled`) and derived stability guard used to limit actions
-- Guards and banners applied across Live Odds, Analyze Bet, AI Picks, and Home quick actions
-
-### APIs
-
-- Live Odds: `app/api/odds/route.ts` → `lib/odds-api.ts`
-- Analyze Bet: `app/api/analyze-bet/route.ts` (uses OpenAI when configured, falls back to mock)
-- AI Picks: `app/api/ai-picks/route.ts` (uses OpenAI when configured, falls back to mock)
-- Surveys: `app/api/gambling-survey*` (A/B variants), with services under `lib/`
-
-### Environment
-
-- Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- A/B testing: `NEXT_PUBLIC_SURVEY_AB_TEST_ENABLED`, `NEXT_PUBLIC_SURVEY_B_PERCENTAGE`
-- Odds API: `NEXT_PUBLIC_ODDS_API_KEY` (The Odds API)
-- Place real keys in `.env.local`
-
-### Payment Processing: Flowglad
-
-**Payment Processor**: The subscription system uses **Flowglad** for payment processing (migrated from Stripe on 2024-01-08).
-
-**Development Mode:**
-- Flowglad checkout automatically falls back to test mode if credentials aren't configured
-- Users can subscribe to any tier without payment for local development
-- Subscriptions are set to "active" status with a 1-month duration
-
-**Setup Instructions:**
-- See [FLOWGLAD_MIGRATION_GUIDE.md](FLOWGLAD_MIGRATION_GUIDE.md) for complete setup
-- Configure environment variables in `.env.local` (see ENV_FLOWGLAD_TEMPLATE.txt)
-- Run database migration: `/migrations/20240108_migrate_to_flowglad.sql`
-
-**Migration Documentation:**
-- [FLOWGLAD_MIGRATION_GUIDE.md](FLOWGLAD_MIGRATION_GUIDE.md) - Complete setup guide
-- [STRIPE_TO_FLOWGLAD_SUMMARY.md](STRIPE_TO_FLOWGLAD_SUMMARY.md) - Migration summary
-- [ENV_FLOWGLAD_TEMPLATE.txt](ENV_FLOWGLAD_TEMPLATE.txt) - Environment variables
-
-### Mobile
-
-- Capacitor build scripts in `package.json` and guides under docs
-- Run `npm run build:mobile` and sync/open with the provided commands
+- This snapshot is for reading and local builds. It is not a deployed Serenity Pocket site.
+- There is no root license file.
+- `docs/` mixes current notes with older Serenity Pocket instructions. Treat the code as the source of truth.
+- `aws/` is a vendored AWS CLI v2 bundle. It is not imported by the Next.js app.
+- `npm audit` reports dependency advisories. They were not changed in the portfolio README update.
